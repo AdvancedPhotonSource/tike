@@ -46,11 +46,46 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-__version__ = '0.2.0'
-
-from tike.tomo import *
-from tike.scan import *
-from tike.view import *
+import os.path
+import ctypes
+import glob
+from tike import utils
 import logging
 
-logging.getLogger(__name__).addHandler(logging.NullHandler())
+
+__author__ = "Doga Gursoy"
+__copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
+__docformat__ = 'restructuredtext en'
+__all__ = ['c_shared_lib',
+           'c_art',
+           'c_project']
+
+
+logger = logging.getLogger(__name__)
+
+# Import shared library.
+LIBTIKE = ctypes.CDLL('tike/libtike.cpython-36m-darwin.so')
+
+
+def c_art(data, x, y, theta, recon):
+    LIBTIKE.art.restype = utils.as_c_void_p()
+    return LIBTIKE.art(
+            utils.as_c_float_p(data),
+            utils.as_c_float_p(x),
+            utils.as_c_float_p(y),
+            utils.as_c_float_p(theta),
+            utils.as_c_float_p(recon))
+
+
+def c_project(obj, ox, oy, oz, x, y, theta, dsize, data):
+    LIBTIKE.project.restype = utils.as_c_void_p()
+    return LIBTIKE.project(
+            utils.as_c_float_p(obj),
+            utils.as_c_int(ox),
+            utils.as_c_int(oy),
+            utils.as_c_int(oz),
+            utils.as_c_float_p(x),
+            utils.as_c_float_p(y),
+            utils.as_c_float_p(theta),
+            utils.as_c_int(dsize),
+            utils.as_c_float_p(data))

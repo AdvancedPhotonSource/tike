@@ -46,11 +46,126 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-__version__ = '0.2.0'
+"""
+Module for 3D scanning.
+"""
 
-from tike.tomo import *
-from tike.scan import *
-from tike.view import *
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+
+import numpy as np
 import logging
 
-logging.getLogger(__name__).addHandler(logging.NullHandler())
+
+__author__ = "Doga Gursoy"
+__copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
+__docformat__ = 'restructuredtext en'
+__all__ = ['scantime',
+           'sinusoid',
+           'triangle',
+           'sawtooth',
+           'square',
+           'staircase',
+           'lissajous',
+           'raster',
+           'spiral',
+           'scan3',
+           'avgspeed',
+           'lengths',
+           'distance']
+
+
+logger = logging.getLogger(__name__)
+
+
+def f2w(f):
+    return 2*np.pi*f
+
+
+def period(f):
+    return 1 / f
+
+
+def exposure(hz):
+    return 1 / hz
+
+
+def scantime(t, hz):
+    return np.linspace(0, t, t*hz)
+
+
+def sinusoid(A, f, p, t, hz):
+    w = f2w(f)    
+    p = np.mod(p, 2*np.pi)
+    return A * np.sin(w*t - p)
+
+
+def triangle(A, f, p, t, hz):
+    a = 0.5 * period(f)
+    ts = t - p/(2*np.pi)/f
+    q = np.floor(ts/a + 0.5)
+    return A * (2/a * (ts - a*q) * np.power(-1, q))
+
+
+def sawtooth(A, f, p, t, hz):
+    a = 0.5 * period(f)
+    ts = t - p/(2*np.pi)/f
+    q = np.floor(ts/a + 0.5)
+    return A * (2 * (ts/a - q))
+
+
+def square(A, f, p, t, hz):
+    ts = t - p/(2*np.pi)/f
+    return A * (np.power(-1, np.floor(2*f*ts)))
+
+
+def staircase(A, f, p, t, hz):
+    ts = t - p/(2*np.pi)/f
+    return A/f/2 * np.floor(2*f*ts) - A
+
+
+def lissajous(A, B, fx, fy, px, py, time, hz):
+    t = scantime(time, hz)
+    x = sinusoid(A, fx, px, t, hz)
+    y = sinusoid(B, fy, py, t, hz)
+    return x, y, t
+
+
+def raster(A, B, fx, fy, px, py, time, hz):
+    t = scantime(time, hz)
+    x = triangle(A, fx, px, t, hz)
+    y = staircase(B, fy, py, t, hz)
+    return x, y, t
+
+
+def spiral(A, B, fx, fy, px, py, time, hz):
+    t = scantime(time, hz)
+    x = sawtooth(A, 0.5*fx, px, t, hz)
+    y = sawtooth(B, 0.5*fy, py, t, hz)
+    return x, y, t
+
+
+def scan3(A, B, fx, fy, fz, px, py, time, hz):
+    x, y, t = lissajous(A, B, fx, fy, px, py, time, hz)
+    z = sawtooth(np.pi, 0.5*fz, 0.5*np.pi, t, hz)
+    return x, y, z, t
+
+
+def avgspeed(time, x, y=None, z=None):
+    return distance(x, y, z) / time
+
+
+def lengths(x, y=None, z=None):
+    if y is None:
+        y = np.zeros(x.shape)
+    if z is None:
+        z = np.zeros(x.shape)
+    a = np.diff(x)
+    b = np.diff(y)
+    c = np.diff(z)
+    return np.sqrt(a*a + b*b + c*c)
+
+
+def distance(x, y=None, z=None):
+    d = lengths(x, y, z)
+    return np.sum(d)

@@ -8,8 +8,10 @@ The aim of Tike is to provide fast and accurate implementations of a wide variet
 
 Features
 ========
+- Simulation of scanning geometries
 - 3D object reconstruction from ptychography data
 - Algorithms for imaging thick objects
+
 
 License
 =======

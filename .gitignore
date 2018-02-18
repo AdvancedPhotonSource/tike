@@ -99,3 +99,15 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# Test files
+tmp
+scripts
+test.py
+main.py
+*.ipynb
+trunk
+
+# OS generated files
+core
+.DS_Store

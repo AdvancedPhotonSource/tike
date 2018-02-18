@@ -1,15 +1,30 @@
-.. Tike documentation master file, created by
-   sphinx-quickstart on Tue Sep 12 16:06:17 2017.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+Tike
+####
 
-Welcome to Tike's documentation!
-================================
+Tike is a toolbox for tomographic reconstruction of 3D objects from ptychography data. 
+
+The aim of Tike is to provide fast and accurate implementations of a wide variety of reconstruction algorithms, and to provide a common platform for the synchrotron research community.
+
+
+Features
+========
+- Simulation of scanning geometries
+- 3D object reconstruction from ptychography data
+- Algorithms for imaging thick objects
+
+
+License
+=======
+The software is licensed under the BSD-3 license.
+
+
+Table of Contents
+=================
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
-
+   :maxdepth: 1
+   
+   api
 
 
 Indices and tables
