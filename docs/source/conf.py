@@ -192,7 +192,7 @@ texinfo_documents = [
   'Miscellaneous'),
 ]
 
-# autodoc_mock_imports = ['tike.utils', 'tike.externs']
+autodoc_mock_imports = ['numpy', 'matplotlib']
 
 class Mock(object):
     def __init__(self, *args):
