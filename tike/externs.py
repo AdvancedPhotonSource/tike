@@ -49,7 +49,7 @@
 import os.path
 import ctypes
 import glob
-from tike import utils
+from . import utils
 import logging
 
 

@@ -47,8 +47,8 @@
 # #########################################################################
 
 import numpy as np
-from tike import utils
-from tike import externs
+from . import utils
+from . import externs
 import logging
 
 
