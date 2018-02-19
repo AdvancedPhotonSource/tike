@@ -33,6 +33,17 @@ project(
     int dsize, 
     float *data);
 
+void
+coverage(
+    int ox,
+    int oy,
+    int oz, 
+    const float *x,
+    const float *y,
+    const float *theta,
+    int dsize, 
+    float *cov);
+
 
 // Utility functions for data simultation
 
@@ -83,6 +94,17 @@ calc_dist(
     const float *coorx, const float *coory,
     int *indi, 
     float *dist);
+
+
+void
+calc_coverage(
+    int ry, 
+    int rz, 
+    int csize,
+    float slice, 
+    const int *indi, 
+    const float *dist,
+    float *data);
 
 
 void

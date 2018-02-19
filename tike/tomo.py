@@ -56,10 +56,23 @@ __author__ = "Doga Gursoy"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = ['art',
-           'project']
+           'project',
+           'coverage']
 
 
 logger = logging.getLogger(__name__)
+
+
+def coverage(obj, x, y, theta):
+    obj = utils.as_float32(obj)
+    x = utils.as_float32(x)
+    y = utils.as_float32(y)
+    theta = utils.as_float32(theta)
+    ox, oy, oz = obj.shape
+    dsize = theta.size
+    cov = np.zeros(obj.shape, dtype=np.float32)
+    externs.c_coverage(ox, oy, oz, x, y, theta, dsize, cov)
+    return cov
 
 
 def project(obj, x, y, theta):

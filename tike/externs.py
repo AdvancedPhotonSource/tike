@@ -58,7 +58,8 @@ __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = ['c_shared_lib',
            'c_art',
-           'c_project']
+           'c_project',
+           'c_coverage']
 
 
 logger = logging.getLogger(__name__)
@@ -89,3 +90,16 @@ def c_project(obj, ox, oy, oz, x, y, theta, dsize, data):
             utils.as_c_float_p(theta),
             utils.as_c_int(dsize),
             utils.as_c_float_p(data))
+
+
+def c_coverage(ox, oy, oz, x, y, theta, dsize, cov):
+    LIBTIKE.coverage.restype = utils.as_c_void_p()
+    return LIBTIKE.coverage(
+            utils.as_c_int(ox),
+            utils.as_c_int(oy),
+            utils.as_c_int(oz),
+            utils.as_c_float_p(x),
+            utils.as_c_float_p(y),
+            utils.as_c_float_p(theta),
+            utils.as_c_int(dsize),
+            utils.as_c_float_p(cov))

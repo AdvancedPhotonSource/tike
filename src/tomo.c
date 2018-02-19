@@ -11,6 +11,7 @@ art(
     printf("Hey!\n");
 }
 
+
 void 
 project(
     const float *obj, 
@@ -103,6 +104,115 @@ project(
         calc_simdata(obj, ox, oz,
             csize, zi, indi, dist, ray,
             data); // Output: simulated data
+    }
+
+    free(gridx);
+    free(gridy);
+    free(coordx);
+    free(coordy);
+    free(ax);
+    free(ay);
+    free(bx);
+    free(by);
+    free(coorx);
+    free(coory);
+    free(dist);
+    free(indi);
+}
+
+
+void 
+coverage(
+    int ox,
+    int oy,
+    int oz, 
+    const float *x, 
+    const float *y,
+    const float *theta,
+    int dsize,
+    float *cov)
+{
+    printf("Hey!\n");
+
+    // Initialize the grid on object space.
+    float *gridx = (float *)malloc((ox+1)*sizeof(float));
+    float *gridy = (float *)malloc((oz+1)*sizeof(float));
+
+    // Initialize intermediate vectors.
+    float *coordx = (float *)malloc((oz+1)*sizeof(float));
+    float *coordy = (float *)malloc((ox+1)*sizeof(float));
+    float *ax = (float *)malloc((ox+oz+2)*sizeof(float));
+    float *ay = (float *)malloc((ox+oz+2)*sizeof(float));
+    float *bx = (float *)malloc((ox+oz+2)*sizeof(float));
+    float *by = (float *)malloc((ox+oz+2)*sizeof(float));
+    float *coorx = (float *)malloc((ox+oz+2)*sizeof(float));
+    float *coory = (float *)malloc((ox+oz+2)*sizeof(float));
+
+    // Initialize the distance vector per ray.
+    float *dist = (float *)malloc((ox+oz+1)*sizeof(float));
+
+    // Initialize the index of the grid that the ray passes through.
+    int *indi = (int *)malloc((ox+oz+1)*sizeof(int));
+
+    // Diagnostics for pointers.
+    assert(coordx != NULL && coordy != NULL &&
+        ax != NULL && ay != NULL && by != NULL && bx != NULL &&
+        coorx != NULL && coory != NULL && 
+        dist != NULL && indi != NULL);
+
+    int ray;
+    int quadrant;
+    int xi, yi, zi;
+    float theta_p, sin_p, cos_p;
+    int asize, bsize, csize;
+
+    preprocessing(ox, oz,  
+        gridx, gridy); // Outputs: gridx, gridy
+
+    // For each data point
+    for (ray=0; ray<dsize; ray++)
+    {
+        // Calculate the sin and cos values 
+        // of the projection angle and find
+        // at which quadrant on the cartesian grid.
+        theta_p = fmod(theta[ray], 2*M_PI);
+        quadrant = calc_quadrant(theta_p);
+        sin_p = sinf(theta_p);
+        cos_p = cosf(theta_p);
+
+        xi = -ox-oz;
+        yi = x[ray]+1e-6;
+        zi = y[ray];
+        printf("ray=%d, xi=%d, yi=%d, zi=%d\n", ray, xi, yi, zi);
+
+        calc_coords(
+            ox, oz, xi, yi, sin_p, cos_p, gridx, gridy, 
+            coordx, coordy);
+
+        // Merge the (coordx, gridy) and (gridx, coordy)
+        trim_coords(
+            ox, oz, coordx, coordy, gridx, gridy, 
+            &asize, ax, ay, &bsize, bx, by);
+
+        // Sort the array of intersection points (ax, ay) and
+        // (bx, by). The new sorted intersection points are 
+        // stored in (coorx, coory). Total number of points 
+        // are csize.
+        sort_intersections(
+            quadrant, asize, ax, ay, bsize, bx, by, 
+            &csize, coorx, coory);
+
+        // Calculate the distances (dist) between the 
+        // intersection points (coorx, coory). Find the 
+        // indices of the pixels on the object grid.
+        calc_dist(
+            ox, oz, csize, coorx, coory, 
+            indi, dist);
+
+        // Calculate simdata 
+        calc_coverage(ox, oz,
+            csize, zi, indi, dist,
+            cov); // Output: simulated coverage
     }
 
     free(gridx);
@@ -301,6 +411,25 @@ calc_dist(
         indx = i1-(i1>x1);
         indy = i2-(i2>x2);
         indi[n] = indy+(indx*rz);
+    }
+}
+
+
+void 
+calc_coverage(
+    int ry, 
+    int rz, 
+    int csize,
+    float slice, 
+    const int *indi, 
+    const float *dist,
+    float *cov)
+{
+    int n;
+    int iobj = floor(slice)*ry*rz;
+    for (n=0; n<csize-1; n++) 
+    {
+        cov[indi[n]+iobj] += dist[n];
     }
 }
 
