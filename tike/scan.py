@@ -95,12 +95,14 @@ def scantime(t, hz):
 
 
 def sinusoid(A, f, p, t, hz):
-    w = f2w(f)    
+    """Continuous"""
+    w = f2w(f)
     p = np.mod(p, 2*np.pi)
     return A * np.sin(w*t - p)
 
 
 def triangle(A, f, p, t, hz):
+    """Continuous"""
     a = 0.5 * period(f)
     ts = t - p/(2*np.pi)/f
     q = np.floor(ts/a + 0.5)
@@ -108,6 +110,7 @@ def triangle(A, f, p, t, hz):
 
 
 def sawtooth(A, f, p, t, hz):
+    """Discontinuous"""
     a = 0.5 * period(f)
     ts = t - p/(2*np.pi)/f
     q = np.floor(ts/a + 0.5)
@@ -115,11 +118,13 @@ def sawtooth(A, f, p, t, hz):
 
 
 def square(A, f, p, t, hz):
+    """Discontinuous"""
     ts = t - p/(2*np.pi)/f
     return A * (np.power(-1, np.floor(2*f*ts)))
 
 
 def staircase(A, f, p, t, hz):
+    """Discontinuous"""
     ts = t - p/(2*np.pi)/f
     return A/f/2 * np.floor(2*f*ts) - A
 
@@ -169,3 +174,88 @@ def lengths(x, y=None, z=None):
 def distance(x, y=None, z=None):
     d = lengths(x, y, z)
     return np.sum(d)
+
+
+def norm(a):
+    """Return the L2 norm of each row"""
+    return np.sqrt(np.einsum('ij,ij->i', a, a))
+
+
+def discrete_trajectory(trajectory, tmin, tmax, dx, dt, max_iter=16):
+    """Compute positions along the `trajectory` between `tmin` and `tmax` such
+    that space between measurements is never more than `dx` and the time
+    between measurements is never more than `dt`.
+
+    Parameters
+    ----------
+    trajectory : function(time) -> [[x, y, z], [x, y, z]]
+        A *continuous* function taking one input and returns a (2, N) vector
+        describing the end points of a line segment.
+    tmin, tmax : float
+        The start and end times.
+    dx : float
+        The maximum spatial step size.
+    dt : float
+        The maximum time step size.
+    max_iter : int
+        The number of attempts to allowed to find a step less than
+        `dx` and `dt`.
+
+    Returns
+    -------
+    position : list of (2 * N) vectors [m]
+        Discrete measurement positions along the trajectory satisfying
+        constraints.
+    dwell : list of float [s]
+        The time spent at each position before moving to the next measurement.
+    time : list of float [s]
+        Discrete times along trajectory satisfying constraints.
+
+    Implementation
+    --------------
+    Keeping time steps below `dt` for 'trajectory(time)' is trivial, but
+    keeping displacement steps below `dx` is not. We use the following
+    assumption and proof to ensure that any the probe does not move more than
+    `dx` within the area of interest.
+
+    Given that `x` is a point on the line segment `AB` between the endpoints a
+    and `b`. Prove that for all affine transformations of `AB`, `AB' = T(AB)`,
+    the magnitude of displacement, `dx` is less than or equal to `da` or `db`.
+
+    [Insert proof here.]
+
+    Thus, if at all times, both points used to define the
+    probe remains outside the region of interest, then it can be said that
+    probe movement within the area of interest is less than dx or equal to dx
+    by controlling the movement of the end points of the probe. The users is
+    responsible for checking whether the output conforms to this constraint.
+
+    Measurements along the trajectory are generated using a binary search.
+    First a starting point is generated, then the time is incremented by `dt`
+    is generated, if this point is too farther than `dx` from the previous,
+    another point is generated recursively between the previous two.
+    """
+    position, time, dwell, nextxt = list(), list(), list(), list()
+    t, tnext = tmin, tmin + dt
+    x = trajectory(t)
+    while t <= tmax:
+        if not nextxt:
+            xnext = trajectory(tnext)
+        elif len(nextxt) > max_iter:
+            raise RuntimeError("Failed to find next step within {} tries. "
+                               "Probably the function is discontinuous."
+                               .format(max_iter))
+        else:
+            xnext, tnext = nextxt.pop()
+        if np.all(norm(xnext - x) <= dx):
+            position.append(x.flatten())
+            time.append(t)
+            dwell.append(tnext - t)
+            x, t = xnext, tnext
+            tnext = t + dt
+        else:
+            nextxt.append((xnext, tnext))
+            tnext = (tnext + t) / 2
+            nextxt.append((trajectory(tnext), tnext))
+
+    return position, dwell, time
