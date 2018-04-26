@@ -158,8 +158,11 @@ class Probe(object):
             # probe is larger than line_width
             ncells = np.ceil(width / self.line_width)
             self.line_width = width / ncells
-        gh = np.linspace(0, width, int(width/self.line_width)) - width/2
-        gv = np.linspace(0, height, int(height/self.line_width)) - height/2
+        gh = (np.linspace(0, width, int(width/self.line_width), endpoint=False)
+              + (self.line_width - width) / 2)
+        gv = (np.linspace(0, height, int(height/self.line_width),
+                          endpoint=False)
+              + (self.line_width - height) / 2)
         offsets = np.meshgrid(gh, gv, indexing='xy')
         h = offsets[0].flatten()
         v = offsets[1].flatten()
