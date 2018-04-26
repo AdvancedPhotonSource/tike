@@ -459,7 +459,7 @@ def discrete_trajectory(trajectory, tmin, tmax, dx, dt, max_iter=16):
     trajectory : function(time) -> [[x, y, z], [x, y, z]]
         A *continuous* function taking one input and returns a (2, N) vector
         describing the end points of a line segment.
-    tmin, tmax : float
+    [tmin, tmax) : float
         The start and end times.
     dx : float
         The maximum spatial step size.
@@ -504,9 +504,9 @@ def discrete_trajectory(trajectory, tmin, tmax, dx, dt, max_iter=16):
     another point is generated recursively between the previous two.
     """
     position, time, dwell, nextxt = list(), list(), list(), list()
-    t, tnext = tmin, tmin + dt
+    t, tnext = tmin, min(tmin + dt, tmax)
     x = trajectory(t)
-    while t <= tmax:
+    while t < tmax:
         if not nextxt:
             xnext = trajectory(tnext)
         elif len(nextxt) > max_iter:
@@ -520,7 +520,7 @@ def discrete_trajectory(trajectory, tmin, tmax, dx, dt, max_iter=16):
             time.append(t)
             dwell.append(tnext - t)
             x, t = xnext, tnext
-            tnext = t + dt
+            tnext = min(t + dt, tmax)
         else:
             nextxt.append((xnext, tnext))
             tnext = (tnext + t) / 2
