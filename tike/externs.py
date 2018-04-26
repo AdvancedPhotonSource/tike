@@ -65,7 +65,7 @@ __all__ = ['c_shared_lib',
 logger = logging.getLogger(__name__)
 
 # Import shared library.
-LIBTIKE = ctypes.CDLL('tike/libtike.cpython-36m-darwin.so')
+LIBTIKE = ctypes.CDLL('tike/libtike.cpython-35m-x86_64-linux-gnu.so')
 
 
 def c_art(data, x, y, theta, recon):

@@ -95,7 +95,10 @@ __all__ = ['scantime',
            'scan3',
            'avgspeed',
            'lengths',
-           'distance']
+           'distance',
+           'Probe',
+           'coverage_approx',
+           'discrete_trajectory']
 
 
 logger = logging.getLogger(__name__)
