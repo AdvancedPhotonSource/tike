@@ -270,6 +270,10 @@ def coverage_approx(procedure, region, pixel_size, line_width,
     ------
     ValueError when lines have have non-constant z coordinate.
     """
+    # BUG: If the points used to define the lines in procedure are inside
+    # the region of interest, then this function returns no intersections. It
+    # The intersections should be correct regardless of which two points are
+    # used to define the lines.
     box = np.asanyarray(region)
     # Define the locations of the grid lines (gx, gy, gz)
     gx = np.arange(box[0, 0], box[0, 1] + pixel_size, pixel_size)
@@ -282,6 +286,8 @@ def coverage_approx(procedure, region, pixel_size, line_width,
         coverage_map = np.zeros((sx, sy, sz, 2, 2))
     else:
         coverage_map = np.zeros((sx, sy, sz))
+    # FIXME: This line intetegral operator is uncodumented and doesn't behave
+    # well.
     for line in tqdm(procedure):
         # line -> x1, y1, z1, x2, y2, z2, weight
         x0, y0, z0 = line[0], line[1], line[2]
@@ -332,6 +338,7 @@ def coverage_approx(procedure, region, pixel_size, line_width,
             try:
                 magnitude = dist * line_width**2 * weight
                 if anisotropy:
+                    raise NotImplementedError
                     beam = line[0:2] - line[3:5]
                     beam_angle = np.arctan2(beam[1], beam[0])
                     tensor = tensor_at_angle(beam_angle, magnitude)
@@ -341,6 +348,8 @@ def coverage_approx(procedure, region, pixel_size, line_width,
                     for i in iz:
                         coverage_map[ix, iy, i] += magnitude * az[i]
             except IndexError as e:
+                # BUG: Out of bounds error when y dimension is smaller than
+                # other dimensions.
                 warnings.warn("{}\nix is {}\niy is {}\niz is {}".format(e, ix,
                               iy, iz), RuntimeWarning)
     return coverage_map / pixel_size**3
@@ -490,7 +499,7 @@ def discrete_trajectory(trajectory, tmin, tmax, dx, dt, max_iter=16):
     and `b`. Prove that for all affine transformations of `AB`, `AB' = T(AB)`,
     the magnitude of displacement, `dx` is less than or equal to `da` or `db`.
 
-    [Insert proof here.]
+    [TODO: Insert proof here.]
 
     Thus, if at all times, both points used to define the
     probe remains outside the region of interest, then it can be said that
@@ -529,7 +538,7 @@ def discrete_trajectory(trajectory, tmin, tmax, dx, dt, max_iter=16):
     return position, dwell, time
 
 
-def thetahv_to_xyz(thv_coords, radius=1.5):
+def thetahv_to_xyz(thv_coords, radius=0.75):
     """Convert `theta, h, v` coordinates to `x, y, z` coordinates.
 
     Parameters
@@ -538,6 +547,8 @@ def thetahv_to_xyz(thv_coords, radius=1.5):
         The coordinates in `theta, h, v` space.
     radius : float [cm]
         The radius used to place the `h, v` plane in `x, y, z` space.
+        The default value is 0.75 because it is slightly larger than the radius
+        of a unit square centered at the origin.
     """
     R, theta = np.eye(3), thv_coords[0]
     R[0, 0] = np.cos(theta)
