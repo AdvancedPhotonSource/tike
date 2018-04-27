@@ -55,19 +55,15 @@ Coverage Workflow
 1. User defines a function in `thetahv` space. `user_func(t) -> [theta,h,v]`
 
 2. Using the `density_profile` of the probe in the `h, v` plane, create a
-    weighted list of thick rays to represent the `Probe`.
+    weighted list of thick lines to represent the `Probe`.
 
-3. For each ray, wrap the user function in an offset function.
-    `ray_offset(user_func(t)) -> [theta,h,v]`
-
-4. Wrap the ray offset functions in the `vhtheta_to_xyz` converter.
-    This function also adds an additional point to the output.
-    `vhtheta_to_xyz(ray_offset(t)) -> [[xyz], [xyz]]`
+3. For each lines, wrap the user function in an offset function.
+    `lines_offset(user_func(t)) -> [theta,h,v]`
 
 5. Send the wrapped functions to `discrete_trajectory` to generate a list of
-    ray positions which need to be added to the coverage map.
+    lines positions which need to be added to the coverage map.
 
-6. Send the list of ray positions with their weights to the coverage
+6. Send the list of line positions with their weights to the coverage
     approximator. Weights are used to approximate the density profile of the
     probe.
 """
@@ -79,6 +75,7 @@ import numpy as np
 import logging
 import warnings
 from tqdm import tqdm
+from tike.tomo import coverage
 
 __author__ = "Doga Gursoy"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
@@ -189,9 +186,9 @@ class Probe(object):
 
         Returns
         -------
-        procedure : list of :py:class:`np.array` [cm, ..., s]
-            A (M,7) array which describes a series of lines:
-            `[x1, y1, z1, x2, y2, z2, weight]` to approximate the trajectory
+        procedure : list of :py:class:`np.array` [radians, cm, ..., s]
+            A (M,4) array which describes a series of lines:
+            `[theta, h, v, weight]` to approximate the trajectory
         """
         positions = list()
         lines = self.line_offsets(pixel_size=pixel_size)
@@ -201,7 +198,7 @@ class Probe(object):
         # parallel and offset in the v direction. #optimization
         for offset, weight in tqdm(lines):
             def line_trajectory(t):
-                return thetahv_to_xyz(trajectory(t) + offset)
+                return trajectory(t) + offset
             position, dwell, none = discrete_trajectory(trajectory=line_trajectory,
                                                         tmin=tmin, tmax=tmax,
                                                         dx=dx, dt=dt)
@@ -249,10 +246,9 @@ def coverage_approx(procedure, region, pixel_size, line_width,
 
     Parameters
     ----------
-    procedure : list of :py:class:`np.array` [cm, ..., s]
-        Each element of 'procedure' is a (7,) array which describes a series
-        of lines as `[x1, y1, z1, x2, y2, z2, weight]`. Presently, `z1`
-        must equal `z2`.
+    procedure : list of :py:class:`np.array` [rad, cm, ..., s]
+        Each element of 'procedure' is a (4,) array which describes a series
+        of lines as `[theta, h, v, weight]`.
     line_width` : float [cm]
         The side length of the square cross-section of the line.
     region : :py:class:`np.array` [cm]
@@ -273,89 +269,27 @@ def coverage_approx(procedure, region, pixel_size, line_width,
     ------
     ValueError when lines have have non-constant z coordinate.
     """
-    # BUG: If the points used to define the lines in procedure are inside
-    # the region of interest, then this function returns no intersections. It
-    # The intersections should be correct regardless of which two points are
-    # used to define the lines.
     box = np.asanyarray(region)
-    # Define the locations of the grid lines (gx, gy, gz)
-    gx = np.arange(box[0, 0], box[0, 1] + pixel_size, pixel_size)
-    gy = np.arange(box[1, 0], box[1, 1] + pixel_size, pixel_size)
-    gz = np.arange(box[2, 0], box[2, 1] + pixel_size, pixel_size)
-    # the number of pixels = number of gridlines - 1
-    sx, sy, sz = gx.size-1, gy.size-1, gz.size-1
+    # Define the locations of the centers of pixels (gx, gy, gz)
+    gx = np.arange(box[0, 0], box[0, 1], pixel_size) + pixel_size / 2
+    gy = np.arange(box[1, 0], box[1, 1], pixel_size) + pixel_size / 2
+    gz = np.arange(box[2, 0], box[2, 1], pixel_size) + pixel_size / 2
+    ix, iy, iz = np.meshgrid(gx, gy, gz, indexing='ij')
     # Preallocate the coverage_map
     if anisotropy:
-        coverage_map = np.zeros((sx, sy, sz, 2, 2))
+        coverage_map = np.zeros([list(ix.shape), 2, 2])
     else:
-        coverage_map = np.zeros((sx, sy, sz))
-    # FIXME: This line intetegral operator is uncodumented and doesn't behave
-    # well.
-    for line in tqdm(procedure):
-        # line -> x1, y1, z1, x2, y2, z2, weight
-        x0, y0, z0 = line[0], line[1], line[2]
-        x1, y1, z1 = line[3], line[4], line[5]
-        weight = line[6]
-        # avoid upper-right boundary errors
-        if (x1 - x0) == 0:
-            x0 += 1e-12
-        if (y1 - y0) == 0:
-            y0 += 1e-12
-        if (z1 - z0) != 0:
-            raise ValueError("Lines must have constant z coordinate.")
-        # vector lengths (ax, ay)
-        ax = (gx - x0) / (x1 - x0)
-        ay = (gy - y0) / (y1 - y0)
-        # layer weights in the z direction
-        az = np.maximum(0, (np.minimum(z1 + line_width/2, (gz + pixel_size))
-                            - np.maximum(z0 - line_width/2, gz)) / line_width)
-        # edges of alpha (a0, a1)
-        ax0 = min(ax[0], ax[-1])
-        ax1 = max(ax[0], ax[-1])
-        ay0 = min(ay[0], ay[-1])
-        ay1 = max(ay[0], ay[-1])
-        a0 = max(max(ax0, ay0), 0)
-        a1 = min(min(ax1, ay1), 1)
-        # sorted alpha vector
-        cx = (ax >= a0) & (ax <= a1)
-        cy = (ay >= a0) & (ay <= a1)
-        alpha = np.sort(np.r_[ax[cx], ay[cy]])
-        if len(alpha) > 0:
-            # lengths
-            xv = x0 + alpha * (x1 - x0)
-            yv = y0 + alpha * (y1 - y0)
-            lx = np.ediff1d(xv)
-            ly = np.ediff1d(yv)
-            dist = np.sqrt(lx**2 + ly**2)
-            dist2 = np.dot(dist, dist)
-            ind = dist != 0
-            # indexing
-            mid = alpha[:-1] + np.ediff1d(alpha) / 2.
-            xm = x0 + mid * (x1 - x0)
-            ym = y0 + mid * (y1 - y0)
-            ix = np.floor(np.true_divide(sx * (xm - box[0, 0]),
-                                         sx * pixel_size)).astype('int')
-            iy = np.floor(np.true_divide(sy * (ym - box[0, 1]),
-                                         sy * pixel_size)).astype('int')
-            iz = np.arange(sz + 1)[az > 0].astype('int')
-            try:
-                magnitude = dist * line_width**2 * weight
-                if anisotropy:
-                    raise NotImplementedError
-                    beam = line[0:2] - line[3:5]
-                    beam_angle = np.arctan2(beam[1], beam[0])
-                    tensor = tensor_at_angle(beam_angle, magnitude)
-                    for i in iz:
-                        coverage_map[ix, iy, i, :, :] += tensor * az[i]
-                else:
-                    for i in iz:
-                        coverage_map[ix, iy, i] += magnitude * az[i]
-            except IndexError as e:
-                # BUG: Out of bounds error when y dimension is smaller than
-                # other dimensions.
-                warnings.warn("{}\nix is {}\niy is {}\niz is {}".format(e, ix,
-                              iy, iz), RuntimeWarning)
-    return coverage_map / pixel_size**3
+        coverage_map = np.zeros(ix.shape)
+    # Format the data for the c_functions
+    procedure = np.array(procedure)
+    theta, h, v = procedure[:, 0], procedure[:, 1], procedure[:, 2]
+    h /= pixel_size
+    v /= pixel_size
+    # Scale to a coordinate system where pixel_size is 1.0
+    # Shift coordinates so region aligns with pixel grid
+    # This is incompatible because it always has the origin at the center of the map
+    coverage_map = coverage(coverage_map, theta, h, v)
+    return coverage_map # / pixel_size**3
 
 
 def f2w(f):
@@ -456,9 +390,30 @@ def distance(x, y=None, z=None):
     return np.sum(d)
 
 
-def norm(a):
-    """Return the L2 norm of each row"""
-    return np.sqrt(np.einsum('ij,ij->i', a, a))
+def euclidian_dist(a, b):
+    """Return the distance euclidian"""
+    d = thetahv_to_xyz(a) - thetahv_to_xyz(b)
+    return np.sqrt(d.dot(d))
+
+
+def thetahv_to_xyz(thv_coords, radius=0.75):
+    """Convert `theta, h, v` coordinates to `x, y, z` coordinates.
+
+    Parameters
+    ----------
+    thv_coords : :py:class:`np.array` [radians, cm, cm]
+        The coordinates in `theta, h, v` space.
+    radius : float [cm]
+        The radius used to place the `h, v` plane in `x, y, z` space.
+        The default value is 0.75 because it is slightly larger than the radius
+        of a unit square centered at the origin.
+    """
+    R, theta = np.eye(3), thv_coords[0]
+    R[0, 0] = np.cos(theta)
+    R[0, 1] = -np.sin(theta)
+    R[1, 0] = np.sin(theta)
+    R[1, 1] = np.cos(theta)
+    return np.dot([radius, thv_coords[1], thv_coords[2]], R)
 
 
 def discrete_trajectory(trajectory, tmin, tmax, dx, dt, max_iter=16):
@@ -468,9 +423,9 @@ def discrete_trajectory(trajectory, tmin, tmax, dx, dt, max_iter=16):
 
     Parameters
     ----------
-    trajectory : function(time) -> [[x, y, z], [x, y, z]]
-        A *continuous* function taking one input and returns a (2, N) vector
-        describing the end points of a line segment.
+    trajectory : function(time) -> [theta, h, v]
+        A *continuous* function taking one input and returns a (N,) vector
+        describing position of the line.
     [tmin, tmax) : float
         The start and end times.
     dx : float
@@ -483,7 +438,7 @@ def discrete_trajectory(trajectory, tmin, tmax, dx, dt, max_iter=16):
 
     Returns
     -------
-    position : list of (2 * N) vectors [m]
+    position : list of (N,) vectors [m]
         Discrete measurement positions along the trajectory satisfying
         constraints.
     dwell : list of float [s]
@@ -527,8 +482,8 @@ def discrete_trajectory(trajectory, tmin, tmax, dx, dt, max_iter=16):
                                .format(max_iter))
         else:
             xnext, tnext = nextxt.pop()
-        if np.all(norm(xnext - x) <= dx):
-            position.append(x.flatten())
+        if euclidian_dist(xnext, x) <= dx:
+            position.append(x)
             time.append(t)
             dwell.append(tnext - t)
             x, t = xnext, tnext
@@ -539,24 +494,3 @@ def discrete_trajectory(trajectory, tmin, tmax, dx, dt, max_iter=16):
             nextxt.append((trajectory(tnext), tnext))
 
     return position, dwell, time
-
-
-def thetahv_to_xyz(thv_coords, radius=0.75):
-    """Convert `theta, h, v` coordinates to `x, y, z` coordinates.
-
-    Parameters
-    ----------
-    thv_coords : :py:class:`np.array` [radians, cm, cm]
-        The coordinates in `theta, h, v` space.
-    radius : float [cm]
-        The radius used to place the `h, v` plane in `x, y, z` space.
-        The default value is 0.75 because it is slightly larger than the radius
-        of a unit square centered at the origin.
-    """
-    R, theta = np.eye(3), thv_coords[0]
-    R[0, 0] = np.cos(theta)
-    R[0, 1] = np.sin(theta)
-    R[1, 0] = -np.sin(theta)
-    R[1, 1] = np.cos(theta)
-    return np.dot(np.array([[radius, thv_coords[1], thv_coords[2]],
-                           [-radius, thv_coords[1], thv_coords[2]]]), R)

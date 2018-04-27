@@ -95,10 +95,10 @@ def test_probe_smaller_than_default_line_size():
 def test_discrete_trajectory():
     def stationary(t):
         """Probe is stationary at location h = 8, v = 8"""
-        return np.array([[0, 8, 8], [0, 8, 8]])
+        return [0, 8, 8]
 
     answer = discrete_trajectory(stationary, tmin=0, tmax=0.65, dx=0.1, dt=1)
-    truth = ([np.array([0, 8, 8, 0, 8, 8])], [0.65], [0])
+    truth = ([[0, 8, 8]], [0.65], [0])
     assert_equal(answer, truth)
 
 
@@ -178,46 +178,46 @@ def test_stationary_coverage():
     # plt.figure()
     # plt.plot(key[:, 1], 'o')
     # assert_equal(key, truth)
-
-
-def test_horizontal_coverage():
-    print("Looks like a wide beam of magnitude 10 at y = [9...11], z = 1. "
-          "Magnitude 5 at y = [8, 12], z = 1.")
-    # NOTE: The forward edge of the smear will be slightly larger. The two
-    # edges even out as the time step approaches zero.
-    p, region, pixel_size = init_coverage()
-    cov_map = p.coverage(trajectory=horizontal_move, region=region,
-                         pixel_size=pixel_size, tmin=0, tmax=40, dt=1)
-    show_coverage(cov_map)
-    # key = cov_map[9, :, :]
-    # truth = np.zeros([16, 3])
-    # truth[9:12, 1] = 10
-    # truth[(8, 12), 1] = 5
-    # plt.figure()
-    # plt.plot(key[:, 1], 'o')
-    # assert_equal(key, truth)
-
-
-def test_vertical_coverage():
-    p, region, pixel_size = init_coverage()
-    cov_map = p.coverage(trajectory=vertical_move, region=region,
-                         pixel_size=pixel_size, tmin=0, tmax=40, dt=1)
-    show_coverage(cov_map)
-    # key = cov_map[4, :, :]
-    # # truth = np.zeros([16, 3])
-    # # truth[9:12, 1] = 10
-    # # truth[(8, 12), 1] = 5
-    # plt.figure()
-    # plt.plot(key[5, :], 'o')
-    # print(key[5, :])
-    # # assert_array_equal(key, truth)
-
-
-def test_theta_coverage():
-    p, region, pixel_size = init_coverage()
-    cov_map = p.coverage(trajectory=theta_move, region=region,
-                         pixel_size=pixel_size, tmin=0, tmax=1, dt=0.5)
-    show_coverage(cov_map)
+#
+#
+# def test_horizontal_coverage():
+#     print("Looks like a wide beam of magnitude 10 at y = [9...11], z = 1. "
+#           "Magnitude 5 at y = [8, 12], z = 1.")
+#     # NOTE: The forward edge of the smear will be slightly larger. The two
+#     # edges even out as the time step approaches zero.
+#     p, region, pixel_size = init_coverage()
+#     cov_map = p.coverage(trajectory=horizontal_move, region=region,
+#                          pixel_size=pixel_size, tmin=0, tmax=40, dt=1)
+#     show_coverage(cov_map)
+#     # key = cov_map[9, :, :]
+#     # truth = np.zeros([16, 3])
+#     # truth[9:12, 1] = 10
+#     # truth[(8, 12), 1] = 5
+#     # plt.figure()
+#     # plt.plot(key[:, 1], 'o')
+#     # assert_equal(key, truth)
+#
+#
+# def test_vertical_coverage():
+#     p, region, pixel_size = init_coverage()
+#     cov_map = p.coverage(trajectory=vertical_move, region=region,
+#                          pixel_size=pixel_size, tmin=0, tmax=40, dt=1)
+#     show_coverage(cov_map)
+#     # key = cov_map[4, :, :]
+#     # # truth = np.zeros([16, 3])
+#     # # truth[9:12, 1] = 10
+#     # # truth[(8, 12), 1] = 5
+#     # plt.figure()
+#     # plt.plot(key[5, :], 'o')
+#     # print(key[5, :])
+#     # # assert_array_equal(key, truth)
+#
+#
+# def test_theta_coverage():
+#     p, region, pixel_size = init_coverage()
+#     cov_map = p.coverage(trajectory=theta_move, region=region,
+#                          pixel_size=pixel_size, tmin=0, tmax=1, dt=0.5)
+#     show_coverage(cov_map)
 
 
 def test_show_plots():
