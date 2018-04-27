@@ -26,22 +26,22 @@ project(
     const float *obj,
     int ox,
     int oy,
-    int oz, 
+    int oz,
     const float *x,
     const float *y,
     const float *theta,
-    int dsize, 
+    int dsize,
     float *data);
 
 void
 coverage(
     int ox,
     int oy,
-    int oz, 
+    int oz,
     const float *x,
     const float *y,
     const float *theta,
-    int dsize, 
+    int dsize,
     float *cov);
 
 
@@ -57,7 +57,7 @@ preprocessing(
 
 int
 calc_quadrant(
-    float theta_p); 
+    float theta_p);
 
 
 void
@@ -74,49 +74,49 @@ trim_coords(
     int ngridx, int ngridy,
     const float *coordx, const float *coordy,
     const float *gridx, const float *gridy,
-    int *asize, float *ax, float *ay, 
+    int *asize, float *ax, float *ay,
     int *bsize, float *bx, float *by);
 
 
 void
 sort_intersections(
-    int ind_condition, 
+    int ind_condition,
     int asize, const float *ax, const float *ay,
     int bsize, const float *bx, const float *by,
-    int *csize, 
+    int *csize,
     float *coorx, float *coory);
 
 
 void
 calc_dist(
-    int ngridx, int ngridy, 
-    int csize, 
+    int ngridx, int ngridy,
+    int csize,
     const float *coorx, const float *coory,
-    int *indi, 
+    int *indi,
     float *dist);
 
 
 void
 calc_coverage(
-    int ry, 
-    int rz, 
+    int ry,
+    int rz,
     int csize,
-    float slice, 
-    const int *indi, 
+    float slice,
+    const int *indi,
     const float *dist,
     float *data);
 
 
 void
 calc_simdata(
-    const float *obj, 
-    int ry, 
-    int rz, 
+    const float *obj,
+    int ry,
+    int rz,
     int csize,
-    float slice, 
-    const int *indi, 
+    float slice,
+    const int *indi,
     const float *dist,
-    int ray, 
+    int ray,
     float *data);
 
 #endif

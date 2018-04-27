@@ -1,9 +1,9 @@
 #include "tomo.h"
 
-void 
+void
 art(
-    const float *data, 
-    const float *x, 
+    const float *data,
+    const float *x,
     const float *y,
     const float *theta,
     float *recon)
@@ -12,13 +12,13 @@ art(
 }
 
 
-void 
+void
 project(
-    const float *obj, 
+    const float *obj,
     int ox,
     int oy,
-    int oz, 
-    const float *x, 
+    int oz,
+    const float *x,
     const float *y,
     const float *theta,
     int dsize,
@@ -49,7 +49,7 @@ project(
     // Diagnostics for pointers.
     assert(coordx != NULL && coordy != NULL &&
         ax != NULL && ay != NULL && by != NULL && bx != NULL &&
-        coorx != NULL && coory != NULL && 
+        coorx != NULL && coory != NULL &&
         dist != NULL && indi != NULL);
 
     int ray;
@@ -58,13 +58,13 @@ project(
     float theta_p, sin_p, cos_p;
     int asize, bsize, csize;
 
-    preprocessing(ox, oz,  
+    preprocessing(ox, oz,
         gridx, gridy); // Outputs: gridx, gridy
 
     // For each data point
     for (ray=0; ray<dsize; ray++)
     {
-        // Calculate the sin and cos values 
+        // Calculate the sin and cos values
         // of the projection angle and find
         // at which quadrant on the cartesian grid.
         theta_p = fmod(theta[ray], 2*M_PI);
@@ -77,30 +77,30 @@ project(
         zi = y[ray];
 
         calc_coords(
-            ox, oz, xi, yi, sin_p, cos_p, gridx, gridy, 
+            ox, oz, xi, yi, sin_p, cos_p, gridx, gridy,
             coordx, coordy);
 
         // Merge the (coordx, gridy) and (gridx, coordy)
         trim_coords(
-            ox, oz, coordx, coordy, gridx, gridy, 
+            ox, oz, coordx, coordy, gridx, gridy,
             &asize, ax, ay, &bsize, bx, by);
 
         // Sort the array of intersection points (ax, ay) and
-        // (bx, by). The new sorted intersection points are 
-        // stored in (coorx, coory). Total number of points 
+        // (bx, by). The new sorted intersection points are
+        // stored in (coorx, coory). Total number of points
         // are csize.
         sort_intersections(
-            quadrant, asize, ax, ay, bsize, bx, by, 
+            quadrant, asize, ax, ay, bsize, bx, by,
             &csize, coorx, coory);
 
-        // Calculate the distances (dist) between the 
-        // intersection points (coorx, coory). Find the 
+        // Calculate the distances (dist) between the
+        // intersection points (coorx, coory). Find the
         // indices of the pixels on the object grid.
         calc_dist(
-            ox, oz, csize, coorx, coory, 
+            ox, oz, csize, coorx, coory,
             indi, dist);
 
-        // Calculate simdata 
+        // Calculate simdata
         calc_simdata(obj, ox, oz,
             csize, zi, indi, dist, ray,
             data); // Output: simulated data
@@ -121,12 +121,12 @@ project(
 }
 
 
-void 
+void
 coverage(
     int ox,
     int oy,
-    int oz, 
-    const float *x, 
+    int oz,
+    const float *x,
     const float *y,
     const float *theta,
     int dsize,
@@ -157,7 +157,7 @@ coverage(
     // Diagnostics for pointers.
     assert(coordx != NULL && coordy != NULL &&
         ax != NULL && ay != NULL && by != NULL && bx != NULL &&
-        coorx != NULL && coory != NULL && 
+        coorx != NULL && coory != NULL &&
         dist != NULL && indi != NULL);
 
     int ray;
@@ -166,13 +166,13 @@ coverage(
     float theta_p, sin_p, cos_p;
     int asize, bsize, csize;
 
-    preprocessing(ox, oz,  
+    preprocessing(ox, oz,
         gridx, gridy); // Outputs: gridx, gridy
 
     // For each data point
     for (ray=0; ray<dsize; ray++)
     {
-        // Calculate the sin and cos values 
+        // Calculate the sin and cos values
         // of the projection angle and find
         // at which quadrant on the cartesian grid.
         theta_p = fmod(theta[ray], 2*M_PI);
@@ -183,33 +183,33 @@ coverage(
         xi = -ox-oz;
         yi = x[ray]+1e-6;
         zi = y[ray];
-        printf("ray=%d, xi=%d, yi=%d, zi=%d\n", ray, xi, yi, zi);
+        //printf("ray=%d, xi=%d, yi=%d, zi=%d\n", ray, xi, yi, zi);
 
         calc_coords(
-            ox, oz, xi, yi, sin_p, cos_p, gridx, gridy, 
+            ox, oz, xi, yi, sin_p, cos_p, gridx, gridy,
             coordx, coordy);
 
         // Merge the (coordx, gridy) and (gridx, coordy)
         trim_coords(
-            ox, oz, coordx, coordy, gridx, gridy, 
+            ox, oz, coordx, coordy, gridx, gridy,
             &asize, ax, ay, &bsize, bx, by);
 
         // Sort the array of intersection points (ax, ay) and
-        // (bx, by). The new sorted intersection points are 
-        // stored in (coorx, coory). Total number of points 
+        // (bx, by). The new sorted intersection points are
+        // stored in (coorx, coory). Total number of points
         // are csize.
         sort_intersections(
-            quadrant, asize, ax, ay, bsize, bx, by, 
+            quadrant, asize, ax, ay, bsize, bx, by,
             &csize, coorx, coory);
 
-        // Calculate the distances (dist) between the 
-        // intersection points (coorx, coory). Find the 
+        // Calculate the distances (dist) between the
+        // intersection points (coorx, coory). Find the
         // indices of the pixels on the object grid.
         calc_dist(
-            ox, oz, csize, coorx, coory, 
+            ox, oz, csize, coorx, coory,
             indi, dist);
 
-        // Calculate simdata 
+        // Calculate simdata
         calc_coverage(ox, oz,
             csize, zi, indi, dist,
             cov); // Output: simulated coverage
@@ -230,12 +230,12 @@ coverage(
 }
 
 
-void 
+void
 preprocessing(
-    int ngridx, 
+    int ngridx,
     int ngridy,
-    float *gridx, 
-    float *gridy) 
+    float *gridx,
+    float *gridy)
 {
     int i;
 
@@ -251,19 +251,19 @@ preprocessing(
 }
 
 
-int 
+int
 calc_quadrant(
-    float theta_p) 
+    float theta_p)
 {
     int quadrant;
     if ((theta_p >= 0 && theta_p < M_PI/2) ||
         (theta_p >= M_PI && theta_p < 3*M_PI/2) ||
         (theta_p >= -M_PI && theta_p < -M_PI/2) ||
-        (theta_p >= -2*M_PI && theta_p < -3*M_PI/2)) 
+        (theta_p >= -2*M_PI && theta_p < -3*M_PI/2))
     {
         quadrant = 1;
-    } 
-    else 
+    }
+    else
     {
         quadrant = 0;
     }
@@ -271,7 +271,7 @@ calc_quadrant(
 }
 
 
-void 
+void
 calc_coords(
     int ry, int rz,
     float xi, float yi,
@@ -290,46 +290,46 @@ calc_coords(
 
     slope = (srcy-dety)/(srcx-detx);
     islope = 1/slope;
-    for (n=0; n<=ry; n++) 
+    for (n=0; n<=ry; n++)
     {
         coordy[n] = slope*(gridx[n]-srcx)+srcy;
     }
-    for (n=0; n<=rz; n++) 
+    for (n=0; n<=rz; n++)
     {
         coordx[n] = islope*(gridy[n]-srcy)+srcx;
     }
 }
 
 
-void 
+void
 trim_coords(
     int ry, int rz,
     const float *coordx, const float *coordy,
     const float *gridx, const float* gridy,
-    int *asize, float *ax, float *ay, 
+    int *asize, float *ax, float *ay,
     int *bsize, float *bx, float *by)
 {
     int n;
 
     *asize = 0;
     *bsize = 0;
-    for (n=0; n<=rz; n++) 
+    for (n=0; n<=rz; n++)
     {
-        if (coordx[n] >= gridx[0]+1e-2) 
+        if (coordx[n] >= gridx[0]+1e-2)
         {
-            if (coordx[n] <= gridx[ry]-1e-2) 
-            {        
+            if (coordx[n] <= gridx[ry]-1e-2)
+            {
                 ax[*asize] = coordx[n];
                 ay[*asize] = gridy[n];
                 (*asize)++;
             }
         }
     }
-    for (n=0; n<=ry; n++) 
+    for (n=0; n<=ry; n++)
     {
-        if (coordy[n] >= gridy[0]+1e-2) 
+        if (coordy[n] >= gridy[0]+1e-2)
         {
-            if (coordy[n] <= gridy[rz]-1e-2) 
+            if (coordy[n] <= gridy[rz]-1e-2)
             {
                 bx[*bsize] = gridx[n];
                 by[*bsize] = coordy[n];
@@ -340,9 +340,9 @@ trim_coords(
 }
 
 
-void 
+void
 sort_intersections(
-    int ind_condition, 
+    int ind_condition,
     int asize, const float *ax, const float *ay,
     int bsize, const float *bx, const float *by,
     int *csize, float *coorx, float *coory)
@@ -352,14 +352,14 @@ sort_intersections(
     while (i<asize && j<bsize)
     {
         a_ind = (ind_condition) ? i : (asize-1-i);
-        if (ax[a_ind] < bx[j]) 
+        if (ax[a_ind] < bx[j])
         {
             coorx[k] = ax[a_ind];
             coory[k] = ay[a_ind];
             i++;
             k++;
-        } 
-        else 
+        }
+        else
         {
             coorx[k] = bx[j];
             coory[k] = by[j];
@@ -367,7 +367,7 @@ sort_intersections(
             k++;
         }
     }
-    while (i < asize) 
+    while (i < asize)
     {
         a_ind = (ind_condition) ? i : (asize-1-i);
         coorx[k] = ax[a_ind];
@@ -375,7 +375,7 @@ sort_intersections(
         i++;
         k++;
     }
-    while (j < bsize) 
+    while (j < bsize)
     {
         coorx[k] = bx[j];
         coory[k] = by[j];
@@ -386,9 +386,9 @@ sort_intersections(
 }
 
 
-void 
+void
 calc_dist(
-    int ry, int rz, 
+    int ry, int rz,
     int csize, const float *coorx, const float *coory,
     int *indi, float *dist)
 {
@@ -397,7 +397,7 @@ calc_dist(
     float diffx, diffy, midx, midy;
     int indx, indy;
 
-    for (n=0; n<csize-1; n++) 
+    for (n=0; n<csize-1; n++)
     {
         diffx = coorx[n+1]-coorx[n];
         diffy = coory[n+1]-coory[n];
@@ -415,40 +415,40 @@ calc_dist(
 }
 
 
-void 
+void
 calc_coverage(
-    int ry, 
-    int rz, 
+    int ry,
+    int rz,
     int csize,
-    float slice, 
-    const int *indi, 
+    float slice,
+    const int *indi,
     const float *dist,
     float *cov)
 {
     int n;
     int iobj = floor(slice)*ry*rz;
-    for (n=0; n<csize-1; n++) 
+    for (n=0; n<csize-1; n++)
     {
         cov[indi[n]+iobj] += dist[n];
     }
 }
 
 
-void 
+void
 calc_simdata(
-    const float *obj, 
-    int ry, 
-    int rz, 
+    const float *obj,
+    int ry,
+    int rz,
     int csize,
-    float slice, 
-    const int *indi, 
+    float slice,
+    const int *indi,
     const float *dist,
-    int ray, 
+    int ray,
     float *data)
 {
     int n;
     int iobj = floor(slice)*ry*rz;
-    for (n=0; n<csize-1; n++) 
+    for (n=0; n<csize-1; n++)
     {
         data[ray] += obj[indi[n]+iobj]*dist[n];
     }
