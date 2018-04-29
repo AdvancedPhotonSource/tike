@@ -89,7 +89,7 @@ sort_intersections(
 
 void
 calc_dist(
-    int ngridx, int ngridy,
+    int ngridx, int ngridy, int ngridz,
     int csize,
     const float *coorx, const float *coory,
     int *indi,

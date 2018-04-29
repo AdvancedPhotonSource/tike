@@ -97,7 +97,7 @@ project(
         // intersection points (coorx, coory). Find the
         // indices of the pixels on the object grid.
         calc_dist(
-            ox, oz, csize, coorx, coory,
+            ox, oy, oz, csize, coorx, coory,
             indi, dist);
 
         // Calculate simdata
@@ -206,7 +206,7 @@ coverage(
         // intersection points (coorx, coory). Find the
         // indices of the pixels on the object grid.
         calc_dist(
-            ox, oz, csize, coorx, coory,
+            ox, oy, oz, csize, coorx, coory,
             indi, dist);
 
         // Calculate simdata
@@ -388,7 +388,7 @@ sort_intersections(
 
 void
 calc_dist(
-    int ry, int rz,
+    int ox, int oy, int oz,
     int csize, const float *coorx, const float *coory,
     int *indi, float *dist)
 {
@@ -404,13 +404,13 @@ calc_dist(
         dist[n] = sqrt(diffx*diffx+diffy*diffy);
         midx = (coorx[n+1]+coorx[n])/2;
         midy = (coory[n+1]+coory[n])/2;
-        x1 = midx+ry/2.;
-        x2 = midy+rz/2.;
-        i1 = (int)(midx+ry/2.);
-        i2 = (int)(midy+rz/2.);
+        x1 = midx+ox/2.;
+        x2 = midy+oy/2.;
+        i1 = (int)(midx+ox/2.);
+        i2 = (int)(midy+oy/2.);
         indx = i1-(i1>x1);
         indy = i2-(i2>x2);
-        indi[n] = indy+(indx*rz);
+        indi[n] = (indx*oy*oz)+(indy*oz); // 3D and C-order indexing
     }
 }
 
@@ -420,16 +420,15 @@ calc_coverage(
     int ry,
     int rz,
     int csize,
-    float slice,
+    int slice,
     const int *indi,
     const float *dist,
     float *cov)
 {
     int n;
-    int iobj = floor(slice)*ry*rz;
     for (n=0; n<csize-1; n++)
     {
-        cov[indi[n]+iobj] += dist[n];
+        cov[indi[n]+slice] += dist[n];
     }
 }
 
@@ -440,16 +439,15 @@ calc_simdata(
     int ry,
     int rz,
     int csize,
-    float slice,
+    int slice,
     const int *indi,
     const float *dist,
     int ray,
     float *data)
 {
     int n;
-    int iobj = floor(slice)*ry*rz;
     for (n=0; n<csize-1; n++)
     {
-        data[ray] += obj[indi[n]+iobj]*dist[n];
+        data[ray] += obj[indi[n]+slice]*dist[n];
     }
 }
