@@ -63,15 +63,29 @@ __all__ = ['art',
 logger = logging.getLogger(__name__)
 
 
-def coverage(obj, x, y, theta):
-    obj = utils.as_float32(obj)
-    x = utils.as_float32(x)
-    y = utils.as_float32(y)
+def coverage(obj, theta, h, v):
+    """Back-project lines over an object.
+
+    .. note::
+
+    Coverage will be calcualtd on a grid that will cover the range
+    `[-obj.shape/2, obj.shape/2]`, so you will probably need to rescale h
+    and v to that same range.
+
+    theta, h, v : (M, ) py:np.array
+        The h, v, and theta coordinates of lines to back-project over an
+        `obj.shape` gird
+    obj : (X, Y, Z) py:np.array
+        An array of the desired output grid.
+    """
+    h = utils.as_float32(h)
+    v = utils.as_float32(v)
     theta = utils.as_float32(theta)
+    assert theta.size == h.size == v.size
     ox, oy, oz = obj.shape
     dsize = theta.size
     cov = np.zeros(obj.shape, dtype=np.float32)
-    externs.c_coverage(ox, oy, oz, x, y, theta, dsize, cov)
+    externs.c_coverage(ox, oy, oz, theta, h, v, dsize, cov)
     return cov
 
 

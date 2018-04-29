@@ -18,49 +18,39 @@ project(
     int ox,
     int oy,
     int oz,
-    const float *x,
-    const float *y,
     const float *theta,
+    const float *h,
+    const float *v,
     int dsize,
     float *data)
 {
-    printf("Hey!\n");
-
     // Initialize the grid on object space.
     float *gridx = (float *)malloc((ox+1)*sizeof(float));
-    float *gridy = (float *)malloc((oz+1)*sizeof(float));
-
+    float *gridy = (float *)malloc((oy+1)*sizeof(float));
     // Initialize intermediate vectors.
-    float *coordx = (float *)malloc((oz+1)*sizeof(float));
-    float *coordy = (float *)malloc((ox+1)*sizeof(float));
-    float *ax = (float *)malloc((ox+oz+2)*sizeof(float));
-    float *ay = (float *)malloc((ox+oz+2)*sizeof(float));
-    float *bx = (float *)malloc((ox+oz+2)*sizeof(float));
-    float *by = (float *)malloc((ox+oz+2)*sizeof(float));
-    float *coorx = (float *)malloc((ox+oz+2)*sizeof(float));
-    float *coory = (float *)malloc((ox+oz+2)*sizeof(float));
-
+    float *coordx = (float *)malloc((ox+1)*sizeof(float));
+    float *coordy = (float *)malloc((oy+1)*sizeof(float));
+    float *ax = (float *)malloc((ox+oy+2)*sizeof(float));
+    float *ay = (float *)malloc((ox+oy+2)*sizeof(float));
+    float *bx = (float *)malloc((ox+oy+2)*sizeof(float));
+    float *by = (float *)malloc((ox+oy+2)*sizeof(float));
+    float *coorx = (float *)malloc((ox+oy+2)*sizeof(float));
+    float *coory = (float *)malloc((ox+oy+2)*sizeof(float));
     // Initialize the distance vector per ray.
-    float *dist = (float *)malloc((ox+oz+1)*sizeof(float));
-
+    float *dist = (float *)malloc((ox+oy+1)*sizeof(float));
     // Initialize the index of the grid that the ray passes through.
-    int *indi = (int *)malloc((ox+oz+1)*sizeof(int));
-
+    int *indi = (int *)malloc((ox+oy+1)*sizeof(int));
     // Diagnostics for pointers.
     assert(coordx != NULL && coordy != NULL &&
         ax != NULL && ay != NULL && by != NULL && bx != NULL &&
         coorx != NULL && coory != NULL &&
         dist != NULL && indi != NULL);
-
     int ray;
     int quadrant;
-    int xi, yi, zi;
+    float ri, hi, zi;
     float theta_p, sin_p, cos_p;
     int asize, bsize, csize;
-
-    preprocessing(ox, oz,
-        gridx, gridy); // Outputs: gridx, gridy
-
+    preprocessing(ox, oy, gridx, gridy); // Outputs: gridx, gridy
     // For each data point
     for (ray=0; ray<dsize; ray++)
     {
@@ -71,41 +61,21 @@ project(
         quadrant = calc_quadrant(theta_p);
         sin_p = sinf(theta_p);
         cos_p = cosf(theta_p);
-
-        xi = -ox-oz;
-        yi = x[ray]+1e-6;
-        zi = y[ray];
-
+        ri = -ox-oy;
+        hi = h[ray]+1e-6;
+        zi = floor(v[ray] + oz/2.);
+        // printf("ray=%d, ri=%f, hi=%f, zi=%f\n", ray, ri, hi, zi);
         calc_coords(
-            ox, oz, xi, yi, sin_p, cos_p, gridx, gridy,
-            coordx, coordy);
-
-        // Merge the (coordx, gridy) and (gridx, coordy)
+            ox, oy, ri, hi, sin_p, cos_p, gridx, gridy, coordx, coordy);
         trim_coords(
-            ox, oz, coordx, coordy, gridx, gridy,
+            ox, oy, coordx, coordy, gridx, gridy,
             &asize, ax, ay, &bsize, bx, by);
-
-        // Sort the array of intersection points (ax, ay) and
-        // (bx, by). The new sorted intersection points are
-        // stored in (coorx, coory). Total number of points
-        // are csize.
         sort_intersections(
-            quadrant, asize, ax, ay, bsize, bx, by,
-            &csize, coorx, coory);
-
-        // Calculate the distances (dist) between the
-        // intersection points (coorx, coory). Find the
-        // indices of the pixels on the object grid.
+            quadrant, asize, ax, ay, bsize, bx, by, &csize, coorx, coory);
         calc_dist(
-            ox, oy, oz, csize, coorx, coory,
-            indi, dist);
-
-        // Calculate simdata
-        calc_simdata(obj, ox, oz,
-            csize, zi, indi, dist, ray,
-            data); // Output: simulated data
+            ox, oy, oz, csize, coorx, coory, indi, dist);
+        calc_simdata(obj, csize, zi, indi, dist, ray, data);
     }
-
     free(gridx);
     free(gridy);
     free(coordx);
@@ -126,49 +96,39 @@ coverage(
     int ox,
     int oy,
     int oz,
-    const float *x,
-    const float *y,
     const float *theta,
+    const float *h,
+    const float *v,
     int dsize,
     float *cov)
 {
-    printf("Hey!\n");
-
     // Initialize the grid on object space.
     float *gridx = (float *)malloc((ox+1)*sizeof(float));
-    float *gridy = (float *)malloc((oz+1)*sizeof(float));
-
+    float *gridy = (float *)malloc((oy+1)*sizeof(float));
     // Initialize intermediate vectors.
-    float *coordx = (float *)malloc((oz+1)*sizeof(float));
-    float *coordy = (float *)malloc((ox+1)*sizeof(float));
-    float *ax = (float *)malloc((ox+oz+2)*sizeof(float));
-    float *ay = (float *)malloc((ox+oz+2)*sizeof(float));
-    float *bx = (float *)malloc((ox+oz+2)*sizeof(float));
-    float *by = (float *)malloc((ox+oz+2)*sizeof(float));
-    float *coorx = (float *)malloc((ox+oz+2)*sizeof(float));
-    float *coory = (float *)malloc((ox+oz+2)*sizeof(float));
-
+    float *coordx = (float *)malloc((ox+1)*sizeof(float));
+    float *coordy = (float *)malloc((oy+1)*sizeof(float));
+    float *ax = (float *)malloc((ox+oy+2)*sizeof(float));
+    float *ay = (float *)malloc((ox+oy+2)*sizeof(float));
+    float *bx = (float *)malloc((ox+oy+2)*sizeof(float));
+    float *by = (float *)malloc((ox+oy+2)*sizeof(float));
+    float *coorx = (float *)malloc((ox+oy+2)*sizeof(float));
+    float *coory = (float *)malloc((ox+oy+2)*sizeof(float));
     // Initialize the distance vector per ray.
-    float *dist = (float *)malloc((ox+oz+1)*sizeof(float));
-
+    float *dist = (float *)malloc((ox+oy+1)*sizeof(float));
     // Initialize the index of the grid that the ray passes through.
-    int *indi = (int *)malloc((ox+oz+1)*sizeof(int));
-
+    int *indi = (int *)malloc((ox+oy+1)*sizeof(int));
     // Diagnostics for pointers.
     assert(coordx != NULL && coordy != NULL &&
         ax != NULL && ay != NULL && by != NULL && bx != NULL &&
         coorx != NULL && coory != NULL &&
         dist != NULL && indi != NULL);
-
     int ray;
     int quadrant;
-    int xi, yi, zi;
+    float ri, hi, zi;
     float theta_p, sin_p, cos_p;
     int asize, bsize, csize;
-
-    preprocessing(ox, oz,
-        gridx, gridy); // Outputs: gridx, gridy
-
+    preprocessing(ox, oy, gridx, gridy); // Outputs: gridx, gridy
     // For each data point
     for (ray=0; ray<dsize; ray++)
     {
@@ -179,42 +139,22 @@ coverage(
         quadrant = calc_quadrant(theta_p);
         sin_p = sinf(theta_p);
         cos_p = cosf(theta_p);
-
-        xi = -ox-oz;
-        yi = x[ray]+1e-6;
-        zi = y[ray];
-        //printf("ray=%d, xi=%d, yi=%d, zi=%d\n", ray, xi, yi, zi);
-
+        ri = -ox-oy;
+        hi = h[ray]+1e-6;
+        zi = floor(v[ray] + oz/2.);
+        // printf("ray=%d, ri=%f, hi=%f, zi=%f\n", ray, ri, hi, zi);
         calc_coords(
-            ox, oz, xi, yi, sin_p, cos_p, gridx, gridy,
-            coordx, coordy);
-
-        // Merge the (coordx, gridy) and (gridx, coordy)
+            ox, oy, ri, hi, sin_p, cos_p, gridx, gridy, coordx, coordy);
         trim_coords(
-            ox, oz, coordx, coordy, gridx, gridy,
+            ox, oy, coordx, coordy, gridx, gridy,
             &asize, ax, ay, &bsize, bx, by);
-
-        // Sort the array of intersection points (ax, ay) and
-        // (bx, by). The new sorted intersection points are
-        // stored in (coorx, coory). Total number of points
-        // are csize.
         sort_intersections(
-            quadrant, asize, ax, ay, bsize, bx, by,
-            &csize, coorx, coory);
-
-        // Calculate the distances (dist) between the
-        // intersection points (coorx, coory). Find the
-        // indices of the pixels on the object grid.
+            quadrant, asize, ax, ay, bsize, bx, by, &csize, coorx, coory);
         calc_dist(
-            ox, oy, oz, csize, coorx, coory,
-            indi, dist);
-
-        // Calculate simdata
-        calc_coverage(ox, oz,
-            csize, zi, indi, dist,
-            cov); // Output: simulated coverage
+            ox, oy, oz, csize, coorx, coory, indi, dist);
+        // Calculate coverage
+        calc_coverage(csize, zi, indi, dist, 1.0, cov);
     }
-
     free(gridx);
     free(gridy);
     free(coordx);
@@ -417,18 +357,17 @@ calc_dist(
 
 void
 calc_coverage(
-    int ry,
-    int rz,
     int csize,
-    int slice,
+    int indz,
     const int *indi,
     const float *dist,
+    const float line_weight,
     float *cov)
 {
     int n;
     for (n=0; n<csize-1; n++)
     {
-        cov[indi[n]+slice] += dist[n];
+        cov[indi[n]+indz] += dist[n]*line_weight;
     }
 }
 
@@ -436,10 +375,8 @@ calc_coverage(
 void
 calc_simdata(
     const float *obj,
-    int ry,
-    int rz,
     int csize,
-    int slice,
+    int indz,
     const int *indi,
     const float *dist,
     int ray,
@@ -448,6 +385,6 @@ calc_simdata(
     int n;
     for (n=0; n<csize-1; n++)
     {
-        data[ray] += obj[indi[n]+slice]*dist[n];
+        data[ray] += obj[indi[n]+indz]*dist[n];
     }
 }

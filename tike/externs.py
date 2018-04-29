@@ -65,7 +65,7 @@ __all__ = ['c_shared_lib',
 logger = logging.getLogger(__name__)
 
 # Import shared library.
-LIBTIKE = ctypes.CDLL('tike/libtike.cpython-35m-x86_64-linux-gnu.so')
+LIBTIKE = ctypes.CDLL('/home/beams/B242827/Documents/tike/tike/libtike.cpython-35m-x86_64-linux-gnu.so')
 
 
 def c_art(data, x, y, theta, recon):
@@ -92,14 +92,14 @@ def c_project(obj, ox, oy, oz, x, y, theta, dsize, data):
             utils.as_c_float_p(data))
 
 
-def c_coverage(ox, oy, oz, x, y, theta, dsize, cov):
+def c_coverage(ox, oy, oz, theta, h, v, dsize, cov):
     LIBTIKE.coverage.restype = utils.as_c_void_p()
     return LIBTIKE.coverage(
             utils.as_c_int(ox),
             utils.as_c_int(oy),
             utils.as_c_int(oz),
-            utils.as_c_float_p(x),
-            utils.as_c_float_p(y),
             utils.as_c_float_p(theta),
+            utils.as_c_float_p(h),
+            utils.as_c_float_p(v),
             utils.as_c_int(dsize),
             utils.as_c_float_p(cov))
