@@ -59,29 +59,53 @@ __copyright__ = "Copyright (c) 2016, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 
-def test_coverage_hv_quadrants():
-    obj = np.zeros((1, 2, 2))
-
-    theta, h, v = [0], [0.5], [0.5]
-    cov_map = coverage(obj, theta, h, v)
-    truth = np.array([[[0.,  0.],
-                       [0.,  1.]]])
+def test_coverage_hv_quadrants1():
+    obj = np.zeros((2, 2, 1))
+    theta, h, v = [0], [0.5], [0]
+    cov_map = coverage(obj, theta, h, v)[..., 0]
+    truth = np.array([[0.,  1.],
+                      [0.,  1.]])
     assert_equal(truth, cov_map)
 
+
+def test_coverage_hv_quadrants1b():
+    obj = np.zeros((2, 2, 1))
+    theta, h, v = [np.pi/2], [0.5], [0]
+    cov_map = coverage(obj, theta, h, v)[..., 0]
+    truth = np.array([[1.,  1.],
+                      [0.,  0.]])
+    assert_equal(truth, cov_map)
+
+
+def test_coverage_hv_quadrants1c():
+    obj = np.zeros((2, 2, 1))
+    theta, h, v = [-np.pi/2], [0.5], [0]
+    cov_map = coverage(obj, theta, h, v)[..., 0]
+    truth = np.array([[0.,  0.],
+                      [1.,  1.]])
+    assert_equal(truth, cov_map)
+
+
+def test_coverage_hv_quadrants1d():
+    obj = np.zeros((2, 2, 1))
+    theta, h, v = [np.pi], [0.5], [0]
+    cov_map = coverage(obj, theta, h, v)[..., 0]
+    truth = np.array([[1.,  0.],
+                      [1.,  0.]])
+    assert_equal(truth, cov_map)
+
+
+def test_coverage_hv_quadrants2():
+    obj = np.zeros((2, 2, 2))
     theta, h, v = [0], [-0.5], [0.5]
     cov_map = coverage(obj, theta, h, v)
-    truth = np.array([[[0.,  1.],
-                       [0.,  0.]]])
-    assert_equal(truth, cov_map)
+    obj[:, 0, 1] = 1
+    assert_equal(obj, cov_map)
 
-    theta, h, v = [0], [-0.5], [-0.5]
-    cov_map = coverage(obj, theta, h, v)
-    truth = np.array([[[1.,  0.],
-                       [0.,  0.]]])
-    assert_equal(truth, cov_map)
 
+def test_coverage_hv_quadrants4():
+    obj = np.zeros((2, 2, 2))
     theta, h, v = [0], [0.5], [-0.5]
     cov_map = coverage(obj, theta, h, v)
-    truth = np.array([[[0.,  0.],
-                       [1.,  0.]]])
-    assert_equal(truth, cov_map)
+    obj[:, 1, 0] = 1
+    assert_equal(obj, cov_map)
