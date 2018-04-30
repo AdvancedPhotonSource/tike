@@ -52,7 +52,7 @@ from __future__ import (absolute_import, division, print_function,
 import numpy as np
 from numpy.testing import assert_allclose, assert_raises, assert_equal
 import matplotlib.pyplot as plt
-from tike.tomo import coverage
+from tike.tomo import *
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2016, UChicago Argonne, LLC."
@@ -109,3 +109,30 @@ def test_coverage_hv_quadrants4():
     cov_map = coverage(obj, theta, h, v)
     obj[:, 1, 0] = 1
     assert_equal(obj, cov_map)
+
+
+def test_forward_project_hv_quadrants1():
+    obj = np.zeros((2, 2, 1))
+    obj[0, 1, 0] = 1
+    theta, h, v = [0], [0.5], [0]
+    integral = project(obj, theta, h, v)
+    truth = [1]
+    assert_equal(truth, integral)
+
+
+def test_forward_project_hv_quadrants2():
+    obj = np.zeros((2, 2, 1))
+    obj[0, 1, 0] = 1
+    theta, h, v = [0], [-0.5], [0]
+    integral = project(obj, theta, h, v)
+    truth = [0]
+    assert_equal(truth, integral)
+
+
+def test_forward_project_hv_quadrants4():
+    obj = np.zeros((2, 2, 1))
+    obj[:, 1, 0] = 1
+    theta, h, v = [0], [0.5], [0]
+    integral = project(obj, theta, h, v)
+    truth = [2]
+    assert_equal(truth, integral)
