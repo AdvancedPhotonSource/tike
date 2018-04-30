@@ -254,7 +254,8 @@ def coverage_approx(procedure, region, pixel_size, line_width,
     region : :py:class:`np.array` [cm]
         A box in which to map the coverage. Specify the bounds as
         `[[min_x, max_x], [min_y, max_y], [min_z, max_z]]`.
-        i.e. column vectors pointing to the min and max corner.
+        i.e. column vectors pointing to the min and max corner. Bounds should
+        be an integer multiple of the pizel_size.
     pixel_size : float [cm]
         The edge length of the pixels in the coverage map in centimeters.
     anisotropy : bool
@@ -264,15 +265,14 @@ def coverage_approx(procedure, region, pixel_size, line_width,
     -------
     coverage_map : :py:class:`numpy.ndarray` [s]
         A discretized map of the approximated procedure coverage.
-
-    Raises
-    ------
-    ValueError when lines have have non-constant z coordinate.
     """
     # define integer range of region of interest
     box = np.asanyarray(region)
     assert np.all(box[:, 0] <= box[:, 1]), ("region minimum must be <= to"
                                             "region maximum.")
+    if np.any(box % pixel_size != 0):
+        warnings.warn("Probe.coverage_approx: Region bounds will be shifted to"
+                      "an integer multiple of the pixel_size.", UserWarning)
     ibox = box / pixel_size
     ibox[:, 0] = np.floor(ibox[:, 0])
     ibox[:, 1] = np.ceil(ibox[:, 1])
