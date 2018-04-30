@@ -78,16 +78,16 @@ def c_art(data, x, y, theta, recon):
             utils.as_c_float_p(recon))
 
 
-def c_project(obj, ox, oy, oz, x, y, theta, dsize, data):
+def c_project(obj, ox, oy, oz, theta, h, v, dsize, data):
     LIBTIKE.project.restype = utils.as_c_void_p()
     return LIBTIKE.project(
             utils.as_c_float_p(obj),
             utils.as_c_int(ox),
             utils.as_c_int(oy),
             utils.as_c_int(oz),
-            utils.as_c_float_p(x),
-            utils.as_c_float_p(y),
             utils.as_c_float_p(theta),
+            utils.as_c_float_p(h),
+            utils.as_c_float_p(v),
             utils.as_c_int(dsize),
             utils.as_c_float_p(data))
 

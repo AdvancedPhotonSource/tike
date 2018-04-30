@@ -52,7 +52,7 @@ from . import externs
 import logging
 
 
-__author__ = "Doga Gursoy"
+__author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = ['art',
@@ -68,15 +68,18 @@ def coverage(obj, theta, h, v):
 
     .. note::
 
-    Coverage will be calcualtd on a grid that will cover the range
-    `[-obj.shape/2, obj.shape/2]`, so you will probably need to rescale h
-    and v to that same range.
+    Coverage will be calculated on a grid that will cover the range
+    `[-obj.shape/2, obj.shape/2]`, so you will probably need to rescale `h, v`
+    to that same range.
 
-    theta, h, v : (M, ) py:np.array
+    theta, h, v : (M, ) py:class:`np.array`
         The h, v, and theta coordinates of lines to back-project over an
-        `obj.shape` gird
-    obj : (X, Y, Z) py:np.array
-        An array of the desired output grid.
+        `obj.shape` grid.
+    line_weight : (M, ) py:class:`np.array`
+        Multiply the intersections lengths of the pixels and each line by these
+        weights.
+    obj : (X, Y, Z) py:class`np.array`
+        An array of the size of the desired output grid.
     """
     h = utils.as_float32(h)
     v = utils.as_float32(v)
@@ -89,15 +92,28 @@ def coverage(obj, theta, h, v):
     return cov
 
 
-def project(obj, x, y, theta):
+def project(obj, theta, h, v):
+    """Forward-project lines over an object.
+
+    .. note::
+
+    The coordinates of the grid covering the object will be in the range
+    `[-obj.shape/2, obj.shape/2]`, so you will probably need to rescale h
+    and v to that same range.
+
+    theta, h, v : (M, ) py:np.array
+        The h, v, and theta coordinates of lines to integrate over `obj`.
+    obj : (X, Y, Z) py:np.array
+        An array of weights to integrate each line over.
+    """
     obj = utils.as_float32(obj)
-    x = utils.as_float32(x)
-    y = utils.as_float32(y)
+    h = utils.as_float32(h)
+    v = utils.as_float32(v)
     theta = utils.as_float32(theta)
     ox, oy, oz = obj.shape
     dsize = theta.size
     data = np.zeros((dsize, ), dtype=np.float32)
-    externs.c_project(obj, ox, oy, oz, x, y, theta, dsize, data)
+    externs.c_project(obj, ox, oy, oz, theta, h, v, dsize, data)
     return data
 
 
