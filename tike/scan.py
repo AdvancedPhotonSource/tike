@@ -269,27 +269,33 @@ def coverage_approx(procedure, region, pixel_size, line_width,
     ------
     ValueError when lines have have non-constant z coordinate.
     """
+    # define integer range of region of interest
     box = np.asanyarray(region)
-    # Define the locations of the centers of pixels (gx, gy, gz)
-    gx = np.arange(box[0, 0], box[0, 1], pixel_size) + pixel_size / 2
-    gy = np.arange(box[1, 0], box[1, 1], pixel_size) + pixel_size / 2
-    gz = np.arange(box[2, 0], box[2, 1], pixel_size) + pixel_size / 2
-    ix, iy, iz = np.meshgrid(gx, gy, gz, indexing='ij')
+    assert np.all(box[:, 0] <= box[:, 1]), ("region minimum must be <= to"
+                                            "region maximum.")
+    ibox = box / pixel_size
+    ibox[:, 0] = np.floor(ibox[:, 0])
+    ibox[:, 1] = np.ceil(ibox[:, 1])
+    ibox_shape = (ibox[:, 1] - ibox[:, 0]).astype(int)
     # Preallocate the coverage_map
     if anisotropy:
-        coverage_map = np.zeros([list(ix.shape), 2, 2])
+        raise NotImplementedError
+        coverage_map = np.zeros([list(ibox_shape), 2, 2])
     else:
-        coverage_map = np.zeros(ix.shape)
+        coverage_map = np.zeros(ibox_shape)
     # Format the data for the c_functions
     procedure = np.array(procedure)
-    theta, h, v = procedure[:, 0], procedure[:, 1], procedure[:, 2]
+    # Scale to a coordinate system where pixel_size is 1.0
+    h, v = procedure[:, 1], procedure[:, 2]
     h /= pixel_size
     v /= pixel_size
-    # Scale to a coordinate system where pixel_size is 1.0
+    w = procedure[:, 3] * line_width**2 / pixel_size**2
     # Shift coordinates so region aligns with pixel grid
-    # This is incompatible because it always has the origin at the center of the map
-    coverage_map = coverage(coverage_map, theta, h, v)
-    return coverage_map # / pixel_size**3
+    # WONTFIX: Cannot shift coords to align with requested region without
+    # moving the rotation center.
+    coverage_map = coverage(coverage_map, theta=procedure[:, 0], h=h, v=v,
+                            line_weight=w)
+    return coverage_map
 
 
 def f2w(f):

@@ -63,6 +63,7 @@ coverage(
     const float *theta,
     const float *h,
     const float *v,
+    const float *weights,
     int dsize,
     float *cov);
 

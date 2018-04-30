@@ -63,7 +63,7 @@ __all__ = ['art',
 logger = logging.getLogger(__name__)
 
 
-def coverage(obj, theta, h, v):
+def coverage(obj, theta, h, v, line_weight=None):
     """Back-project lines over an object.
 
     .. note::
@@ -84,11 +84,14 @@ def coverage(obj, theta, h, v):
     h = utils.as_float32(h)
     v = utils.as_float32(v)
     theta = utils.as_float32(theta)
-    assert theta.size == h.size == v.size
+    if line_weight is None:
+        line_weight = np.ones(theta.shape)
+    line_weight = utils.as_float32(line_weight)
+    assert theta.size == h.size == v.size == line_weight.size
     ox, oy, oz = obj.shape
     dsize = theta.size
     cov = np.zeros(obj.shape, dtype=np.float32)
-    externs.c_coverage(ox, oy, oz, theta, h, v, dsize, cov)
+    externs.c_coverage(ox, oy, oz, theta, h, v, line_weight, dsize, cov)
     return cov
 
 

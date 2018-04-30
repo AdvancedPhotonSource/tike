@@ -99,6 +99,7 @@ coverage(
     const float *theta,
     const float *h,
     const float *v,
+    const float *weights,
     int dsize,
     float *cov)
 {
@@ -153,7 +154,7 @@ coverage(
         calc_dist(
             ox, oy, oz, csize, coorx, coory, indi, dist);
         // Calculate coverage
-        calc_coverage(csize, zi, indi, dist, 1.0, cov);
+        calc_coverage(csize, zi, indi, dist, weights[ray], cov);
     }
     free(gridx);
     free(gridy);
