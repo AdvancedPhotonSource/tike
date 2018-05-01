@@ -36,6 +36,9 @@ art(
 void
 project(
     const float *obj,
+    float oxmin,
+    float oymin,
+    float ozmin,
     int ox,
     int oy,
     int oz,
@@ -48,15 +51,19 @@ project(
 /**
   Return an array of size (ox, oy, oz) where each element of the array contains
   the sum of the lengths*line_weights of all intersections with the lines
-  described by theta, h, and v. The grid defining the array is centered on the
-  origin.
+  described by theta, h, and v. The grid defining the array has a minimum
+  corner (oxmin, oymin, ozmin).
 
   The coordinates of the grid are (x, y, z). The lines are all perpendicular
   to the z direction. Theta is the angle from the x-axis using the right hand
-  rule. v is parallel to z, and h is parallel to y when theta is zero.
+  rule. v is parallel to z, and h is parallel to y when theta is zero. The
+  rotation axis is [0, 0, 1].
 */
 void
 coverage(
+    float oxmin,
+    float oymin,
+    float ozmin,
     int ox,
     int oy,
     int oz,
@@ -71,11 +78,13 @@ coverage(
 // Utility functions for data simultation
 /**
   Fill gridx and gridy with floats reprsenting the boundaries of the gridlines
-  in the x and y directions. Gridlines are centered on zero and spaced 1.0
-  apart.
+  in the x and y directions. Gridlines start at minx and miny and are
+  spaced 1.0 apart.
 */
 void
 preprocessing(
+    float minx,
+    float miny,
     int ngridx,
     int ngridy,
     float *gridx,
@@ -89,7 +98,9 @@ calc_quadrant(
     float theta_p);
 
 /**
-  Put the list of intersections with the grid into coordx coordy.
+  Compute the list of intersections of the line (xi, yi) and the grid.
+  The intersections are then located in two lists:
+  (gridx, coordy) and (coordx, gridy). The length of gridx is ngridx+1.
 */
 void
 calc_coords(
@@ -123,28 +134,35 @@ sort_intersections(
     float *coorx, float *coory);
 
 /**
-  Calculate the distances (dist) between the intersection points
-  (coorx, coory). Find the indices of the pixels on the object grid.
+  (coorx, coory) describe the ordered points where the line intersects the
+  grid. Find the distances between adjacent points and return the midpoints of
+  these line segments.
 */
 void
 calc_dist(
-    int ngridx, int ngridy, int ngridz,
-    int csize,
-    const float *coorx, const float *coory,
-    int *indi,
-    float *dist);
+    int const csize, const float *coorx, const float *coory,
+    float *midx, float *midy, float *dist);
+
+/** Find the linear index of the pixels containing the points (midx, midy) on
+  the grid defined by min corner xmin and size ox.
+  */
+void
+calc_index(
+    int const ox, int const oy, int const oz,
+    int const oxmin, int const oymin, int const ozmin,
+    int const msize, const float *midx, const float *midy,
+    int const indz, int *indi);
 
 /**
   Multiply the distances by the weights then add them to the coverage map at
-  locations defined by index_xy[i] + index_z
+  locations defined by index_xyz[i]
 */
 void
 calc_coverage(
     int data_size,
-    int index_z,
-    const int *index_xy,
+    const int *index_xyz,
     const float *distances,
-    const float line_weight,
+    float const line_weight,
     float *coverage_map);
 
 /**
@@ -153,11 +171,10 @@ calc_coverage(
 void
 calc_simdata(
     const float *grid_weights,
-    int data_size,
-    int index_z,
-    const int *index_xy,
+    int const data_size,
+    const int *index_xyz,
     const float *distances,
-    int index_line,
+    int const index_line,
     float *data);
 
 #endif

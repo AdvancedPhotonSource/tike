@@ -254,8 +254,7 @@ def coverage_approx(procedure, region, pixel_size, line_width,
     region : :py:class:`np.array` [cm]
         A box in which to map the coverage. Specify the bounds as
         `[[min_x, max_x], [min_y, max_y], [min_z, max_z]]`.
-        i.e. column vectors pointing to the min and max corner. Bounds should
-        be an integer multiple of the pizel_size.
+        i.e. column vectors pointing to the min and max corner.
     pixel_size : float [cm]
         The edge length of the pixels in the coverage map in centimeters.
     anisotropy : bool
@@ -266,34 +265,21 @@ def coverage_approx(procedure, region, pixel_size, line_width,
     coverage_map : :py:class:`numpy.ndarray` [s]
         A discretized map of the approximated procedure coverage.
     """
-    # define integer range of region of interest
+    if anisotropy:
+        raise NotImplementedError
     box = np.asanyarray(region)
     assert np.all(box[:, 0] <= box[:, 1]), ("region minimum must be <= to"
                                             "region maximum.")
-    if np.any(box % pixel_size != 0):
-        warnings.warn("Probe.coverage_approx: Region bounds will be shifted to"
-                      "an integer multiple of the pixel_size.", UserWarning)
-    ibox = box / pixel_size
-    ibox[:, 0] = np.floor(ibox[:, 0])
-    ibox[:, 1] = np.ceil(ibox[:, 1])
-    ibox_shape = (ibox[:, 1] - ibox[:, 0]).astype(int)
-    # Preallocate the coverage_map
-    if anisotropy:
-        raise NotImplementedError
-        coverage_map = np.zeros([list(ibox_shape), 2, 2])
-    else:
-        coverage_map = np.zeros(ibox_shape)
-    # Format the data for the c_functions
-    procedure = np.array(procedure)
     # Scale to a coordinate system where pixel_size is 1.0
-    h, v = procedure[:, 1], procedure[:, 2]
-    h /= pixel_size
-    v /= pixel_size
+    h = procedure[:, 1] / pixel_size
+    v = procedure[:, 2] / pixel_size
     w = procedure[:, 3] * line_width**2 / pixel_size**2
-    # Shift coordinates so region aligns with pixel grid
-    # WONTFIX: Cannot shift coords to align with requested region without
-    # moving the rotation center.
-    coverage_map = coverage(coverage_map, theta=procedure[:, 0], h=h, v=v,
+    box = box / pixel_size
+    # Find new min corner and size of region
+    ibox_shape = (np.ceil(box[:, 1] - box[:, 0])).astype(int)
+    procedure = np.array(procedure)
+    coverage_map = coverage(box[:, 0], ibox_shape,
+                            theta=procedure[:, 0], h=h, v=v,
                             line_weight=w)
     return coverage_map
 

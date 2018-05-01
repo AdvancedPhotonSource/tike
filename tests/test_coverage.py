@@ -183,6 +183,21 @@ def test_stationary_coverage():
     assert_equal(key, truth)
 
 
+def test_stationary_coverage_crop():
+    """A beam of magnitude 10 at (:, 10, 8)."""
+    p, region, pixel_size = init_coverage()
+    region = np.array([[-0/16, 8/16], [-0/16, 4/16], [-8/16, 8/16]])
+    cov_map = p.coverage(trajectory=stationary, region=region,
+                         pixel_size=pixel_size, tmin=0, tmax=10, dt=1)
+    show_coverage(cov_map)
+    key = cov_map[1, :, :]
+    truth = np.zeros([4, 16])
+    truth[2, 8] = 10
+    plt.figure()
+    plt.plot(key[:, 8], 'o')
+    assert_equal(key, truth)
+
+
 def test_horizontal_coverage():
     # NOTE: The forward edge of the smear will be slightly larger. The two
     # edges even out as the time step approaches zero.
@@ -196,7 +211,7 @@ def test_horizontal_coverage():
     truth[(4, 8), 10] = 5
     plt.figure()
     plt.plot(key[:, 10], 'o')
-    print(key[8, :])
+    # print(key[8, :])
     # assert_equal(key, truth)
     assert key[8, 10] >= 5 and key[8, 10] < 6
     assert key[4, 10] > 4 and key[4, 10] <= 5
@@ -214,14 +229,13 @@ def test_vertical_coverage():
     truth[8, (8, 12)] = 5
     plt.figure()
     plt.plot(key[8, :], 'o')
-    print(key[8, :])
+    # print(key[8, :])
     # assert_array_equal(key, truth)
     assert key[8, 8] >= 5 and key[8, 8] < 6
     assert key[8, 12] > 4 and key[8, 12] <= 5
     assert np.all(key[8, 9:12] == 10)
 
 
-#
 # def test_theta_coverage():
 #     p, region, pixel_size = init_coverage()
 #     cov_map = p.coverage(trajectory=theta_move, region=region,
