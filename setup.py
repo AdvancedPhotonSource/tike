@@ -7,7 +7,7 @@ tomoc = Extension(
     name='tike.libtike',
     sources=['src/tomo.c'])
 
-ext_mods=[tomoc]
+ext_mods = [tomoc]
 
 # Remove external C code for RTD builds
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
