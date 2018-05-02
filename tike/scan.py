@@ -78,7 +78,7 @@ from tqdm import tqdm
 from tike.tomo import coverage
 import math as m
 
-__author__ = "Doga Gursoy"
+__author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = ['scantime',
@@ -95,7 +95,6 @@ __all__ = ['scantime',
            'lengths',
            'distance',
            'Probe',
-           'coverage_approx',
            'discrete_trajectory']
 
 
@@ -136,22 +135,25 @@ class Probe(object):
             self.aspect = aspect
         self.line_width = 1
 
-    def line_offsets(self, pixel_size, N=1):
+    def line_offsets(self, pixel_size, lines_per_pixel=16):
         """Generate a list of ray offsets and weights from density profile
         and extent.
-
-        From a previous study, we determined that the `line_width` should be at
-        most 1/16 of the pixel size.
 
         Returns
         -------
         rays : array [cm]
             [([theta, h, v], intensity_weight), ...]
+        lines_per_pixel : int
+            Number of lines per pixel_size used to approximate the beam. From a
+            previous study, we determined that the this value should be at
+            least 16. A higher number will improve the quality of the coverage
+            approximation. The number of lines used to approximate the beam
+            will be `lines_per_pixel**2`.
         """
         # return [([0, 0, 0], 1), ]  # placeholder
         width, height = self.width, self.width * self.aspect
         # determine if the probe extent is larger than the maximum line_width
-        self.line_width = pixel_size/16
+        self.line_width = pixel_size/lines_per_pixel
         if width < self.line_width or height < self.line_width:
             # line_width needs to shrink to fit within probe
             raise NotImplementedError("Why are you using such large pixels?")
@@ -170,7 +172,9 @@ class Probe(object):
         thv = np.stack([np.zeros(v.shape), h, v], axis=1)
         lines = list()
         for row in thv:
-            lines.append((row, self.density_profile(row[1], row[2])))
+            weight = self.density_profile(row[1], row[2])
+            if weight > 0:  # Only append lines whose weight matters
+                lines.append((row, weight))
         return lines
 
     def procedure(self, trajectory, pixel_size, tmin, tmax, dt):
@@ -187,11 +191,11 @@ class Probe(object):
 
         Returns
         -------
-        procedure : list of :py:class:`np.array` [radians, cm, ..., s]
+        procedure : :py:class:`np.array` [radians, cm, ..., s]
             A (M,4) array which describes a series of lines:
             `[theta, h, v, weight]` to approximate the trajectory
         """
-        positions = list()
+        procedure = list()
         trajectory_cache = dict()
         lines = self.line_offsets(pixel_size=pixel_size)
         dx = self.line_width
@@ -219,13 +223,20 @@ class Probe(object):
                                        np.atleast_2d(dwell * weight).T],
                                       axis=1)
             position[:, 2] += offset[2]
-            positions.append(position)
-        return positions
+            procedure.append(position)
+        procedure = np.concatenate(procedure)
+        return procedure
 
     def coverage(self, trajectory, region, pixel_size, tmin, tmax, dt,
                  anisotropy=False):
         """Return a coverage map using this probe.
 
+        The intersection between each line and each pixel is approximated by
+        the product of `line_width**2` and the length of segment of the
+        line segment `alpha` which passes through the pixel along the line.
+
+        Parameters
+        ----------
         trajectory : function(t) -> [theta, h, v] [radians, cm]
             A function which describes the position of the center of the Probe
             as a function of time.
@@ -235,67 +246,39 @@ class Probe(object):
             i.e. column vectors pointing to the min and max corner.
         pixel_size : float [cm]
             The edge length of the pixels in the coverage map.
+        anisotropy : bool
+            Whether the coverage map includes anisotropy information. If
+            `anisotropy` is `True`, then `coverage_map.shape` is
+            `(L, M, N, 2, 2)`, where the two extra dimensions contain coverage
+            anisotropy information as a second order tensor.
+
+        Returns
+        -------
+        coverage_map : :py:class:`numpy.ndarray` [s]
+            A discretized map of the approximated procedure coverage.
         """
+        if anisotropy:
+            raise NotImplementedError
+        box = np.asanyarray(region)
+        assert np.all(box[:, 0] <= box[:, 1]), ("region minimum must be <= to"
+                                                "region maximum.")
+
         procedure = self.procedure(trajectory=trajectory,
-                                   pixel_size=pixel_size, tmin=tmin, tmax=tmax,
-                                   dt=dt)
-        procedure = np.concatenate(procedure)
-        return coverage_approx(procedure=procedure, region=region,
-                               pixel_size=pixel_size,
-                               line_width=self.line_width,
-                               anisotropy=anisotropy)
+                                   pixel_size=pixel_size,
+                                   tmin=tmin, tmax=tmax, dt=dt)
 
-
-def coverage_approx(procedure, region, pixel_size, line_width,
-                    anisotropy=False):
-    """Approximate procedure coverage with thick lines.
-
-    The intersection between each line and each pixel is approximated by
-    the product of `line_width**2` and the length of segment of the
-    line segment `alpha` which passes through the pixel along the line.
-
-    If `anisotropy` is `True`, then `coverage_map.shape` is `(L, M, N, 2, 2)`,
-    where the two extra dimensions contain coverage anisotropy information as a
-    second order tensor.
-
-    Parameters
-    ----------
-    procedure : list of :py:class:`np.array` [rad, cm, ..., s]
-        Each element of 'procedure' is a (4,) array which describes a series
-        of lines as `[theta, h, v, weight]`.
-    line_width` : float [cm]
-        The side length of the square cross-section of the line.
-    region : :py:class:`np.array` [cm]
-        A box in which to map the coverage. Specify the bounds as
-        `[[min_x, max_x], [min_y, max_y], [min_z, max_z]]`.
-        i.e. column vectors pointing to the min and max corner.
-    pixel_size : float [cm]
-        The edge length of the pixels in the coverage map in centimeters.
-    anisotropy : bool
-        Determines whether the coverage map includes anisotropy information.
-
-    Returns
-    -------
-    coverage_map : :py:class:`numpy.ndarray` [s]
-        A discretized map of the approximated procedure coverage.
-    """
-    if anisotropy:
-        raise NotImplementedError
-    box = np.asanyarray(region)
-    assert np.all(box[:, 0] <= box[:, 1]), ("region minimum must be <= to"
-                                            "region maximum.")
-    # Scale to a coordinate system where pixel_size is 1.0
-    h = procedure[:, 1] / pixel_size
-    v = procedure[:, 2] / pixel_size
-    w = procedure[:, 3] * line_width**2 / pixel_size**2
-    box = box / pixel_size
-    # Find new min corner and size of region
-    ibox_shape = (np.ceil(box[:, 1] - box[:, 0])).astype(int)
-    procedure = np.array(procedure)
-    coverage_map = coverage(box[:, 0], ibox_shape,
-                            theta=procedure[:, 0], h=h, v=v,
-                            line_weight=w)
-    return coverage_map
+        # Scale to a coordinate system where pixel_size is 1.0
+        h = procedure[:, 1] / pixel_size
+        v = procedure[:, 2] / pixel_size
+        w = procedure[:, 3] * self.line_width**2 / pixel_size**2
+        box = box / pixel_size
+        # Find new min corner and size of region
+        ibox_shape = (np.ceil(box[:, 1] - box[:, 0])).astype(int)
+        procedure = np.array(procedure)
+        coverage_map = coverage(box[:, 0], ibox_shape,
+                                theta=procedure[:, 0], h=h, v=v,
+                                line_weight=w)
+        return coverage_map
 
 
 def f2w(f):
