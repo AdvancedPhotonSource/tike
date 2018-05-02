@@ -192,20 +192,33 @@ class Probe(object):
             `[theta, h, v, weight]` to approximate the trajectory
         """
         positions = list()
+        trajectory_cache = dict()
         lines = self.line_offsets(pixel_size=pixel_size)
         dx = self.line_width
-        # TODO: Each iteration of this loop is a separate line. If two or more
-        # lines have the same h coordinate, then their discrete trajectories
-        # parallel and offset in the v direction. #optimization
+        # If two or more lines have the same h coordinate, then their discrete
+        # trajectories are parallel and only differ in the v direction.
         for offset, weight in tqdm(lines):
-            def line_trajectory(t):
-                return trajectory(t) + offset
-            position, dwell, none = discrete_trajectory(trajectory=line_trajectory,
-                                                        tmin=tmin, tmax=tmax,
-                                                        dx=dx, dt=dt)
+            cache_key = tuple(offset[0:2])
+            # Check chache for parallel trajectories
+            if cache_key in trajectory_cache:
+                # compute trajectory from previous
+                position, dwell = trajectory_cache[cache_key]
+            else:
+                th_offset = np.array([offset[0], offset[1], 0])
+
+                def line_trajectory(t):
+                    return trajectory(t) + th_offset
+
+                position, dwell, none = discrete_trajectory(
+                                            trajectory=line_trajectory,
+                                            tmin=tmin, tmax=tmax,
+                                            dx=dx, dt=dt)
+                trajectory_cache[cache_key] = (position, dwell)
+
             position = np.concatenate([position,
                                        np.atleast_2d(dwell * weight).T],
                                       axis=1)
+            position[:, 2] += offset[2]
             positions.append(position)
         return positions
 
@@ -399,26 +412,6 @@ def euclidian_dist(a, b, r=0.75):
     theta2 = b[0] + m.atan2(b[1], r)
     return m.sqrt(r1**2 + r2**2 - 2*r1*r2*m.cos(theta2-theta1)
                   + (a[2]-b[2])**2)
-
-
-def thetahv_to_xyz(thv_coords, radius=0.75):
-    """Convert `theta, h, v` coordinates to `x, y, z` coordinates.
-
-    Parameters
-    ----------
-    thv_coords : :py:class:`np.array` [radians, cm, cm]
-        The coordinates in `theta, h, v` space.
-    radius : float [cm]
-        The radius used to place the `h, v` plane in `x, y, z` space.
-        The default value is 0.75 because it is slightly larger than the radius
-        of a unit square centered at the origin.
-    """
-    R, theta = np.eye(3), thv_coords[0]
-    R[0, 0] = np.cos(theta)
-    R[0, 1] = -np.sin(theta)
-    R[1, 0] = np.sin(theta)
-    R[1, 1] = np.cos(theta)
-    return np.dot([radius, thv_coords[1], thv_coords[2]], R)
 
 
 def discrete_trajectory(trajectory, tmin, tmax, dx, dt, max_iter=16):
