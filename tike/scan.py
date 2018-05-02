@@ -76,6 +76,7 @@ import logging
 import warnings
 from tqdm import tqdm
 from tike.tomo import coverage
+import math as m
 
 __author__ = "Doga Gursoy"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
@@ -382,10 +383,22 @@ def distance(x, y=None, z=None):
     return np.sum(d)
 
 
-def euclidian_dist(a, b):
-    """Return the distance euclidian"""
-    d = thetahv_to_xyz(a) - thetahv_to_xyz(b)
-    return np.sqrt(d.dot(d))
+def euclidian_dist(a, b, r=0.75):
+    """Return the euclidian distance between two points in theta, h, v space.
+
+    Parameters
+    ----------
+    a, b : (3, ) array-like
+        The two points to find the distance between
+    r : float
+        The radius to use when converting to euclidian space.
+    """
+    r1 = m.sqrt(r**2 + a[1]**2)
+    r2 = m.sqrt(r**2 + b[1]**2)
+    theta1 = a[0] + m.atan2(a[1], r)
+    theta2 = b[0] + m.atan2(b[1], r)
+    return m.sqrt(r1**2 + r2**2 - 2*r1*r2*m.cos(theta2-theta1)
+                  + (a[2]-b[2])**2)
 
 
 def thetahv_to_xyz(thv_coords, radius=0.75):

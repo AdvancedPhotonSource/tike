@@ -236,11 +236,11 @@ def test_vertical_coverage():
     assert np.all(key[8, 9:12] == 10)
 
 
-# def test_theta_coverage():
-#     p, region, pixel_size = init_coverage()
-#     cov_map = p.coverage(trajectory=theta_move, region=region,
-#                          pixel_size=pixel_size, tmin=0, tmax=1, dt=0.5)
-#     show_coverage(cov_map)
+def test_theta_coverage():
+    p, region, pixel_size = init_coverage()
+    cov_map = p.coverage(trajectory=theta_move, region=region,
+                         pixel_size=pixel_size, tmin=0, tmax=1, dt=0.5)
+    show_coverage(cov_map)
 
 
 # def test_show_plots():
