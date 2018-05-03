@@ -81,7 +81,7 @@ import math as m
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = ['scantime',
+__all__ = ['scantimes',
            'sinusoid',
            'triangle',
            'sawtooth',
@@ -282,75 +282,164 @@ class Probe(object):
 
 
 def f2w(f):
+    """Return the angular frequency from the given frequency"""
     return 2*np.pi*f
 
 
 def period(f):
+    """Return the period from the given frequency"""
     return 1 / f
 
 
-def exposure(hz):
-    return 1 / hz
+def scantimes(t0, t1, hz):
+    """An array of points in the range [t0, t1) at the given frequency (hz)
+    """
+    return np.linspace(t0, t1, (t1-t0)*hz, endpoint=False)
 
 
-def scantime(t, hz):
-    return np.linspace(0, t, t*hz)
+def sinusoid(A, f, p, t):
+    """Return the value of a sine function at time `t`.
+    #continuous #1D
 
-
-def sinusoid(A, f, p, t, hz):
-    """Continuous"""
+    Parameters
+    A : float
+        The amplitude of the function
+    f : float
+        The temporal frequency of the function
+    p : float
+        The phase shift of the function
+    """
     w = f2w(f)
     p = np.mod(p, 2*np.pi)
     return A * np.sin(w*t - p)
 
 
-def triangle(A, f, p, t, hz):
-    """Continuous"""
+def triangle(A, f, p, t):
+    """Return the value of a triangle function at time `t`.
+    #continuous #1d
+
+    Parameters
+    A : float
+        The amplitude of the function
+    f : float
+        The temporal frequency of the function
+    p : float
+        The phase shift of the function
+    """
     a = 0.5 * period(f)
     ts = t - p/(2*np.pi)/f
     q = np.floor(ts/a + 0.5)
     return A * (2/a * (ts - a*q) * np.power(-1, q))
 
 
-def sawtooth(A, f, p, t, hz):
-    """Discontinuous"""
-    a = 0.5 * period(f)
-    ts = t - p/(2*np.pi)/f
-    q = np.floor(ts/a + 0.5)
-    return A * (2 * (ts/a - q))
+def sawtooth(A, f, p, t):
+    """Return the value of a sawtooth function at time `t`.
+    #discontinuous #1d
+
+    Parameters
+    A : float
+        The amplitude of the function
+    f : float
+        The temporal frequency of the function
+    p : float
+        The phase shift of the function
+    """
+    ts = t*f - p/(2*np.pi)
+    q = np.floor(ts + 0.5)
+    return A * (2 * (ts - q))
 
 
-def square(A, f, p, t, hz):
-    """Discontinuous"""
+def square(A, f, p, t):
+    """Return the value of a square function at time `t`.
+    #discontinuous #1d
+
+    Parameters
+    A : float
+        The amplitude of the function
+    f : float
+        The temporal frequency of the function
+    p : float
+        The phase shift of the function
+    """
     ts = t - p/(2*np.pi)/f
     return A * (np.power(-1, np.floor(2*f*ts)))
 
 
-def staircase(A, f, p, t, hz):
-    """Discontinuous"""
-    ts = t - p/(2*np.pi)/f
-    return A/f/2 * np.floor(2*f*ts) - A
+def staircase(A, f, p, t):
+    """Return the value of a staircase function at time `t`.
+    #discontinuous #1d
+
+    Parameters
+    A : float
+        The amplitude of the function
+    f : float
+        The temporal frequency of the function
+    p : float
+        The phase shift of the function
+    """
+    ts = t*f - p/(2*np.pi)
+    return A * np.floor(ts)
 
 
-def lissajous(A, B, fx, fy, px, py, time, hz):
-    t = scantime(time, hz)
-    x = sinusoid(A, fx, px, t, hz)
-    y = sinusoid(B, fy, py, t, hz)
-    return x, y, t
+def lissajous(A, B, fx, fy, px, py, t):
+    """Return the value of a lissajous function at time `t`.
+    #continuous #2d
+
+    The lissajous is centered on the origin.
+
+    Parameters
+    A, B : float
+        The horizontal and vertical amplitudes of the function
+    fx, fy : float
+        The temporal frequencies of the function
+    px, py : float
+        The phase shifts of the x and y components of the function
+    """
+    x = sinusoid(A, fx, px, t)
+    y = sinusoid(B, fy, py, t)
+    return x, y
 
 
-def raster(A, B, fx, fy, px, py, time, hz):
-    t = scantime(time, hz)
-    x = triangle(A, fx, px, t, hz)
-    y = staircase(B, fy, py, t, hz)
-    return x, y, t
+def raster(A, B, fx, fy, px, py, t):
+    """Return the value of a raster function at time `t`.
+    #discontinuous #2d
+
+    The raster starts at the origin and moves initially in the positive
+    directions. `fy` should be `2*fx` to make a conventional raster.
+
+    Parameters
+    A : float
+        The maximum horizontal displacement of the function at half the period.
+        Every period the horizontal displacement is 0.
+    B : float
+        The maximum vertical displacement every period.
+    fx, fy : float
+        The temporal frequencies of the function.
+    px, py : float
+        The phase shifts of the x and y components of the function
+    """
+    x = triangle(A, fx, px+np.pi/2, t) + A
+    y = staircase(B, fy, py, t)
+    return x/2, y
 
 
-def spiral(A, B, fx, fy, px, py, time, hz):
-    t = scantime(time, hz)
-    x = sawtooth(A, 0.5*fx, px, t, hz)
-    y = sawtooth(B, 0.5*fy, py, t, hz)
-    return x, y, t
+def spiral(A, B, fx, fy, px, py, t):
+    """Return the value of a spiral function at time `t`.
+    #discontinuous #2d
+
+    The spiral is centered on the origin.
+
+    Parameters
+    A, B : float
+        The horizontal and vertical amplitudes of the function
+    fx, fy : float
+        The temporal frequencies of the function
+    px, py : float
+        The phase shifts of the x and y components of the function
+    """
+    x = sawtooth(A, fx, px, t)
+    y = sawtooth(B, fy, py, t)
+    return x, y
 
 
 def scan3(A, B, fx, fy, fz, px, py, time, hz):
