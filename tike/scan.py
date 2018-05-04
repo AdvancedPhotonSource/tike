@@ -73,10 +73,9 @@ from __future__ import (absolute_import, division, print_function,
 
 import numpy as np
 import logging
-import warnings
 from tqdm import tqdm
 from tike.tomo import coverage
-import math as m
+from math import sqrt, atan2, cos
 
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
@@ -326,7 +325,7 @@ def triangle(A, f, p, t):
     p : float
         The phase shift of the function
     """
-    a = 0.5 * period(f)
+    a = 0.5 / f
     ts = t - p/(2*np.pi)/f
     q = np.floor(ts/a + 0.5)
     return A * (2/a * (ts - a*q) * np.power(-1, q))
@@ -460,7 +459,7 @@ def lengths(x, y=None, z=None):
     a = np.diff(x)
     b = np.diff(y)
     c = np.diff(z)
-    return np.sqrt(a*a + b*b + c*c)
+    return sqrt(a*a + b*b + c*c)
 
 
 def distance(x, y=None, z=None):
@@ -478,19 +477,19 @@ def euclidian_dist(a, b, r=0.75):
     r : float
         The radius to use when converting to euclidian space.
     """
-    r1 = m.sqrt(r**2 + a[1]**2)
-    r2 = m.sqrt(r**2 + b[1]**2)
-    theta1 = a[0] + m.atan2(a[1], r)
-    theta2 = b[0] + m.atan2(b[1], r)
-    cosines = abs(r1**2 + r2**2 - 2*r1*r2*m.cos(theta1-theta2))
-    return m.sqrt(cosines + (a[2]-b[2])**2)
+    r1 = sqrt(r**2 + a[1]**2)
+    r2 = sqrt(r**2 + b[1]**2)
+    theta1 = a[0] + atan2(a[1], r)
+    theta2 = b[0] + atan2(b[1], r)
+    cosines = r1**2 + r2**2 - 2*r1*r2*cos(theta1-theta2)
+    return sqrt(abs(cosines) + (a[2]-b[2])**2)
 
 
 def euclidian_dist_approx(a, b, r=0.75):
     """Approximate the euclidian distance by adding the arclength to the
        hv distance. It's about 2x faster than the unapproximated.
     """
-    return abs(a[0]-b[0]) * r + m.sqrt((a[1]-b[1])**2 + (a[2]-b[2])**2)
+    return abs(a[0]-b[0]) * r + sqrt((a[1]-b[1])**2 + (a[2]-b[2])**2)
 
 
 def discrete_trajectory(trajectory, tmin, tmax, dx, dt, max_iter=16):
