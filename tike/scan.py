@@ -482,8 +482,15 @@ def euclidian_dist(a, b, r=0.75):
     r2 = m.sqrt(r**2 + b[1]**2)
     theta1 = a[0] + m.atan2(a[1], r)
     theta2 = b[0] + m.atan2(b[1], r)
-    return m.sqrt(r1**2 + r2**2 - 2*r1*r2*m.cos(theta2-theta1)
-                  + (a[2]-b[2])**2)
+    cosines = abs(r1**2 + r2**2 - 2*r1*r2*m.cos(theta1-theta2))
+    return m.sqrt(cosines + (a[2]-b[2])**2)
+
+
+def euclidian_dist_approx(a, b, r=0.75):
+    """Approximate the euclidian distance by adding the arclength to the
+       hv distance. It's about 2x faster than the unapproximated.
+    """
+    return abs(a[0]-b[0]) * r + m.sqrt((a[1]-b[1])**2 + (a[2]-b[2])**2)
 
 
 def discrete_trajectory(trajectory, tmin, tmax, dx, dt, max_iter=16):
@@ -552,7 +559,7 @@ def discrete_trajectory(trajectory, tmin, tmax, dx, dt, max_iter=16):
                                .format(max_iter))
         else:
             xnext, tnext = nextxt.pop()
-        if euclidian_dist(xnext, x) <= dx:
+        if euclidian_dist_approx(xnext, x) <= dx:
             position.append(x)
             time.append(t)
             dwell.append(tnext - t)
