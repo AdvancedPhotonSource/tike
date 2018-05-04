@@ -437,8 +437,8 @@ def spiral(A, B, fx, fy, px, py, t):
     px, py : float
         The phase shifts of the x and y components of the function
     """
-    x = sawtooth(A, fx, px, t)
-    y = sawtooth(B, fy, py, t)
+    x = triangle(A, fx, px+np.pi/2, t)
+    y = triangle(B, fy, py+np.pi/2, t)
     return x, y
 
 
