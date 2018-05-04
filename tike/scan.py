@@ -108,7 +108,7 @@ class Probe(object):
     where positive directions are to the right and up respectively. `theta` is
     the rotation angle around the vertical reconstruction space axis, `z`. `z`
     is parallel to `v`, and uses the right hand rule to determine
-    reconstruction space coordinates `x, y, z`. `theta` is measured from the
+    reconstruction space coordinates `z, x, y`. `theta` is measured from the
     `x` axis, so when `theta = 0`, `h` is parallel to `y`.
 
     The default probe is a 1 mm^2 square of uniform intensity.
@@ -200,7 +200,7 @@ class Probe(object):
         dx = self.line_width
         # If two or more lines have the same h coordinate, then their discrete
         # trajectories are parallel and only differ in the v direction.
-        for offset, weight in tqdm(lines):
+        for offset, weight in lines:
             cache_key = tuple(offset[0:2])
             # Check chache for parallel trajectories
             if cache_key in trajectory_cache:
@@ -241,7 +241,7 @@ class Probe(object):
             as a function of time.
         region : :py:class:`np.array` [cm]
             A box in which to map the coverage. Specify the bounds as
-            `[[min_x, max_x], [min_y, max_y], [min_z, max_z]]`.
+            `[[min_z, max_z], [min_x, max_x], [min_y, max_y]]`.
             i.e. column vectors pointing to the min and max corner.
         pixel_size : float [cm]
             The edge length of the pixels in the coverage map.
@@ -444,11 +444,11 @@ def spiral(A, B, fx, fy, px, py, t):
 def scan3(A, B, fx, fy, fz, px, py, time, hz):
     x, y, t = lissajous(A, B, fx, fy, px, py, time, hz)
     z = sawtooth(np.pi, 0.5*fz, 0.5*np.pi, t, hz)
-    return x, y, z, t
+    return z, x, y, t
 
 
 def avgspeed(time, x, y=None, z=None):
-    return distance(x, y, z) / time
+    return distance(z, x, y) / time
 
 
 def lengths(x, y=None, z=None):
@@ -463,7 +463,7 @@ def lengths(x, y=None, z=None):
 
 
 def distance(x, y=None, z=None):
-    d = lengths(x, y, z)
+    d = lengths(z, x, y)
     return np.sum(d)
 
 

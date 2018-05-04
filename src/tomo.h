@@ -27,7 +27,7 @@ art(
   the lines described by theta, h, and v. The grid is centered on the origin,
   and is the same shape as the obj providing the grid_weights.
 
-  The coordinates of the grid are (x, y, z). The lines are all perpendicular
+  The coordinates of the grid are (z, x, y). The lines are all perpendicular
   to the z direction. Theta is the angle from the x-axis using the right hand
   rule. v is parallel to z, and h is parallel to y when theta is zero.
 
@@ -36,12 +36,12 @@ art(
 void
 project(
     const float *obj,
+    float ozmin,
     float oxmin,
     float oymin,
-    float ozmin,
+    int oz,
     int ox,
     int oy,
-    int oz,
     const float *x,
     const float *y,
     const float *theta,
@@ -54,19 +54,19 @@ project(
   described by theta, h, and v. The grid defining the array has a minimum
   corner (oxmin, oymin, ozmin).
 
-  The coordinates of the grid are (x, y, z). The lines are all perpendicular
+  The coordinates of the grid are (z, x, y). The lines are all perpendicular
   to the z direction. Theta is the angle from the x-axis using the right hand
   rule. v is parallel to z, and h is parallel to y when theta is zero. The
   rotation axis is [0, 0, 1].
 */
 void
 coverage(
+    float ozmin,
     float oxmin,
     float oymin,
-    float ozmin,
+    int oz,
     int ox,
     int oy,
-    int oz,
     const float *theta,
     const float *h,
     const float *v,
@@ -151,7 +151,7 @@ calc_index(
     int const ox, int const oy, int const oz,
     int const oxmin, int const oymin, int const ozmin,
     int const msize, const float *midx, const float *midy,
-    int const indz, int *indi);
+    int const indz, unsigned *indi);
 
 /**
   Multiply the distances by the weights then add them to the coverage map at
@@ -159,8 +159,8 @@ calc_index(
 */
 void
 calc_coverage(
-    int data_size,
-    const int *index_xyz,
+    int const data_size,
+    const unsigned *index_xyz,
     const float *distances,
     float const line_weight,
     float *coverage_map);
@@ -172,7 +172,7 @@ void
 calc_simdata(
     const float *grid_weights,
     int const data_size,
-    const int *index_xyz,
+    const unsigned *index_xyz,
     const float *distances,
     int const index_line,
     float *data);

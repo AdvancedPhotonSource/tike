@@ -78,16 +78,16 @@ def c_art(data, x, y, theta, recon):
             utils.as_c_float_p(recon))
 
 
-def c_project(obj, oxmin, oymin, ozmin, ox, oy, oz, theta, h, v, dsize, data):
+def c_project(obj, ozmin, oxmin, oymin, oz, ox, oy, theta, h, v, dsize, data):
     LIBTIKE.project.restype = utils.as_c_void_p()
     return LIBTIKE.project(
             utils.as_c_float_p(obj),
+            utils.as_c_float(ozmin),
             utils.as_c_float(oxmin),
             utils.as_c_float(oymin),
-            utils.as_c_float(ozmin),
+            utils.as_c_int(oz),
             utils.as_c_int(ox),
             utils.as_c_int(oy),
-            utils.as_c_int(oz),
             utils.as_c_float_p(theta),
             utils.as_c_float_p(h),
             utils.as_c_float_p(v),
@@ -95,15 +95,15 @@ def c_project(obj, oxmin, oymin, ozmin, ox, oy, oz, theta, h, v, dsize, data):
             utils.as_c_float_p(data))
 
 
-def c_coverage(oxmin, oymin, ozmin, ox, oy, oz, theta, h, v, w, dsize, cov):
+def c_coverage(ozmin, oxmin, oymin, oz, ox, oy, theta, h, v, w, dsize, cov):
     LIBTIKE.coverage.restype = utils.as_c_void_p()
     return LIBTIKE.coverage(
+            utils.as_c_float(ozmin),
             utils.as_c_float(oxmin),
             utils.as_c_float(oymin),
-            utils.as_c_float(ozmin),
+            utils.as_c_int(oz),
             utils.as_c_int(ox),
             utils.as_c_int(oy),
-            utils.as_c_int(oz),
             utils.as_c_float_p(theta),
             utils.as_c_float_p(h),
             utils.as_c_float_p(v),

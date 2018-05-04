@@ -74,9 +74,9 @@ def coverage(grid_min, grid_size, theta, h, v, line_weight=None):
 
     Parameters
     ----------
-    grid_min : tuple float (x, y, z)
+    grid_min : tuple float (z, x, y)
         The min corner of the grid.
-    grid_size : tuple int (x, y, z)
+    grid_size : tuple int (z, x, y)
         The number of grid spaces along each dimension.
     theta, h, v : (M, ) py:class:`np.array`
         The h, v, and theta coordinates of lines to back-project over an
@@ -120,11 +120,11 @@ def project(obj, theta, h, v, grid_min=None):
 
     Parameters
     ----------
-    obj : (X, Y, Z) :py:class:`numpy.array`
+    obj : (Z, X, Y) :py:class:`numpy.array`
         An array of weights to integrate each line over.
     theta, h, v : (M, ) :py:class:`numpy.array`
         The h, v, and theta coordinates of lines to integrate over `obj`.
-    grid_min : tuple float (x, y, z)
+    grid_min : tuple float (z, x, y)
         The min corner of the grid. default: `-obj.shape / 2.0`
 
     Returns
@@ -136,13 +136,13 @@ def project(obj, theta, h, v, grid_min=None):
     h = utils.as_float32(h)
     v = utils.as_float32(v)
     theta = utils.as_float32(theta)
-    ox, oy, oz = obj.shape
+    oz, ox, oy = obj.shape
     if grid_min is None:
-        grid_min = np.array([ox, oy, oz]) / -2.0
+        grid_min = np.array([oz, ox, oy]) / -2.0
     grid_min = utils.as_float32(grid_min)
     dsize = theta.size
     data = np.zeros((dsize, ), dtype=np.float32)
-    externs.c_project(obj, grid_min[0], grid_min[1], grid_min[2], ox, oy, oz,
+    externs.c_project(obj, grid_min[0], grid_min[1], grid_min[2], oz, ox, oy,
                       theta, h, v, dsize, data)
     return data
 

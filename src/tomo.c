@@ -15,12 +15,12 @@ art(
 void
 project(
     const float *obj,
+    float ozmin,
     float oxmin,
     float oymin,
-    float ozmin,
+    int oz,
     int ox,
     int oy,
-    int oz,
     const float *theta,
     const float *h,
     const float *v,
@@ -45,7 +45,7 @@ project(
     float *midx = (float *)malloc((ox+oy+1)*sizeof(float));
     float *midy = (float *)malloc((ox+oy+1)*sizeof(float));
     // Initialize the index of the grid that the ray passes through.
-    int *indi = (int *)malloc((ox+oy+1)*sizeof(int));
+    unsigned *indi = (unsigned *)malloc((ox+oy+1)*sizeof(unsigned));
     // Diagnostics for pointers.
     assert(coordx != NULL && coordy != NULL &&
         ax != NULL && ay != NULL && by != NULL && bx != NULL &&
@@ -110,12 +110,12 @@ project(
 
 void
 coverage(
-  float oxmin,
-  float oymin,
-  float ozmin,
+    float ozmin,
+    float oxmin,
+    float oymin,
+    int oz,
     int ox,
     int oy,
-    int oz,
     const float *theta,
     const float *h,
     const float *v,
@@ -141,7 +141,7 @@ coverage(
     float *midx = (float *)malloc((ox+oy+1)*sizeof(float));
     float *midy = (float *)malloc((ox+oy+1)*sizeof(float));
     // Initialize the index of the grid that the ray passes through.
-    int *indi = (int *)malloc((ox+oy+1)*sizeof(int));
+    unsigned *indi = (unsigned *)malloc((ox+oy+1)*sizeof(unsigned));
     // Diagnostics for pointers.
     assert(coordx != NULL && coordy != NULL &&
         ax != NULL && ay != NULL && by != NULL && bx != NULL &&
@@ -385,25 +385,26 @@ calc_index(
     int const ox, int const oy, int const oz,
     int const oxmin, int const oymin, int const ozmin,
     int const msize, const float *midx, const float *midy,
-    int const indz, int *indi)
+    int const indz, unsigned *indi)
 {
-    int n, indx, indy;
+    int n;
+    unsigned indx, indy;
     for (n=0; n<msize-1; n++)
     {
         // Midpoints assigned to pixels by nearest mincorner
         indx = floor(midx[n]-oxmin);
         indy = floor(midy[n]-oymin);
-        assert(indx < ox); assert(indy < oy);
-        assert(((indx*oy*oz)+(indy*oz)+indz) < ox*oy*oz);
+        assert(indx < (unsigned)ox); assert(indy < (unsigned)oy);
+        assert(((indx*oy*oz)+(indy*oz)+indz) < (unsigned)ox*oy*oz);
         // Convert from 3D to linear C-order indexing
-        indi[n] = (indx*oy*oz)+(indy*oz)+indz;
+        indi[n] = indy + oy * (indx + ox * (indz));
     }
 }
 
 void
 calc_coverage(
     int const csize,
-    const int *indi,
+    const unsigned *indi,
     const float *dist,
     float const line_weight,
     float *cov)
@@ -420,7 +421,7 @@ void
 calc_simdata(
     const float *obj,
     int const csize,
-    const int *indi,
+    const unsigned *indi,
     const float *dist,
     int const ray,
     float *data)

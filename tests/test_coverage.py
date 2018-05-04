@@ -111,8 +111,8 @@ def show_coverage(cov_map):
     plt.imshow(cov_map[:, :, k//2], interpolation=None,)
     plt.yticks(np.arange(i).astype(int))
     plt.xticks(np.arange(j).astype(int))
-    plt.ylabel('x - axis')
-    plt.xlabel('yh - axis')
+    plt.ylabel('zv - axis')
+    plt.xlabel('x - axis')
     plt.colorbar()
     plt.grid()
     # plt.clim([0, 10])
@@ -121,8 +121,8 @@ def show_coverage(cov_map):
     plt.imshow(cov_map[:, j//2, :], interpolation=None,)
     plt.yticks(np.arange(i).astype(int))
     plt.xticks(np.arange(k).astype(int))
-    plt.ylabel('x - axis')
-    plt.xlabel('zv - axis')
+    plt.ylabel('z - axis')
+    plt.xlabel('yh - axis')
     plt.colorbar()
     plt.grid()
     # plt.clim([0, 10])
@@ -131,8 +131,8 @@ def show_coverage(cov_map):
     plt.imshow(cov_map[i//2, :, :], interpolation=None,)
     plt.yticks(np.arange(j).astype(int))
     plt.xticks(np.arange(k).astype(int))
-    plt.ylabel('yh - axis')
-    plt.xlabel('zv - axis')
+    plt.ylabel('x - axis')
+    plt.xlabel('yh - axis')
     plt.colorbar()
     plt.grid()
     # plt.clim([0, 10])
@@ -175,26 +175,26 @@ def test_stationary_coverage():
     cov_map = p.coverage(trajectory=stationary, region=region,
                          pixel_size=pixel_size, tmin=0, tmax=10, dt=1)
     show_coverage(cov_map)
-    key = cov_map[8, :, :]
+    key = cov_map[:, 8, :]
     truth = np.zeros([16, 16])
-    truth[10, 8] = 10
+    truth[8, 10] = 10
     plt.figure()
-    plt.plot(key[:, 8], 'o')
+    plt.plot(key[8, :], 'o')
     assert_equal(key, truth)
 
 
 def test_stationary_coverage_crop():
     """A beam of magnitude 10 at (:, 10, 8)."""
     p, region, pixel_size = init_coverage()
-    region = np.array([[-0/16, 8/16], [-0/16, 4/16], [-8/16, 8/16]])
+    region = np.array([[-8/16, 8/16], [-0/16, 8/16], [-0/16, 4/16]])
     cov_map = p.coverage(trajectory=stationary, region=region,
                          pixel_size=pixel_size, tmin=0, tmax=10, dt=1)
     show_coverage(cov_map)
-    key = cov_map[1, :, :]
-    truth = np.zeros([4, 16])
-    truth[2, 8] = 10
+    key = cov_map[:, 1, :]
+    truth = np.zeros([16, 4])
+    truth[8, 2] = 10
     plt.figure()
-    plt.plot(key[:, 8], 'o')
+    plt.plot(key[8, :], 'o')
     assert_equal(key, truth)
 
 
@@ -205,17 +205,17 @@ def test_horizontal_coverage():
     cov_map = p.coverage(trajectory=horizontal_move, region=region,
                          pixel_size=pixel_size, tmin=0, tmax=40, dt=1)
     show_coverage(cov_map)
-    key = cov_map[10, :, :]
+    key = cov_map[:, 10, :]
     truth = np.zeros([16, 16])
-    truth[5:18, 10] = 10
-    truth[(4, 8), 10] = 5
+    truth[10, 5:18] = 10
+    truth[10, (4, 8)] = 5
     plt.figure()
-    plt.plot(key[:, 10], 'o')
+    plt.plot(key[10, :], 'o')
     # print(key[8, :])
     # assert_equal(key, truth)
-    assert key[8, 10] >= 5 and key[8, 10] < 6
-    assert key[4, 10] > 4 and key[4, 10] <= 5
-    assert np.all(key[5:8, 10] == 10)
+    assert key[10, 8] >= 5 and key[10, 8] < 6
+    assert key[10, 4] > 4 and key[10, 4] <= 5
+    assert np.all(key[10, 5:8] == 10)
 
 
 def test_vertical_coverage():
@@ -223,17 +223,17 @@ def test_vertical_coverage():
     cov_map = p.coverage(trajectory=vertical_move, region=region,
                          pixel_size=pixel_size, tmin=0, tmax=40, dt=1)
     show_coverage(cov_map)
-    key = cov_map[4, :, :]
+    key = cov_map[:, 4, :]
     truth = np.zeros([16, 16])
-    truth[8, 9:12] = 10
-    truth[8, (8, 12)] = 5
+    truth[9:12, 8] = 10
+    truth[(8, 12), 8] = 5
     plt.figure()
-    plt.plot(key[8, :], 'o')
+    plt.plot(key[:, 8], 'o')
     # print(key[8, :])
     # assert_array_equal(key, truth)
     assert key[8, 8] >= 5 and key[8, 8] < 6
-    assert key[8, 12] > 4 and key[8, 12] <= 5
-    assert np.all(key[8, 9:12] == 10)
+    assert key[12, 8] > 4 and key[12, 8] <= 5
+    assert np.all(key[9:12, 8] == 10)
 
 
 def test_theta_coverage():
