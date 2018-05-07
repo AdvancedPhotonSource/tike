@@ -107,7 +107,11 @@ project(
     free(indi);
 }
 
-
+/**
+Siddon, R. L. (1984). Fast calculation of the exact radiological path for a
+three‐dimensional CT array. Medical Physics, 12(2), 252–255.
+https://doi.org/10.1118/1.595715
+*/
 void
 coverage(
     float ozmin,

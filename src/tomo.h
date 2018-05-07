@@ -30,8 +30,6 @@ art(
   The coordinates of the grid are (z, x, y). The lines are all perpendicular
   to the z direction. Theta is the angle from the x-axis using the right hand
   rule. v is parallel to z, and h is parallel to y when theta is zero.
-
-  TODO: Convert project to theta, h, v coordinates
 */
 void
 project(
