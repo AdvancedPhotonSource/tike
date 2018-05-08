@@ -95,10 +95,10 @@ def test_probe_smaller_than_default_line_size():
 def test_discrete_trajectory():
     def stationary(t):
         """Probe is stationary at location h = 8, v = 8"""
-        return [0, 8, 8]
+        return 0*t, 8 + 0*t, 8 + 0*t
 
     answer = discrete_trajectory(stationary, tmin=0, tmax=0.65, xstep=0.1, tstep=1)
-    truth = ([[0, 8, 8]], [0.65], [0])
+    truth = ([np.array(0), np.array([8]), np.array([8])], [0.65], [0])
     assert_equal(answer, truth)
 
 
@@ -150,17 +150,17 @@ def init_coverage():
 
 def stationary(t):
     """Probe is stationary at location h = 2 + 1/32, v = 1/32"""
-    return [0*t, 2/16 + 1/32 + 0*t, 1/32 + 0*t]
+    return 0.*t, 2/16 + 1/32 + 0*t, 1/32 + 0*t
 
 
 def horizontal_move(t, h_speed=-2/320):
     """Probe moves horizontally at h_speed [cm/s]"""
-    return [0*t, 1/32 + h_speed*t, 2/16 + 1/32 + 0*t]
+    return 0.*t, 1/32 + h_speed*t, 2/16 + 1/32 + 0*t
 
 
 def vertical_move(t, v_speed=2/320):
     """Probe moves vertically at v_speed [cm/s]"""
-    return [0*t, 1/32 + 0*t, 1/32 + v_speed*t]
+    return 0.*t, 1/32 + 0*t, 1/32 + v_speed*t
 
 
 def theta_move(t, Hz=1):
