@@ -51,7 +51,7 @@ from __future__ import (absolute_import, division, print_function,
 
 import numpy as np
 from numpy.testing import assert_allclose, assert_raises, assert_equal
-from tike.scan import *
+from tike.probe import *
 import matplotlib.pyplot as plt
 
 __author__ = "Daniel Ching"
@@ -97,7 +97,7 @@ def test_discrete_trajectory():
         """Probe is stationary at location h = 8, v = 8"""
         return [0, 8, 8]
 
-    answer = discrete_trajectory(stationary, tmin=0, tmax=0.65, dx=0.1, dt=1)
+    answer = discrete_trajectory(stationary, tmin=0, tmax=0.65, xstep=0.1, tstep=1)
     truth = ([[0, 8, 8]], [0.65], [0])
     assert_equal(answer, truth)
 
@@ -173,7 +173,7 @@ def test_stationary_coverage():
     """A beam of magnitude 10 at (:, 10, 8)."""
     p, region, pixel_size = init_coverage()
     cov_map = p.coverage(trajectory=stationary, region=region,
-                         pixel_size=pixel_size, tmin=0, tmax=10, dt=1)
+                         pixel_size=pixel_size, tmin=0, tmax=10, tstep=1)
     show_coverage(cov_map)
     key = cov_map[:, 8, :]
     truth = np.zeros([16, 16])
@@ -188,7 +188,7 @@ def test_stationary_coverage_crop():
     p, region, pixel_size = init_coverage()
     region = np.array([[-8/16, 8/16], [-0/16, 8/16], [-0/16, 4/16]])
     cov_map = p.coverage(trajectory=stationary, region=region,
-                         pixel_size=pixel_size, tmin=0, tmax=10, dt=1)
+                         pixel_size=pixel_size, tmin=0, tmax=10, tstep=1)
     show_coverage(cov_map)
     key = cov_map[:, 1, :]
     truth = np.zeros([16, 4])
@@ -203,7 +203,7 @@ def test_horizontal_coverage():
     # edges even out as the time step approaches zero.
     p, region, pixel_size = init_coverage()
     cov_map = p.coverage(trajectory=horizontal_move, region=region,
-                         pixel_size=pixel_size, tmin=0, tmax=40, dt=1)
+                         pixel_size=pixel_size, tmin=0, tmax=40, tstep=1)
     show_coverage(cov_map)
     key = cov_map[:, 10, :]
     truth = np.zeros([16, 16])
@@ -221,7 +221,7 @@ def test_horizontal_coverage():
 def test_vertical_coverage():
     p, region, pixel_size = init_coverage()
     cov_map = p.coverage(trajectory=vertical_move, region=region,
-                         pixel_size=pixel_size, tmin=0, tmax=40, dt=1)
+                         pixel_size=pixel_size, tmin=0, tmax=40, tstep=1)
     show_coverage(cov_map)
     key = cov_map[:, 4, :]
     truth = np.zeros([16, 16])
@@ -239,7 +239,7 @@ def test_vertical_coverage():
 def test_theta_coverage():
     p, region, pixel_size = init_coverage()
     cov_map = p.coverage(trajectory=theta_move, region=region,
-                         pixel_size=pixel_size, tmin=0, tmax=1, dt=0.5)
+                         pixel_size=pixel_size, tmin=0, tmax=1, tstep=0.5)
     show_coverage(cov_map)
 
 

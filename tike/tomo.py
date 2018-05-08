@@ -106,6 +106,7 @@ def coverage(grid_min, grid_size, theta, h, v, line_weight=None):
     externs.c_coverage(grid_min[0], grid_min[1], grid_min[2],
                        grid_size[0], grid_size[1], grid_size[2],
                        theta, h, v, line_weight, dsize, coverage_map)
+    print("{} Lines coverage map".format(line_weight.size))
     return coverage_map
 
 

@@ -51,6 +51,7 @@ __version__ = '0.2.0'
 from tike.tomo import *
 from tike.scan import *
 from tike.view import *
+from tike.probe import *
 import logging
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
