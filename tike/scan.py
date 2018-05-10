@@ -69,6 +69,7 @@ __all__ = ['scantimes',
            'lissajous',
            'raster',
            'spiral',
+           'diagonal',
            'scan3',
            'avgspeed',
            'lengths',
@@ -197,34 +198,54 @@ def lissajous(A, B, fx, fy, px, py, t):
     return x, y
 
 
-def raster(A, B, fx, fy, px, py, t):
+def raster(A, B, f, x0, y0, t):
     """Return the value of a raster function at time `t`.
     #discontinuous #2d
 
-    The raster starts at the origin and moves initially in the positive
-    directions. `fy` should be `2*fx` to make a conventional raster.
+    The raster starts at (x0, y0) and moves initially in the positive
+    directions.
+
+    Parameters
+    ----------
+    A : float
+        The horizontal length of lines
+    B : float
+        The vertical space between lines
+    f : float
+        The number of raster lines per second
+    x0, y0 : float
+        Starting positions of the raster
+    """
+    x = 0.5 * (triangle(A, 0.5*f, 0.5*np.pi, t) + A) + x0
+    y = staircase(B, f, 0, t) + y0
+    return x, y
+
+
+def spiral(A, f, p, t):
+    """Return the value of a spiral function at time `t`.
+    #continuous #2d
+
+    The spiral is centered on the origin and spins clockwise.
 
     Parameters
     A : float
-        The maximum horizontal displacement of the function at half the period.
-        Every period the horizontal displacement is 0.
-    B : float
-        The maximum vertical displacement every period.
-    fx, fy : float
-        The temporal frequencies of the function.
-    px, py : float
+        Displacement from the center during one rotation
+    f : float
+        The rotational frequency of the spiral
+    p : float
         The phase shifts of the x and y components of the function
     """
-    x = triangle(A, fx, px+np.pi/2, t) + A
-    y = staircase(B, fy, py, t)
-    return x/2, y
+    Amp = A*t*f
+    x = sinusoid(Amp, f, p, t)
+    y = sinusoid(Amp, f, p+np.pi/2, t)
+    return x, y
 
 
-def spiral(A, B, fx, fy, px, py, t):
-    """Return the value of a spiral function at time `t`.
+def diagonal(A, B, fx, fy, px, py, t):
+    """Return the value of a diagonal function at time `t`.
     #discontinuous #2d
 
-    The spiral is centered on the origin.
+    The diagonal is centered on the origin.
 
     Parameters
     A, B : float
