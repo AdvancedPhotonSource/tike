@@ -152,7 +152,7 @@ class Probe(object):
 
         Parameters
         ----------
-        trajectory : function(t) -> [theta, h, v]
+        trajectory : function(t) -> theta, h, v
             A function which describes the position of the center of the Probe
             as a function of time.
         pixel_size : float [cm]
@@ -161,11 +161,12 @@ class Probe(object):
 
         Returns
         -------
-        procedure : :py:class:`np.array` [radians, cm, ..., s]
-            A (M,4) array which describes a series of lines:
-            `[theta, h, v, weight]` to approximate the trajectory
+        theta, h, v, dwell : :py:class:`np.array` [radians, cm, ..., s]
+            A (M,) array which describes a series of lines to approximate the
+            trajectory
         """
-        procedure = list()
+        all_theta, all_h = list(), list()
+        all_v, all_dwell = list(), list()
         trajectory_cache = dict()
         lines = self.line_offsets(pixel_size=pixel_size)
         xstep = self.line_width
@@ -176,25 +177,24 @@ class Probe(object):
             # Check chache for parallel trajectories
             if cache_key in trajectory_cache:
                 # compute trajectory from previous
-                position, dwell = trajectory_cache[cache_key]
+                th, h, v, dwell = trajectory_cache[cache_key]
             else:
                 def line_trajectory(t):
                     pos_temp = trajectory(t)
                     return (pos_temp[0] + offset[0],
                             pos_temp[1] + offset[1],
                             pos_temp[2])
-
-                position, dwell, none = discrete_trajectory(
+                th, h, v, dwell, none = discrete_trajectory(
                                             trajectory=line_trajectory,
                                             tmin=tmin, tmax=tmax,
                                             xstep=xstep, tstep=tstep)
-                trajectory_cache[cache_key] = (position, dwell)
-
-            position = np.stack(position + [dwell * weight], axis=1)
-            position[:, 2] += offset[2]
-            procedure.append(position)
-        procedure = np.concatenate(procedure)
-        return procedure
+                trajectory_cache[cache_key] = (th, h, v, dwell)
+            all_theta.append(th)
+            all_h.append(h)
+            all_v.append(v + offset[2])
+            all_dwell.append(dwell * weight)
+        return (np.concatenate(all_theta), np.concatenate(all_h),
+                np.concatenate(all_v), np.concatenate(all_dwell))
 
     def coverage(self, trajectory, region, pixel_size, tmin, tmax, tstep,
                  anisotropy=False):
@@ -206,7 +206,7 @@ class Probe(object):
 
         Parameters
         ----------
-        trajectory : function(t) -> [theta, h, v] [radians, cm]
+        trajectory : function(t) -> theta, h, v [radians, cm]
             A function which describes the position of the center of the Probe
             as a function of time.
         region : :py:class:`np.array` [cm]
@@ -232,20 +232,19 @@ class Probe(object):
         assert np.all(box[:, 0] <= box[:, 1]), ("region minimum must be <= to"
                                                 "region maximum.")
 
-        procedure = self.procedure(trajectory=trajectory,
+        theta, h, v, w = self.procedure(trajectory=trajectory,
                                    pixel_size=pixel_size,
                                    tmin=tmin, tmax=tmax, tstep=tstep)
 
         # Scale to a coordinate system where pixel_size is 1.0
-        h = procedure[:, 1] / pixel_size
-        v = procedure[:, 2] / pixel_size
-        w = procedure[:, 3] * self.line_width**2 / pixel_size**2
+        h = h / pixel_size
+        v = v / pixel_size
+        w = w * self.line_width**2 / pixel_size**2
         box = box / pixel_size
         # Find new min corner and size of region
         ibox_shape = (np.ceil(box[:, 1] - box[:, 0])).astype(int)
-        procedure = np.array(procedure)
         coverage_map = coverage(box[:, 0], ibox_shape,
-                                theta=procedure[:, 0], h=h, v=v,
+                                theta=theta, h=h, v=v,
                                 line_weight=w)
         return coverage_map
 
@@ -307,7 +306,7 @@ def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep):
 
     Returns
     -------
-    position : list of 3 (N,) vectors [m]
+    theta, h, v : (N,) vectors [m]
         Discrete measurement positions along the trajectory satisfying
         constraints.
     dwell : (N,) vector [s]
@@ -315,53 +314,69 @@ def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep):
     time : (N,) vector [s]
         Discrete times along trajectory satisfying constraints.
     """
+    dist_func = euclidian_dist_approx
     all_theta, all_h, all_v, all_times = discrete_helper(trajectory,
                                                          tmin, tmax,
-                                                         xstep, tstep)
+                                                         xstep, tstep,
+                                                         dist_func)
+    all_theta = np.concatenate(all_theta)
+    all_h = np.concatenate(all_h)
+    all_v = np.concatenate(all_v)
+    all_times = np.concatenate(all_times)
+    # Compute dwell time because you can't while recursing
     dwell = np.empty(all_times.size)
     dwell[0:-1] = np.diff(all_times)
     dwell[-1] = tmax - all_times[-1]
+    assert tmax - all_times[-1] <= tstep, "Last time not less than tstep"
+    assert np.all(dwell <= tstep + 1e-6), \
+        "Some times not less than tstep\n{}".format(dwell[dwell > tstep][0])
+    # assert dist_func([trajectory(all_times[-1]), trajectory(tmax)]) < xstep,
+    #     "Last distance not less than dstep"
+    assert np.all(dist_func(all_theta, all_h, all_v) <= xstep), \
+        "Some distances wrong"
+    # These assertions are vulnerable to rounding errors
+    return all_theta, all_h, all_v, dwell, all_times
 
-    return [all_theta, all_h, all_v], dwell, all_times
 
-
-def discrete_helper(trajectory, tmin, tmax, xstep, tstep):
+def discrete_helper(trajectory, tmin, tmax, xstep, tstep, dist_func):
     """Do a recursive sampling of the trajectory."""
-    all_theta, all_h = np.array([]), np.array([])
-    all_v, all_times = np.array([]), np.array([])
+    all_theta, all_h = list(), list()
+    all_v, all_times = list(), list()
     # Sample en masse the trajectory over time
     times = np.arange(tmin, tmax + tstep, tstep)
     theta, h, v = trajectory(times)
     # Compute spatial distances between samples
-    distances = euclidian_dist_approx(theta, h, v)
+    distances = dist_func(theta, h, v)
     # determine which ranges are too large and which to keep
     keepit = xstep > distances
+    len_keepit = keepit.size
     rlo, rhi, klo, khi = 0, 0, 0, 0
-    while khi < len(keepit):
+    while khi < len_keepit:
         khi += 1
         rhi += 1
         if not keepit[klo]:
             klo += 1
-        elif khi == len(keepit) or not keepit[rhi]:
+        elif khi == len_keepit or not keepit[rhi]:
             # print("keep: {}, {}".format(klo, khi))
             # concatenate the ranges to keep
-            all_theta = np.concatenate([all_theta, theta[klo:khi]])
-            all_h = np.concatenate([all_h, h[klo:khi]])
-            all_v = np.concatenate([all_v, v[klo:khi]])
-            all_times = np.concatenate([all_times, times[klo:khi]])
+            all_theta.append(theta[klo:khi])
+            all_h.append(h[klo:khi])
+            all_v.append(v[klo:khi])
+            all_times.append(times[klo:khi])
             klo = khi
         if keepit[rlo]:
             rlo += 1
-        elif rhi == len(keepit) or keepit[rhi]:
+        elif rhi == len_keepit or keepit[rhi]:
             # print("replace: {}, {} with {} tstep".format(rlo, rhi, tstep/2))
             # concatenate the newly calculated region
             itheta, ih, iv, itimes = discrete_helper(trajectory,
                                                      times[rlo], times[rhi],
-                                                     xstep, tstep/2)
-            all_theta = np.concatenate([all_theta, itheta])
-            all_h = np.concatenate([all_h, ih])
-            all_v = np.concatenate([all_v, iv])
-            all_times = np.concatenate([all_times, itimes])
+                                                     xstep, tstep/2,
+                                                     dist_func)
+            all_theta += itheta
+            all_h += ih
+            all_v += iv
+            all_times += itimes
             rlo = rhi
     khi += 1
     return all_theta, all_h, all_v, all_times

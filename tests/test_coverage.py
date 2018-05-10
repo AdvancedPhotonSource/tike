@@ -98,7 +98,7 @@ def test_discrete_trajectory():
         return 0*t, 8 + 0*t, 8 + 0*t
 
     answer = discrete_trajectory(stationary, tmin=0, tmax=0.65, xstep=0.1, tstep=1)
-    truth = ([np.array(0), np.array([8]), np.array([8])], [0.65], [0])
+    truth = ([0], [8], [8], [0.65], [0])
     assert_equal(answer, truth)
 
 
