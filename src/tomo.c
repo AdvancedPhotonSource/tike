@@ -15,7 +15,7 @@ art(
 
 void
 project(
-    const float *obj,
+    const float *obj_weights,
     float ozmin,
     float oxmin,
     float oymin,
@@ -30,82 +30,17 @@ project(
 {
     // Initialize the grid on object space.
     float *gridx = (float *)malloc((ox+1)*sizeof(float));
-    float *coordy = (float *)malloc((ox+1)*sizeof(float));
-    float *coordx = (float *)malloc((oy+1)*sizeof(float));
     float *gridy = (float *)malloc((oy+1)*sizeof(float));
-    // Initialize intermediate vectors
-    // TODO: Reduce memory consumption by reusing some of these arrays
-    float *ax = (float *)malloc((ox+oy+2)*sizeof(float));
-    float *ay = (float *)malloc((ox+oy+2)*sizeof(float));
-    float *bx = (float *)malloc((ox+oy+2)*sizeof(float));
-    float *by = (float *)malloc((ox+oy+2)*sizeof(float));
-    float *coorx = (float *)malloc((ox+oy+2)*sizeof(float));
-    float *coory = (float *)malloc((ox+oy+2)*sizeof(float));
-    // Initialize the distance vector per ray.
-    float *dist = (float *)malloc((ox+oy+1)*sizeof(float));
-    float *midx = (float *)malloc((ox+oy+1)*sizeof(float));
-    float *midy = (float *)malloc((ox+oy+1)*sizeof(float));
-    // Initialize the index of the grid that the ray passes through.
-    unsigned *indi = (unsigned *)malloc((ox+oy+1)*sizeof(unsigned));
-    // Diagnostics for pointers.
-    assert(coordx != NULL && coordy != NULL &&
-        ax != NULL && ay != NULL && by != NULL && bx != NULL &&
-        coorx != NULL && coory != NULL &&
-        dist != NULL && indi != NULL);
-    int ray;
-    int quadrant;
-    float ri, hi;
-    int zi;
-    float theta_p, sin_p, cos_p;
-    int asize, bsize, csize;
+    assert(gridx != NULL && gridy != NULL);
+    
     preprocessing(oxmin, oymin, ox, oy, gridx, gridy); // Outputs: gridx, gridy
-    for (ray=0; ray<dsize; ray++)
-    {
-        zi = floor(v[ray]-ozmin);
-        if ((oz <= zi) || (zi < 0))
-        {
-          //TODO: Replace this hard exclusion with a weight over z gridlines
-          // Skip this ray if it is out of the z range
-          // printf("skipped %d. %f, %f, %f\n", ray, 0.0, zi, oz);
-          continue;
-        }
-        // Calculate the sin and cos values
-        // of the projection angle and find
-        // at which quadrant on the cartesian grid.
-        theta_p = fmod(theta[ray], 2*M_PI);
-        quadrant = calc_quadrant(theta_p);
-        sin_p = sinf(theta_p);
-        cos_p = cosf(theta_p);
-        ri = abs(oxmin)+abs(oymin)+ox+oy;
-        hi = h[ray]+1e-6;
-        // printf("ray=%d, ri=%f, hi=%f, zi=%f\n", ray, ri, hi, zi);
-        calc_coords(
-            ox, oy, ri, hi, sin_p, cos_p, gridx, gridy, coordx, coordy);
-        trim_coords(
-            ox, oy, coordx, coordy, gridx, gridy,
-            &asize, ax, ay, &bsize, bx, by);
-        sort_intersections(
-            quadrant, asize, ax, ay, bsize, bx, by, &csize, coorx, coory);
-        calc_dist(csize, coorx, coory, midx, midy, dist);
-        calc_index(ox, oy, oz, oxmin, oymin, ozmin, csize,
-                   midx, midy, zi, indi);
-        // Calculate projection
-        calc_simdata(obj, csize, indi, dist, ray, data);
-    }
+    
+    worker_function(obj_weights, ozmin, oxmin, oymin, ox, oy, oz,
+        data, theta, h, v, NULL, dsize,
+        gridx, gridy, calc_simdata);
+  
     free(gridx);
     free(gridy);
-    free(coordx);
-    free(coordy);
-    free(ax);
-    free(ay);
-    free(bx);
-    free(by);
-    free(coorx);
-    free(coory);
-    free(dist);
-    free(midx);
-    free(midy);
-    free(indi);
 }
 
 /**
@@ -124,15 +59,45 @@ coverage(
     const float *theta,
     const float *h,
     const float *v,
-    const float *weights,
+    const float *line_weights,
     int dsize,
-    float *cov)
+    float *coverage_map)
 {
     // Initialize the grid on object space.
     float *gridx = malloc(sizeof *gridx * (ox+1));
+    float *gridy = malloc(sizeof *gridy * (oy+1));
+    assert(gridx != NULL && gridy != NULL);
+
+    preprocessing(oxmin, oymin, ox, oy, gridx, gridy); // Outputs: gridx, gridy
+
+    worker_function(NULL, ozmin, oxmin, oymin, ox, oy, oz,
+        coverage_map, theta, h, v, line_weights, dsize,
+        gridx, gridy, calc_coverage);
+    
+    free(gridx);
+    free(gridy);
+}
+
+
+void worker_function(
+    const float *obj_weights,
+    const float ozmin, const float oxmin, const float oymin,
+    const int ox, const int oy, const int oz,
+    float *data,
+    const float *theta, const float *h, const float *v, const float *weights,
+    const int dsize, 
+    const float *gridx, const float *gridy,
+    void (*calc_f)(
+        const unsigned *, const float *,
+        const float *,
+        int const,
+        float const,
+        int const,
+        float *))
+{
+    assert(calc_f != NULL);
     float *coordy = malloc(sizeof *coordy * (ox+1));
     float *coordx = malloc(sizeof *coordx * (oy+1));
-    float *gridy = malloc(sizeof *gridy * (oy+1));
     // Initialize intermediate vectors
     // TODO: Reduce memory consumption by reusing some of these arrays
     float *ax = (float *)malloc((ox+oy+2)*sizeof(float));
@@ -151,14 +116,15 @@ coverage(
     assert(coordx != NULL && coordy != NULL &&
         ax != NULL && ay != NULL && by != NULL && bx != NULL &&
         coorx != NULL && coory != NULL &&
-        dist != NULL && indi != NULL);
+        dist != NULL && indi != NULL && midx != NULL && midy != NULL);
+    
     int ray;
     int quadrant;
-    float ri, hi;
+    float ri, hi, line_weight;
     int zi;
     float theta_p, sin_p, cos_p;
     int asize, bsize, csize;
-    preprocessing(oxmin, oymin, ox, oy, gridx, gridy); // Outputs: gridx, gridy
+    
     for (ray=0; ray<dsize; ray++)
     {
         zi = floor(v[ray]-ozmin);
@@ -167,10 +133,10 @@ coverage(
           //TODO: Replace this hard exclusion with a weight over z gridlines
           // Skip this ray if it is out of the z range
           // printf("skipped %d. %f, %f, %f\n", ray, 0.0, zi, oz);
+          assert(false); // this ray should not be here
           continue;
         }
-        // Calculate the sin and cos values
-        // of the projection angle and find
+        // Calculate the sin and cos values of the projection angle and find
         // at which quadrant on the cartesian grid.
         theta_p = fmod(theta[ray], 2*M_PI);
         quadrant = calc_quadrant(theta_p);
@@ -186,14 +152,16 @@ coverage(
             &asize, ax, ay, &bsize, bx, by);
         sort_intersections(
             quadrant, asize, ax, ay, bsize, bx, by, &csize, coorx, coory);
-        calc_dist(csize, coorx, coory, midx, midy, dist);
-        calc_index(ox, oy, oz, oxmin, oymin, ozmin, csize,
-                   midx, midy, zi, indi);
+        calc_dist(
+            csize, coorx, coory, midx, midy, dist);
+        calc_index(
+            ox, oy, oz, oxmin, oymin, ozmin, csize,
+            midx, midy, zi, indi);
         // Calculate coverage
-        calc_coverage(csize, indi, dist, weights[ray], cov);
+        if (weights != NULL)
+            line_weight = weights[ray];
+        (*calc_f)(indi, dist, obj_weights, csize, line_weight, ray, data);
     }
-    free(gridx);
-    free(gridy);
     free(coordx);
     free(coordy);
     free(ax);
@@ -207,6 +175,7 @@ coverage(
     free(midy);
     free(indi);
 }
+
 
 
 void
@@ -500,10 +469,12 @@ calc_index(
 
 void
 calc_coverage(
-    int const csize,
     const unsigned *indi,
     const float *dist,
+    const float *unused_float,
+    int const csize,
     float const line_weight,
+    int const unused_int,
     float *cov)
 {
     int n;
@@ -516,10 +487,11 @@ calc_coverage(
 
 void
 calc_simdata(
-    const float *obj,
-    int const csize,
     const unsigned *indi,
     const float *dist,
+    const float *obj,
+    int const csize,
+    float const unused_float,
     int const ray,
     float *data)
 {

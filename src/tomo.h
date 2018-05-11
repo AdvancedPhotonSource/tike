@@ -33,16 +33,16 @@ art(
 */
 void
 project(
-    const float *obj,
+    const float *obj_weights,
     float ozmin,
     float oxmin,
     float oymin,
     int oz,
     int ox,
     int oy,
-    const float *x,
-    const float *y,
     const float *theta,
+    const float *h,
+    const float *v,
     int dsize,
     float *data);
 
@@ -74,6 +74,25 @@ coverage(
 
 
 // Utility functions for data simultation
+/**
+*/
+void worker_function(
+    const float *obj_weights,
+    const float ozmin, const float oxmin, const float oymin,
+    const int ox, const int oy, const int oz,
+    float *data,
+    const float *theta, const float *h, const float *v, const float *weights,
+    const int dsize, 
+    const float *gridx, const float *gridy,
+    void (*f)(
+        const unsigned *,
+        const float *, const float *,
+        int const,
+        float const,
+        int const,
+        float *)); 
+
+
 /**
   Fill gridx and gridy with floats reprsenting the boundaries of the gridlines
   in the x and y directions. Gridlines start at minx and miny and are
@@ -158,10 +177,12 @@ calc_index(
 */
 void
 calc_coverage(
-    int const data_size,
-    const unsigned *index_xyz,
+    const unsigned *index_zxy,
     const float *distances,
+    const float *,
+    int const data_size,
     float const line_weight,
+    int const,
     float *coverage_map);
 
 /**
@@ -169,10 +190,11 @@ calc_coverage(
 */
 void
 calc_simdata(
+    const unsigned *index_zxy,
+    const float *distances,
     const float *grid_weights,
     int const data_size,
-    const unsigned *index_xyz,
-    const float *distances,
+    float const,
     int const index_line,
     float *data);
 
