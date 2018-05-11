@@ -370,7 +370,12 @@ trim_coords(
                   by, bx, gridx[0], gridx[ox]);
 }
 
-
+/*
+TODO: Check the last element of the first array is less or equal to the first
+element of the second array.
+TODO: Check the arrays are both ascending or descending
+TODO: Use memcpy instead of explicit copy
+*/
 void
 sort_intersections(
     int ind_condition,
