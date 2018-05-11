@@ -96,20 +96,19 @@ void worker_function(
         float *))
 {
     assert(calc_f != NULL);
-    float *coordy = malloc(sizeof *coordy * (ox+1));
-    float *coordx = malloc(sizeof *coordx * (oy+1));
+    float *coordy = malloc(sizeof *coordy * (ox+oy+2));
+    float *coordx = malloc(sizeof *coordx * (ox+oy+2));
     // Initialize intermediate vectors
-    // TODO: Reduce memory consumption by reusing some of these arrays
     float *ax = (float *)malloc((ox+oy+2)*sizeof(float));
     float *ay = (float *)malloc((ox+oy+2)*sizeof(float));
     float *bx = (float *)malloc((ox+oy+2)*sizeof(float));
     float *by = (float *)malloc((ox+oy+2)*sizeof(float));
-    float *coorx = (float *)malloc((ox+oy+2)*sizeof(float));
-    float *coory = (float *)malloc((ox+oy+2)*sizeof(float));
+    float *coorx = coordx;
+    float *coory = coordy;
     // Initialize the distance vector per ray.
-    float *dist = (float *)malloc((ox+oy+1)*sizeof(float));
-    float *midx = (float *)malloc((ox+oy+1)*sizeof(float));
-    float *midy = (float *)malloc((ox+oy+1)*sizeof(float));
+    float *dist = bx;
+    float *midx = ax;
+    float *midy = ay;
     // Initialize the index of the grid that the ray passes through.
     unsigned *indi = malloc(sizeof *indi * (ox+oy+1));
     // Diagnostics for pointers.
@@ -168,11 +167,11 @@ void worker_function(
     free(ay);
     free(bx);
     free(by);
-    free(coorx);
-    free(coory);
-    free(dist);
-    free(midx);
-    free(midy);
+    // free(coorx); -> coorx
+    // free(coory); -> coorx
+    // free(dist); -> bx
+    // free(midx); -> ax
+    // free(midy); -> ay
     free(indi);
 }
 
