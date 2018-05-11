@@ -46,11 +46,13 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+
 import numpy as np
 from . import utils
 from . import externs
 import logging
-
 
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
@@ -58,6 +60,7 @@ __docformat__ = 'restructuredtext en'
 __all__ = ['art',
            'project',
            'coverage']
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -103,8 +106,7 @@ def coverage(grid_min, grid_size, theta, h, v, line_weight=None):
     assert theta.size == h.size == v.size == line_weight.size
     dsize = theta.size
     coverage_map = np.zeros(grid_size, dtype=np.float32)
-    logging.info("{} line coverage map, {} element grid".format(
-                 line_weight.size, coverage_map.size))
+    logging.info(" coverage {:,d} element grid".format(coverage_map.size))
     externs.c_coverage(grid_min[0], grid_min[1], grid_min[2],
                        grid_size[0], grid_size[1], grid_size[2],
                        theta, h, v, line_weight, dsize, coverage_map)

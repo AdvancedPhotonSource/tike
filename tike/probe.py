@@ -68,6 +68,7 @@ __all__ = ['Probe',
            'discrete_trajectory']
 
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -131,6 +132,7 @@ class Probe(object):
             # probe is larger than line_width
             ncells = np.ceil(width / self.line_width)
             self.line_width = width / ncells
+        logger.info(" line_width is {:n} cm".format(self.line_width))
         gh = (np.linspace(0, width, int(width/self.line_width), endpoint=False)
               + (self.line_width - width) / 2)
         gv = (np.linspace(0, height, int(height/self.line_width),
@@ -145,6 +147,7 @@ class Probe(object):
             weight = self.density_profile(row[1], row[2])
             if weight > 0:  # Only append lines whose weight matters
                 lines.append((row, weight))
+        logger.info(" probe uses {:,d} lines".format(len(lines)))
         return lines
 
     def procedure(self, trajectory, pixel_size, tmin, tmax, tstep):
@@ -193,7 +196,9 @@ class Probe(object):
             all_h.append(h)
             all_v.append(v + offset[2])
             all_dwell.append(dwell * weight)
-        return (np.concatenate(all_theta), np.concatenate(all_h),
+        all_theta = np.concatenate(all_theta)
+        logger.info(" procedure is {:,d} lines".format(all_theta.size))
+        return (all_theta, np.concatenate(all_h),
                 np.concatenate(all_v), np.concatenate(all_dwell))
 
     def coverage(self, trajectory, region, pixel_size, tmin, tmax, tstep,
@@ -233,8 +238,8 @@ class Probe(object):
                                                 "region maximum.")
 
         theta, h, v, w = self.procedure(trajectory=trajectory,
-                                   pixel_size=pixel_size,
-                                   tmin=tmin, tmax=tmax, tstep=tstep)
+                                        pixel_size=pixel_size,
+                                        tmin=tmin, tmax=tmax, tstep=tstep)
 
         # Scale to a coordinate system where pixel_size is 1.0
         h = h / pixel_size
