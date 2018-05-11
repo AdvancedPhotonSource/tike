@@ -107,29 +107,30 @@ calc_coords(
     float sin_p, float cos_p,
     const float *gridx, const float *gridy,
     float *coordx, float *coordy);
+
 /**
-  Merge the (coordx, gridy) and (gridx, coordy)
+  (coordx, gridy) and (gridx, coordy) are sets of points along a line. Remove
+  points from these sets that lay outside the boundaries of the grid.
 */
 void
 trim_coords(
-    int ngridx, int ngridy,
+    int ox, int oy,
     const float *coordx, const float *coordy,
     const float *gridx, const float *gridy,
     int *asize, float *ax, float *ay,
     int *bsize, float *bx, float *by);
 
 /**
-  Sort the array of intersection points (ax, ay) and (bx, by). The new sorted
-  intersection points are stored in (coorx, coory). Total number of points are
-  csize.
+  (ax, ay) and (bx, by) are two sets of ordered points along a line. Combine
+  the two sets of points into (coorx, coory). The total number of points is
+  asize + bsize = csize.
 */
 void
 sort_intersections(
     int ind_condition,
     int asize, const float *ax, const float *ay,
     int bsize, const float *bx, const float *by,
-    int *csize,
-    float *coorx, float *coory);
+    int *csize, float *coorx, float *coory);
 
 /**
   (coorx, coory) describe the ordered points where the line intersects the

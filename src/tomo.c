@@ -128,10 +128,10 @@ coverage(
     float *cov)
 {
     // Initialize the grid on object space.
-    float *gridx = (float *)malloc((ox+1)*sizeof(float));
-    float *coordy = (float *)malloc((ox+1)*sizeof(float));
-    float *coordx = (float *)malloc((oy+1)*sizeof(float));
-    float *gridy = (float *)malloc((oy+1)*sizeof(float));
+    float *gridx = malloc(sizeof *gridx * (ox+1));
+    float *coordy = malloc(sizeof *coordy * (ox+1));
+    float *coordx = malloc(sizeof *coordx * (oy+1));
+    float *gridy = malloc(sizeof *gridy * (oy+1));
     // Initialize intermediate vectors
     // TODO: Reduce memory consumption by reusing some of these arrays
     float *ax = (float *)malloc((ox+oy+2)*sizeof(float));
@@ -145,7 +145,7 @@ coverage(
     float *midx = (float *)malloc((ox+oy+1)*sizeof(float));
     float *midy = (float *)malloc((ox+oy+1)*sizeof(float));
     // Initialize the index of the grid that the ray passes through.
-    unsigned *indi = (unsigned *)malloc((ox+oy+1)*sizeof(unsigned));
+    unsigned *indi = malloc(sizeof *indi * (ox+oy+1));
     // Diagnostics for pointers.
     assert(coordx != NULL && coordy != NULL &&
         ax != NULL && ay != NULL && by != NULL && bx != NULL &&
@@ -281,42 +281,93 @@ calc_coords(
 }
 
 
+/** Given the ordered points (grid, coord). Remove points outside the range
+  [min_coord, max_coord). Put the points you're keeping inside (agrid, acoord).
+*/
+void trim_coord_1D(
+    const int grid_size, const float *grid, const float *coord,
+    int *a_size, float *agrid, float *acoord,
+    const float min_coord, const float max_coord)
+{
+  // Convert the range [min_coord, max_coord) to [left, right) where left,
+  // right are indices of grid
+  // if (coord[grid_size-1] < min_coord || max_coord < coord[0])
+  // {
+  //   // All points are outside the range
+  //   *a_size = 0;
+  //   printf("Nothing!\n");
+  //   return;
+  // }
+  // Find the left and right edge of the overlap of ranges
+  assert(grid_size >= 2);
+  bool ascending = true;
+  // Determine whether coords are sorted ascending or descending
+  if (coord[0] > coord[1])
+    ascending = false;
+  int left = 0;
+  int right = grid_size;
+  int low, high, mid;
+  low = left;
+  high = right;
+  while (low <= high) {  
+      mid = (low + high) / 2;
+      if (mid == grid_size || (ascending && min_coord <= coord[mid])
+          || (!ascending && max_coord > coord[mid]))
+      {
+        if (mid == 0 || (ascending && coord[mid - 1] < min_coord)
+            || (!ascending && coord[mid - 1] >= max_coord))
+        {
+          left = mid;
+          break;
+        }
+        else // edge is to the left of 'mid'
+          high = mid - 1;
+      }
+      else // edge is to the right of 'mid'
+          low = mid + 1;
+  }
+  assert(low <= high);
+  low = left;
+  high = right;
+  while (low <= high) {
+      mid = (low + high) / 2;
+      if (mid == grid_size || (ascending && max_coord <= coord[mid])
+          || (!ascending && min_coord > coord[mid]))
+      {
+        if (mid == 0 || (ascending && coord[mid - 1] < max_coord)
+            || (!ascending && coord[mid - 1] >= min_coord))
+        {
+          right = mid;
+          break;
+        }
+        else // edge is to the left of 'mid'
+          high = mid - 1;
+      }
+      else // edge is to the right of 'mid'
+          low = mid + 1;
+  }
+  assert(low <= high);
+  // Copy the range [left, right)
+  *a_size = right-left;
+  assert(*a_size >= 0);
+  assert(left >= 0 && left + *a_size <= grid_size);
+  memcpy(agrid, &grid[left], sizeof *grid * *a_size);
+  memcpy(acoord, &coord[left], sizeof *coord * *a_size);
+}
+
+
 void
 trim_coords(
-    int ry, int rz,
+    int ox, int oy,
     const float *coordx, const float *coordy,
     const float *gridx, const float* gridy,
     int *asize, float *ax, float *ay,
     int *bsize, float *bx, float *by)
 {
-    int n;
-
-    *asize = 0;
-    *bsize = 0;
-    for (n=0; n<=rz; n++)
-    {
-        if (coordx[n] >= gridx[0]+1e-2)
-        {
-            if (coordx[n] <= gridx[ry]-1e-2)
-            {
-                ax[*asize] = coordx[n];
-                ay[*asize] = gridy[n];
-                (*asize)++;
-            }
-        }
-    }
-    for (n=0; n<=ry; n++)
-    {
-        if (coordy[n] >= gridy[0]+1e-2)
-        {
-            if (coordy[n] <= gridy[rz]-1e-2)
-            {
-                bx[*bsize] = gridx[n];
-                by[*bsize] = coordy[n];
-                (*bsize)++;
-            }
-        }
-    }
+    trim_coord_1D(ox+1, gridx, coordy, asize,
+                  ax, ay, gridy[0], gridy[oy]);
+    trim_coord_1D(oy+1, gridy, coordx, bsize,
+                  by, bx, gridx[0], gridx[ox]);
 }
 
 
@@ -378,9 +429,10 @@ calc_dist(
         diffx = coorx[n+1]-coorx[n];
         diffy = coory[n+1]-coory[n];
         dist[n] = sqrt(diffx*diffx+diffy*diffy);
+        // printf("%f, %f\n", coorx[n+1], coorx[n]);
         midx[n] = (coorx[n+1]+coorx[n])/2;
         midy[n] = (coory[n+1]+coory[n])/2;
-        // printf("midx, midy = %f, %f\n", midx, midy);
+        // printf("midx, midy = %f, %f\n", midx[n], midy[n]);
     }
 }
 
@@ -397,8 +449,11 @@ calc_index(
     {
         // Midpoints assigned to pixels by nearest mincorner
         indx = floor(midx[n]-oxmin);
+        // printf("imidx[n]-oxmin %f\n", midx[n]-oxmin );
+        // printf("indx, ox, %u, %d\n", indx, ox);
+        assert(indx < (unsigned)ox);
         indy = floor(midy[n]-oymin);
-        assert(indx < (unsigned)ox); assert(indy < (unsigned)oy);
+        assert(indy < (unsigned)oy);
         assert(((indx*oy*oz)+(indy*oz)+indz) < (unsigned)ox*oy*oz);
         // Convert from 3D to linear C-order indexing
         indi[n] = indy + oy * (indx + ox * (indz));
