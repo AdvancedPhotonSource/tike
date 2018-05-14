@@ -289,70 +289,73 @@ void trim_coord_1D(
     int *a_size, float *agrid, float *acoord,
     const float min_coord, const float max_coord)
 {
-  // Convert the range [min_coord, max_coord) to [left, right) where left,
-  // right are indices of grid
-  // if (coord[grid_size-1] < min_coord || max_coord < coord[0])
-  // {
-  //   // All points are outside the range
-  //   *a_size = 0;
-  //   printf("Nothing!\n");
-  //   return;
-  // }
-  // Find the left and right edge of the overlap of ranges
   assert(grid_size >= 2);
-  bool ascending = true;
-  // Determine whether coords are sorted ascending or descending
-  if (coord[0] > coord[1])
-    ascending = false;
-  int left = 0;
-  int right = grid_size;
-  int low, high, mid;
-  low = left;
-  high = right;
-  while (low <= high) {  
-      mid = (low + high) / 2;
-      if (mid == grid_size || (ascending && min_coord <= coord[mid])
-          || (!ascending && max_coord > coord[mid]))
-      {
-        if (mid == 0 || (ascending && coord[mid - 1] < min_coord)
-            || (!ascending && coord[mid - 1] >= max_coord))
+  assert(min_coord <= max_coord);
+  if isfinite(coord[0])
+  {
+    // Determine whether coords are sorted ascending or descending
+    bool ascending = coord[0] <= coord[1];
+    // if (coord[grid_size-1] < min_coord || max_coord < coord[0])
+    // Convert the range [min_coord, max_coord) to [left, right) where left,
+    // right are indices of grid
+    int left = 0, right = grid_size;
+    int low, high, mid;
+    low = left;
+    high = right;
+    while (low <= high) { 
+        mid = (low + high) / 2;
+        if (mid == grid_size || (ascending && min_coord <= coord[mid])
+            || (!ascending && max_coord > coord[mid]))
         {
-          left = mid;
-          break;
+          if (mid == 0 || (ascending && coord[mid - 1] < min_coord)
+              || (!ascending && coord[mid - 1] >= max_coord))
+          {
+            left = mid;
+            break;
+          }
+          else // edge is to the left of 'mid'
+            high = mid - 1;
         }
-        else // edge is to the left of 'mid'
-          high = mid - 1;
-      }
-      else // edge is to the right of 'mid'
-          low = mid + 1;
-  }
-  assert(low <= high);
-  low = left;
-  high = right;
-  while (low <= high) {
-      mid = (low + high) / 2;
-      if (mid == grid_size || (ascending && max_coord <= coord[mid])
-          || (!ascending && min_coord > coord[mid]))
-      {
-        if (mid == 0 || (ascending && coord[mid - 1] < max_coord)
-            || (!ascending && coord[mid - 1] >= min_coord))
+        else // edge is to the right of 'mid'
+            low = mid + 1;
+    }
+    assert(low <= high);
+    low = left;
+    high = right;
+    while (low <= high) {
+        mid = (low + high) / 2;
+        if (mid == grid_size || (ascending && max_coord <= coord[mid])
+            || (!ascending && min_coord > coord[mid]))
         {
-          right = mid;
-          break;
+          if (mid == 0 || (ascending && coord[mid - 1] < max_coord)
+              || (!ascending && coord[mid - 1] >= min_coord))
+          {
+            right = mid;
+            break;
+          }
+          else // edge is to the left of 'mid'
+            high = mid - 1;
         }
-        else // edge is to the left of 'mid'
-          high = mid - 1;
-      }
-      else // edge is to the right of 'mid'
-          low = mid + 1;
+        else // edge is to the right of 'mid'
+            low = mid + 1;
+    }
+    assert(low <= high);
+    
+    // Copy the range [left, right)
+    *a_size = right-left;
+    assert(*a_size >= 0);
+    assert(left >= 0 && left + *a_size <= grid_size);
+    memcpy(agrid, &grid[left], sizeof *grid * *a_size);
+    memcpy(acoord, &coord[left], sizeof *coord * *a_size);
   }
-  assert(low <= high);
-  // Copy the range [left, right)
-  *a_size = right-left;
-  assert(*a_size >= 0);
-  assert(left >= 0 && left + *a_size <= grid_size);
-  memcpy(agrid, &grid[left], sizeof *grid * *a_size);
-  memcpy(acoord, &coord[left], sizeof *coord * *a_size);
+  else
+  {
+    // All coords are infinite because the line is horizontal or vertical.
+    // Trim all because grid intersections are all included in other list
+    *a_size = 0;
+    return;
+  }
+  
 }
 
 
