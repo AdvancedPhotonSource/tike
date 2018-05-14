@@ -1,4 +1,5 @@
 #include "tomo.h"
+#include "limits.h"
 
 void
 art(
@@ -447,10 +448,13 @@ calc_dist(
 void
 calc_index(
     int const ox, int const oy, int const oz,
-    int const oxmin, int const oymin, int const ozmin,
+    float const oxmin, float const oymin, float const ozmin,
     int const msize, const float *midx, const float *midy,
     int const indz, unsigned *indi)
 {
+    assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
+    // printf("SHAPE: %d, %d, %d : %f, %f, %f\n",
+    //         ox, oy, oz, oxmin, oymin, ozmin);
     int n;
     unsigned indx, indy;
     for (n=0; n<msize-1; n++)

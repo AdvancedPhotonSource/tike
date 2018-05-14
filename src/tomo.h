@@ -148,7 +148,7 @@ calc_dist(
 void
 calc_index(
     int const ox, int const oy, int const oz,
-    int const oxmin, int const oymin, int const ozmin,
+    float const oxmin, float const oymin, float const ozmin,
     int const msize, const float *midx, const float *midy,
     int const indz, unsigned *indi);
 
