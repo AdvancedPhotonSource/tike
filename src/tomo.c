@@ -438,10 +438,11 @@ calc_dist(
         diffx = coorx[n+1]-coorx[n];
         diffy = coory[n+1]-coory[n];
         dist[n] = sqrt(diffx*diffx+diffy*diffy);
-        // printf("%f, %f\n", coorx[n+1], coorx[n]);
-        midx[n] = (coorx[n+1]+coorx[n])/2;
-        midy[n] = (coory[n+1]+coory[n])/2;
-        // printf("midx, midy = %f, %f\n", midx[n], midy[n]);
+        midx[n] = (coorx[n+1]+coorx[n])/2.001;
+        midy[n] = (coory[n+1]+coory[n])/2.001;
+        // Divide by 2 + eps in order to keep midxy inside the grid when both
+        // coords are inside the grid. Numerical instability sometimes pushes
+        // the sum of midxy and oxmin outside the grid
     }
 }
 
@@ -461,8 +462,6 @@ calc_index(
     {
         // Midpoints assigned to pixels by nearest mincorner
         indx = floor(midx[n]-oxmin);
-        // printf("imidx[n]-oxmin %f\n", midx[n]-oxmin );
-        // printf("indx, ox, %u, %d\n", indx, ox);
         assert(indx < (unsigned)ox);
         indy = floor(midy[n]-oymin);
         assert(indy < (unsigned)oy);
