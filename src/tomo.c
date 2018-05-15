@@ -295,7 +295,7 @@ void trim_coord_1D(
   if isfinite(coord[0])
   {
     // Determine whether coords are sorted ascending or descending
-    bool ascending = coord[0] <= coord[1];
+    bool ascending = coord[0] < coord[1];
     // if (coord[grid_size-1] < min_coord || max_coord < coord[0])
     // Convert the range [min_coord, max_coord) to [left, right) where left,
     // right are indices of grid
@@ -368,10 +368,37 @@ trim_coords(
     int *asize, float *ax, float *ay,
     int *bsize, float *bx, float *by)
 {
-    trim_coord_1D(ox+1, gridx, coordy, asize,
-                  ax, ay, gridy[0], gridy[oy]);
-    trim_coord_1D(oy+1, gridy, coordx, bsize,
-                  by, bx, gridx[0], gridx[ox]);
+    // trim_coord_1D(ox+1, gridx, coordy, asize,
+    //               ax, ay, gridy[0], gridy[oy]);
+    // trim_coord_1D(oy+1, gridy, coordx, bsize,
+    //               by, bx, gridx[0], gridx[ox]);
+    int n;
+
+    *asize = 0;
+    bool ascending = coordx[0] < coordx[1];
+    for (n=0; n<=oy; n++)
+    {
+        if (gridx[0] <= coordx[n] && coordx[n] < gridx[ox])
+        {
+          assert(n==0 || (ascending && coordx[n] > coordx[n-1]) || (!ascending && coordx[n] <= coordx[n-1]));
+          ax[*asize] = coordx[n];
+          ay[*asize] = gridy[n];
+          (*asize)++;
+        }
+    }
+    
+    *bsize = 0;
+    ascending = coordy[0] < coordy[1];
+    for (n=0; n<=ox; n++)
+    {
+        if (gridy[0] <= coordy[n] && coordy[n] < gridy[oy])
+        {
+          assert(n==0 || (ascending && coordy[n] > coordy[n-1]) || (!ascending && coordy[n] <= coordy[n-1]));
+          bx[*bsize] = gridx[n];
+          by[*bsize] = coordy[n];
+          (*bsize)++;
+        }
+    }
 }
 
 /*

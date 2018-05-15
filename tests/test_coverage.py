@@ -238,9 +238,13 @@ def test_vertical_coverage():
 
 def test_theta_coverage():
     p, region, pixel_size = init_coverage()
+    region = np.array([[-2/16, 2/16], [-8/16, 8/16], [-8/16, 8/16]])
     cov_map = p.coverage(trajectory=theta_move, region=region,
                          pixel_size=pixel_size, tmin=0, tmax=1, tstep=0.5)
+    # np.save('tests/theta_coverage.npy', cov_map)
+    truth = np.load('tests/theta_coverage.npy')
     show_coverage(cov_map)
+    assert_equal(cov_map, truth)
 
 
 # def test_show_plots():
