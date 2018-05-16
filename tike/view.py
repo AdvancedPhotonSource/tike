@@ -53,7 +53,7 @@ Module for 3D scanning.
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-from matplotlib import pyplot as plt 
+from matplotlib import pyplot as plt
 import numpy as np
 import logging
 
@@ -65,7 +65,6 @@ __all__ = ['trajectory']
 
 
 logger = logging.getLogger(__name__)
-
 
 
 def trajectory(x, y, connect=True, frame=None, pause=True, dt=1e-12):
