@@ -1,5 +1,6 @@
 #include "tomo.h"
 #include "limits.h"
+#include <omp.h>
 
 void
 art(
@@ -63,17 +64,28 @@ coverage(
     int dsize,
     float *coverage_map)
 {
+    assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
+
     // Initialize the grid on object space.
     float *gridx = malloc(sizeof *gridx * (ox+1));
     float *gridy = malloc(sizeof *gridy * (oy+1));
     assert(gridx != NULL && gridy != NULL);
-
     preprocessing(oxmin, oymin, ox, oy, gridx, gridy); // Outputs: gridx, gridy
 
-    worker_function(NULL, ozmin, oxmin, oymin, ox, oy, oz,
-        coverage_map, theta, h, v, line_weights, dsize,
-        gridx, gridy, calc_coverage);
-    
+    // Divide into chunks along the z direction
+    unsigned chunk_size_ind = ox*oy;
+    int chunk_size_oz = 1;
+
+    #pragma omp parallel for
+    for(int i=0; i < oz; i++)
+    {
+      float chunk_zmin = ozmin + i * chunk_size_oz;
+      float *chunk_map = coverage_map + i * chunk_size_ind;
+      worker_function(NULL, chunk_zmin, oxmin, oymin, ox, oy, chunk_size_oz,
+          chunk_map, theta, h, v, line_weights, dsize,
+          gridx, gridy, calc_coverage);
+    }
+
     free(gridx);
     free(gridy);
 }
@@ -126,15 +138,11 @@ void worker_function(
     
     for (ray=0; ray<dsize; ray++)
     {
-        zi = floor(v[ray]-ozmin);
-        if ((oz <= zi) || (zi < 0))
-        {
-          //TODO: Replace this hard exclusion with a weight over z gridlines
-          // Skip this ray if it is out of the z range
-          // printf("skipped %d. %f, %f, %f\n", ray, 0.0, zi, oz);
-          assert(false); // this ray should not be here
-          continue;
-        }
+      zi = floor(v[ray]-ozmin);
+      // Skip this ray if it is out of the z range
+      //TODO: Presort lines by z coordinate so this check isn't necessary.
+      if ((0 <= zi) && (zi < oz))
+      {
         // Calculate the sin and cos values of the projection angle and find
         // at which quadrant on the cartesian grid.
         theta_p = fmod(theta[ray], 2*M_PI);
@@ -160,6 +168,7 @@ void worker_function(
         if (weights != NULL)
             line_weight = weights[ray];
         (*calc_f)(indi, dist, obj_weights, csize, line_weight, ray, data);
+      }
     }
     free(coordx);
     free(coordy);
@@ -343,12 +352,12 @@ trim_coords(
     int n;
 
     *asize = 0;
-    bool ascending = coordx[0] < coordx[1];
+    // bool ascending = coordx[0] < coordx[1];
     for (n=0; n<=oy; n++)
     {
         if (gridx[0] <= coordx[n] && coordx[n] < gridx[ox])
         {
-          assert(n==0 || (ascending && coordx[n] > coordx[n-1]) || (!ascending && coordx[n] <= coordx[n-1]));
+          // assert(n==0 || (ascending && coordx[n] > coordx[n-1]) || (!ascending && coordx[n] <= coordx[n-1]));
           ax[*asize] = coordx[n];
           ay[*asize] = gridy[n];
           (*asize)++;
@@ -356,12 +365,12 @@ trim_coords(
     }
     
     *bsize = 0;
-    ascending = coordy[0] < coordy[1];
+    // ascending = coordy[0] < coordy[1];
     for (n=0; n<=ox; n++)
     {
         if (gridy[0] <= coordy[n] && coordy[n] < gridy[oy])
         {
-          assert(n==0 || (ascending && coordy[n] > coordy[n-1]) || (!ascending && coordy[n] <= coordy[n-1]));
+          // assert(n==0 || (ascending && coordy[n] > coordy[n-1]) || (!ascending && coordy[n] <= coordy[n-1]));
           bx[*bsize] = gridx[n];
           by[*bsize] = coordy[n];
           (*bsize)++;
