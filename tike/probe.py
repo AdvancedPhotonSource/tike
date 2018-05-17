@@ -150,12 +150,12 @@ class Probe(object):
         logger.info(" probe uses {:,d} lines".format(len(lines)))
         return lines
 
-    def procedure(self, trajectory, pixel_size, tmin, tmax, tstep):
+    def procedure(self, trajectory, pixel_size, tmin, tmax, tstep, tkwargs={}):
         """Return the discrete procedure description from the given trajectory.
 
         Parameters
         ----------
-        trajectory : function(t) -> theta, h, v
+        trajectory : function(t, **tkwargs) -> theta, h, v
             A function which describes the position of the center of the Probe
             as a function of time.
         pixel_size : float [cm]
@@ -182,13 +182,14 @@ class Probe(object):
                 # compute trajectory from previous
                 th, h, v, dwell = trajectory_cache[cache_key]
             else:
-                def line_trajectory(t):
-                    pos_temp = trajectory(t)
+                def line_trajectory(t, **tkwargs):
+                    pos_temp = trajectory(t, **tkwargs)
                     return (pos_temp[0] + offset[0],
                             pos_temp[1] + offset[1],
                             pos_temp[2])
                 th, h, v, dwell, none = discrete_trajectory(
                                             trajectory=line_trajectory,
+                                            tkwargs=tkwargs,
                                             tmin=tmin, tmax=tmax,
                                             xstep=xstep, tstep=tstep)
                 trajectory_cache[cache_key] = (th, h, v, dwell)
@@ -202,7 +203,7 @@ class Probe(object):
                 np.concatenate(all_v), np.concatenate(all_dwell))
 
     def coverage(self, trajectory, region, pixel_size, tmin, tmax, tstep,
-                 anisotropy=False):
+                 anisotropy=False, tkwargs={}):
         """Return a coverage map using this probe.
 
         The intersection between each line and each pixel is approximated by
@@ -211,7 +212,7 @@ class Probe(object):
 
         Parameters
         ----------
-        trajectory : function(t) -> theta, h, v [radians, cm]
+        trajectory : function(t, **tkwargs) -> theta, h, v [radians, cm]
             A function which describes the position of the center of the Probe
             as a function of time.
         region : :py:class:`np.array` [cm]
@@ -238,6 +239,7 @@ class Probe(object):
                                                 "region maximum.")
 
         theta, h, v, w = self.procedure(trajectory=trajectory,
+                                        tkwargs=tkwargs,
                                         pixel_size=pixel_size,
                                         tmin=tmin, tmax=tmax, tstep=tstep)
 
@@ -292,14 +294,14 @@ def euclidian_dist_approx(theta, h, v, r=0.75):
     return np.abs(t1) * r + np.sqrt(h1**2 + v1**2)
 
 
-def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep):
+def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep, tkwargs={}):
     """Create a linear approximation of `trajectory` between `tmin` and `tmax`
     such that space between measurements is less than `xstep` and the time
     between measurements is less than `tstep`.
 
     Parameters
     ----------
-    trajectory : function(time) -> theta, h, v
+    trajectory : function(time, **tkwargs) -> theta, h, v
         A *continuous* function taking a single 1D array and returning three
         1D arrays.
     [tmin, tmax) : float
@@ -323,7 +325,8 @@ def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep):
     all_theta, all_h, all_v, all_times = discrete_helper(trajectory,
                                                          tmin, tmax,
                                                          xstep, tstep,
-                                                         dist_func)
+                                                         dist_func,
+                                                         tkwargs=tkwargs)
     all_theta = np.concatenate(all_theta)
     all_h = np.concatenate(all_h)
     all_v = np.concatenate(all_v)
@@ -343,13 +346,14 @@ def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep):
     return all_theta, all_h, all_v, dwell, all_times
 
 
-def discrete_helper(trajectory, tmin, tmax, xstep, tstep, dist_func):
+def discrete_helper(trajectory, tmin, tmax, xstep, tstep, dist_func,
+                    tkwargs={}):
     """Do a recursive sampling of the trajectory."""
     all_theta, all_h = list(), list()
     all_v, all_times = list(), list()
     # Sample en masse the trajectory over time
     times = np.arange(tmin, tmax + tstep, tstep)
-    theta, h, v = trajectory(times)
+    theta, h, v = trajectory(times, **tkwargs)
     # Compute spatial distances between samples
     distances = dist_func(theta, h, v)
     # determine which ranges are too large and which to keep
@@ -377,7 +381,7 @@ def discrete_helper(trajectory, tmin, tmax, xstep, tstep, dist_func):
             itheta, ih, iv, itimes = discrete_helper(trajectory,
                                                      times[rlo], times[rhi],
                                                      xstep, tstep/2,
-                                                     dist_func)
+                                                     dist_func, tkwargs)
             all_theta += itheta
             all_h += ih
             all_v += iv
