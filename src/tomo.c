@@ -76,7 +76,7 @@ coverage(
     unsigned chunk_size_ind = ox*oy;
     int chunk_size_oz = 1;
 
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(static)
     for(int i=0; i < oz; i++)
     {
       float chunk_zmin = ozmin + i * chunk_size_oz;
