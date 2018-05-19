@@ -108,7 +108,6 @@ def sinusoid(A, f, p, t):
         The phase shift of the function
     """
     w = f2w(f)
-    p = np.mod(p, 2*np.pi)
     return A * np.sin(w*t - p)
 
 
