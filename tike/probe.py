@@ -232,8 +232,6 @@ class Probe(object):
         coverage_map : :py:class:`numpy.ndarray` [s]
             A discretized map of the approximated procedure coverage.
         """
-        if anisotropy:
-            raise NotImplementedError
         box = np.asanyarray(region)
         assert np.all(box[:, 0] <= box[:, 1]), ("region minimum must be <= to"
                                                 "region maximum.")
@@ -252,7 +250,7 @@ class Probe(object):
         ibox_shape = (np.ceil(box[:, 1] - box[:, 0])).astype(int)
         coverage_map = coverage(box[:, 0], ibox_shape,
                                 theta=theta, h=h, v=v,
-                                line_weight=w)
+                                line_weight=w, anisotropy=anisotropy)
         return coverage_map
 
 

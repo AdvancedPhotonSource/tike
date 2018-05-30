@@ -95,7 +95,8 @@ def c_project(obj, ozmin, oxmin, oymin, oz, ox, oy, theta, h, v, dsize, data):
             utils.as_c_float_p(data))
 
 
-def c_coverage(ozmin, oxmin, oymin, oz, ox, oy, theta, h, v, w, dsize, cov):
+def c_coverage(ozmin, oxmin, oymin, oz, ox, oy, theta, h, v, w, dsize, cov,
+               anisotropy):
     LIBTIKE.coverage.restype = utils.as_c_void_p()
     return LIBTIKE.coverage(
             utils.as_c_float(ozmin),
@@ -109,4 +110,5 @@ def c_coverage(ozmin, oxmin, oymin, oz, ox, oy, theta, h, v, w, dsize, cov):
             utils.as_c_float_p(v),
             utils.as_c_float_p(w),
             utils.as_c_int(dsize),
-            utils.as_c_float_p(cov))
+            utils.as_c_float_p(cov),
+            utils.as_c_bool(anisotropy))

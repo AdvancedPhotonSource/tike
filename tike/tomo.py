@@ -66,7 +66,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def coverage(grid_min, grid_size, theta, h, v, line_weight=None):
+def coverage(grid_min, grid_size, theta, h, v, line_weight=None,
+             anisotropy=False):
     """Back-project lines over a grid.
 
     .. note::
@@ -105,11 +106,15 @@ def coverage(grid_min, grid_size, theta, h, v, line_weight=None):
     line_weight = utils.as_float32(line_weight)
     assert theta.size == h.size == v.size == line_weight.size
     dsize = theta.size
-    coverage_map = np.zeros(grid_size, dtype=np.float32)
+    if anisotropy:
+        coverage_map = np.zeros(list(grid_size) + [4], dtype=np.float32)
+    else:
+        coverage_map = np.zeros(grid_size, dtype=np.float32)
     logging.info(" coverage {:,d} element grid".format(coverage_map.size))
     externs.c_coverage(grid_min[0], grid_min[1], grid_min[2],
                        grid_size[0], grid_size[1], grid_size[2],
-                       theta, h, v, line_weight, dsize, coverage_map)
+                       theta, h, v, line_weight, dsize, coverage_map,
+                       anisotropy)
     return coverage_map
 
 

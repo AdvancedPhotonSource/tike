@@ -70,7 +70,8 @@ coverage(
     const float *v,
     const float *weights,
     int dsize,
-    float *cov);
+    float *cov,
+    const bool anisotropy);
 
 
 // Utility functions for data simultation
@@ -83,14 +84,14 @@ void worker_function(
     float *data,
     const float *theta, const float *h, const float *v, const float *weights,
     const int dsize,
-    const float *gridx, const float *gridy,
+    const float *gridx, const float *gridy, bool const anisotropy,
     void (*f)(
         const unsigned *,
         const float *, const float *,
         int const,
         float const,
         int const,
-        float *));
+        float *, float const, float const, bool const));
 
 
 /**
@@ -183,7 +184,10 @@ calc_coverage(
     int const data_size,
     float const line_weight,
     int const,
-    float *coverage_map);
+    float *coverage_map,
+    const float sin_p,
+    const float cos_p,
+    bool const anisotropy);
 
 /**
   Multiply the distances by the weights then sum over the line.
@@ -193,9 +197,12 @@ calc_simdata(
     const unsigned *index_zxy,
     const float *distances,
     const float *grid_weights,
-    int const data_size,
+    int const isize,
     float const,
     int const index_line,
-    float *data);
+    float *data,
+    const float,
+    const float,
+    bool const);
 
 #endif

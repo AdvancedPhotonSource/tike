@@ -70,7 +70,8 @@ __all__ = ['as_ndarray',
            'as_c_int_p',
            'as_c_float',
            'as_c_char_p',
-           'as_c_void_p']
+           'as_c_void_p',
+           'as_c_bool']
 
 
 logger = logging.getLogger(__name__)
@@ -132,3 +133,7 @@ def as_c_char_p(arr):
 
 def as_c_void_p():
     return ctypes.POINTER(ctypes.c_void_p)
+
+
+def as_c_bool(arr):
+    return ctypes.c_bool(arr)

@@ -38,7 +38,7 @@ project(
 
     worker_function(obj_weights, ozmin, oxmin, oymin, ox, oy, oz,
         data, theta, h, v, NULL, dsize,
-        gridx, gridy, calc_simdata);
+        gridx, gridy, false, calc_simdata);
 
     free(gridx);
     free(gridy);
@@ -62,7 +62,8 @@ coverage(
     const float *v,
     const float *line_weights,
     int dsize,
-    float *coverage_map)
+    float *coverage_map,
+    const bool anisotropy)
 {
     assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
 
@@ -73,9 +74,8 @@ coverage(
     preprocessing(oxmin, oymin, ox, oy, gridx, gridy); // Outputs: gridx, gridy
 
     // Divide into chunks along the z direction
-    unsigned chunk_size_ind = ox*oy;
+    unsigned chunk_size_ind = anisotropy ? 4*ox*oy : ox*oy;
     int chunk_size_oz = 1;
-
     #pragma omp parallel for schedule(static)
     for(int i=0; i < oz; i++)
     {
@@ -83,7 +83,7 @@ coverage(
       float *chunk_map = coverage_map + i * chunk_size_ind;
       worker_function(NULL, chunk_zmin, oxmin, oymin, ox, oy, chunk_size_oz,
           chunk_map, theta, h, v, line_weights, dsize,
-          gridx, gridy, calc_coverage);
+          gridx, gridy, anisotropy, calc_coverage);
     }
 
     free(gridx);
@@ -98,14 +98,15 @@ void worker_function(
     float *data,
     const float *theta, const float *h, const float *v, const float *weights,
     const int dsize,
-    const float *gridx, const float *gridy,
+    const float *gridx, const float *gridy, bool const anisotropy,
     void (*calc_f)(
-        const unsigned *, const float *,
-        const float *,
+        const unsigned *,
+        const float *, const float *,
         int const,
         float const,
         int const,
-        float *))
+        float *, float const, float const, bool const)
+)
 {
     assert(calc_f != NULL);
     float *coordy = malloc(sizeof *coordy * (ox+oy+2));
@@ -167,7 +168,8 @@ void worker_function(
         // Calculate coverage
         if (weights != NULL)
             line_weight = weights[ray];
-        (*calc_f)(indi, dist, obj_weights, csize, line_weight, ray, data);
+        (*calc_f)(indi, dist, obj_weights, csize, line_weight, ray, data,
+                  sin_p, cos_p, anisotropy);
       }
     }
     free(coordx);
@@ -457,7 +459,7 @@ calc_index(
     int const msize, const float *midx, const float *midy,
     int const indz, unsigned *indi)
 {
-    assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
+    assert(UINT_MAX/ox/oy/oz/4 > 0 && "Array is too large to index.");
     // printf("SHAPE: %d, %d, %d : %f, %f, %f\n",
     //         ox, oy, oz, oxmin, oymin, ozmin);
     int n;
@@ -475,6 +477,21 @@ calc_index(
     }
 }
 
+
+void
+tensor_at_angle(float *tensor, const float magnitude,
+    const float sin_p, const float cos_p)
+{
+    assert(tensor != NULL);
+    // Return 2D tensor(s) with magnitude(s) at the angle [rad]
+    *tensor += magnitude * cos_p * cos_p;
+    float MCS = magnitude * cos_p * sin_p;
+    tensor[1] += MCS;
+    tensor[2] += MCS;
+    tensor[3] += magnitude * sin_p * sin_p;
+}
+
+
 void
 calc_coverage(
     const unsigned *indi,
@@ -483,12 +500,25 @@ calc_coverage(
     int const csize,
     float const line_weight,
     int const unused_int,
-    float *cov)
+    float *cov,
+    float const sin_p,
+    float const cos_p,
+    bool const anisotropy)
 {
     int n;
-    for (n=0; n<csize-1; n++)
+    if (anisotropy)
     {
+      for (n=0; n<csize-1; n++)
+      {
+        tensor_at_angle(&cov[4*indi[n]], dist[n]*line_weight, sin_p, cos_p);
+      }
+    }
+    else
+    {
+      for (n=0; n<csize-1; n++)
+      {
         cov[indi[n]] += dist[n]*line_weight;
+      }
     }
 }
 
@@ -497,15 +527,18 @@ void
 calc_simdata(
     const unsigned *indi,
     const float *dist,
-    const float *obj,
-    int const csize,
+    const float *grid_weights,
+    int const indi_size,
     float const unused_float,
     int const ray,
-    float *data)
+    float *data,
+    const float sin_p,
+    const float cos_p,
+    bool const anisotropy)
 {
     int n;
-    for (n=0; n<csize-1; n++)
+    for (n=0; n<indi_size-1; n++)
     {
-        data[ray] += obj[indi[n]]*dist[n];
+        data[ray] += grid_weights[indi[n]]*dist[n];
     }
 }
