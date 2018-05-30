@@ -33,13 +33,13 @@ project(
     float *gridx = (float *)malloc((ox+1)*sizeof(float));
     float *gridy = (float *)malloc((oy+1)*sizeof(float));
     assert(gridx != NULL && gridy != NULL);
-    
+
     preprocessing(oxmin, oymin, ox, oy, gridx, gridy); // Outputs: gridx, gridy
-    
+
     worker_function(obj_weights, ozmin, oxmin, oymin, ox, oy, oz,
         data, theta, h, v, NULL, dsize,
         gridx, gridy, calc_simdata);
-  
+
     free(gridx);
     free(gridy);
 }
@@ -97,7 +97,7 @@ void worker_function(
     const int ox, const int oy, const int oz,
     float *data,
     const float *theta, const float *h, const float *v, const float *weights,
-    const int dsize, 
+    const int dsize,
     const float *gridx, const float *gridy,
     void (*calc_f)(
         const unsigned *, const float *,
@@ -128,14 +128,14 @@ void worker_function(
         ax != NULL && ay != NULL && by != NULL && bx != NULL &&
         coorx != NULL && coory != NULL &&
         dist != NULL && indi != NULL && midx != NULL && midy != NULL);
-    
+
     int ray;
     int quadrant;
     float ri, hi, line_weight;
     int zi;
     float theta_p, sin_p, cos_p;
     int asize, bsize, csize;
-    
+
     for (ray=0; ray<dsize; ray++)
     {
       zi = floor(v[ray]-ozmin);
@@ -280,7 +280,7 @@ void trim_coord_1D(
     int low, high, mid;
     low = left;
     high = right;
-    while (low <= high) { 
+    while (low <= high) {
         mid = (low + high) / 2;
         if (mid == grid_size || (ascending && min_coord <= coord[mid])
             || (!ascending && max_coord > coord[mid]))
@@ -318,7 +318,7 @@ void trim_coord_1D(
             low = mid + 1;
     }
     assert(low <= high);
-    
+
     // Copy the range [left, right)
     *a_size = right-left;
     assert(*a_size >= 0);
@@ -333,7 +333,7 @@ void trim_coord_1D(
     *a_size = 0;
     return;
   }
-  
+
 }
 
 
@@ -363,7 +363,7 @@ trim_coords(
           (*asize)++;
         }
     }
-    
+
     *bsize = 0;
     // ascending = coordy[0] < coordy[1];
     for (n=0; n<=ox; n++)

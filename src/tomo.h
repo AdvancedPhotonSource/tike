@@ -82,7 +82,7 @@ void worker_function(
     const int ox, const int oy, const int oz,
     float *data,
     const float *theta, const float *h, const float *v, const float *weights,
-    const int dsize, 
+    const int dsize,
     const float *gridx, const float *gridy,
     void (*f)(
         const unsigned *,
@@ -90,7 +90,7 @@ void worker_function(
         int const,
         float const,
         int const,
-        float *)); 
+        float *));
 
 
 /**
