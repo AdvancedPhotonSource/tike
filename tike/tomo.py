@@ -107,7 +107,7 @@ def coverage(grid_min, grid_size, theta, h, v, line_weight=None,
     assert theta.size == h.size == v.size == line_weight.size
     dsize = theta.size
     if anisotropy:
-        coverage_map = np.zeros(list(grid_size) + [4], dtype=np.float32)
+        coverage_map = np.zeros(list(grid_size) + [2, 2], dtype=np.float32)
     else:
         coverage_map = np.zeros(grid_size, dtype=np.float32)
     logging.info(" coverage {:,d} element grid".format(coverage_map.size))
