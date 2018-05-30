@@ -111,3 +111,6 @@ trunk
 # OS generated files
 core
 .DS_Store
+*.*~
+*~
+.*
