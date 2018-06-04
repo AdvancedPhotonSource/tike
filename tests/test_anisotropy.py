@@ -78,7 +78,7 @@ def all_y(t):
 
 
 def round(t):
-    return np.pi + 0.*t, 0*t, 0*t
+    return np.pi/3 + np.pi*t/10, 0*t, 0*t
 
 
 def test_stationary_coverage_x():
@@ -108,12 +108,12 @@ def test_stationary_coverage_y():
 def test_random_equivalent():
     pixel_size = 1.
     p = Probe(width=1, aspect=1)
-    region = np.array([[-1, 1], [-1, 1], [-1, 1]])
+    region = np.array([[-1, 1], [-2, 2], [-2, 2]])
     ani_map = p.coverage(trajectory=round, region=region,
                          pixel_size=pixel_size, tmin=0, tmax=10, tstep=1,
                          anisotropy=True)
-    ani_map = ani_map.trace(axis1=3, axis2=4)
+    ani_map = np.sum(np.linalg.eigvalsh(ani_map), axis=3)
     cov_map = p.coverage(trajectory=round, region=region,
                          pixel_size=pixel_size, tmin=0, tmax=10, tstep=1,
                          anisotropy=False)
-    assert_allclose(ani_map, cov_map)
+    assert_allclose(ani_map, cov_map, atol=1e-5)
