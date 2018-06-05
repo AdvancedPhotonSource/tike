@@ -104,7 +104,7 @@ project(
 
     worker_function(obj_weights,
         ozmin, oxmin, oymin,
-        ox, oy, oz,
+        oz, ox, oy,
         data,
         theta, h, v, NULL,
         dsize,
@@ -151,7 +151,7 @@ coverage(
       worker_function(
           NULL,
           chunk_zmin, oxmin, oymin,
-          ox, oy, chunk_size_oz,
+          chunk_size_oz, ox, oy,
           chunk_map,
           theta, h, v, line_weights,
           dsize,
@@ -166,7 +166,7 @@ coverage(
 void worker_function(
     float *obj_weights,
     const float ozmin, const float oxmin, const float oymin,
-    const int ox, const int oy, const int oz,
+    const int oz, const int ox, const int oy,
     float *data,
     const float *theta, const float *h, const float *v, const float *weights,
     const int dsize,

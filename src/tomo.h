@@ -87,7 +87,7 @@ coverage(
 void worker_function(
     float *obj_weights,
     const float ozmin, const float oxmin, const float oymin,
-    const int ox, const int oy, const int oz,
+    const int oz, const int ox, const int oy,
     float *data,
     const float *theta, const float *h, const float *v, const float *weights,
     const int dsize,
