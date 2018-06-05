@@ -25,6 +25,17 @@ art(
     float *recon,
     const int n_iter);
 
+
+void
+sirt(
+    const float ozmin, const float oxmin, const float oymin,
+    const int oz, const int ox, const int oy,
+    float *data,
+    const float *theta, const float *h, const float *v,
+    const int dsize,
+    float *recon,
+    const int n_iter);
+
 /**
   Return an array of size (dsize, ) where each element of the array contains
   the sum of the lengths*grid_weights*line_weights of all intersections with
@@ -195,6 +206,16 @@ calc_forward(
 void
 calc_art(
     float *grided_weights,
+    const unsigned *ind_grid,
+    const float *dist,
+    int const dist_size,
+    float *data);
+
+void
+calc_sirt(
+    const float *grided_weights,
+    float *update,
+    float *sumdist,
     const unsigned *ind_grid,
     const float *dist,
     int const dist_size,

@@ -39,6 +39,52 @@ art(
 
 
 void
+sirt(
+    const float ozmin, const float oxmin, const float oymin,
+    const int oz, const int ox, const int oy,
+    float *data,
+    const float *theta, const float *h, const float *v,
+    const int dsize,
+    float *recon,
+    const int n_iter)
+{
+    assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
+    // Initialize the grid on object space.
+    float *gridx = (float *)malloc((ox+1)*sizeof(float));
+    float *gridy = (float *)malloc((oy+1)*sizeof(float));
+    float *update = malloc(sizeof update * (unsigned)2*oz*ox*oy);
+    float *sumdist = &update[(unsigned)oz*ox*oy];
+    assert(gridx != NULL && gridy != NULL && sumdist != NULL);
+    preprocessing(oxmin, oymin, ox, oy, gridx, gridy);
+
+    for (int i=0; i < n_iter; i++)
+    {
+        //TODO: There's a lot of redundant work being done because for each
+        // iteration, the position of the lines doesn't change. Only recon is
+        // changing.
+        memset(update, 0, sizeof update * (unsigned)2*oz*ox*oy);
+        worker_function(recon,
+                        ozmin, oxmin, oymin,
+                        oz, ox, oy,
+                        update,
+                        theta, h, v, data,
+                        dsize,
+                        gridx, gridy,
+                        SIRT);
+        for (unsigned j=0; j < oz*ox*oy; j++)
+        {
+            assert(sumdist[j] > 0);
+            recon[j] += update[j] / (sumdist[j] * oy);
+        }
+    }
+    free(gridx);
+    free(gridy);
+    free(update);
+    free(sumdist);
+}
+
+
+void
 project(
     const float *obj_weights,
     const float ozmin, const float oxmin, const float oymin,
@@ -158,6 +204,7 @@ void worker_function(
     int zi;
     float theta_p, sin_p, cos_p;
     int asize, bsize, csize;
+    const unsigned ozxy = (unsigned)oz*ox*oy;
 
     for (ray=0; ray<dsize; ray++)
     {
@@ -202,6 +249,8 @@ void worker_function(
                     calc_art(obj_weights, indi, dist, csize, &data[ray]);
                     break;
                 case SIRT:
+                    calc_sirt(obj_weights, data, &data[ozxy],
+                              indi, dist, csize, &weights[ray]);
                     break;
             }
         }
@@ -602,18 +651,20 @@ calc_art(
 
 void
 calc_sirt(
-    float *grided_weights,
+    const float *grided_weights,
+    float *update,
+    float *sumdist,
     const unsigned *ind_grid,
     const float *dist,
     int const dist_size,
     float *data)
 {
-    float update;
     float forward = 0;
     float dist_dot = 0;
     int n;
     for (n=0; n<dist_size-1; n++)
     {
+        sumdist[ind_grid[n]] += dist[n];
         forward += grided_weights[ind_grid[n]]*dist[n];
         dist_dot += dist[n]*dist[n];
     }
@@ -622,7 +673,6 @@ calc_sirt(
 
     for (n=0; n < dist_size-1; n++)
     {
-        update = (data[0] - forward) / dist_dot;
-        grided_weights[ind_grid[n]] += dist[n] * update;
+        update[ind_grid[n]] += dist[n] * (data[0] - forward) / dist_dot;
     }
 }
