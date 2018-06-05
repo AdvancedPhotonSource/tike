@@ -17,11 +17,13 @@ enum mode {Forward, Back, Coverage, ART, SIRT};
 
 void
 art(
-    const float *data,
-    const float *x,
-    const float *y,
-    const float *theta,
-    float *recon);
+    const float ozmin, const float oxmin, const float oymin,
+    const int oz, const int ox, const int oy,
+    float *data,
+    const float *theta, const float *h, const float *v,
+    const int dsize,
+    float *recon,
+    const int n_iter);
 
 /**
   Return an array of size (dsize, ) where each element of the array contains
@@ -36,16 +38,12 @@ art(
 void
 project(
     const float *obj_weights,
-    float ozmin,
-    float oxmin,
-    float oymin,
-    int oz,
-    int ox,
-    int oy,
+    const float ozmin, const float oxmin, const float oymin,
+    const int oz, const int ox, const int oy,
     const float *theta,
     const float *h,
     const float *v,
-    int dsize,
+    const int dsize,
     float *data);
 
 /**
@@ -61,17 +59,13 @@ project(
 */
 void
 coverage(
-    float ozmin,
-    float oxmin,
-    float oymin,
-    int oz,
-    int ox,
-    int oy,
+    const float ozmin, const float oxmin, const float oymin,
+    const int oz, const int ox, const int oy,
     const float *theta,
     const float *h,
     const float *v,
     const float *weights,
-    int dsize,
+    const int dsize,
     float *cov,
     const bool anisotropy);
 
@@ -80,15 +74,14 @@ coverage(
 /**
 */
 void worker_function(
-    const float *obj_weights,
+    float *obj_weights,
     const float ozmin, const float oxmin, const float oymin,
     const int ox, const int oy, const int oz,
     float *data,
     const float *theta, const float *h, const float *v, const float *weights,
     const int dsize,
     const float *gridx, const float *gridy,
-    enum mode
-    );
+    const enum mode);
 
 
 /**
@@ -98,19 +91,17 @@ void worker_function(
 */
 void
 preprocessing(
-    float minx,
-    float miny,
-    int ngridx,
-    int ngridy,
-    float *gridx,
-    float *gridy);
+    const float minx, const float miny,
+    const int ngridx, const int ngridy,
+    float * const gridx,
+    float * const gridy);
 
 /**
   Return 1 for first and third quadrants, 0 otherwise.
 */
 int
 calc_quadrant(
-    float theta_p);
+    const float theta_p);
 
 /**
   Compute the list of intersections of the line (xi, yi) and the grid.
@@ -119,11 +110,11 @@ calc_quadrant(
 */
 void
 calc_coords(
-    int ngridx, int ngridy,
-    float xi, float yi,
-    float sin_p, float cos_p,
+    const int ngridx, const int ngridy,
+    const float xi, const float yi,
+    const float sin_p, const float cos_p,
     const float *gridx, const float *gridy,
-    float *coordx, float *coordy);
+    float * const coordx, float * const coordy);
 
 /**
   (coordx, gridy) and (gridx, coordy) are sets of points along a line. Remove
@@ -131,7 +122,7 @@ calc_coords(
 */
 void
 trim_coords(
-    int ox, int oy,
+    const int ox, const int oy,
     const float *coordx, const float *coordy,
     const float *gridx, const float *gridy,
     int *asize, float *ax, float *ay,
@@ -144,9 +135,9 @@ trim_coords(
 */
 void
 sort_intersections(
-    int ind_condition,
-    int asize, const float *ax, const float *ay,
-    int bsize, const float *bx, const float *by,
+    const int ind_condition,
+    const int asize, const float *ax, const float *ay,
+    const int bsize, const float *bx, const float *by,
     int *csize, float *coorx, float *coory);
 
 /**
@@ -199,7 +190,14 @@ calc_forward(
     const unsigned *ind_grid,
     const float *dist,
     int const dist_size,
-    float *data,
-    int const ind_data);
+    float *data);
+
+void
+calc_art(
+    float *grided_weights,
+    const unsigned *ind_grid,
+    const float *dist,
+    int const dist_size,
+    float *data);
 
 #endif

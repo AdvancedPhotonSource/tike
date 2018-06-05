@@ -68,14 +68,23 @@ logger = logging.getLogger(__name__)
 LIBTIKE = ctypes.CDLL('./tike/libtike.cpython-35m-x86_64-linux-gnu.so')
 
 
-def c_art(data, x, y, theta, recon):
+def c_art(ozmin, oxmin, oymin, oz, ox, oy, data, theta, h, v, dsize, recon,
+          n_iter):
     LIBTIKE.art.restype = utils.as_c_void_p()
     return LIBTIKE.art(
+            utils.as_c_float(ozmin),
+            utils.as_c_float(oxmin),
+            utils.as_c_float(oymin),
+            utils.as_c_int(oz),
+            utils.as_c_int(ox),
+            utils.as_c_int(oy),
             utils.as_c_float_p(data),
-            utils.as_c_float_p(x),
-            utils.as_c_float_p(y),
             utils.as_c_float_p(theta),
-            utils.as_c_float_p(recon))
+            utils.as_c_float_p(h),
+            utils.as_c_float_p(v),
+            utils.as_c_int(dsize),
+            utils.as_c_float_p(recon),
+            utils.as_c_int(n_iter))
 
 
 def c_project(obj, ozmin, oxmin, oymin, oz, ox, oy, theta, h, v, dsize, data):

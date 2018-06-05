@@ -4,29 +4,49 @@
 
 void
 art(
-    const float *data,
-    const float *x,
-    const float *y,
-    const float *theta,
-    float *recon)
+    const float ozmin, const float oxmin, const float oymin,
+    const int oz, const int ox, const int oy,
+    float *data,
+    const float *theta, const float *h, const float *v,
+    const int dsize,
+    float *recon,
+    const int n_iter)
 {
-    printf("Hey!\n");
+    assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
+    // Initialize the grid on object space.
+    float *gridx = (float *)malloc((ox+1)*sizeof(float));
+    float *gridy = (float *)malloc((oy+1)*sizeof(float));
+    assert(gridx != NULL && gridy != NULL);
+    preprocessing(oxmin, oymin, ox, oy, gridx, gridy);
+
+    for (int i=0; i < n_iter; i++)
+    {
+        //TODO: There's a lot of redundant work being done because for each
+        // iteration, the position of the lines doesn't change. Only recon is
+        // changing.
+        worker_function(recon,
+                        ozmin, oxmin, oymin,
+                        oz, ox, oy,
+                        data,
+                        theta, h, v, NULL,
+                        dsize,
+                        gridx, gridy,
+                        ART);
+    }
+    free(gridx);
+    free(gridy);
 }
 
 
 void
 project(
     const float *obj_weights,
-    float ozmin,
-    float oxmin,
-    float oymin,
-    int oz,
-    int ox,
-    int oy,
+    const float ozmin, const float oxmin, const float oymin,
+    const int oz, const int ox, const int oy,
     const float *theta,
     const float *h,
     const float *v,
-    int dsize,
+    const int dsize,
     float *data)
 {
     assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
@@ -55,17 +75,13 @@ https://doi.org/10.1118/1.595715
 */
 void
 coverage(
-    float ozmin,
-    float oxmin,
-    float oymin,
-    int oz,
-    int ox,
-    int oy,
+    const float ozmin, const float oxmin, const float oymin,
+    const int oz, const int ox, const int oy,
     const float *theta,
     const float *h,
     const float *v,
     const float *line_weights,
-    int dsize,
+    const int dsize,
     float *coverage_map,
     const bool anisotropy)
 {
@@ -102,14 +118,14 @@ coverage(
 
 
 void worker_function(
-    const float *obj_weights,
+    float *obj_weights,
     const float ozmin, const float oxmin, const float oymin,
     const int ox, const int oy, const int oz,
     float *data,
     const float *theta, const float *h, const float *v, const float *weights,
     const int dsize,
     const float *gridx, const float *gridy,
-    enum mode work_mode)
+    const enum mode work_mode)
 {
     // Coordinate pairs of gridx gridy where the line intersects the grid
     float *coordy = malloc(sizeof *coordy * (ox+oy+2));
@@ -173,7 +189,7 @@ void worker_function(
             switch (work_mode) {
                 default:
                 case Forward:
-                    calc_forward(obj_weights, indi, dist, csize, data, ray);
+                    calc_forward(obj_weights, indi, dist, csize, &data[ray]);
                     break;
                 case Back:
                     calc_back(dist, csize, weights[ray], data, indi);
@@ -183,6 +199,7 @@ void worker_function(
                                   data, indi);
                     break;
                 case ART:
+                    calc_art(obj_weights, indi, dist, csize, &data[ray]);
                     break;
                 case SIRT:
                     break;
@@ -206,12 +223,10 @@ void worker_function(
 
 void
 preprocessing(
-    float minx,
-    float miny,
-    int ngridx,
-    int ngridy,
-    float *gridx,
-    float *gridy)
+    const float minx, const float miny,
+    const int ngridx, const int ngridy,
+    float * const gridx,
+    float * const gridy)
 {
     int i;
 
@@ -229,7 +244,7 @@ preprocessing(
 
 int
 calc_quadrant(
-    float theta_p)
+    const float theta_p)
 {
     int quadrant;
     if ((theta_p >= 0 && theta_p < M_PI/2) ||
@@ -249,11 +264,11 @@ calc_quadrant(
 
 void
 calc_coords(
-    int ngridx, int ngridy,
-    float xi, float yi,
-    float sin_p, float cos_p,
+    const int ngridx, const int ngridy,
+    const float xi, const float yi,
+    const float sin_p, const float cos_p,
     const float *gridx, const float *gridy,
-    float *coordx, float *coordy)
+    float * const coordx, float * const coordy)
 {
     float srcx, srcy, detx, dety;
     float slope, islope;
@@ -357,7 +372,7 @@ void trim_coord_1D(
 
 void
 trim_coords(
-    int ox, int oy,
+    const int ox, const int oy,
     const float *coordx, const float *coordy,
     const float *gridx, const float* gridy,
     int *asize, float *ax, float *ay,
@@ -404,9 +419,9 @@ TODO: Use memcpy instead of explicit copy
 */
 void
 sort_intersections(
-    int ind_condition,
-    int asize, const float *ax, const float *ay,
-    int bsize, const float *bx, const float *by,
+    const int ind_condition,
+    const int asize, const float *ax, const float *ay,
+    const int bsize, const float *bx, const float *by,
     int *csize, float *coorx, float *coory)
 {
     int i=0, j=0, k=0;
@@ -549,12 +564,65 @@ calc_forward(
     const unsigned *ind_grid,
     const float *dist,
     int const dist_size,
-    float *data,
-    int const ind_data)
+    float *data)
 {
     int n;
     for (n=0; n<dist_size-1; n++)
     {
-        data[ind_data] += grided_weights[ind_grid[n]]*dist[n];
+        data[0] += grided_weights[ind_grid[n]]*dist[n];
+    }
+}
+
+void
+calc_art(
+    float *grided_weights,
+    const unsigned *ind_grid,
+    const float *dist,
+    int const dist_size,
+    float *data)
+{
+    float update;
+    float forward = 0;
+    float dist_dot = 0;
+    int n;
+    for (n=0; n<dist_size-1; n++)
+    {
+        forward += grided_weights[ind_grid[n]]*dist[n];
+        dist_dot += dist[n]*dist[n];
+    }
+
+    if (dist_dot <= 0) return;
+
+    for (n=0; n < dist_size-1; n++)
+    {
+        update = (data[0] - forward) / dist_dot;
+        grided_weights[ind_grid[n]] += dist[n] * update;
+    }
+}
+
+void
+calc_sirt(
+    float *grided_weights,
+    const unsigned *ind_grid,
+    const float *dist,
+    int const dist_size,
+    float *data)
+{
+    float update;
+    float forward = 0;
+    float dist_dot = 0;
+    int n;
+    for (n=0; n<dist_size-1; n++)
+    {
+        forward += grided_weights[ind_grid[n]]*dist[n];
+        dist_dot += dist[n]*dist[n];
+    }
+
+    if (dist_dot <= 0) return;
+
+    for (n=0; n < dist_size-1; n++)
+    {
+        update = (data[0] - forward) / dist_dot;
+        grided_weights[ind_grid[n]] += dist[n] * update;
     }
 }
