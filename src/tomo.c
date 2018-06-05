@@ -29,17 +29,21 @@ project(
     int dsize,
     float *data)
 {
+    assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
     // Initialize the grid on object space.
     float *gridx = (float *)malloc((ox+1)*sizeof(float));
     float *gridy = (float *)malloc((oy+1)*sizeof(float));
     assert(gridx != NULL && gridy != NULL);
+    preprocessing(oxmin, oymin, ox, oy, gridx, gridy);
 
-    preprocessing(oxmin, oymin, ox, oy, gridx, gridy); // Outputs: gridx, gridy
-
-    worker_function(obj_weights, ozmin, oxmin, oymin, ox, oy, oz,
-        data, theta, h, v, NULL, dsize,
-        gridx, gridy, false, calc_simdata);
-
+    worker_function(obj_weights,
+        ozmin, oxmin, oymin,
+        ox, oy, oz,
+        data,
+        theta, h, v, NULL,
+        dsize,
+        gridx, gridy,
+        Forward);
     free(gridx);
     free(gridy);
 }
@@ -66,12 +70,13 @@ coverage(
     const bool anisotropy)
 {
     assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
-
     // Initialize the grid on object space.
     float *gridx = malloc(sizeof *gridx * (ox+1));
     float *gridy = malloc(sizeof *gridy * (oy+1));
     assert(gridx != NULL && gridy != NULL);
-    preprocessing(oxmin, oymin, ox, oy, gridx, gridy); // Outputs: gridx, gridy
+    preprocessing(oxmin, oymin, ox, oy, gridx, gridy);
+
+    enum mode work_mode = anisotropy ? Coverage : Back;
 
     // Divide into chunks along the z direction
     unsigned chunk_size_ind = anisotropy ? 4*ox*oy : ox*oy;
@@ -81,11 +86,16 @@ coverage(
     {
       float chunk_zmin = ozmin + i * chunk_size_oz;
       float *chunk_map = coverage_map + i * chunk_size_ind;
-      worker_function(NULL, chunk_zmin, oxmin, oymin, ox, oy, chunk_size_oz,
-          chunk_map, theta, h, v, line_weights, dsize,
-          gridx, gridy, anisotropy, calc_coverage);
+      worker_function(
+          NULL,
+          chunk_zmin, oxmin, oymin,
+          ox, oy, chunk_size_oz,
+          chunk_map,
+          theta, h, v, line_weights,
+          dsize,
+          gridx, gridy,
+          work_mode);
     }
-
     free(gridx);
     free(gridy);
 }
@@ -98,33 +108,29 @@ void worker_function(
     float *data,
     const float *theta, const float *h, const float *v, const float *weights,
     const int dsize,
-    const float *gridx, const float *gridy, bool const anisotropy,
-    void (*calc_f)(
-        const unsigned *,
-        const float *, const float *,
-        int const,
-        float const,
-        int const,
-        float *, float const, float const, bool const)
-)
+    const float *gridx, const float *gridy,
+    enum mode work_mode)
 {
-    assert(calc_f != NULL);
+    // Coordinate pairs of gridx gridy where the line intersects the grid
     float *coordy = malloc(sizeof *coordy * (ox+oy+2));
     float *coordx = malloc(sizeof *coordx * (ox+oy+2));
-    // Initialize intermediate vectors
+    // Distances between (gridx, coordy) points
     float *ax = (float *)malloc((ox+oy+2)*sizeof(float));
     float *ay = (float *)malloc((ox+oy+2)*sizeof(float));
+    // Distances between (gridy, coordx) points
     float *bx = (float *)malloc((ox+oy+2)*sizeof(float));
     float *by = (float *)malloc((ox+oy+2)*sizeof(float));
+    // All intersection points sorted into one array
     float *coorx = coordx;
     float *coory = coordy;
-    // Initialize the distance vector per ray.
+    // Final distances between intersection points
     float *dist = bx;
+    // Midpoints between intersection points used to find indices
     float *midx = ax;
     float *midy = ay;
-    // Initialize the index of the grid that the ray passes through.
+    // Index of the grid that the ray passes through.
     unsigned *indi = malloc(sizeof *indi * (ox+oy+1));
-    // Diagnostics for pointers.
+
     assert(coordx != NULL && coordy != NULL &&
         ax != NULL && ay != NULL && by != NULL && bx != NULL &&
         coorx != NULL && coory != NULL &&
@@ -132,45 +138,56 @@ void worker_function(
 
     int ray;
     int quadrant;
-    float ri, hi, line_weight;
+    float ri, hi;
     int zi;
     float theta_p, sin_p, cos_p;
     int asize, bsize, csize;
 
     for (ray=0; ray<dsize; ray++)
     {
-      zi = floor(v[ray]-ozmin);
-      // Skip this ray if it is out of the z range
-      //TODO: Presort lines by z coordinate so this check isn't necessary.
-      if ((0 <= zi) && (zi < oz))
-      {
-        // Calculate the sin and cos values of the projection angle and find
-        // at which quadrant on the cartesian grid.
-        theta_p = fmod(theta[ray], 2*M_PI);
-        quadrant = calc_quadrant(theta_p);
-        sin_p = sinf(theta_p);
-        cos_p = cosf(theta_p);
-        ri = abs(oxmin)+abs(oymin)+ox+oy;
-        hi = h[ray]+1e-6;
-        // printf("ray=%d, ri=%f, hi=%f, zi=%f\n", ray, ri, hi, zi);
-        calc_coords(
-            ox, oy, ri, hi, sin_p, cos_p, gridx, gridy, coordx, coordy);
-        trim_coords(
-            ox, oy, coordx, coordy, gridx, gridy,
-            &asize, ax, ay, &bsize, bx, by);
-        sort_intersections(
-            quadrant, asize, ax, ay, bsize, bx, by, &csize, coorx, coory);
-        calc_dist(
-            csize, coorx, coory, midx, midy, dist);
-        calc_index(
-            ox, oy, oz, oxmin, oymin, ozmin, csize,
-            midx, midy, zi, indi);
-        // Calculate coverage
-        if (weights != NULL)
-            line_weight = weights[ray];
-        (*calc_f)(indi, dist, obj_weights, csize, line_weight, ray, data,
-                  sin_p, cos_p, anisotropy);
-      }
+        zi = floor(v[ray]-ozmin);
+        // Skip this ray if it is out of the z range
+        //TODO: Presort lines by z coordinate so this check isn't necessary.
+        if ((0 <= zi) && (zi < oz))
+        {
+            // Calculate the sin and cos values of the projection angle and find
+            // at which quadrant on the cartesian grid.
+            theta_p = fmod(theta[ray], 2*M_PI);
+            quadrant = calc_quadrant(theta_p);
+            sin_p = sinf(theta_p);
+            cos_p = cosf(theta_p);
+            ri = abs(oxmin)+abs(oymin)+ox+oy;
+            hi = h[ray]+1e-6;
+            calc_coords(
+                ox, oy, ri, hi, sin_p, cos_p, gridx, gridy, coordx, coordy);
+            trim_coords(
+                ox, oy, coordx, coordy, gridx, gridy,
+                &asize, ax, ay, &bsize, bx, by);
+            sort_intersections(
+                quadrant, asize, ax, ay, bsize, bx, by, &csize, coorx, coory);
+            calc_dist(
+                csize, coorx, coory, midx, midy, dist);
+            calc_index(
+                ox, oy, oz, oxmin, oymin, ozmin, csize,
+                midx, midy, zi, indi);
+            switch (work_mode) {
+                default:
+                case Forward:
+                    calc_forward(obj_weights, indi, dist, csize, data, ray);
+                    break;
+                case Back:
+                    calc_back(dist, csize, weights[ray], data, indi);
+                    break;
+                case Coverage:
+                    calc_coverage(dist, csize, weights[ray], sin_p, cos_p,
+                                  data, indi);
+                    break;
+                case ART:
+                    break;
+                case SIRT:
+                    break;
+            }
+        }
     }
     free(coordx);
     free(coordy);
@@ -185,7 +202,6 @@ void worker_function(
     // free(midy); -> ay
     free(indi);
 }
-
 
 
 void
@@ -494,51 +510,51 @@ tensor_at_angle(float *tensor, const float magnitude,
 
 void
 calc_coverage(
-    const unsigned *indi,
     const float *dist,
-    const float *unused_float,
-    int const csize,
+    int const dist_size,
     float const line_weight,
-    int const unused_int,
-    float *cov,
     float const sin_p,
     float const cos_p,
-    bool const anisotropy)
+    float *cov,
+    const unsigned *ind_cov
+    )
 {
     int n;
-    if (anisotropy)
+    for (n=0; n<dist_size-1; n++)
     {
-      for (n=0; n<csize-1; n++)
-      {
-        tensor_at_angle(&cov[4*indi[n]], dist[n]*line_weight, sin_p, cos_p);
-      }
-    }
-    else
-    {
-      for (n=0; n<csize-1; n++)
-      {
-        cov[indi[n]] += dist[n]*line_weight;
-      }
+      tensor_at_angle(&cov[4*ind_cov[n]], dist[n]*line_weight, sin_p, cos_p);
     }
 }
 
 
 void
-calc_simdata(
-    const unsigned *indi,
+calc_back(
     const float *dist,
-    const float *grid_weights,
-    int const indi_size,
-    float const unused_float,
-    int const ray,
-    float *data,
-    const float sin_p,
-    const float cos_p,
-    bool const anisotropy)
+    int const dist_size,
+    float const line_weight,
+    float *cov,
+    const unsigned *ind_cov)
 {
     int n;
-    for (n=0; n<indi_size-1; n++)
+    for (n=0; n<dist_size-1; n++)
     {
-        data[ray] += grid_weights[indi[n]]*dist[n];
+      cov[ind_cov[n]] += dist[n]*line_weight;
+    }
+}
+
+
+void
+calc_forward(
+    const float *grided_weights,
+    const unsigned *ind_grid,
+    const float *dist,
+    int const dist_size,
+    float *data,
+    int const ind_data)
+{
+    int n;
+    for (n=0; n<dist_size-1; n++)
+    {
+        data[ind_data] += grided_weights[ind_grid[n]]*dist[n];
     }
 }

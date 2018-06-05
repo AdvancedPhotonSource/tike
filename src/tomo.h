@@ -13,6 +13,8 @@
 #include <assert.h>
 #include "string.h"
 
+enum mode {Forward, Back, Coverage, ART, SIRT};
+
 void
 art(
     const float *data,
@@ -84,14 +86,9 @@ void worker_function(
     float *data,
     const float *theta, const float *h, const float *v, const float *weights,
     const int dsize,
-    const float *gridx, const float *gridy, bool const anisotropy,
-    void (*f)(
-        const unsigned *,
-        const float *, const float *,
-        int const,
-        float const,
-        int const,
-        float *, float const, float const, bool const));
+    const float *gridx, const float *gridy,
+    enum mode
+    );
 
 
 /**
@@ -178,31 +175,31 @@ calc_index(
 */
 void
 calc_coverage(
-    const unsigned *index_zxy,
-    const float *distances,
-    const float *,
-    int const data_size,
+    const float *dist,
+    int const dist_size,
     float const line_weight,
-    int const,
-    float *coverage_map,
-    const float sin_p,
-    const float cos_p,
-    bool const anisotropy);
+    float const sin_p,
+    float const cos_p,
+    float *cov,
+    const unsigned *ind_cov);
 
+void
+calc_back(
+    const float *dist,
+    int const dist_size,
+    float const line_weight,
+    float *cov,
+    const unsigned *ind_cov);
 /**
   Multiply the distances by the weights then sum over the line.
 */
 void
-calc_simdata(
-    const unsigned *index_zxy,
-    const float *distances,
-    const float *grid_weights,
-    int const isize,
-    float const,
-    int const index_line,
+calc_forward(
+    const float *grided_weights,
+    const unsigned *ind_grid,
+    const float *dist,
+    int const dist_size,
     float *data,
-    const float,
-    const float,
-    bool const);
+    int const ind_data);
 
 #endif
