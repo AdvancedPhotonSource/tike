@@ -92,8 +92,15 @@ class Probe(object):
         plane, centered on `[0, 0]`.
     extent : :py:class:`np.array` [cm]
         A rectangle confining the `Probe`. Specify width and aspect ratio.
+    lines_per_pixel : int
+        Number of lines per pixel_size used to approximate the beam. From a
+        previous study, we determined that the this value should be at
+        least 16. A higher number will improve the quality of the coverage
+        approximation. The number of lines used to approximate the beam
+        will be `lines_per_pixel**2`.
     """
-    def __init__(self, density_profile=None, width=None, aspect=None):
+    def __init__(self, density_profile=None, width=None, aspect=None,
+                 lines_per_pixel=16):
         if density_profile is None:
             self.density_profile = lambda h, v: 1
         else:
@@ -105,8 +112,10 @@ class Probe(object):
             self.width = width
             self.aspect = aspect
         self.line_width = 1
+        assert(lines_per_pixel > 0)
+        self.lines_per_pixel = lines_per_pixel
 
-    def line_offsets(self, pixel_size, lines_per_pixel=16):
+    def line_offsets(self, pixel_size):
         """Generate a list of ray offsets and weights from density profile
         and extent.
 
@@ -114,17 +123,11 @@ class Probe(object):
         -------
         rays : array [cm]
             [([theta, h, v], intensity_weight), ...]
-        lines_per_pixel : int
-            Number of lines per pixel_size used to approximate the beam. From a
-            previous study, we determined that the this value should be at
-            least 16. A higher number will improve the quality of the coverage
-            approximation. The number of lines used to approximate the beam
-            will be `lines_per_pixel**2`.
         """
         # return [([0, 0, 0], 1), ]  # placeholder
         width, height = self.width, self.width * self.aspect
         # determine if the probe extent is larger than the maximum line_width
-        self.line_width = pixel_size/lines_per_pixel
+        self.line_width = pixel_size/self.lines_per_pixel
         if width < self.line_width or height < self.line_width:
             # line_width needs to shrink to fit within probe
             raise NotImplementedError("Why are you using such large pixels?")
@@ -203,7 +206,7 @@ class Probe(object):
                 np.concatenate(all_v), np.concatenate(all_dwell))
 
     def coverage(self, trajectory, region, pixel_size, tmin, tmax, tstep,
-                 anisotropy=False, tkwargs={}):
+                 anisotropy=1, tkwargs={}):
         """Return a coverage map using this probe.
 
         The intersection between each line and each pixel is approximated by
@@ -221,11 +224,11 @@ class Probe(object):
             i.e. column vectors pointing to the min and max corner.
         pixel_size : float [cm]
             The edge length of the pixels in the coverage map.
-        anisotropy : bool
-            Whether the coverage map includes anisotropy information. If
-            `anisotropy` is `True`, then `coverage_map.shape` is
-            `(L, M, N, 2, 2)`, where the two extra dimensions contain coverage
-            anisotropy information as a second order tensor.
+        anisotropy : int
+            The number of angle bins to include in the coverage map. If
+            `anisotropy` is `O > 1`, then `coverage_map.shape` is
+            `(L, M, N, O)`, where the magnitude of coverage from each of the
+            `O` directions is stored separately.
 
         Returns
         -------
@@ -241,14 +244,11 @@ class Probe(object):
                                         pixel_size=pixel_size,
                                         tmin=tmin, tmax=tmax, tstep=tstep)
 
-        # Scale to a coordinate system where pixel_size is 1.0
-        h = h / pixel_size
-        v = v / pixel_size
-        w = w * self.line_width**2 / pixel_size**2
-        box = box / pixel_size
+        w = w * self.line_width**2 / pixel_size**3
         # Find new min corner and size of region
-        ibox_shape = (np.ceil(box[:, 1] - box[:, 0])).astype(int)
-        coverage_map = coverage(box[:, 0], ibox_shape,
+        ibox_shape = box[:, 1] - box[:, 0]
+        ngrid = np.ceil(ibox_shape / pixel_size).astype(np.int)
+        coverage_map = coverage(box[:, 0], ibox_shape, ngrid,
                                 theta=theta, h=h, v=v,
                                 line_weight=w, anisotropy=anisotropy)
         return coverage_map

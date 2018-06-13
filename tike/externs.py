@@ -65,16 +65,58 @@ __all__ = ['c_shared_lib',
 logger = logging.getLogger(__name__)
 
 # Import shared library.
-LIBTIKE = ctypes.CDLL('./tike/libtike.cpython-35m-x86_64-linux-gnu.so')
+LIBTIKE = ctypes.CDLL('/home/beams0/B242827/Documents/tike/tike/libtike.cpython-35m-x86_64-linux-gnu.so')
 
 
-def c_art(ozmin, oxmin, oymin, oz, ox, oy, data, theta, h, v, dsize, recon,
-          n_iter):
+def c_coverage(ozmin, oxmin, oymin, zsize, xsize, ysize, oz, ox, oy, ot,
+               theta, h, v, w, dsize, cov):
+    LIBTIKE.coverage.restype = utils.as_c_void_p()
+    return LIBTIKE.coverage(
+            utils.as_c_float(ozmin),
+            utils.as_c_float(oxmin),
+            utils.as_c_float(oymin),
+            utils.as_c_float(zsize),
+            utils.as_c_float(xsize),
+            utils.as_c_float(ysize),
+            utils.as_c_int(oz),
+            utils.as_c_int(ox),
+            utils.as_c_int(oy),
+            utils.as_c_int(ot),
+            utils.as_c_float_p(theta),
+            utils.as_c_float_p(h),
+            utils.as_c_float_p(v),
+            utils.as_c_float_p(w),
+            utils.as_c_int(dsize),
+            utils.as_c_float_p(cov))
+
+
+def c_project(obj, ozmin, oxmin, oymin, oz, ox, oy, theta, h, v, dsize, data):
+    LIBTIKE.project.restype = utils.as_c_void_p()
+    return LIBTIKE.project(
+            utils.as_c_float_p(obj),
+            utils.as_c_float(ozmin),
+            utils.as_c_float(oxmin),
+            utils.as_c_float(oymin),
+            utils.as_c_int(oz),
+            utils.as_c_int(ox),
+            utils.as_c_int(oy),
+            utils.as_c_float_p(theta),
+            utils.as_c_float_p(h),
+            utils.as_c_float_p(v),
+            utils.as_c_int(dsize),
+            utils.as_c_float_p(data))
+
+
+def c_art(ozmin, oxmin, oymin, zsize, xsize, ysize, oz, ox, oy,
+          data, theta, h, v, dsize, recon, n_iter):
     LIBTIKE.art.restype = utils.as_c_void_p()
     return LIBTIKE.art(
             utils.as_c_float(ozmin),
             utils.as_c_float(oxmin),
             utils.as_c_float(oymin),
+            utils.as_c_float(zsize),
+            utils.as_c_float(xsize),
+            utils.as_c_float(ysize),
             utils.as_c_int(oz),
             utils.as_c_int(ox),
             utils.as_c_int(oy),
@@ -104,39 +146,3 @@ def c_sirt(ozmin, oxmin, oymin, oz, ox, oy, data, theta, h, v, dsize, recon,
             utils.as_c_int(dsize),
             utils.as_c_float_p(recon),
             utils.as_c_int(n_iter))
-
-
-def c_project(obj, ozmin, oxmin, oymin, oz, ox, oy, theta, h, v, dsize, data):
-    LIBTIKE.project.restype = utils.as_c_void_p()
-    return LIBTIKE.project(
-            utils.as_c_float_p(obj),
-            utils.as_c_float(ozmin),
-            utils.as_c_float(oxmin),
-            utils.as_c_float(oymin),
-            utils.as_c_int(oz),
-            utils.as_c_int(ox),
-            utils.as_c_int(oy),
-            utils.as_c_float_p(theta),
-            utils.as_c_float_p(h),
-            utils.as_c_float_p(v),
-            utils.as_c_int(dsize),
-            utils.as_c_float_p(data))
-
-
-def c_coverage(ozmin, oxmin, oymin, oz, ox, oy, theta, h, v, w, dsize, cov,
-               anisotropy):
-    LIBTIKE.coverage.restype = utils.as_c_void_p()
-    return LIBTIKE.coverage(
-            utils.as_c_float(ozmin),
-            utils.as_c_float(oxmin),
-            utils.as_c_float(oymin),
-            utils.as_c_int(oz),
-            utils.as_c_int(ox),
-            utils.as_c_int(oy),
-            utils.as_c_float_p(theta),
-            utils.as_c_float_p(h),
-            utils.as_c_float_p(v),
-            utils.as_c_float_p(w),
-            utils.as_c_int(dsize),
-            utils.as_c_float_p(cov),
-            utils.as_c_bool(anisotropy))

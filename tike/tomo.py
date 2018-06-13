@@ -58,6 +58,7 @@ __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = ['art',
+           'sirt',
            'project',
            'coverage']
 
@@ -66,55 +67,56 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def coverage(grid_min, grid_size, theta, h, v, line_weight=None,
-             anisotropy=False):
+def coverage(grid_min, grid_size, ngrid, theta, h, v, line_weight=None,
+             anisotropy=1):
     """Back-project lines over a grid.
 
-    .. note::
-
     Coverage will be calculated on a grid covering the range
-    `[grid_min, grid_min + grid_size)`, so you will probably
-    need to rescale `h, v` to that same range.
+    `[grid_min, grid_min + grid_size)`.
 
     Parameters
     ----------
     grid_min : tuple float (z, x, y)
         The min corner of the grid.
-    grid_size : tuple int (z, x, y)
+    grid_size : tuple float (z, x, y)
+        The side lengths of the grid along each dimension.
+    ngrid : tuple int (z, x, y)
         The number of grid spaces along each dimension.
-    theta, h, v : (M, ) py:class:`np.array`
+    theta, h, v : (M, ) :py:class:`np.array`
         The h, v, and theta coordinates of lines to back-project over an
         `obj.shape` grid.
-    line_weight : (M, ) py:class:`np.array`
+    line_weight : (M, ) :py:class:`np.array`
         Multiply the intersections lengths of the pixels and each line by these
         weights.
 
     Returns
     -------
     coverage_map : :py:class:`numpy.ndarray` [length * line_weight]
-        An array of grid_size, containing the sum of the intersection lengths
-        multiplied by the line_weights.
+        An array of shape (ngrid, anisotropy) containing the sum of the
+        intersection lengths multiplied by the line_weights.
     """
-    grid_min = utils.as_float32(grid_min)
-    grid_size = utils.as_int32(grid_size)
-    assert np.all(grid_size > 0)
+    # grid_min = utils.as_float32(grid_min)
+    # grid_size = utils.as_float32(grid_size)
+    # ngrid = utils.as_int32(ngrid)
+    assert np.all(grid_size > 0), "Grid dimensions must be > 0"
+    assert np.all(ngrid > 0), "Number of grid lines must be > 0"
     h = utils.as_float32(h)
     v = utils.as_float32(v)
     theta = utils.as_float32(theta)
     if line_weight is None:
-        line_weight = np.ones(theta.shape)
+        line_weight = np.ones(theta.shape, dtype=np.float32)
     line_weight = utils.as_float32(line_weight)
-    assert theta.size == h.size == v.size == line_weight.size
-    dsize = theta.size
-    if anisotropy:
-        coverage_map = np.zeros(list(grid_size) + [2, 2], dtype=np.float32)
+    assert theta.size == h.size == v.size == line_weight.size, "line_weight," \
+        " theta, h, v must be the same size"
+    if anisotropy > 1:
+        coverage_map = np.zeros(list(ngrid) + [anisotropy], dtype=np.float32)
     else:
-        coverage_map = np.zeros(grid_size, dtype=np.float32)
+        coverage_map = np.zeros(ngrid, dtype=np.float32)
     logging.info(" coverage {:,d} element grid".format(coverage_map.size))
     externs.c_coverage(grid_min[0], grid_min[1], grid_min[2],
                        grid_size[0], grid_size[1], grid_size[2],
-                       theta, h, v, line_weight, dsize, coverage_map,
-                       anisotropy)
+                       ngrid[0], ngrid[1], ngrid[2], anisotropy,
+                       theta, h, v, line_weight, h.size, coverage_map)
     return coverage_map
 
 
@@ -156,11 +158,93 @@ def project(obj, theta, h, v, grid_min=None):
     return data
 
 
-def art(data, x, y, theta):
+def art(grid_min, grid_size, data, theta, h, v, init, niter=1):
+    """Reconstruct using Algebraic Reconstruction Technique (ART)
+
+    See :cite:`gordon1970algebraic` for original description of ART.
+
+    Parameters
+    ----------
+    grid_min : tuple float (z, x, y)
+        The min corner of the grid.
+    grid_size : tuple float (z, x, y)
+        The width of the grid along each dimension.
+    data : (M, ) :py:class:`np.array`
+        The data for reconstruction
+    theta, h, v : (M, ) :py:class:`np.array`
+        The h, v, and theta coordinates of the data
+    niter : int
+        The number of ART iterations to perform
+    init : (grid_size) :py:class:`np.array`
+        An initial guess for reconstruction. Default array is zeros.
+
+    Returns
+    -------
+    recon : :py:class:`numpy.ndarray`
+        A reconstruction of grid_size.
+    """
+    grid_min = utils.as_float32(grid_min)
+    grid_size = utils.as_float32(grid_size)
+    print(grid_size)
+    assert np.all(grid_size > 0), "Grid dimensions must be > 0"
     data = utils.as_float32(data)
-    x = utils.as_float32(x)
-    y = utils.as_float32(y)
     theta = utils.as_float32(theta)
-    recon = np.ones((100, 100, 100), dtype=np.float32)
-    externs.c_art(data, x, y, theta, recon)
-    return recon
+    h = utils.as_float32(h)
+    v = utils.as_float32(v)
+    assert theta.size == h.size == v.size == data.size, "data, theta, h, v " \
+        "must be the same size"
+    assert niter >= 0, "Number of iterations should be >= 0"
+    nz, nx, ny = init.shape
+    logging.info(" ART {:,d} element grid for {:,d} iterations".format(
+        init.size, niter))
+    externs.c_art(grid_min[0], grid_min[1], grid_min[2],
+                  grid_size[0], grid_size[1], grid_size[2],
+                  nz, nx, ny,
+                  data, theta, h, v, data.size, init, niter)
+    return init
+
+
+def sirt(grid_min, grid_size, data, theta, h, v, niter=1, init=None):
+    """Reconstruct using Simultaneous Iterative Reconstruction Technique (SIRT)
+
+    Parameters
+    ----------
+    grid_min : tuple float (z, x, y)
+        The min corner of the grid.
+    grid_size : tuple int (z, x, y)
+        The number of grid spaces along each dimension.
+    data : (M, ) :py:class:`np.array`
+        The data for reconstruction
+    theta, h, v : (M, ) :py:class:`np.array`
+        The h, v, and theta coordinates of the data
+    niter : int
+        The number of ART iterations to perform
+    init : (grid_size) :py:class:`np.array`
+        An initial guess for reconstruction. Default array is zeros.
+
+    Returns
+    -------
+    recon : :py:class:`numpy.ndarray`
+        A reconstruction of grid_size.
+    """
+    grid_min = utils.as_float32(grid_min)
+    grid_size = utils.as_int32(grid_size)
+    assert np.all(grid_size > 0), "Grid dimensions must be > 0"
+    data = utils.as_float32(data)
+    theta = utils.as_float32(theta)
+    h = utils.as_float32(h)
+    v = utils.as_float32(v)
+    assert theta.size == h.size == v.size == data.size, "data, theta, h, v " \
+        "must be the same size"
+    assert niter >= 0, "Number of iterations should be >= 0"
+    if init is None:
+        init = np.zeros(grid_size, dtype=np.float32)
+    else:
+        assert init.shape == tuple(grid_size), "Inital guess must be same " \
+            "shape as declared grid size"
+    logging.info(" SIRT {:,d} element grid for {:,d} iterations".format(
+        init.size, niter))
+    externs.c_sirt(grid_min[0], grid_min[1], grid_min[2],
+                   grid_size[0], grid_size[1], grid_size[2],
+                   data, theta, h, v, data.size, init, niter)
+    return init

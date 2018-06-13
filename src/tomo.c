@@ -2,118 +2,6 @@
 #include "limits.h"
 #include <omp.h>
 
-void
-art(
-    const float ozmin, const float oxmin, const float oymin,
-    const int oz, const int ox, const int oy,
-    float *data,
-    const float *theta, const float *h, const float *v,
-    const int dsize,
-    float *recon,
-    const int n_iter)
-{
-    assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
-    // Initialize the grid on object space.
-    float *gridx = (float *)malloc((ox+1)*sizeof(float));
-    float *gridy = (float *)malloc((oy+1)*sizeof(float));
-    assert(gridx != NULL && gridy != NULL);
-    preprocessing(oxmin, oymin, ox, oy, gridx, gridy);
-
-    for (int i=0; i < n_iter; i++)
-    {
-        //TODO: There's a lot of redundant work being done because for each
-        // iteration, the position of the lines doesn't change. Only recon is
-        // changing.
-        worker_function(recon,
-                        ozmin, oxmin, oymin,
-                        oz, ox, oy,
-                        data,
-                        theta, h, v, NULL,
-                        dsize,
-                        gridx, gridy,
-                        ART);
-    }
-    free(gridx);
-    free(gridy);
-}
-
-
-void
-sirt(
-    const float ozmin, const float oxmin, const float oymin,
-    const int oz, const int ox, const int oy,
-    float *data,
-    const float *theta, const float *h, const float *v,
-    const int dsize,
-    float *recon,
-    const int n_iter)
-{
-    assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
-    // Initialize the grid on object space.
-    float *gridx = (float *)malloc((ox+1)*sizeof(float));
-    float *gridy = (float *)malloc((oy+1)*sizeof(float));
-    float *update = malloc(sizeof update * (unsigned)2*oz*ox*oy);
-    float *sumdist = &update[(unsigned)oz*ox*oy];
-    assert(gridx != NULL && gridy != NULL && sumdist != NULL);
-    preprocessing(oxmin, oymin, ox, oy, gridx, gridy);
-
-    for (int i=0; i < n_iter; i++)
-    {
-        //TODO: There's a lot of redundant work being done because for each
-        // iteration, the position of the lines doesn't change. Only recon is
-        // changing.
-        memset(update, 0, sizeof update * (unsigned)2*oz*ox*oy);
-        worker_function(recon,
-                        ozmin, oxmin, oymin,
-                        oz, ox, oy,
-                        update,
-                        theta, h, v, data,
-                        dsize,
-                        gridx, gridy,
-                        SIRT);
-        for (unsigned j=0; j < oz*ox*oy; j++)
-        {
-            assert(sumdist[j] > 0);
-            recon[j] += update[j] / (sumdist[j] * oy);
-        }
-    }
-    free(gridx);
-    free(gridy);
-    free(update);
-    free(sumdist);
-}
-
-
-void
-project(
-    const float *obj_weights,
-    const float ozmin, const float oxmin, const float oymin,
-    const int oz, const int ox, const int oy,
-    const float *theta,
-    const float *h,
-    const float *v,
-    const int dsize,
-    float *data)
-{
-    assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
-    // Initialize the grid on object space.
-    float *gridx = (float *)malloc((ox+1)*sizeof(float));
-    float *gridy = (float *)malloc((oy+1)*sizeof(float));
-    assert(gridx != NULL && gridy != NULL);
-    preprocessing(oxmin, oymin, ox, oy, gridx, gridy);
-
-    worker_function(obj_weights,
-        ozmin, oxmin, oymin,
-        oz, ox, oy,
-        data,
-        theta, h, v, NULL,
-        dsize,
-        gridx, gridy,
-        Forward);
-    free(gridx);
-    free(gridy);
-}
-
 /**
 Siddon, R. L. (1984). Fast calculation of the exact radiological path for a
 three‐dimensional CT array. Medical Physics, 12(2), 252–255.
@@ -122,27 +10,29 @@ https://doi.org/10.1118/1.595715
 void
 coverage(
     const float ozmin, const float oxmin, const float oymin,
-    const int oz, const int ox, const int oy,
+    const float zsize, const float xsize, const float ysize,
+    const int oz, const int ox, const int oy, const int ot,
     const float *theta,
     const float *h,
     const float *v,
     const float *line_weights,
     const int dsize,
-    float *coverage_map,
-    const bool anisotropy)
+    float *coverage_map)
 {
     assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
     // Initialize the grid on object space.
     float *gridx = malloc(sizeof *gridx * (ox+1));
     float *gridy = malloc(sizeof *gridy * (oy+1));
     assert(gridx != NULL && gridy != NULL);
-    preprocessing(oxmin, oymin, ox, oy, gridx, gridy);
+    make_grid(
+        0.0, oxmin, oymin, 0.0, xsize, ysize, -1, ox, oy,
+        NULL, gridx, gridy);
 
-    enum mode work_mode = anisotropy ? Coverage : Back;
+    enum mode work_mode = ot > 1 ? Coverage : Back;
 
     // Divide into chunks along the z direction
-    unsigned chunk_size_ind = anisotropy ? 4*ox*oy : ox*oy;
-    int chunk_size_oz = 1;
+    unsigned chunk_size_ind = ot*ox*oy;
+    float chunk_size_oz = zsize / oz;
     #pragma omp parallel for schedule(static)
     for(int i=0; i < oz; i++)
     {
@@ -151,7 +41,8 @@ coverage(
       worker_function(
           NULL,
           chunk_zmin, oxmin, oymin,
-          chunk_size_oz, ox, oy,
+          chunk_size_oz, xsize, ysize,
+          1, ox, oy, ot,
           chunk_map,
           theta, h, v, line_weights,
           dsize,
@@ -162,11 +53,35 @@ coverage(
     free(gridy);
 }
 
+void make_grid(
+    const float zmin, const float xmin, const float ymin,
+    const float zsize, const float xsize, const float ysize,
+    const int nz, const int nx, const int ny,
+    float * const gridz, float * const gridx, float * const gridy)
+{
+    int i;
+    float xstep = xsize / nx;
+    float ystep = ysize / ny;
+    float zstep = zsize / nz;
+    for(i=0; i<=nx; i++)
+    {
+        gridx[i] = xmin + i * xstep;
+    }
+    for(i=0; i<=ny; i++)
+    {
+        gridy[i] = ymin + i * ystep;
+    }
+    for(i=0; i<=nz; i++)
+    {
+        gridz[i] = zmin + i * zstep;
+    }
+}
 
 void worker_function(
     float *obj_weights,
     const float ozmin, const float oxmin, const float oymin,
-    const int oz, const int ox, const int oy,
+    const float zsize, const float xsize, const float ysize,
+    const int oz, const int ox, const int oy, const int ot,
     float *data,
     const float *theta, const float *h, const float *v, const float *weights,
     const int dsize,
@@ -192,7 +107,6 @@ void worker_function(
     float *midy = ay;
     // Index of the grid that the ray passes through.
     unsigned *indi = malloc(sizeof *indi * (ox+oy+1));
-
     assert(coordx != NULL && coordy != NULL &&
         ax != NULL && ay != NULL && by != NULL && bx != NULL &&
         coorx != NULL && coory != NULL &&
@@ -208,7 +122,7 @@ void worker_function(
 
     for (ray=0; ray<dsize; ray++)
     {
-        zi = floor(v[ray]-ozmin);
+        zi = floor((v[ray]-ozmin) * oz / zsize);
         // Skip this ray if it is out of the z range
         //TODO: Presort lines by z coordinate so this check isn't necessary.
         if ((0 <= zi) && (zi < oz))
@@ -231,8 +145,8 @@ void worker_function(
             calc_dist(
                 csize, coorx, coory, midx, midy, dist);
             calc_index(
-                ox, oy, oz, oxmin, oymin, ozmin, csize,
-                midx, midy, zi, indi);
+                ox, oy, oz, oxmin, oymin, ozmin, xsize/ox, ysize/oy, zsize/oz,
+                csize, midx, midy, zi, indi);
             switch (work_mode) {
                 default:
                 case Forward:
@@ -242,7 +156,7 @@ void worker_function(
                     calc_back(dist, csize, weights[ray], data, indi);
                     break;
                 case Coverage:
-                    calc_coverage(dist, csize, weights[ray], sin_p, cos_p,
+                    calc_coverage(dist, csize, weights[ray], theta_p, ot,
                                   data, indi);
                     break;
                 case ART:
@@ -267,27 +181,6 @@ void worker_function(
     // free(midx); -> ax
     // free(midy); -> ay
     free(indi);
-}
-
-
-void
-preprocessing(
-    const float minx, const float miny,
-    const int ngridx, const int ngridy,
-    float * const gridx,
-    float * const gridy)
-{
-    int i;
-
-    for(i=0; i<=ngridx; i++)
-    {
-        gridx[i] = minx+i;
-    }
-
-    for(i=0; i<=ngridy; i++)
-    {
-        gridy[i] = miny+i;
-    }
 }
 
 
@@ -341,84 +234,6 @@ calc_coords(
 }
 
 
-/** Given the ordered points (grid, coord). Remove points outside the range
-  [min_coord, max_coord). Put the points you're keeping inside (agrid, acoord).
-*/
-void trim_coord_1D(
-    const int grid_size, const float *grid, const float *coord,
-    int *a_size, float *agrid, float *acoord,
-    const float min_coord, const float max_coord)
-{
-  assert(grid_size >= 2);
-  assert(min_coord <= max_coord);
-  if isfinite(coord[0])
-  {
-    // Determine whether coords are sorted ascending or descending
-    bool ascending = coord[0] < coord[1];
-    // if (coord[grid_size-1] < min_coord || max_coord < coord[0])
-    // Convert the range [min_coord, max_coord) to [left, right) where left,
-    // right are indices of grid
-    int left = 0, right = grid_size;
-    int low, high, mid;
-    low = left;
-    high = right;
-    while (low <= high) {
-        mid = (low + high) / 2;
-        if (mid == grid_size || (ascending && min_coord <= coord[mid])
-            || (!ascending && max_coord > coord[mid]))
-        {
-          if (mid == 0 || (ascending && coord[mid - 1] < min_coord)
-              || (!ascending && coord[mid - 1] >= max_coord))
-          {
-            left = mid;
-            break;
-          }
-          else // edge is to the left of 'mid'
-            high = mid - 1;
-        }
-        else // edge is to the right of 'mid'
-            low = mid + 1;
-    }
-    assert(low <= high);
-    low = left;
-    high = right;
-    while (low <= high) {
-        mid = (low + high) / 2;
-        if (mid == grid_size || (ascending && max_coord <= coord[mid])
-            || (!ascending && min_coord > coord[mid]))
-        {
-          if (mid == 0 || (ascending && coord[mid - 1] < max_coord)
-              || (!ascending && coord[mid - 1] >= min_coord))
-          {
-            right = mid;
-            break;
-          }
-          else // edge is to the left of 'mid'
-            high = mid - 1;
-        }
-        else // edge is to the right of 'mid'
-            low = mid + 1;
-    }
-    assert(low <= high);
-
-    // Copy the range [left, right)
-    *a_size = right-left;
-    assert(*a_size >= 0);
-    assert(left >= 0 && left + *a_size <= grid_size);
-    memcpy(agrid, &grid[left], sizeof *grid * *a_size);
-    memcpy(acoord, &coord[left], sizeof *coord * *a_size);
-  }
-  else
-  {
-    // All coords are infinite because the line is horizontal or vertical.
-    // Trim all because grid intersections are all included in other list
-    *a_size = 0;
-    return;
-  }
-
-}
-
-
 void
 trim_coords(
     const int ox, const int oy,
@@ -427,10 +242,6 @@ trim_coords(
     int *asize, float *ax, float *ay,
     int *bsize, float *bx, float *by)
 {
-    // trim_coord_1D(ox+1, gridx, coordy, asize,
-    //               ax, ay, gridy[0], gridy[oy]);
-    // trim_coord_1D(oy+1, gridy, coordx, bsize,
-    //               by, bx, gridx[0], gridx[ox]);
     int n;
 
     *asize = 0;
@@ -524,8 +335,8 @@ calc_dist(
         diffx = coorx[n+1]-coorx[n];
         diffy = coory[n+1]-coory[n];
         dist[n] = sqrt(diffx*diffx+diffy*diffy);
-        midx[n] = (coorx[n+1]+coorx[n])/2.001;
-        midy[n] = (coory[n+1]+coory[n])/2.001;
+        midx[n] = (coorx[n+1]+coorx[n])/2.00;
+        midy[n] = (coory[n+1]+coory[n])/2.00;
         // Divide by 2 + eps in order to keep midxy inside the grid when both
         // coords are inside the grid. Numerical instability sometimes pushes
         // the sum of midxy and oxmin outside the grid
@@ -536,39 +347,41 @@ void
 calc_index(
     int const ox, int const oy, int const oz,
     float const oxmin, float const oymin, float const ozmin,
-    int const msize, const float *midx, const float *midy,
-    int const indz, unsigned *indi)
+    float const xstep, float const ystep, float const zstep,
+    int const msize, const float * const midx, const float * const midy,
+    int const indz, unsigned * const indi)
 {
     assert(UINT_MAX/ox/oy/oz/4 > 0 && "Array is too large to index.");
-    // printf("SHAPE: %d, %d, %d : %f, %f, %f\n",
-    //         ox, oy, oz, oxmin, oymin, ozmin);
+    // printf("SHAPE: %d, %d, %d : %f, %f, %f : %f, %f, %f\n",
+    //         ox, oy, oz, oxmin, oymin, ozmin, xstep, ystep, zstep);
     int n;
     unsigned indx, indy;
     for (n=0; n<msize-1; n++)
     {
         // Midpoints assigned to pixels by nearest mincorner
-        indx = floor(midx[n]-oxmin);
+        // Ensure above zero because some rounding error can cause dip below
+        indx = floor((midx[n]-oxmin) / xstep);
         assert(indx < (unsigned)ox);
-        indy = floor(midy[n]-oymin);
+        // indx = fmin(fmax(0, indx), ox-1);
+        indy = floor((midy[n]-oymin) / ystep);
         assert(indy < (unsigned)oy);
-        assert(((indx*oy*oz)+(indy*oz)+indz) < (unsigned)ox*oy*oz);
+        // indy = fmin(fmax(0, indy), oy-1);
         // Convert from 3D to linear C-order indexing
         indi[n] = indy + oy * (indx + ox * (indz));
+        assert(0 <= indi[n] && indi[n] < (unsigned)ox*oy*oz);
     }
 }
 
 
 void
-tensor_at_angle(float *tensor, const float magnitude,
-    const float sin_p, const float cos_p)
+bin_angle(float *bins, const float magnitude,
+    const float theta, const int nbins)
 {
-    assert(tensor != NULL);
-    // Return 2D tensor(s) with magnitude(s) at the angle [rad]
-    *tensor += magnitude * cos_p * cos_p;
-    float MCS = magnitude * cos_p * sin_p;
-    tensor[1] += MCS;
-    tensor[2] += MCS;
-    tensor[3] += magnitude * sin_p * sin_p;
+    assert(bins != NULL);
+    assert(nbins > 0);
+    int bin = floor(fmod(theta, M_PI) / (M_PI / nbins));
+    assert(bin >= 0 && bin < nbins);
+    bins[bin] += magnitude;
 }
 
 
@@ -577,8 +390,8 @@ calc_coverage(
     const float *dist,
     int const dist_size,
     float const line_weight,
-    float const sin_p,
-    float const cos_p,
+    float const theta,
+    const int nbins,
     float *cov,
     const unsigned *ind_cov
     )
@@ -586,7 +399,8 @@ calc_coverage(
     int n;
     for (n=0; n<dist_size-1; n++)
     {
-      tensor_at_angle(&cov[4*ind_cov[n]], dist[n]*line_weight, sin_p, cos_p);
+        bin_angle(&cov[nbins*ind_cov[n]], dist[n]*line_weight,
+            theta, nbins);
     }
 }
 

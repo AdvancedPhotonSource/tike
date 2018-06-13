@@ -15,48 +15,6 @@
 
 enum mode {Forward, Back, Coverage, ART, SIRT};
 
-void
-art(
-    const float ozmin, const float oxmin, const float oymin,
-    const int oz, const int ox, const int oy,
-    float *data,
-    const float *theta, const float *h, const float *v,
-    const int dsize,
-    float *recon,
-    const int n_iter);
-
-
-void
-sirt(
-    const float ozmin, const float oxmin, const float oymin,
-    const int oz, const int ox, const int oy,
-    float *data,
-    const float *theta, const float *h, const float *v,
-    const int dsize,
-    float *recon,
-    const int n_iter);
-
-/**
-  Return an array of size (dsize, ) where each element of the array contains
-  the sum of the lengths*grid_weights*line_weights of all intersections with
-  the lines described by theta, h, and v. The grid is centered on the origin,
-  and is the same shape as the obj providing the grid_weights.
-
-  The coordinates of the grid are (z, x, y). The lines are all perpendicular
-  to the z direction. Theta is the angle from the x-axis using the right hand
-  rule. v is parallel to z, and h is parallel to y when theta is zero.
-*/
-void
-project(
-    const float *obj_weights,
-    const float ozmin, const float oxmin, const float oymin,
-    const int oz, const int ox, const int oy,
-    const float *theta,
-    const float *h,
-    const float *v,
-    const int dsize,
-    float *data);
-
 /**
   Return an array of size (ox, oy, oz) where each element of the array contains
   the sum of the lengths*line_weights of all intersections with the lines
@@ -71,41 +29,35 @@ project(
 void
 coverage(
     const float ozmin, const float oxmin, const float oymin,
-    const int oz, const int ox, const int oy,
+    const float zsize, const float xsize, const float ysize,
+    const int oz, const int ox, const int oy, const int ot,
     const float *theta,
     const float *h,
     const float *v,
-    const float *weights,
+    const float *line_weights,
     const int dsize,
-    float *cov,
-    const bool anisotropy);
+    float *coverage_map);
 
-
-// Utility functions for data simultation
 /**
+  Fill gridx and gridy with floats reprsenting the boundaries of the
+  n gridlines between min and min + size.
 */
+void make_grid(
+    const float zmin, const float xmin, const float ymin,
+    const float zsize, const float xsize, const float ysize,
+    const int nz, const int nx, const int ny,
+    float * const gridz, float * const gridx, float * const gridy);
+
 void worker_function(
     float *obj_weights,
     const float ozmin, const float oxmin, const float oymin,
-    const int oz, const int ox, const int oy,
+    const float zsize, const float xsize, const float ysize,
+    const int oz, const int ox, const int oy, const int ot,
     float *data,
     const float *theta, const float *h, const float *v, const float *weights,
     const int dsize,
     const float *gridx, const float *gridy,
     const enum mode);
-
-
-/**
-  Fill gridx and gridy with floats reprsenting the boundaries of the gridlines
-  in the x and y directions. Gridlines start at minx and miny and are
-  spaced 1.0 apart.
-*/
-void
-preprocessing(
-    const float minx, const float miny,
-    const int ngridx, const int ngridy,
-    float * const gridx,
-    float * const gridy);
 
 /**
   Return 1 for first and third quadrants, 0 otherwise.
@@ -168,6 +120,7 @@ void
 calc_index(
     int const ox, int const oy, int const oz,
     float const oxmin, float const oymin, float const ozmin,
+    float const xstep, float const, float const,
     int const msize, const float *midx, const float *midy,
     int const indz, unsigned *indi);
 
@@ -180,8 +133,8 @@ calc_coverage(
     const float *dist,
     int const dist_size,
     float const line_weight,
-    float const sin_p,
-    float const cos_p,
+    float const theta,
+    const int nbins,
     float *cov,
     const unsigned *ind_cov);
 

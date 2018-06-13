@@ -5,7 +5,7 @@ import os
 
 tomoc = Extension(
     name='tike.libtike',
-    # undef_macros=['NDEBUG'],
+    undef_macros=['NDEBUG'],
     extra_compile_args=['-c', '-Wall', '-std=c11', '-pedantic',
                         '-fopenmp', '-fpic'],
     extra_link_args=['-lgomp'],
