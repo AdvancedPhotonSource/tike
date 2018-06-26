@@ -9,7 +9,7 @@ tomoc = Extension(
     extra_compile_args=['-c', '-Wall', '-std=c11', '-pedantic',
                         '-fopenmp', '-fpic'],
     extra_link_args=['-lgomp'],
-    sources=['src/tomo.c'])
+    sources=['src/tomo.c', 'src/siddon.c'])
 
 ext_mods = [tomoc]
 

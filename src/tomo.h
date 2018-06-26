@@ -1,11 +1,6 @@
 #ifndef _tomo_h
 #define _tomo_h
 
-#define _USE_MATH_DEFINES
-#ifndef M_PI
-#define M_PI 3.14159265358979323846264338327
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -13,46 +8,61 @@
 #include <assert.h>
 #include "string.h"
 
-enum mode {Forward, Back, Coverage, ART, SIRT};
+/** @brief Computes line integrals across a 3D object.
 
-/** @brief Compute a series of line integrals across a 3D object.
+Computes the sum of the lengths * grid_weights of all intersections with
+the lines described by theta, h, and v and the grid.
 
-  Return an array of size (dsize, ) where each element of the array contains
-  the sum of the lengths*grid_weights*line_weights of all intersections with
-  the lines described by theta, h, and v.
+The coordinates of the grid are (z, x, y). The lines are all perpendicular
+to the z direction. Theta is the angle from the x-axis using the right hand
+rule. v is parallel to z, and h is parallel to y when theta is zero.
 
-  The coordinates of the grid are (z, x, y). The lines are all perpendicular
-  to the z direction. Theta is the angle from the x-axis using the right hand
-  rule. v is parallel to z, and h is parallel to y when theta is zero.
+@param obj_weights The weights of the grid being integrated over.
+@param min The minimum coordinates of the grid.
+@param size The width of the grid.
+@param n The number of grid spaces along the grid.
+@param theta, h, v The coordinates of the line for each integral.
+@param dsize The size of theta, h, v.
+@param data The line integrals.
 */
 void
 forward_project(
     const float *obj_weights,
-    const float ozmin, const float oxmin, const float oymin,
+    const float zmin, const float xmin, const float ymin,
     const float zsize, const float xsize, const float ysize,
-    const int oz, const int ox, const int oy,
+    const int nz, const int nx, const int ny,
     const float *theta,
     const float *h,
     const float *v,
     const int dsize,
     float *data);
 
-/**
-  Return an array of size (oz, ox, oy, ot) where each element of the array contains
-  the sum of the lengths*line_weights of all intersections with the lines
-  described by theta, h, and v. Bin the sums by angle into `ot` bins from 0 to
-  PI.
+/* @brief Back project lines over a 4D grid where the 4th dimension is an
+          an angular bin.
 
-  The coordinates of the grid are (z, x, y). The lines are all perpendicular
-  to the z direction. Theta is the angle from the x-axis using the right hand
-  rule. v is parallel to z, and h is parallel to y when theta is zero. The
-  rotation axis is [0, 0, 1].
+coverage_map is an array of size (nz, nx, ny, nt) where each element of the
+array contains the sum of the lengths*line_weights of all intersections with
+the lines described by theta, h, and v. The sums are binned by angle of the
+line into `nt` bins from 0 to PI.
+
+The coordinates of the grid are (z, x, y). The lines are all perpendicular
+to the z direction. Theta is the angle from the x-axis using the right hand
+rule. v is parallel to z, and h is parallel to y when theta is zero. The
+rotation axis is [0, 0, 1].
+
+@param min The minimum coordinates of the grid.
+@param size The width of the grid.
+@param n The number of grid spaces along the grid.
+@param theta, h, v The coordinates of the lines.
+@param line_weights The weight of each line in the integral.
+@param dsize The length of theta, h, v, line_weights.
+@param coverage_map The grid to project over.
 */
 void
 coverage(
-    const float ozmin, const float oxmin, const float oymin,
+    const float zmin, const float xmin, const float ymin,
     const float zsize, const float xsize, const float ysize,
-    const int oz, const int ox, const int oy, const int ot,
+    const int nz, const int nx, const int ny, const int nt,
     const float *theta,
     const float *h,
     const float *v,
@@ -60,106 +70,53 @@ coverage(
     const int dsize,
     float *coverage_map);
 
-/**
-  Fill gridx and gridy with floats reprsenting the boundaries of the
-  n gridlines between min and min + size.
+/* @brief Algebraic Reconstruction Technique
+
+@param min The minimum coordinates of the grid.
+@param size The width of the grid.
+@param n The number of grid spaces along the grid.
+@param data The measured line integral of each line.
+@param theta, h, v The coordinates of the lines.
+@param ndata The length of data, theta, h, and v
+@param init The initial guess of the reconstruction
+@param niter The number of iterations of ART to complete
 */
-void make_grid(
+void
+art(
     const float zmin, const float xmin, const float ymin,
     const float zsize, const float xsize, const float ysize,
     const int nz, const int nx, const int ny,
-    float * const gridz, float * const gridx, float * const gridy);
+    const float * const data,
+    const float * const theta,
+    const float * const h,
+    const float * const v,
+    const int ndata,
+    float * const init,
+    const int niter);
 
-
-void worker_function(
-    float *obj_weights,
-    const float ozmin, const float oxmin, const float oymin,
-    const float zsize, const float xsize, const float ysize,
-    const int oz, const int ox, const int oy, const int ot,
-    float *data,
-    const float *theta, const float *h, const float *v, const float *weights,
-    const int dsize,
-    const float *gridx, const float *gridy,
-    const enum mode);
-
-/**
-  Return 1 for first and third quadrants, 0 otherwise.
-*/
-int
-calc_quadrant(
-    const float theta_p);
-
-/**
-  Compute the list of intersections of the line (xi, yi) and the grid.
-  The intersections are then located in two lists:
-  (gridx, coordy) and (coordx, gridy). The length of gridx is ngridx+1.
+/* @brief Fill gridx with n+1 floats across the range [xmin, xmin + xsize].
 */
 void
-calc_coords(
-    const int ngridx, const int ngridy,
-    const float xi, const float yi,
-    const float sin_p, const float cos_p,
-    const float *gridx, const float *gridy,
-    float * const coordx, float * const coordy);
+make_grid(
+    const float xmin,
+    const float xsize,
+    const int nx,
+    float * const gridx);
 
-/**
-  (coordx, gridy) and (gridx, coordy) are sets of points along a line. Remove
-  points from these sets that lay outside the boundaries of the grid.
+/* @brief Adds a magnitude to the appropriate angular bin
+
+Given nbins [0, PI), if theta is goes in the i-th bin, then magnitude is
+added to the bins + i.
+
+@param bins A pointer to the 0th bin
+@param magnitude The value to add to the ith bin
+@param theta The angle used to determine the ith bin
+@param nbins The number of angular bins
 */
 void
-trim_coords(
-    const int ox, const int oy,
-    const float *coordx, const float *coordy,
-    const float *gridx, const float *gridy,
-    int *asize, float *ax, float *ay,
-    int *bsize, float *bx, float *by);
-
-/**
-  (ax, ay) and (bx, by) are two sets of ordered points along a line. Combine
-  the two sets of points into (coorx, coory). The total number of points is
-  asize + bsize = csize.
-*/
-void
-sort_intersections(
-    const int ind_condition,
-    const int asize, const float *ax, const float *ay,
-    const int bsize, const float *bx, const float *by,
-    int *csize, float *coorx, float *coory);
-
-/**
-  (coorx, coory) describe the ordered points where the line intersects the
-  grid. Find the distances between adjacent points and return the midpoints of
-  these line segments.
-*/
-void
-calc_dist(
-    int const csize, const float *coorx, const float *coory,
-    float *midx, float *midy, float *dist);
-
-/** Find the linear index of the pixels containing the points (midx, midy) on
-  the grid defined by min corner xmin and size ox.
-  */
-void
-calc_index(
-    int const ox, int const oy, int const oz,
-    float const oxmin, float const oymin, float const ozmin,
-    float const xstep, float const, float const,
-    int const msize, const float *midx, const float *midy,
-    int const indz, unsigned *indi);
-
-/**
-  Multiply the distances by the weights then add them to the coverage map at
-  locations defined by index_xyz[i]
-*/
-void
-calc_coverage(
-    const float *dist,
-    int const dist_size,
-    float const line_weight,
-    float const theta,
-    const int nbins,
-    float *cov,
-    const unsigned *ind_cov);
+bin_angle(
+    float *bins, const float magnitude,
+    const float theta, const int nbins);
 
 void
 calc_back(
@@ -168,33 +125,5 @@ calc_back(
     float const line_weight,
     float *cov,
     const unsigned *ind_cov);
-/**
-  Multiply the distances by the weights then sum over the line.
-*/
-void
-calc_forward(
-    const float *grided_weights,
-    const unsigned *ind_grid,
-    const float *dist,
-    int const dist_size,
-    float *data);
-
-void
-calc_art(
-    float *grided_weights,
-    const unsigned *ind_grid,
-    const float *dist,
-    int const dist_size,
-    float *data);
-
-void
-calc_sirt(
-    const float *grided_weights,
-    float *update,
-    float *sumdist,
-    const unsigned *ind_grid,
-    const float *dist,
-    int const dist_size,
-    float *data);
 
 #endif

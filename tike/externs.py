@@ -133,13 +133,16 @@ def c_art(ozmin, oxmin, oymin, zsize, xsize, ysize, oz, ox, oy,
             utils.as_c_int(n_iter))
 
 
-def c_sirt(ozmin, oxmin, oymin, oz, ox, oy, data, theta, h, v, dsize, recon,
-           n_iter):
+def c_sirt(ozmin, oxmin, oymin, zsize, xsize, ysize, oz, ox, oy,
+           data, theta, h, v, dsize, recon, n_iter):
     LIBTIKE.art.restype = utils.as_c_void_p()
     return LIBTIKE.sirt(
             utils.as_c_float(ozmin),
             utils.as_c_float(oxmin),
             utils.as_c_float(oymin),
+            utils.as_c_float(zsize),
+            utils.as_c_float(xsize),
+            utils.as_c_float(ysize),
             utils.as_c_int(oz),
             utils.as_c_int(ox),
             utils.as_c_int(oy),

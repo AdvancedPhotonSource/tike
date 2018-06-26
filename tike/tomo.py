@@ -95,6 +95,9 @@ def coverage(grid_min, grid_size, ngrid, theta, h, v, line_weight=None,
         An array of shape (ngrid, anisotropy) containing the sum of the
         intersection lengths multiplied by the line_weights.
     """
+    grid_min = utils.as_float32(grid_min)
+    grid_size = utils.as_float32(grid_size)
+    ngrid = utils.as_int32(ngrid)
     assert np.all(grid_size > 0), "Grid dimensions must be > 0"
     assert np.all(ngrid > 0), "Number of grid lines must be > 0"
     h = utils.as_float32(h)
@@ -176,8 +179,8 @@ def art(grid_min, grid_size, data, theta, h, v, init, niter=1):
         The h, v, and theta coordinates of the data
     niter : int
         The number of ART iterations to perform
-    init : (grid_size) :py:class:`np.array`
-        An initial guess for reconstruction. Default array is zeros.
+    init : :py:class:`np.array`
+        An initial guess for reconstruction.
 
     Returns
     -------
@@ -186,7 +189,6 @@ def art(grid_min, grid_size, data, theta, h, v, init, niter=1):
     """
     grid_min = utils.as_float32(grid_min)
     grid_size = utils.as_float32(grid_size)
-    print(grid_size)
     assert np.all(grid_size > 0), "Grid dimensions must be > 0"
     data = utils.as_float32(data)
     theta = utils.as_float32(theta)
@@ -195,6 +197,7 @@ def art(grid_min, grid_size, data, theta, h, v, init, niter=1):
     assert theta.size == h.size == v.size == data.size, "data, theta, h, v " \
         "must be the same size"
     assert niter >= 0, "Number of iterations should be >= 0"
+    init = utils.as_float32(init)
     nz, nx, ny = init.shape
     logging.info(" ART {:,d} element grid for {:,d} iterations".format(
         init.size, niter))
@@ -205,23 +208,23 @@ def art(grid_min, grid_size, data, theta, h, v, init, niter=1):
     return init
 
 
-def sirt(grid_min, grid_size, data, theta, h, v, niter=1, init=None):
+def sirt(grid_min, grid_size, data, theta, h, v, init, niter=1):
     """Reconstruct using Simultaneous Iterative Reconstruction Technique (SIRT)
 
     Parameters
     ----------
     grid_min : tuple float (z, x, y)
         The min corner of the grid.
-    grid_size : tuple int (z, x, y)
-        The number of grid spaces along each dimension.
+    grid_size : tuple float (z, x, y)
+        The width of the grid along each dimension.
     data : (M, ) :py:class:`np.array`
         The data for reconstruction
     theta, h, v : (M, ) :py:class:`np.array`
         The h, v, and theta coordinates of the data
     niter : int
-        The number of ART iterations to perform
-    init : (grid_size) :py:class:`np.array`
-        An initial guess for reconstruction. Default array is zeros.
+        The number of SIRT iterations to perform
+    init : :py:class:`np.array`
+        An initial guess for reconstruction.
 
     Returns
     -------
@@ -229,7 +232,7 @@ def sirt(grid_min, grid_size, data, theta, h, v, niter=1, init=None):
         A reconstruction of grid_size.
     """
     grid_min = utils.as_float32(grid_min)
-    grid_size = utils.as_int32(grid_size)
+    grid_size = utils.as_float32(grid_size)
     assert np.all(grid_size > 0), "Grid dimensions must be > 0"
     data = utils.as_float32(data)
     theta = utils.as_float32(theta)
@@ -238,14 +241,12 @@ def sirt(grid_min, grid_size, data, theta, h, v, niter=1, init=None):
     assert theta.size == h.size == v.size == data.size, "data, theta, h, v " \
         "must be the same size"
     assert niter >= 0, "Number of iterations should be >= 0"
-    if init is None:
-        init = np.zeros(grid_size, dtype=np.float32)
-    else:
-        assert init.shape == tuple(grid_size), "Inital guess must be same " \
-            "shape as declared grid size"
+    init = utils.as_float32(init)
+    nz, nx, ny = init.shape
     logging.info(" SIRT {:,d} element grid for {:,d} iterations".format(
         init.size, niter))
     externs.c_sirt(grid_min[0], grid_min[1], grid_min[2],
                    grid_size[0], grid_size[1], grid_size[2],
+                   nz, nx, ny,
                    data, theta, h, v, data.size, init, niter)
     return init
