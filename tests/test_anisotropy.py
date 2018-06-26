@@ -76,6 +76,8 @@ def all_x(t):
 def all_y(t):
     return -np.pi/2 + 0.*t, 0*t, 0*t
 
+def split_z(t):
+    return 0*t, 0*t, 0*t
 
 def round(t):
     return np.pi/3 + np.pi*t/10, 0*t, 0*t
@@ -85,24 +87,39 @@ def test_stationary_coverage_x():
     p, region, pixel_size = init_coverage()
     cov_map = p.coverage(trajectory=all_x, region=region,
                          pixel_size=pixel_size, tmin=0, tmax=10, tstep=1,
-                         anisotropy=True)
+                         anisotropy=8)
     # cov_map = cov_map.reshape((3, 3, 4))
     cov_map = cov_map
     truth = np.zeros(cov_map.shape)
-    truth[0, :, 0, 0, 0] = 10
-    assert_allclose(truth, cov_map, atol=1e-6)
+    truth[0, :, 0, 0] = 10
+    assert_allclose(truth, cov_map, atol=1e-20)
 
 
 def test_stationary_coverage_y():
     p, region, pixel_size = init_coverage()
     cov_map = p.coverage(trajectory=all_y, region=region,
                          pixel_size=pixel_size, tmin=0, tmax=10, tstep=1,
-                         anisotropy=True)
+                         anisotropy=3)
     # cov_map = cov_map.reshape((3, 3, 4))
     cov_map = cov_map
     truth = np.zeros(cov_map.shape)
-    truth[0, 1, :, 1, 1] = 10
+    truth[0, 1, :, 1] = 10
     assert_allclose(truth, cov_map, atol=1e-6)
+
+
+def test_split_z():
+    pixel_size = 1.
+    p = Probe(width=1, aspect=1)
+    region = np.array([[-2, 2], [-2, 2], [-2, 2]])
+    cov_map = p.coverage(trajectory=split_z, region=region,
+                         pixel_size=pixel_size, tmin=0, tmax=10, tstep=1,
+                         anisotropy=False)
+    truth = np.zeros(cov_map.shape)
+    truth[1:3,:,1:3] = 2.5
+    print()
+    print(cov_map[0,...])
+    print(cov_map[1,...])
+    assert_allclose(truth, cov_map, atol=1e-20)
 
 
 def test_random_equivalent():
@@ -111,8 +128,8 @@ def test_random_equivalent():
     region = np.array([[-1, 1], [-2, 2], [-2, 2]])
     ani_map = p.coverage(trajectory=round, region=region,
                          pixel_size=pixel_size, tmin=0, tmax=10, tstep=1,
-                         anisotropy=True)
-    ani_map = np.sum(np.linalg.eigvalsh(ani_map), axis=3)
+                         anisotropy=7)
+    ani_map = np.sum(ani_map, axis=3)
     cov_map = p.coverage(trajectory=round, region=region,
                          pixel_size=pixel_size, tmin=0, tmax=10, tstep=1,
                          anisotropy=False)

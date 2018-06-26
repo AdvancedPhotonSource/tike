@@ -19,7 +19,8 @@ coverage(
     const int dsize,
     float *coverage_map)
 {
-    assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
+    assert(UINT_MAX/ox/oy/oz/ot > 0 && "Array is too large to index.");
+    assert(oz > 0 && ox > 0 && oy > 0 && ot > 0);
     // Initialize the grid on object space.
     float *gridx = malloc(sizeof *gridx * (ox+1));
     float *gridy = malloc(sizeof *gridy * (oy+1));
@@ -31,17 +32,15 @@ coverage(
     enum mode work_mode = ot > 1 ? Coverage : Back;
 
     // Divide into chunks along the z direction
-    unsigned chunk_size_ind = ot*ox*oy;
-    float chunk_size_oz = zsize / oz;
     #pragma omp parallel for schedule(static)
     for(int i=0; i < oz; i++)
     {
-      float chunk_zmin = ozmin + i * chunk_size_oz;
-      float *chunk_map = coverage_map + i * chunk_size_ind;
+      float chunk_zmin = ozmin + i * zsize / oz;
+      float *chunk_map = coverage_map + i * ox * oy * ot;
       worker_function(
           NULL,
           chunk_zmin, oxmin, oymin,
-          chunk_size_oz, xsize, ysize,
+          zsize / oz, xsize, ysize,
           1, ox, oy, ot,
           chunk_map,
           theta, h, v, line_weights,
@@ -380,6 +379,8 @@ bin_angle(float *bins, const float magnitude,
     assert(bins != NULL);
     assert(nbins > 0);
     int bin = floor(fmod(theta, M_PI) / (M_PI / nbins));
+    // Negative angles yield negative bins
+    if (bin < 0) bin += nbins;
     assert(bin >= 0 && bin < nbins);
     bins[bin] += magnitude;
 }

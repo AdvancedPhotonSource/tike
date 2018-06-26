@@ -112,6 +112,7 @@ def coverage(grid_min, grid_size, ngrid, theta, h, v, line_weight=None,
         coverage_map = np.zeros(list(ngrid) + [anisotropy], dtype=np.float32)
     else:
         coverage_map = np.zeros(ngrid, dtype=np.float32)
+        anisotropy = 1
     logging.info(" coverage {:,d} element grid".format(coverage_map.size))
     externs.c_coverage(grid_min[0], grid_min[1], grid_min[2],
                        grid_size[0], grid_size[1], grid_size[2],
