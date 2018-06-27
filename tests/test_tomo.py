@@ -130,37 +130,35 @@ def test_coverage_hv_quadrants4():
     obj[0, :, 1] = 1
     assert_equal(obj, cov_map)
 
-# TEST PROJECT
+
+def test_forward_project_hv_quadrants1():
+    gmin = [0, 0, 0]
+    obj = np.zeros((2, 3, 2))
+    gsize = obj.shape
+    obj[0, 1, 0] = 1
+    theta, h, v = [0, 0, 0, 0], [0.5, 1.5, 0.5, 1.5], [0.5, 0.5, 1.5, 1.5]
+    integral = project(obj, gmin, gsize, theta, h, v)
+    truth = [1, 0, 0, 0]
+    assert_equal(truth, integral)
 
 
-# def test_forward_project_hv_quadrants1():
-#     gsize = np.array([1, 2, 2])
-#     gmin = -gsize / 2.0
-#     obj = np.zeros((1, 2, 2))
-#     obj[0, 0, 1] = 1
-#     theta, h, v = [0], [0.5], [0]
-#     integral = project(obj, theta, h, v, gmin)
-#     truth = [1]
-#     assert_equal(truth, integral)
-#
-#
-# def test_forward_project_hv_quadrants2():
-#     gsize = np.array([1, 2, 2])
-#     gmin = -gsize / 2.0
-#     obj = np.zeros((1, 2, 2))
-#     obj[0, 0, 1] = 1
-#     theta, h, v = [0], [-0.5], [0]
-#     integral = project(obj, theta, h, v, gmin)
-#     truth = [0]
-#     assert_equal(truth, integral)
-#
-#
-# def test_forward_project_hv_quadrants4():
-#     gsize = np.array([1, 2, 2])
-#     gmin = -gsize / 2.0
-#     obj = np.zeros((1, 2, 2))
-#     obj[0, :, 1] = 1
-#     theta, h, v = [0], [0.5], [0]
-#     integral = project(obj, theta, h, v, gmin)
-#     truth = [2]
-#     assert_equal(truth, integral)
+def test_forward_project_hv_quadrants2():
+    gsize = np.array([3, 2, 2])
+    gmin = -gsize / 2.0
+    obj = np.zeros((3, 2, 2))
+    obj[2, 0, 1] = 1
+    theta, h, v = [0, 0], [-0.5, 0.5], [1, 1]
+    integral = project(obj, gmin, gsize, theta, h, v)
+    truth = [0, 1]
+    assert_equal(truth, integral)
+
+
+def test_forward_project_hv_quadrants4():
+    gsize = np.array([1, 2, 2])
+    gmin = -gsize / 2.0
+    obj = np.zeros((1, 2, 2))
+    obj[0, :, 1] = 1
+    theta, h, v = [0], [0.5], [0]
+    integral = project(obj, gmin, gsize, theta, h, v)
+    truth = [2]
+    assert_equal(truth, integral)

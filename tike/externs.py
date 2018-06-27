@@ -90,13 +90,17 @@ def c_coverage(ozmin, oxmin, oymin, zsize, xsize, ysize, oz, ox, oy, ot,
             utils.as_c_float_p(cov))
 
 
-def c_project(obj, ozmin, oxmin, oymin, oz, ox, oy, theta, h, v, dsize, data):
-    LIBTIKE.project.restype = utils.as_c_void_p()
-    return LIBTIKE.project(
+def c_project(obj, ozmin, oxmin, oymin, zsize, xsize, ysize, oz, ox, oy,
+              theta, h, v, dsize, data):
+    LIBTIKE.forward_project.restype = utils.as_c_void_p()
+    return LIBTIKE.forward_project(
             utils.as_c_float_p(obj),
             utils.as_c_float(ozmin),
             utils.as_c_float(oxmin),
             utils.as_c_float(oymin),
+            utils.as_c_float(zsize),
+            utils.as_c_float(xsize),
+            utils.as_c_float(ysize),
             utils.as_c_int(oz),
             utils.as_c_int(ox),
             utils.as_c_int(oy),

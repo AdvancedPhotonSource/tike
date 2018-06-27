@@ -82,10 +82,10 @@ def coverage(grid_min, grid_size, ngrid, theta, h, v, line_weight=None,
         The side lengths of the grid along each dimension.
     ngrid : tuple int (z, x, y)
         The number of grid spaces along each dimension.
-    theta, h, v : (M, ) :py:class:`np.array`
-        The h, v, and theta coordinates of lines to back-project over an
-        `obj.shape` grid.
-    line_weight : (M, ) :py:class:`np.array`
+    theta, h, v : (M, ) :py:class:`numpy.array`
+        The h, v, and theta coordinates of lines to back-project over
+        the grid.
+    line_weight : (M, ) :py:class:`numpy.array`
         Multiply the intersections lengths of the pixels and each line by these
         weights.
 
@@ -95,9 +95,6 @@ def coverage(grid_min, grid_size, ngrid, theta, h, v, line_weight=None,
         An array of shape (ngrid, anisotropy) containing the sum of the
         intersection lengths multiplied by the line_weights.
     """
-    # grid_min = utils.as_float32(grid_min)
-    # grid_size = utils.as_float32(grid_size)
-    # ngrid = utils.as_int32(ngrid)
     assert np.all(grid_size > 0), "Grid dimensions must be > 0"
     assert np.all(ngrid > 0), "Number of grid lines must be > 0"
     h = utils.as_float32(h)
@@ -121,14 +118,8 @@ def coverage(grid_min, grid_size, ngrid, theta, h, v, line_weight=None,
     return coverage_map
 
 
-def project(obj, theta, h, v, grid_min=None):
+def project(obj, grid_min, grid_size, theta, h, v):
     """Forward-project lines over an object.
-
-    .. note::
-
-    The coordinates of the grid covering the object will be in the range
-    `[grid_min, grid_min + obj.shape)`, so you will probably need to rescale h
-    and v to that same range.
 
     Parameters
     ----------
@@ -137,24 +128,33 @@ def project(obj, theta, h, v, grid_min=None):
     theta, h, v : (M, ) :py:class:`numpy.array`
         The h, v, and theta coordinates of lines to integrate over `obj`.
     grid_min : tuple float (z, x, y)
-        The min corner of the grid. default: `-obj.shape / 2.0`
+        The min corner of the grid.
+    grid_size : tuple float (z, x, y)
+        The side lengths of the grid along each dimension.
+    theta, h, v : (M, ) :py:class:`numpy.array`
+        The h, v, and theta coordinates of lines to forward-project over an
+        `obj.shape` grid.
 
     Returns
     -------
     data : (M, ) :py:class:`numpy.array`
-        The weighted integral of each line over the object.
+        The integral of each line over the object.
     """
     obj = utils.as_float32(obj)
+    ngrid = obj.shape
+    assert np.all(np.array(grid_size) > 0), "Grid dimensions must be > 0"
+    assert np.all(np.array(ngrid) > 0), "Number of grid lines must be > 0"
+    theta = utils.as_float32(theta)
     h = utils.as_float32(h)
     v = utils.as_float32(v)
-    theta = utils.as_float32(theta)
-    oz, ox, oy = obj.shape
-    if grid_min is None:
-        grid_min = np.array([oz, ox, oy]) / -2.0
-    grid_min = utils.as_float32(grid_min)
+    assert theta.size == h.size == v.size, \
+        " theta, h, v must be the same size"
     dsize = theta.size
     data = np.zeros((dsize, ), dtype=np.float32)
-    externs.c_project(obj, grid_min[0], grid_min[1], grid_min[2], oz, ox, oy,
+    externs.c_project(obj,
+                      grid_min[0], grid_min[1], grid_min[2],
+                      grid_size[0], grid_size[1], grid_size[2],
+                      ngrid[0], ngrid[1], ngrid[2],
                       theta, h, v, dsize, data)
     return data
 

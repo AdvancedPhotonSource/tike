@@ -15,11 +15,33 @@
 
 enum mode {Forward, Back, Coverage, ART, SIRT};
 
+/** @brief Compute a series of line integrals across a 3D object.
+
+  Return an array of size (dsize, ) where each element of the array contains
+  the sum of the lengths*grid_weights*line_weights of all intersections with
+  the lines described by theta, h, and v.
+
+  The coordinates of the grid are (z, x, y). The lines are all perpendicular
+  to the z direction. Theta is the angle from the x-axis using the right hand
+  rule. v is parallel to z, and h is parallel to y when theta is zero.
+*/
+void
+forward_project(
+    const float *obj_weights,
+    const float ozmin, const float oxmin, const float oymin,
+    const float zsize, const float xsize, const float ysize,
+    const int oz, const int ox, const int oy,
+    const float *theta,
+    const float *h,
+    const float *v,
+    const int dsize,
+    float *data);
+
 /**
-  Return an array of size (ox, oy, oz) where each element of the array contains
+  Return an array of size (oz, ox, oy, ot) where each element of the array contains
   the sum of the lengths*line_weights of all intersections with the lines
-  described by theta, h, and v. The grid defining the array has a minimum
-  corner (oxmin, oymin, ozmin).
+  described by theta, h, and v. Bin the sums by angle into `ot` bins from 0 to
+  PI.
 
   The coordinates of the grid are (z, x, y). The lines are all perpendicular
   to the z direction. Theta is the angle from the x-axis using the right hand
@@ -47,6 +69,7 @@ void make_grid(
     const float zsize, const float xsize, const float ysize,
     const int nz, const int nx, const int ny,
     float * const gridz, float * const gridx, float * const gridy);
+
 
 void worker_function(
     float *obj_weights,

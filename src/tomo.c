@@ -2,6 +2,42 @@
 #include "limits.h"
 #include <omp.h>
 
+void
+forward_project(
+    const float *obj_weights,
+    const float ozmin, const float oxmin, const float oymin,
+    const float zsize, const float xsize, const float ysize,
+    const int oz, const int ox, const int oy,
+    const float *theta,
+    const float *h,
+    const float *v,
+    const int dsize,
+    float *data)
+{
+    assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
+    assert(oz > 0 && ox > 0 && oy > 0);
+    // Initialize the grid on object space.
+    float *gridx = malloc(sizeof *gridx * (ox+1));
+    float *gridy = malloc(sizeof *gridy * (oy+1));
+    assert(gridx != NULL && gridy != NULL);
+    make_grid(
+        0.0, oxmin, oymin, 0.0, xsize, ysize, -1, ox, oy,
+        NULL, gridx, gridy);
+
+    worker_function(
+        obj_weights,
+        ozmin, oxmin, oymin,
+        zsize, xsize, ysize,
+        oz, ox, oy, 0,
+        data,
+        theta, h, v, NULL,
+        dsize,
+        gridx, gridy,
+        Forward);
+    free(gridx);
+    free(gridy);
+}
+
 /**
 Siddon, R. L. (1984). Fast calculation of the exact radiological path for a
 three‐dimensional CT array. Medical Physics, 12(2), 252–255.
