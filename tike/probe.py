@@ -387,3 +387,131 @@ def discrete_helper(trajectory, tmin, tmax, xstep, tstep, dist_func,
             rlo = rhi
     khi += 1
     return all_theta, all_h, all_v, all_times
+
+
+def coded_exposure(theta, h, v, time, dwell, c_time, c_dwell):
+    """Returns the intersection of a scanning procedure and coded exposure
+    with measurements reordered and bundled by code.
+
+    Given a series of discrete measurements with time and duration
+    (dwell) and series of coded exposures, the measurments are adjusted to only
+    include measurements that fit under the masks. The measurements are also
+    sorted by which code they fit into.
+
+    Measurements and codes must be ordered monotonically increasing by time
+    i.e. time[1] >= time[0].
+
+    Essentially this function bins the measurements into the time codes, but if
+    a measurement covers multiple bins, then it is put into all of them.
+
+    Parameters
+    ----------
+    theta, h, v : :py:class:`numpy.array` (M, )
+        The position of each ray at each measurement.
+    dwell, time : :py:class:`numpy.array` (M, )
+        The duration and start time of each measurement.
+    c_time, c_dwell :py:class:`numpy.array` (N, )
+        The start and extent of each exposure.
+
+    Returns
+    -------
+    theta1, h1, v1, time1, dwell1 :py:class:`numpy.array` (M, )
+        New position and time coordates which fit into the code.
+    bundles : :py:class:`numpy.array` (N, )
+        The starting index of each coded bundle.
+    """
+    _fname = "coded_exposure"
+    # Implementation uses the assumption that both the measurement times
+    # and coded times are monotonically increasing in order to generate the
+    # intersection faster than a binary search tree
+    assert(monotonic(time))
+    assert(monotonic(c_time))
+    # Check if any of the codes overlap with measurements
+    if not has_overlap(time[0], dwell[-1] + time[-1] - time[0],
+                       c_time[0], c_dwell[-1] + c_time[-1] - c_time[0]):
+        raise ValueError("Codes don't overlap measurements.")
+        return list(), list(), list(), list(), list(), list()
+
+    # Find overlaps of individuals
+    start = 0  # Start searching here for the next code overlap
+    times = list()
+    dwells = list()  # store new coded times
+    positions = list()
+    codes = list()
+    for measurement in range(0, time.size):
+        found_atleast_one = False
+        logging.debug("{}: Measurement {}".format(_fname, measurement))
+        for code in range(start, c_time.size):
+            logging.debug("{}: Checking code {}".format(_fname, code))
+            if has_overlap(time[measurement], dwell[measurement],
+                           c_time[code], c_dwell[code]):
+                # Record the intersection
+                t1, d1 = get_overlap(time[measurement], dwell[measurement],
+                                     c_time[code], c_dwell[code])
+                if d1 > 0:
+                    logging.debug("{}: Overlap found: {}, {}".format(_fname,
+                                                                     t1, d1))
+                    codes.append(code)
+                    positions.append(measurement)
+                    times.append(t1)
+                    dwells.append(d1)
+                    if not found_atleast_one:
+                        found_atleast_one = True
+                        # Always start searching at the start of last known
+                        # overlap
+                        start = code
+            elif found_atleast_one:
+                # This code is the one after the overlap
+                break
+    # Reorder results to bundle all measurements within the same code
+    new_order = np.argsort(codes)
+    codes = np.array(codes)[new_order]
+    positions = np.array(positions)[new_order]
+    times1 = np.array(times)[new_order]
+    dwells1 = np.array(dwells)[new_order]
+    # Clip the measurements
+    bundles = np.nonzero(np.diff(np.concatenate([[-1], codes])))[0]
+    return (theta[positions], h[positions], v[positions], times1, dwells1,
+            bundles)
+
+
+def monotonic(x):
+    """Check whether x is monomtically increasing"""
+    dx = np.diff(x)
+    return np.all(dx >= 0)
+
+
+def has_overlap(x0, xd, y0, yd):
+    """Return True if ranges overlap
+
+    Parameters
+    ----------
+    x0, y0 : float
+        The min values of the ranges
+    xd, yd : float
+        The widths of the ranges
+    """
+    return x0 + xd >= y0 and y0 + yd >= x0
+
+
+def get_overlap(x0, xd, y0, yd):
+    """Return the min edge and width of overlap
+
+    Parameters
+    ----------
+    x0, y0 : float
+        The min values of the ranges
+    xd, yd : float
+        The widths of the ranges
+
+    Returns
+    -------
+    lo : float
+        The min value of the overlap region
+    width : float
+        The width of the overlap region. May be zero if ranges share an edge.
+    """
+    lo = max(x0, y0)
+    width = min(x0 + xd, y0 + yd) - lo
+    assert width >= 0, "These two ranges don't actually overlap"
+    return lo, width

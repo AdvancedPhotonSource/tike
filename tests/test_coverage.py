@@ -249,6 +249,28 @@ def test_theta_coverage():
     # assert_equal(cov_map, truth)
 
 
+def test_coded_exposure():
+    c_time = np.arange(11)
+    c_dwell = np.ones(11) * 0.5
+
+    time = np.array([  -1, 0.8, 1.8,   3, 4.1, 4.2, 6.1, 7.5, 8.6, 8.9, 8.9, 8.9, 20, 21])
+    dwell = np.array([0.1, 0.2, 0.4, 0.5, 0.1, 0.1, 0.6, 0.2, 0.2,   2,   0, 0.3,  1 , 1])
+
+    theta = np.arange(time.size)
+    h = np.arange(time.size)
+    v = np.arange(time.size)
+
+    th1, h1, v1, t1, d1, b1 = coded_exposure(theta, h, v, time, dwell, c_time,
+                                             c_dwell)
+
+    assert_equal(th1, [2, 3, 4, 5, 6, 9, 11, 9])
+    assert_equal(h1, [2, 3, 4, 5, 6, 9, 11, 9])
+    assert_equal(v1, [2, 3, 4, 5, 6, 9, 11, 9])
+    assert_equal(t1,     [2. ,  3. ,  4.1,  4.2,  6.1,  9. , 9. , 10. ])
+    assert_allclose(d1, [ 0.2,  0.5,  0.1,  0.1,  0.4,  0.5, 0.2,  0.5])
+    assert_equal(b1, [0, 1, 2, 4, 5, 7])
+
+
 if __name__ == '__main__':
     test_theta_coverage()
     plt.show()
