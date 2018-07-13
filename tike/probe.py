@@ -65,7 +65,9 @@ __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = ['Probe',
-           'discrete_trajectory']
+           'discrete_trajectory',
+           'coded_exposure',
+           ]
 
 
 logging.basicConfig(level=logging.INFO)
@@ -90,47 +92,48 @@ class Probe(object):
     density_profile : function(h, v) -> intensity
         A function that describes the intensity of the beam in the `h, v`
         plane, centered on `[0, 0]`.
-    extent : :py:class:`np.array` [cm]
-        A rectangle confining the `Probe`. Specify width and aspect ratio.
-    lines_per_pixel : int
-        Number of lines per pixel_size used to approximate the beam. From a
+    width : float [cm]
+        The width of the density_profile.
+    aspect : float
+        height / width ratio of density_profile
+    lines_per_cm : int
+        Number of lines per centimeter used to approximate the beam. From a
         previous study, we determined that the this value should be at
-        least 16. A higher number will improve the quality of the coverage
-        approximation. The number of lines used to approximate the beam
-        will be `lines_per_pixel**2`.
+        least 16 lines per voxel width. A higher number will improve the
+        quality of the coverage approximation.
     """
-    def __init__(self, density_profile=None, width=None, aspect=None,
-                 lines_per_pixel=16):
+    def __init__(self, density_profile=None, width=0.1, aspect=1.0,
+                 lines_per_cm=16):
         if density_profile is None:
-            self.density_profile = lambda h, v: 1
+            self.density_profile = lambda h, v: 1.0
         else:
             self.density_profile = density_profile
-        if width is None:
-            self.width = 0.1
-            self.aspect = 1
-        else:
-            self.width = width
-            self.aspect = aspect
-        self.line_width = 1
-        assert(lines_per_pixel > 0)
-        self.lines_per_pixel = lines_per_pixel
+        assert width > 0.0
+        assert aspect > 0.0
+        self.width = width
+        self.aspect = aspect
+        assert lines_per_cm > 0.0
+        self.lines_per_cm = lines_per_cm
+        self.line_width = 1. / lines_per_cm
 
-    def line_offsets(self, pixel_size):
+    def line_offsets(self, pixel_size=None):
         """Generate a list of ray offsets and weights from density profile
         and extent.
 
         Returns
         -------
-        rays : array [cm]
-            [([theta, h, v], intensity_weight), ...]
+        lines : [([theta, h, v], intensity_weight), ...] [cm]
+            A list of tuples where the first element in the tuple is the offset
+            in theta, h, v, coordinates and the second elemetn is the weight
+            of the line according to self.density_profile.
         """
         # return [([0, 0, 0], 1), ]  # placeholder
         width, height = self.width, self.width * self.aspect
         # determine if the probe extent is larger than the maximum line_width
-        self.line_width = pixel_size/self.lines_per_pixel
+        self.line_width = 1. / self.lines_per_cm
         if width < self.line_width or height < self.line_width:
             # line_width needs to shrink to fit within probe
-            raise NotImplementedError("Why are you using such large pixels?")
+            raise NotImplementedError("lines_per_cm is too small!")
         else:
             # probe is larger than line_width
             ncells = np.ceil(width / self.line_width)
@@ -153,7 +156,7 @@ class Probe(object):
         logger.info(" probe uses {:,d} lines".format(len(lines)))
         return lines
 
-    def procedure(self, trajectory, pixel_size, tmin, tmax, tstep, tkwargs={}):
+    def procedure(self, trajectory, tmin, tmax, tstep, tkwargs={}):
         """Return the discrete procedure description from the given trajectory.
 
         Parameters
@@ -161,20 +164,17 @@ class Probe(object):
         trajectory : function(t, **tkwargs) -> theta, h, v
             A function which describes the position of the center of the Probe
             as a function of time.
-        pixel_size : float [cm]
-            The edge length of the pixels in the coverage map. Underestimate
-            if you don't know.
 
         Returns
         -------
-        theta, h, v, dwell : :py:class:`np.array` [radians, cm, ..., s]
+        theta, h, v, dwell, time : :py:class:`np.array` [radians, cm, ..., s]
             A (M,) array which describes a series of lines to approximate the
             trajectory
         """
-        all_theta, all_h = list(), list()
-        all_v, all_dwell = list(), list()
+        all_theta, all_h, all_v = list(), list(), list()
+        all_dwell, all_time = list(), list()
         trajectory_cache = dict()
-        lines = self.line_offsets(pixel_size=pixel_size)
+        lines = self.line_offsets()
         xstep = self.line_width
         # If two or more lines have the same h coordinate, then their discrete
         # trajectories are parallel and only differ in the v direction.
@@ -183,27 +183,29 @@ class Probe(object):
             # Check chache for parallel trajectories
             if cache_key in trajectory_cache:
                 # compute trajectory from previous
-                th, h, v, dwell = trajectory_cache[cache_key]
+                th, h, v, dwell, time = trajectory_cache[cache_key]
             else:
                 def line_trajectory(t, **tkwargs):
                     pos_temp = trajectory(t, **tkwargs)
                     return (pos_temp[0] + offset[0],
                             pos_temp[1] + offset[1],
                             pos_temp[2])
-                th, h, v, dwell, none = discrete_trajectory(
+                th, h, v, dwell, time = discrete_trajectory(
                                             trajectory=line_trajectory,
                                             tkwargs=tkwargs,
                                             tmin=tmin, tmax=tmax,
                                             xstep=xstep, tstep=tstep)
-                trajectory_cache[cache_key] = (th, h, v, dwell)
+                trajectory_cache[cache_key] = (th, h, v, dwell, time)
             all_theta.append(th)
             all_h.append(h)
             all_v.append(v + offset[2])
             all_dwell.append(dwell * weight)
+            all_time.append(time)
         all_theta = np.concatenate(all_theta)
         logger.info(" procedure is {:,d} lines".format(all_theta.size))
         return (all_theta, np.concatenate(all_h),
-                np.concatenate(all_v), np.concatenate(all_dwell))
+                np.concatenate(all_v), np.concatenate(all_dwell),
+                np.concatenate(all_time))
 
     def coverage(self, trajectory, region, pixel_size, tmin, tmax, tstep,
                  anisotropy=1, tkwargs={}):
@@ -239,10 +241,9 @@ class Probe(object):
         assert np.all(box[:, 0] <= box[:, 1]), ("region minimum must be <= to"
                                                 "region maximum.")
 
-        theta, h, v, w = self.procedure(trajectory=trajectory,
-                                        tkwargs=tkwargs,
-                                        pixel_size=pixel_size,
-                                        tmin=tmin, tmax=tmax, tstep=tstep)
+        theta, h, v, w, t = self.procedure(trajectory=trajectory,
+                                           tkwargs=tkwargs,
+                                           tmin=tmin, tmax=tmax, tstep=tstep)
 
         w = w * self.line_width**2 / pixel_size**3
         # Find new min corner and size of region

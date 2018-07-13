@@ -140,11 +140,11 @@ def show_coverage(cov_map):
 
 def init_coverage():
     """Return Probe of width 1/16"""
-    p = Probe(width=1/16, aspect=1)
+    pixel_size = 1/16
+    p = Probe(width=1/16, aspect=1, lines_per_cm=16/pixel_size)
     region = np.array([[-8/16, 8/16], [-8/16, 8/16], [-8/16, 8/16]])
     # FIXME: Tests fail if region is adjusted to region below
     # region = np.array([[-8/16, 8/16], [-8/16, 3/16], [-4/16, 8/16]])
-    pixel_size = 1/16
     return p, region, pixel_size
 
 
@@ -211,7 +211,7 @@ def test_horizontal_coverage():
     truth[10, (4, 8)] = 5
     plt.figure()
     plt.plot(key[10, :], 'o')
-    # print(key[8, :])
+    # print(key[10, :])
     # assert_equal(key, truth)
     assert key[10, 8] >= 5 and key[10, 8] < 6
     assert key[10, 4] > 4 and key[10, 4] <= 5
@@ -272,5 +272,6 @@ def test_coded_exposure():
 
 
 if __name__ == '__main__':
+    # test_horizontal_coverage()
     test_theta_coverage()
     plt.show()
