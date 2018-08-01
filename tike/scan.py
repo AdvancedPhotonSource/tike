@@ -182,7 +182,9 @@ def lissajous(A, B, fx, fy, px, py, t):
     """Return the value of a lissajous function at time `t`.
     #continuous #2d
 
-    The lissajous is centered on the origin.
+    The lissajous is centered on the origin. The lissajous is periodic if and
+    only if the fx / fy is rational. The overall period is the
+    least common multiple of the two periods.
 
     Parameters
     A, B : float
@@ -220,23 +222,32 @@ def raster(A, B, f, x0, y0, t):
     return x, y
 
 
-def spiral(A, f, p, t):
-    """Return the value of a spiral function at time `t`.
+def spiral(r1, t1, v, t):
+    """Return a spiral of constant linear velcity at time `t`.
     #continuous #2d
 
     The spiral is centered on the origin and spins clockwise.
 
     Parameters
-    A : float
-        Displacement from the center during one rotation
-    f : float
-        The rotational frequency of the spiral
-    p : float
-        The phase shifts of the x and y components of the function
+    r1 : float
+        The radius at time t1.
+    t1: float
+        The time at which the spiral reaches r1.
+    v : float
+        The linear velocity of the trajectory
+
+    References
+    ----------
+    A. Bazaei, M. Maroufi and S. O. R. Moheimani, "Tracking of
+    constant-linear-velocity spiral trajectories by approximate internal model
+    control," 2017 IEEE Conference on Control Technology and Applications
+    (CCTA), Mauna Lani, HI, 2017, pp. 129-134. doi: 10.1109/CCTA.2017.8062452
     """
-    Amp = A*t*f
-    x = sinusoid(Amp, f, p, t)
-    y = sinusoid(Amp, f, p+np.pi/2, t)
+    P = np.pi * r1 * r1 / t1 / v
+    r = np.sqrt(P * v * t / np.pi)
+    theta = 2 * np.sqrt(np.pi * v * t / P)
+    x = r * np.cos(theta)
+    y = r * np.sin(theta)
     return x, y
 
 
