@@ -47,7 +47,8 @@
 # #########################################################################
 
 """
-Define a Probe class for generating 3D coverage maps of user defined function.
+This module defines a `Probe` class for generating 3D coverage maps of user
+defined functions.
 
 User defines a function in `thetahv` space. `user_func(t) -> theta, h, v`
 where t, theta, h, and v are 1D numpy arrays.

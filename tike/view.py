@@ -47,7 +47,7 @@
 # #########################################################################
 
 """
-Module for 3D scanning.
+This module contains functions for plotting and viewing data of various types.
 """
 
 from __future__ import (absolute_import, division, print_function,

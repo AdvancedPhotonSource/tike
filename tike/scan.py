@@ -47,7 +47,11 @@
 # #########################################################################
 
 """
-Module for scanning building blocks
+This module contains functions which are building blocks of scanning
+trajectories and related functions.
+
+Each trajectory returns position as a function of time and some other
+parameters.
 """
 
 from __future__ import (absolute_import, division, print_function,

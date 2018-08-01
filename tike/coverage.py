@@ -47,20 +47,76 @@
 # #########################################################################
 
 """
-This file tells import which submodules exist in the `tike` namespace and what
-functions to import when someone calls `import tike`. Note that `tike.externs`
-and `tike.utils` are not imported here because they are not part of the public
-API.
+This module contains functions for determining the coverage of a scanning
+trajectory.
 """
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
 
-__version__ = '0.2.0'
-
-from tike.coverage import *
-from tike.probe import *
-from tike.ptycho import *
-from tike.scan import *
-from tike.tomo import *
-from tike.view import *
+import numpy as np
+from . import utils
+from . import externs
 import logging
 
-logging.getLogger(__name__).addHandler(logging.NullHandler())
+__author__ = "Doga Gursoy, Daniel Ching"
+__copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
+__docformat__ = "restructuredtext en"
+__all__ = ["coverage"]
+
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+def coverage(grid_min, grid_size, ngrid, theta, h, v, line_weight=None,
+             anisotropy=1):
+    """Back-project lines over a grid.
+
+    Coverage will be calculated on a grid covering the range
+    `[grid_min, grid_min + grid_size)`.
+
+    Parameters
+    ----------
+    grid_min : tuple float (z, x, y)
+        The min corner of the grid.
+    grid_size : tuple float (z, x, y)
+        The side lengths of the grid along each dimension.
+    ngrid : tuple int (z, x, y)
+        The number of grid spaces along each dimension.
+    theta, h, v : (M, ) :py:class:`numpy.array`
+        The h, v, and theta coordinates of lines to back-project over
+        the grid.
+    line_weight : (M, ) :py:class:`numpy.array`
+        Multiply the intersections lengths of the pixels and each line by these
+        weights.
+
+    Returns
+    -------
+    coverage_map : :py:class:`numpy.ndarray` [length * line_weight]
+        An array of shape (ngrid, anisotropy) containing the sum of the
+        intersection lengths multiplied by the line_weights.
+    """
+    grid_min = utils.as_float32(grid_min)
+    grid_size = utils.as_float32(grid_size)
+    ngrid = utils.as_int32(ngrid)
+    assert np.all(grid_size > 0), "Grid dimensions must be > 0"
+    assert np.all(ngrid > 0), "Number of grid lines must be > 0"
+    h = utils.as_float32(h)
+    v = utils.as_float32(v)
+    theta = utils.as_float32(theta)
+    if line_weight is None:
+        line_weight = np.ones(theta.shape, dtype=np.float32)
+    line_weight = utils.as_float32(line_weight)
+    assert theta.size == h.size == v.size == line_weight.size, "line_weight," \
+        " theta, h, v must be the same size"
+    if anisotropy > 1:
+        coverage_map = np.zeros(list(ngrid) + [anisotropy], dtype=np.float32)
+    else:
+        coverage_map = np.zeros(ngrid, dtype=np.float32)
+        anisotropy = 1
+    logging.info(" coverage {:,d} element grid".format(coverage_map.size))
+    externs.c_coverage(grid_min[0], grid_min[1], grid_min[2],
+                       grid_size[0], grid_size[1], grid_size[2],
+                       ngrid[0], ngrid[1], ngrid[2], anisotropy,
+                       theta, h, v, line_weight, h.size, coverage_map)
+    return coverage_map

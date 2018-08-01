@@ -46,6 +46,16 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
+"""
+This module contains functions which wrap c functions in a python function.
+Instead of importing and calling c functions directly from the other modules,
+we import them here then import them again in other modules because we want to
+do more work whenever the API changes.
+
+.. note:: All c type conversion should occur here instead of in higher level
+wrapping functions.
+"""
+
 import os.path
 import ctypes
 import glob
