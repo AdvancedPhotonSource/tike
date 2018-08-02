@@ -104,7 +104,8 @@ import logging
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = ["project_forward",
+__all__ = ["reconstruct"
+           "project_forward",
            "project_backward",
            "art",
            "sirt",
@@ -118,20 +119,64 @@ logger = logging.getLogger(__name__)
 def _tomo_interface(object_grid, object_min, object_size,
                     probe_grid, probe_size, theta, h, v,
                     **kwargs):
-    """A function whose interface all functions in this module matches."""
-    assert np.all(object_size > 0), "Detector dimensions must be > 0."
+    """A function whose interface all functions in this module matches.
+
+    This function also sets default values for functions in this module.
+    """
+    if object_grid is None:
+        raise ValueError()
+    if object_min is None:
+        object_min = (-0.5, -0.5, -0.5)
+    if object_size is None:
+        object_size = (1.0, 1.0, 1.0)
+    if probe_grid is None:
+        raise ValueError()
+    if probe_size is None:
+        probe_size = (1, 1)
+    if theta is None:
+        raise ValueError()
+    if h is None:
+        h = np.full(theta.shape, -0.5)
+    if v is None:
+        v = np.full(theta.shape, -0.5)
+    assert np.all(object_size > 0), "Object dimensions must be > 0."
     assert np.all(probe_size > 0), "Probe dimensions must be > 0."
-    assert theta.size == h.size == v.size == \
-        object_grid.shape[0] == probe_grid.shape[0], \
+    assert theta.size == h.size == v.size == probe_grid.shape[0], \
         "The size of theta, h, v must be the same as the number of probes."
-    logging.info(" _tomo_interface says {}".format("Hello, World!"))
-    return None
+    # logging.info(" _tomo_interface says {}".format("Hello, World!"))
+    return (object_grid, object_min, object_size,
+            probe_grid, probe_size, theta, h, v)
 
 
-def project_forward(object_grid, object_min, object_size,
-                    probe_grid, probe_size, theta, h, v,
+def reconstruct(object_grid=None, object_min=None, object_size=None,
+                probe_grid=None, probe_size=None,
+                theta=None, h=None, v=None,
+                algorithm=None, **kwargs):
+    """Reconstruct the `object_grid` using the given `algorithm`.
+
+    Parameters
+    ----------
+    object_grid : (Z, X, Y, P) :py:class:`numpy.array` float
+        The initial guess for the reconstruction.
+
+    Returns
+    -------
+    new_object_grid : (Z, X, Y, P) :py:class:`numpy.array` float
+        The updated object grid.
+    """
+    object_grid, object_min, object_size, probe_grid, probe_size, theta, h, v \
+        = _tomo_interface(object_grid, object_min, object_size,
+                          probe_grid, probe_size, theta, h, v)
+    assert niter >= 0, "Number of iterations should be >= 0"
+    raise NotImplementedError()
+    return new_object_grid
+
+
+def project_forward(object_grid=None, object_min=None, object_size=None,
+                    probe_grid=None, probe_size=None,
+                    theta=None, h=None, v=None,
                     **kwargs):
-    """Forward-project probes over an object.
+    """Forward-project probes over an object; i.e. simulate data acquisition.
 
     Parameters
     ----------
@@ -146,11 +191,9 @@ def project_forward(object_grid, object_min, object_size,
     exit_probe_grid : (M, H, V, P) :py:class:`numpy.array` float
         The properties of the probe after exiting the `object_grid`.
     """
-    assert np.all(object_size > 0), "Detector dimensions must be > 0."
-    assert np.all(probe_size > 0), "Probe dimensions must be > 0."
-    assert theta.size == h.size == v.size == \
-        object_grid.shape[0] == probe_grid.shape[0], \
-        "The size of theta, h, v must be the same as the number of probes."
+    object_grid, object_min, object_size, probe_grid, probe_size, theta, h, v \
+        = _tomo_interface(object_grid, object_min, object_size,
+                          probe_grid, probe_size, theta, h, v)
     raise NotImplementedError()
     # obj = utils.as_float32(object_grid)
     # ngrid = obj.shape
@@ -187,11 +230,9 @@ def project_backward(object_grid, object_min, object_size,
         area of intersection of the object with the probe multiplied by the
         probe weight.
     """
-    assert np.all(object_size > 0), "Detector dimensions must be > 0."
-    assert np.all(probe_size > 0), "Probe dimensions must be > 0."
-    assert theta.size == h.size == v.size == \
-        object_grid.shape[0] == probe_grid.shape[0], \
-        "The size of theta, h, v must be the same as the number of probes."
+    object_grid, object_min, object_size, probe_grid, probe_size, theta, h, v \
+        = _tomo_interface(object_grid, object_min, object_size,
+                          probe_grid, probe_size, theta, h, v)
     raise NotImplementedError()
     return new_object_grid
 
@@ -215,11 +256,9 @@ def art(object_grid, object_min, object_size,
     new_object_grid : (Z, X, Y, P) :py:class:`numpy.array` float
         The updated object grid.
     """
-    assert np.all(object_size > 0), "Detector dimensions must be > 0."
-    assert np.all(probe_size > 0), "Probe dimensions must be > 0."
-    assert theta.size == h.size == v.size == \
-        object_grid.shape[0] == probe_grid.shape[0], \
-        "The size of theta, h, v must be the same as the number of probes."
+    object_grid, object_min, object_size, probe_grid, probe_size, theta, h, v \
+        = _tomo_interface(object_grid, object_min, object_size,
+                          probe_grid, probe_size, theta, h, v)
     assert niter >= 0, "Number of iterations should be >= 0"
     raise NotImplementedError()
     # grid_min = utils.as_float32(grid_min)
@@ -256,11 +295,9 @@ def sirt(object_grid, object_min, object_size,
     new_object_grid : (Z, X, Y, P) :py:class:`numpy.array` float
         The updated object grid.
     """
-    assert np.all(object_size > 0), "Detector dimensions must be > 0."
-    assert np.all(probe_size > 0), "Probe dimensions must be > 0."
-    assert theta.size == h.size == v.size == \
-        object_grid.shape[0] == probe_grid.shape[0], \
-        "The size of theta, h, v must be the same as the number of probes."
+    object_grid, object_min, object_size, probe_grid, probe_size, theta, h, v \
+        = _tomo_interface(object_grid, object_min, object_size,
+                          probe_grid, probe_size, theta, h, v)
     assert niter >= 0, "Number of iterations should be >= 0"
     raise NotImplementedError()
     # grid_min = utils.as_float32(grid_min)

@@ -65,12 +65,10 @@ Each function in this module should have the following interface:
 
 Parameters
 ----------
-detector_grid : (M, H, V, P) :py:class:`numpy.array` float
+detector_grid : (M, H, V) :py:class:`numpy.array` float
     An array of detector intensities for each of the `M` probes. The
     grid of each detector is `H` pixels wide (the horizontal
-    direction) and `V` pixels tall (the vertical direction). The fourth
-    dimension, `P`, holds parameters at each position: measured intensity,
-    energies?, detector distance, etc.
+    direction) and `V` pixels tall (the vertical direction).
 detector_min : (2, ) float
     The min corner (h, v) of `detector_grid`.
 detector_size : (2, ) float
@@ -106,7 +104,8 @@ import logging
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = ["propagate_forward",
+__all__ = ["reconstruct"
+           "propagate_forward",
            "propagate_backward",
            ]
 
@@ -118,40 +117,84 @@ logger = logging.getLogger(__name__)
 def _ptycho_interface(detector_grid, detector_min, detector_size,
                       probe_grid, probe_size, theta, h, v,
                       **kwargs):
-    """A function whose interface all functions in this module matches."""
+    """A function whose interface all functions in this module matchesself.
+
+    This function also sets default values for functions in this module.
+    """
+    if detector_grid is None:
+        raise ValueError()
+    if detector_min is None:
+        object_min = (-0.5, -0.5)
+    if detector_size is None:
+        object_size = (1.0, 1.0)
+    if probe_grid is None:
+        raise ValueError()
+    if probe_size is None:
+        probe_size = (1.0, 1.0)
+    if theta is None:
+        raise ValueError()
+    if h is None:
+        h = np.full(theta.shape, -0.5)
+    if v is None:
+        v = np.full(theta.shape, -0.5)
     assert np.all(detector_size > 0), "Detector dimensions must be > 0."
     assert np.all(probe_size > 0), "Probe dimensions must be > 0."
     assert theta.size == h.size == v.size == \
         detector_grid.shape[0] == probe_grid.shape[0], \
         "The size of theta, h, v must be the same as the number of probes."
-    logging.info(" _ptycho_interface says {}".format("Hello, World!"))
-    return None
+    # logging.info(" _ptycho_interface says {}".format("Hello, World!"))
+    return (detector_grid, detector_min, detector_size,
+            probe_grid, probe_size, theta, h, v)
 
 
-def propagate_forward(detector_grid, detector_min, detector_size,
-                      probe_grid, probe_size, theta, h, v,
+def reconstruct(detector_grid=None, detector_min=None
+                detector_size=None,
+                probe_grid=None, probe_size=None,
+                theta=None, h=None, v=None,
+                algorithm=None, **kwargs):
+    """Reconstruct the `probe_grid` using the given `algorithm`.
+
+    Parameters
+    ----------
+    probe_grid : (M, H, V, P) :py:class:`numpy.array` float
+        The initial guess for the reconstruction.
+
+    Returns
+    -------
+    new_probe_grid : (M, H, V, P) :py:class:`numpy.array` float
+        The updated parameters of the `M` probes.
+    """
+    detector_grid, detector_min, detector_size, probe_grid, probe_size, theta,\
+        h, v = _ptycho_interface(detector_grid, detector_min, detector_size,
+                                 probe_grid, probe_size, theta, h, v)
+    raise NotImplementedError()
+    return new_probe_grid
+
+
+def propagate_forward(detector_grid=None, detector_min=None
+                      detector_size=None,
+                      probe_grid=None, probe_size=None,
+                      theta=None, h=None, v=None,
                       **kwargs):
     """A function whose interface all functions in this module matches."""
-    assert np.all(detector_size > 0), "Detector dimensions must be > 0"
-    assert np.all(probe_size > 0), "Probe dimensions must be > 0"
-    assert theta.size == h.size == v.size == \
-        detector_grid.shape[0] == probe_grid.shape[0], \
-        "The size of theta, h, v must be the same as the number of probes."
+    detector_grid, detector_min, detector_size, probe_grid, probe_size, theta,\
+        h, v = _ptycho_interface(detector_grid, detector_min, detector_size,
+                                 probe_grid, probe_size, theta, h, v)
     logging.info(" forward-propagate {} {} by {} probes.".format(theta.size,
                  probe_grid.shape[0], probe_grid.shape[1]))
     raise NotImplementedError()
     return new_detector_grid
 
 
-def propagate_backward(detector_grid, detector_min, detector_size,
-                       probe_grid, probe_size, theta, h, v,
+def propagate_backward(detector_grid=None, detector_min=None
+                       detector_size=None,
+                       probe_grid=None, probe_size=None,
+                       theta=None, h=None, v=None,
                        **kwargs):
     """A function whose interface all functions in this module matches."""
-    assert np.all(detector_size > 0), "Detector dimensions must be > 0"
-    assert np.all(probe_size > 0), "Probe dimensions must be > 0"
-    assert theta.size == h.size == v.size == \
-        detector_grid.shape[0] == probe_grid.shape[0], \
-        "The size of theta, h, v must be the same as the number of probes."
+    detector_grid, detector_min, detector_size, probe_grid, probe_size, theta,\
+        h, v = _ptycho_interface(detector_grid, detector_min, detector_size,
+                                 probe_grid, probe_size, theta, h, v)
     logging.info(" back-propagate {} {} by {} probes.".format(theta.size,
                  probe_grid.shape[0], probe_grid.shape[1]))
     raise NotImplementedError()
