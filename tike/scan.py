@@ -77,14 +77,36 @@ __all__ = ['scantimes',
            'scan3',
            'avgspeed',
            'lengths',
-           'distance']
+           'distance',
+           'billiard']
 
 
 logger = logging.getLogger(__name__)
 
 
+def _periodic_function_interface(t, A=0.5, f=60, p=0):
+    """An exemplar periodic function for this module.
+
+    Each trajectory function is a function of t, an array of time
+    steps, and optional keyword arguements which determine the shape of
+    the function. The function returns at least one spatial coordinate.
+
+    Parameters
+    ----------
+    t : np.array
+        Time steps to evaluate the function.
+    A : float
+        The amplitude of the function.
+    f : float
+        The temporal frequency of the function.
+    p : float [radians]
+        The phase shift of the function.
+    """
+    raise NotImplementedError()
+
+
 def f2w(f):
-    """Return the angular frequency from the given frequency"""
+    """Return the angular frequency [rad] from the given frequency"""
     return 2*np.pi*f
 
 
@@ -104,6 +126,7 @@ def sinusoid(A, f, p, t):
     #continuous #1D
 
     Parameters
+    ----------
     A : float
         The amplitude of the function
     f : float
@@ -200,6 +223,16 @@ def lissajous(A, B, fx, fy, px, py, t):
     """
     x = sinusoid(A, fx, px, t)
     y = sinusoid(B, fy, py, t)
+    return x, y
+
+
+def billiard(Ax, Ay, fx, fy, px, py, t):
+    """A lissajous using triangle functions. The trajectory of a frictionless
+    billard ball in a rectangular table.
+    #continuous #2d
+    """
+    x = triangle(Ax, fx, px, t)
+    y = triangle(Ay, fy, py, t)
     return x, y
 
 
