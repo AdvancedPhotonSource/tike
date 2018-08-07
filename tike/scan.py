@@ -67,6 +67,7 @@ __docformat__ = 'restructuredtext en'
 __all__ = ['scantimes',
            'sinusoid',
            'triangle',
+           'triangle_fs',
            'sawtooth',
            'square',
            'staircase',
@@ -154,6 +155,19 @@ def triangle(A, f, p, t):
     return A * 2 / np.pi * np.arcsin(np.sin(w*t - p))
 
 
+def triangle_fs(A, f, p, t, N=8):
+    """A Fourier series approximation of the triangle function using N
+    sinusoids.
+    #continuous #1d
+    """
+    w = f2w(f)
+    x = np.sin(w * t - p)
+    for n in range(3, 2*N, 2):
+        x += (-1)**((n-1) / 2) / (n * n) * np.sin(n * (w * t - p))
+
+    return A * 8 / np.pi / np.pi * x
+
+
 def sawtooth(A, f, p, t):
     """Return the value of a sawtooth function at time `t`.
     #discontinuous #1d
@@ -224,13 +238,13 @@ def lissajous(A, B, fx, fy, px, py, t):
     return x, y
 
 
-def billiard(Ax, Ay, fx, fy, px, py, t):
+def billiard(Ax, Ay, fx, fy, px, py, t, N):
     """A lissajous using triangle functions. The trajectory of a frictionless
     billard ball in a rectangular table.
     #continuous #2d
     """
-    x = triangle(Ax, fx, px, t)
-    y = triangle(Ay, fy, py, t)
+    x = triangle_fs(Ax, fx, px, t, N)
+    y = triangle_fs(Ay, fy, py, t, N)
     return x, y
 
 
