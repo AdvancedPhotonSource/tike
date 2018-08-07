@@ -115,10 +115,10 @@ def period(f):
     return 1 / f
 
 
-def scantimes(t0, t1, hz):
-    """An array of points in the range [t0, t1) at the given frequency (hz)
+def scantimes(t0, t1, f=60):
+    """An array of points in the range [t0, t1) at the given frequency (f)
     """
-    return np.linspace(t0, t1, (t1-t0)*hz, endpoint=False)
+    return np.linspace(t0, t1, (t1-t0)*f, endpoint=False)
 
 
 def sinusoid(A, f, p, t):
@@ -150,10 +150,8 @@ def triangle(A, f, p, t):
     p : float
         The phase shift of the function
     """
-    a = 0.5 / f
-    ts = t - p/(2*np.pi)/f
-    q = np.floor(ts/a + 0.5)
-    return A * (2/a * (ts - a*q) * np.power(-1, q))
+    w = f2w(f)
+    return A * 2 / np.pi * np.arcsin(np.sin(w*t - p))
 
 
 def sawtooth(A, f, p, t):
