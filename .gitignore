@@ -107,6 +107,8 @@ test.py
 main.py
 *.ipynb
 trunk
+tests/profile/
+research/
 
 # OS generated files
 core
