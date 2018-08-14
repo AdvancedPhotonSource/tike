@@ -104,7 +104,7 @@ import logging
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = ["reconstruct"
+__all__ = ["reconstruct",
            "propagate_forward",
            "propagate_backward",
            ]
@@ -147,7 +147,7 @@ def _ptycho_interface(detector_grid, detector_min, detector_size,
             probe_grid, probe_size, theta, h, v)
 
 
-def reconstruct(detector_grid=None, detector_min=None
+def reconstruct(detector_grid=None, detector_min=None,
                 detector_size=None,
                 probe_grid=None, probe_size=None,
                 theta=None, h=None, v=None,
@@ -171,7 +171,7 @@ def reconstruct(detector_grid=None, detector_min=None
     return new_probe_grid
 
 
-def propagate_forward(detector_grid=None, detector_min=None
+def propagate_forward(detector_grid=None, detector_min=None,
                       detector_size=None,
                       probe_grid=None, probe_size=None,
                       theta=None, h=None, v=None,
@@ -186,7 +186,7 @@ def propagate_forward(detector_grid=None, detector_min=None
     return new_detector_grid
 
 
-def propagate_backward(detector_grid=None, detector_min=None
+def propagate_backward(detector_grid=None, detector_min=None,
                        detector_size=None,
                        probe_grid=None, probe_size=None,
                        theta=None, h=None, v=None,
