@@ -98,13 +98,13 @@ from __future__ import (absolute_import, division, print_function,
 
 import numpy as np
 from . import utils
-from . import externs
+from tike.externs import LIBTIKE
 import logging
 
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = ["reconstruct"
+__all__ = ["reconstruct",
            "project_forward",
            "project_backward",
            "art",
@@ -125,20 +125,28 @@ def _tomo_interface(object_grid, object_min, object_size,
     """
     if object_grid is None:
         raise ValueError()
+    object_grid = utils.as_float32(object_grid)
     if object_min is None:
         object_min = (-0.5, -0.5, -0.5)
+    object_min = utils.as_float32(object_min)
     if object_size is None:
         object_size = (1.0, 1.0, 1.0)
+    object_size = utils.as_float32(object_size)
     if probe_grid is None:
         raise ValueError()
+    probe_grid = utils.as_float32(probe_grid)
     if probe_size is None:
         probe_size = (1, 1)
+    probe_size = utils.as_float32(probe_size)
     if theta is None:
         raise ValueError()
+    theta = utils.as_float32(theta)
     if h is None:
         h = np.full(theta.shape, -0.5)
+    h = utils.as_float32(h)
     if v is None:
         v = np.full(theta.shape, -0.5)
+    v = utils.as_float32(v)
     assert np.all(object_size > 0), "Object dimensions must be > 0."
     assert np.all(probe_size > 0), "Probe dimensions must be > 0."
     assert theta.size == h.size == v.size == probe_grid.shape[0], \
@@ -207,6 +215,24 @@ def project_forward(object_grid=None, object_min=None, object_size=None,
     #                   grid_size[0], grid_size[1], grid_size[2],
     #                   ngrid[0], ngrid[1], ngrid[2],
     #                   theta, h, v, dsize, data)
+    # Import shared library.
+    LIBTIKE.forward_project.restype = utils.as_c_void_p()
+    return LIBTIKE.forward_project(
+            utils.as_c_float_p(obj),
+            utils.as_c_float(ozmin),
+            utils.as_c_float(oxmin),
+            utils.as_c_float(oymin),
+            utils.as_c_float(zsize),
+            utils.as_c_float(xsize),
+            utils.as_c_float(ysize),
+            utils.as_c_int(oz),
+            utils.as_c_int(ox),
+            utils.as_c_int(oy),
+            utils.as_c_float_p(theta),
+            utils.as_c_float_p(h),
+            utils.as_c_float_p(v),
+            utils.as_c_int(dsize),
+            utils.as_c_float_p(data))
     return exit_probe_grid
 
 
@@ -275,6 +301,24 @@ def art(object_grid, object_min, object_size,
     #               grid_size[0], grid_size[1], grid_size[2],
     #               nz, nx, ny,
     #               data, theta, h, v, data.size, init, niter)
+    LIBTIKE.art.restype = utils.as_c_void_p()
+    return LIBTIKE.art(
+            utils.as_c_float(ozmin),
+            utils.as_c_float(oxmin),
+            utils.as_c_float(oymin),
+            utils.as_c_float(zsize),
+            utils.as_c_float(xsize),
+            utils.as_c_float(ysize),
+            utils.as_c_int(oz),
+            utils.as_c_int(ox),
+            utils.as_c_int(oy),
+            utils.as_c_float_p(data),
+            utils.as_c_float_p(theta),
+            utils.as_c_float_p(h),
+            utils.as_c_float_p(v),
+            utils.as_c_int(dsize),
+            utils.as_c_float_p(recon),
+            utils.as_c_int(n_iter))
     return new_object_grid
 
 

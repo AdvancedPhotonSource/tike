@@ -48,8 +48,7 @@
 
 """
 This module contains functions for casting python-type data to c-type data.
-These functions are used in `tike.externs` where python interfaces
-with the c back end.
+These functions are used where python interfaces with the c back end.
 """
 
 import ctypes
