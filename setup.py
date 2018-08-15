@@ -21,7 +21,8 @@ if on_rtd:
 setup(
     name='tike',
     packages=find_packages(exclude=['tests*']),
-    version=open('VERSION').read().strip(),
+    use_scm_version=True,
+    setup_requires=['setuptools_scm'],
     include_package_data=True,
     ext_modules=ext_mods,
     zip_safe=False,
