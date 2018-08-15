@@ -61,7 +61,7 @@ reconstruction space coordinates `z, x, y`. `theta` is measured from the
 
 Functions
 =========
-Each function in this module should have the following interface:
+Each public function in this module should have the following interface:
 
 Parameters
 ----------
@@ -85,7 +85,8 @@ probe_size : (2, ) float
 theta, h, v : (M, ) :py:class:`numpy.array` float
     The min corner (theta, h, v) of each `M` slice of `probe_grid`.
 kwargs
-    Keyword arguments specific to this function.
+    Keyword arguments specific to this function. **kwargs should always be
+    included so that extra parameters are ignored instead of raising an error.
 
 Returns
 -------
@@ -107,8 +108,6 @@ __docformat__ = 'restructuredtext en'
 __all__ = ["reconstruct",
            "forward",
            "backward",
-           "art",
-           "sirt",
            ]
 
 
@@ -151,33 +150,16 @@ def _tomo_interface(object_grid, object_min, object_size,
     assert np.all(probe_size > 0), "Probe dimensions must be > 0."
     assert theta.size == h.size == v.size == probe_grid.shape[0], \
         "The size of theta, h, v must be the same as the number of probes."
-    # logging.info(" _tomo_interface says {}".format("Hello, World!"))
+    # Duplicate the trajectory by size of probe_grid
+    M, H, V, = probe_grid.shape
+    dh, dv = line_offsets(H, V, probe_size)
+    th1 = np.repeat(theta, H*V).reshape(M, H, V)
+    h1 = (np.repeat(h, H*V).reshape(M, H, V) + dh)
+    v1 = (np.repeat(v, H*V).reshape(M, H, V) + dv)
+    assert th1.shape == h1.shape == v1.shape == probe_grid.shape
+    # logger.info(" _tomo_interface says {}".format("Hello, World!"))
     return (object_grid, object_min, object_size,
-            probe_grid, probe_size, theta, h, v)
-
-
-def reconstruct(object_grid=None, object_min=None, object_size=None,
-                probe_grid=None, probe_size=None,
-                theta=None, h=None, v=None,
-                algorithm=None, **kwargs):
-    """Reconstruct the `object_grid` using the given `algorithm`.
-
-    Parameters
-    ----------
-    object_grid : (Z, X, Y, P) :py:class:`numpy.array` float
-        The initial guess for the reconstruction.
-
-    Returns
-    -------
-    new_object_grid : (Z, X, Y, P) :py:class:`numpy.array` float
-        The updated object grid.
-    """
-    object_grid, object_min, object_size, probe_grid, probe_size, theta, h, v \
-        = _tomo_interface(object_grid, object_min, object_size,
-                          probe_grid, probe_size, theta, h, v)
-    assert niter >= 0, "Number of iterations should be >= 0"
-    raise NotImplementedError()
-    return new_object_grid
+            probe_grid, probe_size, th1, h1, v1)
 
 
 def line_offsets(H, V, probe_size):
@@ -196,6 +178,39 @@ def line_offsets(H, V, probe_size):
     dh, dv = np.meshgrid(gh, gv, indexing='ij')
     assert dv.shape == dh.shape == (H, V)
     return dh, dv
+
+
+def reconstruct(object_grid=None, object_min=None, object_size=None,
+                probe_grid=None, probe_size=None,
+                theta=None, h=None, v=None,
+                algorithm=None, **kwargs):
+    """Reconstruct the `object_grid` using the given `algorithm`.
+
+    Parameters
+    ----------
+    object_grid : (Z, X, Y, P) :py:class:`numpy.array` float
+        The initial guess for the reconstruction.
+    algorithm : string
+        The name of the algorithm to use for reconstructing.
+
+    Returns
+    -------
+    object_grid : (Z, X, Y, P) :py:class:`numpy.array` float
+        The updated object grid.
+
+    .. seealso:: functions :py:func:`tomo.sirt`, :py:func:`tomo.art`
+    """
+    # Add new tomography algorithms here
+    algorithms = {"art": art,
+                  "sirt": sirt,
+                  }
+    if algorithm in algorithms:
+        return algorithms[algorithm](object_grid, object_min, object_size,
+                                     probe_grid, probe_size,
+                                     theta, h, v, **kwargs)
+    else:
+        raise ValueError("The {} algorithm is not an available.".format(
+            algorithm))
 
 
 def forward(object_grid=None, object_min=None, object_size=None,
@@ -220,25 +235,17 @@ def forward(object_grid=None, object_min=None, object_size=None,
     object_grid, object_min, object_size, probe_grid, probe_size, theta, h, v \
         = _tomo_interface(object_grid, object_min, object_size,
                           probe_grid, probe_size, theta, h, v)
-    ngrid = object_grid.shape
-    assert len(ngrid) == 3, "Object grid must have 3 dimensions."
-    M, H, V, = probe_grid.shape
-    # Multiply the trajectory by size of probe_grid
-    dh, dv = line_offsets(H, V, probe_size)
-    th1 = np.repeat(theta, H*V).reshape(M, H, V)
-    h1 = (np.repeat(h, H*V).reshape(M, H, V) + dh)
-    v1 = (np.repeat(v, H*V).reshape(M, H, V) + dv)
-    assert th1.shape == h1.shape == v1.shape == probe_grid.shape
     # Remove zero valued probe rays
     nonzeros = (probe_grid != 0)
-    th1 = th1[nonzeros]
-    h1 = h1[nonzeros]
-    v1 = v1[nonzeros]
+    th1 = theta[nonzeros]
+    h1 = h[nonzeros]
+    v1 = v[nonzeros]
     line_integrals = np.zeros(th1.shape, dtype=np.float32)
     # Send data to c function
     logger.info("forward {:,d} element grid".format(object_grid.size))
     logger.info("forward {:,d} rays".format(line_integrals.size))
     object_grid = utils.as_float32(object_grid)
+    ngrid = object_grid.shape
     th1 = utils.as_float32(th1)
     h1 = utils.as_float32(h1)
     v1 = utils.as_float32(v1)
@@ -301,54 +308,43 @@ def art(object_grid, object_min, object_size,
 
     Parameters
     ----------
-    object_grid : (Z, X, Y, P) :py:class:`numpy.array` float
-        The initial guess for the reconstruction.
     niter : int
         The number of ART iterations to perform
 
-    Returns
-    -------
-    new_object_grid : (Z, X, Y, P) :py:class:`numpy.array` float
-        The updated object grid.
+    .. seealso:: functions :py:func:`tomo.reconstruct`
     """
     object_grid, object_min, object_size, probe_grid, probe_size, theta, h, v \
         = _tomo_interface(object_grid, object_min, object_size,
                           probe_grid, probe_size, theta, h, v)
     assert niter >= 0, "Number of iterations should be >= 0"
-    raise NotImplementedError()
-    # grid_min = utils.as_float32(grid_min)
-    # grid_size = utils.as_float32(grid_size)
-    # data = utils.as_float32(data)
-    # theta = utils.as_float32(theta)
-    # h = utils.as_float32(h)
-    # v = utils.as_float32(v)
-    # init = utils.as_float32(init)
-    # nz, nx, ny = init.shape
-    # logging.info(" ART {:,d} element grid for {:,d} iterations".format(
-    #     init.size, niter))
-    # externs.c_art(grid_min[0], grid_min[1], grid_min[2],
-    #               grid_size[0], grid_size[1], grid_size[2],
-    #               nz, nx, ny,
-    #               data, theta, h, v, data.size, init, niter)
+    # Send data to c function
+    logger.info("ART {:,d} element grid for {:,d} iterations".format(
+        object_grid.size, niter))
+    ngrid = object_grid.shape
+    probe_grid = utils.as_float32(probe_grid)
+    theta = utils.as_float32(theta)
+    h = utils.as_float32(h)
+    v = utils.as_float32(v)
+    object_grid = utils.as_float32(object_grid)
     LIBTIKE.art.restype = utils.as_c_void_p()
-    return LIBTIKE.art(
-            utils.as_c_float(ozmin),
-            utils.as_c_float(oxmin),
-            utils.as_c_float(oymin),
-            utils.as_c_float(zsize),
-            utils.as_c_float(xsize),
-            utils.as_c_float(ysize),
-            utils.as_c_int(oz),
-            utils.as_c_int(ox),
-            utils.as_c_int(oy),
-            utils.as_c_float_p(data),
-            utils.as_c_float_p(theta),
-            utils.as_c_float_p(h),
-            utils.as_c_float_p(v),
-            utils.as_c_int(dsize),
-            utils.as_c_float_p(recon),
-            utils.as_c_int(n_iter))
-    return new_object_grid
+    LIBTIKE.art(
+        utils.as_c_float(object_min[0]),
+        utils.as_c_float(object_min[1]),
+        utils.as_c_float(object_min[2]),
+        utils.as_c_float(object_size[0]),
+        utils.as_c_float(object_size[1]),
+        utils.as_c_float(object_size[2]),
+        utils.as_c_int(ngrid[0]),
+        utils.as_c_int(ngrid[1]),
+        utils.as_c_int(ngrid[2]),
+        utils.as_c_float_p(probe_grid),
+        utils.as_c_float_p(theta),
+        utils.as_c_float_p(h),
+        utils.as_c_float_p(v),
+        utils.as_c_int(probe_grid.size),
+        utils.as_c_float_p(object_grid),
+        utils.as_c_int(niter))
+    return object_grid
 
 
 def sirt(object_grid, object_min, object_size,
@@ -358,33 +354,40 @@ def sirt(object_grid, object_min, object_size,
 
     Parameters
     ----------
-    object_grid : (Z, X, Y, P) :py:class:`numpy.array` float
-        The initial guess for the reconstruction.
     niter : int
         The number of SIRT iterations to perform
 
-    Returns
-    -------
-    new_object_grid : (Z, X, Y, P) :py:class:`numpy.array` float
-        The updated object grid.
+    .. seealso:: functions :py:func:`tomo.reconstruct`
     """
     object_grid, object_min, object_size, probe_grid, probe_size, theta, h, v \
         = _tomo_interface(object_grid, object_min, object_size,
                           probe_grid, probe_size, theta, h, v)
     assert niter >= 0, "Number of iterations should be >= 0"
-    raise NotImplementedError()
-    # grid_min = utils.as_float32(grid_min)
-    # grid_size = utils.as_float32(grid_size)
-    # data = utils.as_float32(data)
-    # theta = utils.as_float32(theta)
-    # h = utils.as_float32(h)
-    # v = utils.as_float32(v)
-    # init = utils.as_float32(init)
-    # nz, nx, ny = init.shape
-    # logging.info(" SIRT {:,d} element grid for {:,d} iterations".format(
-    #     init.size, niter))
-    # externs.c_sirt(grid_min[0], grid_min[1], grid_min[2],
-    #                grid_size[0], grid_size[1], grid_size[2],
-    #                nz, nx, ny,
-    #                data, theta, h, v, data.size, init, niter)
-    return new_object_grid
+    # Send data to c function
+    logger.info("SIRT {:,d} element grid for {:,d} iterations".format(
+        object_grid.size, niter))
+    ngrid = object_grid.shape
+    probe_grid = utils.as_float32(probe_grid)
+    theta = utils.as_float32(theta)
+    h = utils.as_float32(h)
+    v = utils.as_float32(v)
+    object_grid = utils.as_float32(object_grid)
+    LIBTIKE.sirt.restype = utils.as_c_void_p()
+    LIBTIKE.sirt(
+        utils.as_c_float(object_min[0]),
+        utils.as_c_float(object_min[1]),
+        utils.as_c_float(object_min[2]),
+        utils.as_c_float(object_size[0]),
+        utils.as_c_float(object_size[1]),
+        utils.as_c_float(object_size[2]),
+        utils.as_c_int(ngrid[0]),
+        utils.as_c_int(ngrid[1]),
+        utils.as_c_int(ngrid[2]),
+        utils.as_c_float_p(probe_grid),
+        utils.as_c_float_p(theta),
+        utils.as_c_float_p(h),
+        utils.as_c_float_p(v),
+        utils.as_c_int(probe_grid.size),
+        utils.as_c_float_p(object_grid),
+        utils.as_c_int(niter))
+    return object_grid
