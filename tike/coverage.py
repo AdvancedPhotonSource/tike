@@ -102,6 +102,7 @@ def _coverage_interface(object_grid, object_min, object_size,
     v = utils.as_float32(v)
     assert np.all(object_size > 0), "Object dimensions must be > 0."
     assert np.all(probe_size > 0), "Probe dimensions must be > 0."
+    # different from _tomo_interface
     assert theta.size == h.size == v.size, \
         "The size of theta, h, v must be the same as the number of probes."
     # logging.info(" _tomo_interface says {}".format("Hello, World!"))
@@ -111,7 +112,7 @@ def _coverage_interface(object_grid, object_min, object_size,
 
 def coverage(object_grid, object_min, object_size,
              probe_grid, probe_size, theta, h, v,
-             dwell=None):
+             dwell=None, **kwargs):
     """Return a coverage map using this probe.
 
     The intersection between each line and each pixel is approximated by
@@ -141,8 +142,8 @@ def coverage(object_grid, object_min, object_size,
     # Multiply the trajectory by size of probe_grid
     dh, dv = line_offsets(probe_grid, probe_size)
     th1 = np.repeat(theta, dh.size)
-    h1 = np.repeat(h, dh.size) + dh
-    v1 = np.repeat(v, dv.size) + dv
+    h1 = np.repeat(h, dh.size).reshape(h.size, dh.size) + dh
+    v1 = np.repeat(v, dv.size).reshape(v.size, dv.size) + dv
     if dwell is None:
         dw1 = np.ones(th1.shape)
     else:

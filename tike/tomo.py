@@ -105,8 +105,8 @@ __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = ["reconstruct",
-           "project_forward",
-           "project_backward",
+           "forward",
+           "backward",
            "art",
            "sirt",
            ]
@@ -180,10 +180,28 @@ def reconstruct(object_grid=None, object_min=None, object_size=None,
     return new_object_grid
 
 
-def project_forward(object_grid=None, object_min=None, object_size=None,
-                    probe_grid=None, probe_size=None,
-                    theta=None, h=None, v=None,
-                    **kwargs):
+def line_offsets(H, V, probe_size):
+    """Generate h, v line offsets from the min corner.
+
+    Returns
+    -------
+    dh, dv : (H, V) :py:class:`numpy.array` float [cm]
+        The offsets in the horizontal and vertical directions
+    """
+    # Generate a grid of offset vectors
+    gh = (np.linspace(0, probe_size[0], H, endpoint=False)
+          + probe_size[0] / H / 2)
+    gv = (np.linspace(0, probe_size[1], V, endpoint=False)
+          + probe_size[1] / V / 2)
+    dh, dv = np.meshgrid(gh, gv, indexing='ij')
+    assert dv.shape == dh.shape == (H, V)
+    return dh, dv
+
+
+def forward(object_grid=None, object_min=None, object_size=None,
+            probe_grid=None, probe_size=None,
+            theta=None, h=None, v=None,
+            **kwargs):
     """Forward-project probes over an object; i.e. simulate data acquisition.
 
     Parameters
@@ -202,43 +220,54 @@ def project_forward(object_grid=None, object_min=None, object_size=None,
     object_grid, object_min, object_size, probe_grid, probe_size, theta, h, v \
         = _tomo_interface(object_grid, object_min, object_size,
                           probe_grid, probe_size, theta, h, v)
-    raise NotImplementedError()
-    # obj = utils.as_float32(object_grid)
-    # ngrid = obj.shape
-    # theta = utils.as_float32(theta)
-    # h = utils.as_float32(h)
-    # v = utils.as_float32(v)
-    # dsize = theta.size
-    # data = np.zeros((dsize, ), dtype=np.float32)
-    # externs.c_project(obj,
-    #                   grid_min[0], grid_min[1], grid_min[2],
-    #                   grid_size[0], grid_size[1], grid_size[2],
-    #                   ngrid[0], ngrid[1], ngrid[2],
-    #                   theta, h, v, dsize, data)
-    # Import shared library.
+    ngrid = object_grid.shape
+    assert len(ngrid) == 3, "Object grid must have 3 dimensions."
+    M, H, V, = probe_grid.shape
+    # Multiply the trajectory by size of probe_grid
+    dh, dv = line_offsets(H, V, probe_size)
+    th1 = np.repeat(theta, H*V).reshape(M, H, V)
+    h1 = (np.repeat(h, H*V).reshape(M, H, V) + dh)
+    v1 = (np.repeat(v, H*V).reshape(M, H, V) + dv)
+    assert th1.shape == h1.shape == v1.shape == probe_grid.shape
+    # Remove zero valued probe rays
+    nonzeros = (probe_grid != 0)
+    th1 = th1[nonzeros]
+    h1 = h1[nonzeros]
+    v1 = v1[nonzeros]
+    line_integrals = np.zeros(th1.shape, dtype=np.float32)
+    # Send data to c function
+    logger.info("forward {:,d} element grid".format(object_grid.size))
+    logger.info("forward {:,d} rays".format(line_integrals.size))
+    object_grid = utils.as_float32(object_grid)
+    th1 = utils.as_float32(th1)
+    h1 = utils.as_float32(h1)
+    v1 = utils.as_float32(v1)
+    line_integrals = utils.as_float32(line_integrals)
     LIBTIKE.forward_project.restype = utils.as_c_void_p()
-    return LIBTIKE.forward_project(
-            utils.as_c_float_p(obj),
-            utils.as_c_float(ozmin),
-            utils.as_c_float(oxmin),
-            utils.as_c_float(oymin),
-            utils.as_c_float(zsize),
-            utils.as_c_float(xsize),
-            utils.as_c_float(ysize),
-            utils.as_c_int(oz),
-            utils.as_c_int(ox),
-            utils.as_c_int(oy),
-            utils.as_c_float_p(theta),
-            utils.as_c_float_p(h),
-            utils.as_c_float_p(v),
-            utils.as_c_int(dsize),
-            utils.as_c_float_p(data))
+    LIBTIKE.forward_project(
+        utils.as_c_float_p(object_grid),
+        utils.as_c_float(object_min[0]),
+        utils.as_c_float(object_min[1]),
+        utils.as_c_float(object_min[2]),
+        utils.as_c_float(object_size[0]),
+        utils.as_c_float(object_size[1]),
+        utils.as_c_float(object_size[2]),
+        utils.as_c_int(ngrid[0]),
+        utils.as_c_int(ngrid[1]),
+        utils.as_c_int(ngrid[2]),
+        utils.as_c_float_p(th1),
+        utils.as_c_float_p(h1),
+        utils.as_c_float_p(v1),
+        utils.as_c_int(th1.size),
+        utils.as_c_float_p(line_integrals))
+    exit_probe_grid = np.zeros(probe_grid.shape, dtype=np.float32)
+    exit_probe_grid[nonzeros] = line_integrals
     return exit_probe_grid
 
 
-def project_backward(object_grid, object_min, object_size,
-                     probe_grid, probe_size, theta, h, v,
-                     **kwargs):
+def backward(object_grid, object_min, object_size,
+             probe_grid, probe_size, theta, h, v,
+             **kwargs):
     """Back-project a probe over an object.
 
     Parameters
