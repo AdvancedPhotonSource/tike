@@ -144,6 +144,7 @@ def triangle(A, f, p, t):
     #continuous #1d
 
     Parameters
+    ----------
     A : float
         The amplitude of the function
     f : float
@@ -173,6 +174,7 @@ def sawtooth(A, f, p, t):
     #discontinuous #1d
 
     Parameters
+    ----------
     A : float
         The amplitude of the function
     f : float
@@ -190,6 +192,7 @@ def square(A, f, p, t):
     #discontinuous #1d
 
     Parameters
+    ----------
     A : float
         The amplitude of the function
     f : float
@@ -206,6 +209,7 @@ def staircase(A, f, p, t):
     #discontinuous #1d
 
     Parameters
+    ----------
     A : float
         The amplitude of the function
     f : float
@@ -226,6 +230,7 @@ def lissajous(A, B, fx, fy, px, py, t):
     least common multiple of the two periods.
 
     Parameters
+    ----------
     A, B : float
         The horizontal and vertical amplitudes of the function
     fx, fy : float
@@ -278,6 +283,7 @@ def spiral(r1, t1, v, t):
     The spiral is centered on the origin and spins clockwise.
 
     Parameters
+    ----------
     r1 : float
         The radius at time t1.
     t1: float
@@ -307,6 +313,7 @@ def diagonal(A, B, fx, fy, px, py, t):
     The diagonal is centered on the origin.
 
     Parameters
+    ----------
     A, B : float
         The horizontal and vertical amplitudes of the function
     fx, fy : float

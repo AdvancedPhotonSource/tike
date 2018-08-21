@@ -85,7 +85,7 @@ probe_size : (2, ) float
 theta, h, v : (M, ) :py:class:`numpy.array` float
     The min corner (theta, h, v) of each `M` slice of `probe_grid`.
 kwargs
-    Keyword arguments specific to this function. **kwargs should always be
+    Keyword arguments specific to this function. `**kwargs` should always be
     included so that extra parameters are ignored instead of raising an error.
 
 Returns
@@ -224,6 +224,7 @@ def forward(object_grid=None, object_min=None, object_size=None,
     probe_grid : (M, H, V, P) :py:class:`numpy.array` float
         The inital parameters of the `M` probes to be projected across
         `object_grid`. `P`, holds parameters at each grid position:
+
             * (..., 0) : intensity / amplitude
             * (..., 1) : relative phase shift
 
@@ -282,6 +283,7 @@ def backward(object_grid, object_min, object_size,
     probe_grid : (M, H, V, P) :py:class:`numpy.array` float
         The parameters of the `M` probes to be projected across
         `object_grid`. `P`, holds parameters at each grid position:
+
             * (..., 0) : 0th probe back-projection weight
             * (..., P-1) : (P-1)th probe back-projection weight
 
