@@ -53,12 +53,9 @@ and `tike.utils` are not imported here because they are not part of the public
 API.
 """
 
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
 from pkg_resources import get_distribution, DistributionNotFound
-try:
-    __version__ = get_distribution(__name__).version
-except DistributionNotFound:
-    # package is not installed
-    pass
 
 from tike.coverage import *
 from tike.ptycho import *
@@ -69,3 +66,9 @@ from tike.view import *
 import logging
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
+
+try:
+    __version__ = get_distribution(__name__).version
+except DistributionNotFound:
+    # package is not installed
+    pass
