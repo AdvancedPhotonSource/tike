@@ -60,7 +60,21 @@ __all__ = ['LIBTIKE']
 
 logger = logging.getLogger(__name__)
 
-# Import shared library.
-LIBTIKE = ctypes.CDLL(
-    "/home/beams0/B242827/Documents/tike"
-    "/tike/libtike.cpython-35m-x86_64-linux-gnu.so")
+
+def c_shared_lib(lib_name):
+    import os
+    import glob
+    try:
+        if os.name == 'nt':
+            ext = '.pyd'
+        else:
+            ext = '.so'
+        _fname = os.path.abspath(os.path.join(os.path.dirname(__file__)))
+        libpath = glob.glob(_fname + '/' + lib_name + '*' + ext)[0]
+        return ctypes.CDLL(libpath)
+    except (OSError, IndexError):
+        logger.warning('OSError: Shared library missing.')
+
+
+# Import C shared library called libtike
+LIBTIKE = c_shared_lib('libtike')
