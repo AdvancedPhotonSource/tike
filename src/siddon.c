@@ -1,5 +1,9 @@
+#include <stdlib.h>
+#include <assert.h>
+#include <limits.h>
+
 #include "siddon.h"
-#include "limits.h"
+#include "utils.h"
 
 /* @brief Use method by Siddon (1984) to compute the intersections of rays with
           the grid lines.

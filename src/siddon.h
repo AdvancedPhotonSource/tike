@@ -1,18 +1,6 @@
 #ifndef _siddon_h
 #define _siddon_h
 
-#define _USE_MATH_DEFINES
-#ifndef M_PI
-#define M_PI 3.14159265358979323846264338327
-#endif
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
-#include <stdbool.h>
-#include <assert.h>
-#include "string.h"
-
 /* @brief Calculates the indices of the pixels and rays which intersect along
           along with their lengths of intersection.
 
