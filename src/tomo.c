@@ -38,7 +38,8 @@ forward_project(
         gridx, gridy,
         &pixels, &rays, &lengths, &psize
     );
-    assert(pixels != NULL && rays != NULL && lengths != NULL);
+    free(gridx);
+    free(gridy);
     // Bin the intersections by angle
     assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
     assert(dsize >= 0 && "Data size must be a natural number");
@@ -54,8 +55,6 @@ forward_project(
     free(pixels);
     free(rays);
     free(lengths);
-    free(gridx);
-    free(gridy);
 }
 
 void
@@ -90,7 +89,8 @@ coverage(
         gridx, gridy,
         &pixels, &rays, &lengths, &psize
     );
-    assert(pixels != NULL && rays != NULL && lengths != NULL);
+    free(gridx);
+    free(gridy);
     // Bin the intersections by angle
     assert(UINT_MAX/ox/oy/oz/ot > 0 && "Array is too large to index.");
     assert(theta != NULL && line_weights != NULL && coverage_map != NULL);
@@ -110,8 +110,6 @@ coverage(
     free(pixels);
     free(rays);
     free(lengths);
-    free(gridx);
-    free(gridy);
 }
 
 void
@@ -145,15 +143,12 @@ art(
         gridx, gridy,
         &pixels, &rays, &lengths, &psize
     );
-    assert(pixels != NULL && rays != NULL && lengths != NULL);
+    free(gridx);
+    free(gridy);
 
     assert(ndata >= 0);
-    float *sim = malloc(sizeof sim * ndata);
-    float *line_update = malloc(sizeof line_update * ndata);
-    float *lengths_dot = malloc(sizeof lengths_dot * ndata);
-    assert(sim != NULL && line_update != NULL && lengths_dot != NULL);
-
-    memset(lengths_dot, 0, sizeof lengths_dot * ndata);
+    float *lengths_dot = calloc(ndata, sizeof *lengths_dot);
+    assert(lengths_dot != NULL);
     for (unsigned j=0; j < psize; j++)
     {
         lengths_dot[rays[j]] += lengths[j] * lengths[j];
@@ -162,8 +157,9 @@ art(
     assert(init != NULL && data != NULL);
     for (int i=0; i < niter; i++)
     {
-        memset(sim, 0, sizeof sim * ndata);
-        memset(line_update, 0, sizeof line_update * ndata);
+        float *sim = calloc(ndata, sizeof *sim);
+        float *line_update = calloc(ndata, sizeof *line_update );
+        assert(sim != NULL && line_update != NULL);
         // simulate data acquisition by projecting over current model
         for (unsigned j=0; j < psize; j++)
         {
@@ -182,15 +178,13 @@ art(
         {
             init[pixels[j]] += lengths[j] * line_update[rays[j]];
         }
+        free(sim);
+        free(line_update);
     }
-    free(sim);
-    free(line_update);
     free(lengths_dot);
     free(pixels);
     free(rays);
     free(lengths);
-    free(gridx);
-    free(gridy);
 }
 
 void
@@ -224,20 +218,14 @@ sirt(
         gridx, gridy,
         &pixels, &rays, &lengths, &psize
     );
-    assert(pixels != NULL && rays != NULL && lengths != NULL);
+    free(gridx);
+    free(gridy);
 
     assert(UINT_MAX/nz/nx/ny > 0 && "Array is too large to index.");
     unsigned grid_size = (unsigned)nz*nx*ny;
-    float *grid_update = malloc(sizeof grid_update * grid_size);
-    int *num_grid_updates = malloc(sizeof num_grid_updates * grid_size);
     assert(ndata >= 0);
-    float *sim = malloc(sizeof sim * ndata);
-    float *line_update = malloc(sizeof line_update * ndata);
-    float *lengths_dot = malloc(sizeof lengths_dot * ndata);
-    assert(grid_update != NULL && num_grid_updates != NULL && sim != NULL
-           && line_update != NULL && lengths_dot != NULL);
-
-    memset(lengths_dot, 0, sizeof lengths_dot * ndata);
+    float *lengths_dot = calloc(ndata, sizeof *lengths_dot);
+    assert(lengths_dot != NULL);
     for (unsigned j=0; j < psize; j++)
     {
         lengths_dot[rays[j]] += lengths[j] * lengths[j];
@@ -246,10 +234,12 @@ sirt(
     assert(init != NULL && data != NULL);
     for (int i=0; i < niter; i++)
     {
-        memset(grid_update, 0, sizeof grid_update * grid_size);
-        memset(num_grid_updates, 0, sizeof num_grid_updates * grid_size);
-        memset(sim, 0, sizeof sim * ndata);
-        memset(line_update, 0, sizeof line_update * ndata);
+        float *grid_update = calloc(grid_size, sizeof *grid_update);
+        int *num_grid_updates = calloc(grid_size, sizeof *num_grid_updates);
+        float *sim = calloc(ndata, sizeof *sim);
+        float *line_update = calloc(ndata, sizeof *line_update);
+        assert(grid_update != NULL && num_grid_updates != NULL && sim != NULL
+            && line_update != NULL);
         // simulate data acquisition by projecting over current model
         for (unsigned j=0; j < psize; j++)
         {
@@ -278,15 +268,13 @@ sirt(
                 init[l] += grid_update[l] / num_grid_updates[l];
             }
         }
+        free(grid_update);
+        free(num_grid_updates);
+        free(sim);
+        free(line_update);
     }
-    free(grid_update);
-    free(num_grid_updates);
-    free(sim);
-    free(line_update);
     free(lengths_dot);
     free(pixels);
     free(rays);
     free(lengths);
-    free(gridx);
-    free(gridy);
 }
