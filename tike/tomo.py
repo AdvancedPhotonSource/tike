@@ -191,26 +191,79 @@ def reconstruct(object_grid=None, object_min=None, object_size=None,
     object_grid : (Z, X, Y, P) :py:class:`numpy.array` float
         The initial guess for the reconstruction.
     algorithm : string
-        The name of the algorithm to use for reconstructing.
+        The name of one of the following algorithms to use for reconstructing:
+
+            * art : Algebraic Reconstruction Technique
+                :cite:`gordon1970algebraic`.
+            * sirt : Simultaneous Iterative Reconstruction Technique.
+
+    niter : int
+        The number of iterations to perform
 
     Returns
     -------
     object_grid : (Z, X, Y, P) :py:class:`numpy.array` float
         The updated object grid.
-
-    .. seealso:: functions :py:func:`tomo.sirt`, :py:func:`tomo.art`
     """
+    object_grid, object_min, object_size, probe_grid, probe_size, theta, h, v \
+        = _tomo_interface(object_grid, object_min, object_size,
+                          probe_grid, probe_size, theta, h, v)
+    assert niter >= 0, "Number of iterations should be >= 0"
+    # Send data to c function
+    logger.info("{} on {:,d} element grid for {:,d} iterations".format(
+                algorithm, object_grid.size, niter))
+    ngrid = object_grid.shape
+    probe_grid = utils.as_float32(probe_grid)
+    theta = utils.as_float32(theta)
+    h = utils.as_float32(h)
+    v = utils.as_float32(v)
+    object_grid = utils.as_float32(object_grid)
     # Add new tomography algorithms here
-    algorithms = {"art": art,
-                  "sirt": sirt,
-                  }
-    if algorithm in algorithms:
-        return algorithms[algorithm](object_grid, object_min, object_size,
-                                     probe_grid, probe_size,
-                                     theta, h, v, **kwargs)
+    # TODO: The size of this function may be reduced further if all recon clibs
+    #   have a standard interface. Perhaps pass unique params to a generic
+    #   struct or array.
+    if algorithm is "art":
+        LIBTIKE.art.restype = utils.as_c_void_p()
+        LIBTIKE.art(
+            utils.as_c_float(object_min[0]),
+            utils.as_c_float(object_min[1]),
+            utils.as_c_float(object_min[2]),
+            utils.as_c_float(object_size[0]),
+            utils.as_c_float(object_size[1]),
+            utils.as_c_float(object_size[2]),
+            utils.as_c_int(ngrid[0]),
+            utils.as_c_int(ngrid[1]),
+            utils.as_c_int(ngrid[2]),
+            utils.as_c_float_p(probe_grid),
+            utils.as_c_float_p(theta),
+            utils.as_c_float_p(h),
+            utils.as_c_float_p(v),
+            utils.as_c_int(probe_grid.size),
+            utils.as_c_float_p(object_grid),
+            utils.as_c_int(niter))
+    elif algorithm is "sirt":
+        LIBTIKE.sirt.restype = utils.as_c_void_p()
+        LIBTIKE.sirt(
+            utils.as_c_float(object_min[0]),
+            utils.as_c_float(object_min[1]),
+            utils.as_c_float(object_min[2]),
+            utils.as_c_float(object_size[0]),
+            utils.as_c_float(object_size[1]),
+            utils.as_c_float(object_size[2]),
+            utils.as_c_int(ngrid[0]),
+            utils.as_c_int(ngrid[1]),
+            utils.as_c_int(ngrid[2]),
+            utils.as_c_float_p(probe_grid),
+            utils.as_c_float_p(theta),
+            utils.as_c_float_p(h),
+            utils.as_c_float_p(v),
+            utils.as_c_int(probe_grid.size),
+            utils.as_c_float_p(object_grid),
+            utils.as_c_int(niter))
     else:
         raise ValueError("The {} algorithm is not an available.".format(
             algorithm))
+    return object_grid
 
 
 def forward(object_grid=None, object_min=None, object_size=None,
@@ -299,97 +352,3 @@ def backward(object_grid, object_min, object_size,
                           probe_grid, probe_size, theta, h, v)
     raise NotImplementedError()
     return new_object_grid
-
-
-def art(object_grid, object_min, object_size,
-        probe_grid, probe_size, theta, h, v,
-        niter=1, **kwargs):
-    """Reconstruct using Algebraic Reconstruction Technique (ART)
-
-    See :cite:`gordon1970algebraic` for original description of ART.
-
-    Parameters
-    ----------
-    niter : int
-        The number of ART iterations to perform
-
-    .. seealso:: functions :py:func:`tomo.reconstruct`
-    """
-    object_grid, object_min, object_size, probe_grid, probe_size, theta, h, v \
-        = _tomo_interface(object_grid, object_min, object_size,
-                          probe_grid, probe_size, theta, h, v)
-    assert niter >= 0, "Number of iterations should be >= 0"
-    # Send data to c function
-    logger.info("ART {:,d} element grid for {:,d} iterations".format(
-        object_grid.size, niter))
-    ngrid = object_grid.shape
-    probe_grid = utils.as_float32(probe_grid)
-    theta = utils.as_float32(theta)
-    h = utils.as_float32(h)
-    v = utils.as_float32(v)
-    object_grid = utils.as_float32(object_grid)
-    LIBTIKE.art.restype = utils.as_c_void_p()
-    LIBTIKE.art(
-        utils.as_c_float(object_min[0]),
-        utils.as_c_float(object_min[1]),
-        utils.as_c_float(object_min[2]),
-        utils.as_c_float(object_size[0]),
-        utils.as_c_float(object_size[1]),
-        utils.as_c_float(object_size[2]),
-        utils.as_c_int(ngrid[0]),
-        utils.as_c_int(ngrid[1]),
-        utils.as_c_int(ngrid[2]),
-        utils.as_c_float_p(probe_grid),
-        utils.as_c_float_p(theta),
-        utils.as_c_float_p(h),
-        utils.as_c_float_p(v),
-        utils.as_c_int(probe_grid.size),
-        utils.as_c_float_p(object_grid),
-        utils.as_c_int(niter))
-    return object_grid
-
-
-def sirt(object_grid, object_min, object_size,
-         probe_grid, probe_size, theta, h, v,
-         niter=1, **kwargs):
-    """Reconstruct using Simultaneous Iterative Reconstruction Technique (SIRT)
-
-    Parameters
-    ----------
-    niter : int
-        The number of SIRT iterations to perform
-
-    .. seealso:: functions :py:func:`tomo.reconstruct`
-    """
-    object_grid, object_min, object_size, probe_grid, probe_size, theta, h, v \
-        = _tomo_interface(object_grid, object_min, object_size,
-                          probe_grid, probe_size, theta, h, v)
-    assert niter >= 0, "Number of iterations should be >= 0"
-    # Send data to c function
-    logger.info("SIRT {:,d} element grid for {:,d} iterations".format(
-        object_grid.size, niter))
-    ngrid = object_grid.shape
-    probe_grid = utils.as_float32(probe_grid)
-    theta = utils.as_float32(theta)
-    h = utils.as_float32(h)
-    v = utils.as_float32(v)
-    object_grid = utils.as_float32(object_grid)
-    LIBTIKE.sirt.restype = utils.as_c_void_p()
-    LIBTIKE.sirt(
-        utils.as_c_float(object_min[0]),
-        utils.as_c_float(object_min[1]),
-        utils.as_c_float(object_min[2]),
-        utils.as_c_float(object_size[0]),
-        utils.as_c_float(object_size[1]),
-        utils.as_c_float(object_size[2]),
-        utils.as_c_int(ngrid[0]),
-        utils.as_c_int(ngrid[1]),
-        utils.as_c_int(ngrid[2]),
-        utils.as_c_float_p(probe_grid),
-        utils.as_c_float_p(theta),
-        utils.as_c_float_p(h),
-        utils.as_c_float_p(v),
-        utils.as_c_int(probe_grid.size),
-        utils.as_c_float_p(object_grid),
-        utils.as_c_int(niter))
-    return object_grid
