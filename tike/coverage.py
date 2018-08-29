@@ -105,7 +105,7 @@ def _coverage_interface(object_grid, object_min, object_size,
     # different from _tomo_interface
     assert theta.size == h.size == v.size, \
         "The size of theta, h, v must be the same as the number of probes."
-    # logging.info(" _tomo_interface says {}".format("Hello, World!"))
+    # logger.info(" _tomo_interface says {}".format("Hello, World!"))
     return (object_grid, object_min, object_size,
             probe_grid, probe_size, theta, h, v)
 

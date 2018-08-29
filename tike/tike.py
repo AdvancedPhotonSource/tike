@@ -80,5 +80,5 @@ def _combined_interface(object_grid, object_min, object_size,
     assert theta.size == h.size == v.size == \
         detector_grid.shape[0] == probe_grid.shape[0], \
         "The size of theta, h, v must be the same as the number of probes."
-    logging.info(" _ptycho_interface says {}".format("Hello, World!"))
+    logger.info(" _ptycho_interface says {}".format("Hello, World!"))
     return None

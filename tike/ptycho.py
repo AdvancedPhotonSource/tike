@@ -142,7 +142,7 @@ def _ptycho_interface(detector_grid, detector_min, detector_size,
     assert theta.size == h.size == v.size == \
         detector_grid.shape[0] == probe_grid.shape[0], \
         "The size of theta, h, v must be the same as the number of probes."
-    # logging.info(" _ptycho_interface says {}".format("Hello, World!"))
+    # logger.info(" _ptycho_interface says {}".format("Hello, World!"))
     return (detector_grid, detector_min, detector_size,
             probe_grid, probe_size, theta, h, v)
 
@@ -180,7 +180,7 @@ def propagate_forward(detector_grid=None, detector_min=None,
     detector_grid, detector_min, detector_size, probe_grid, probe_size, theta,\
         h, v = _ptycho_interface(detector_grid, detector_min, detector_size,
                                  probe_grid, probe_size, theta, h, v)
-    logging.info(" forward-propagate {} {} by {} probes.".format(theta.size,
+    logger.info(" forward-propagate {} {} by {} probes.".format(theta.size,
                  probe_grid.shape[0], probe_grid.shape[1]))
     raise NotImplementedError()
     return new_detector_grid
@@ -195,7 +195,7 @@ def propagate_backward(detector_grid=None, detector_min=None,
     detector_grid, detector_min, detector_size, probe_grid, probe_size, theta,\
         h, v = _ptycho_interface(detector_grid, detector_min, detector_size,
                                  probe_grid, probe_size, theta, h, v)
-    logging.info(" back-propagate {} {} by {} probes.".format(theta.size,
+    logger.info(" back-propagate {} {} by {} probes.".format(theta.size,
                  probe_grid.shape[0], probe_grid.shape[1]))
     raise NotImplementedError()
     return new_probe_grid

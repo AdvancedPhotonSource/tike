@@ -261,17 +261,17 @@ def coded_exposure(theta, h, v, time, dwell, c_time, c_dwell):
     codes = list()
     for measurement in range(0, time.size):
         found_atleast_one = False
-        logging.debug("{}: Measurement {}".format(_fname, measurement))
+        logger.debug("{}: Measurement {}".format(_fname, measurement))
         for code in range(start, c_time.size):
-            logging.debug("{}: Checking code {}".format(_fname, code))
+            logger.debug("{}: Checking code {}".format(_fname, code))
             if has_overlap(time[measurement], dwell[measurement],
                            c_time[code], c_dwell[code]):
                 # Record the intersection
                 t1, d1 = get_overlap(time[measurement], dwell[measurement],
                                      c_time[code], c_dwell[code])
                 if d1 > 0:
-                    logging.debug("{}: Overlap found: {}, {}".format(_fname,
-                                                                     t1, d1))
+                    logger.debug("{}: Overlap found: {}, {}".format(_fname,
+                                                                    t1, d1))
                     codes.append(code)
                     positions.append(measurement)
                     times.append(t1)
