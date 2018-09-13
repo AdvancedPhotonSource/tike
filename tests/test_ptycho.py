@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 # #########################################################################
-# Copyright (c) 2017-2018, UChicago Argonne, LLC. All rights reserved.    #
+# Copyright (c) 2016, UChicago Argonne, LLC. All rights reserved.         #
 #                                                                         #
-# Copyright 2018. UChicago Argonne, LLC. This software was produced       #
+# Copyright 2015. UChicago Argonne, LLC. This software was produced       #
 # under U.S. Government contract DE-AC02-06CH11357 for Argonne National   #
 # Laboratory (ANL), which is operated by UChicago Argonne, LLC for the    #
 # U.S. Department of Energy. The U.S. Government has rights to use,       #
@@ -46,45 +46,49 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-"""
-This module contains the highest level functions for solving the combined
-ptychotomography problem.
-"""
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import numpy as np
-from . import utils
-from . import externs
-import logging
+import matplotlib.pyplot as plt
+from tike.ptycho import pad_grid, unpad_grid
 
-__author__ = "Doga Gursoy, Daniel Ching"
-__copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
+__author__ = "Daniel Ching"
+__copyright__ = "Copyright (c) 2016, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = [
-           ]
 
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+def test_pad_grid():
+    A = np.ones([3, 4])
+    # Pad one larger and two larger
+    B = pad_grid(padded_shape=[5, 5], unpadded_grid=A)
+    # Unpadd back to original
+    A1 = unpad_grid(padded_grid=B, unpadded_shape=[3, 4])
+    np.testing.assert_equal(A, A1)
+    # Apply no padding
+    A2 = pad_grid(padded_shape=[3, 4], unpadded_grid=A)
+    np.testing.assert_equal(A, A2)
 
 
-def _combined_interface(object_grid, object_min, object_size,
-                        probe_grid, probe_size, theta, h, v,
-                        detector_grid, detector_min, detector_size,
-                        **kwargs):
-    """A function whose interface all functions in this module matches."""
-    assert np.all(object_size > 0), "Detector dimensions must be > 0."
-    assert np.all(probe_size > 0), "Probe dimensions must be > 0."
-    assert np.all(detector_size > 0), "Detector dimensions must be > 0."
-    assert theta.size == h.size == v.size == \
-        detector_grid.shape[0] == probe_grid.shape[0], \
-        "The size of theta, h, v must be the same as the number of probes."
-    logger.info(" _ptycho_interface says {}".format("Hello, World!"))
-    return None
+def test_pad_error():
+    A = np.ones([3, 4])
+    # Should raise error because padded shape is smaller than unpadded shape
+    try:
+        pad_grid(padded_shape=[2, 2], unpadded_grid=A)
+    except AssertionError as err:
+        print(err)
+        return
+    assert False
 
 
-def admm():
-    """Use Alternating Direction Method of Multipliers (ADMM)
-    """
-    pass
+def test_unpad_error():
+    A = np.ones([3, 4])
+    # Pad one larger and two larger
+    B = pad_grid(padded_shape=[5, 5], unpadded_grid=A)
+    # Should raise error because padded shape is smaller than unpadded shape
+    try:
+        unpad_grid(padded_grid=B, unpadded_shape=[20, 20])
+    except AssertionError as err:
+        print(err)
+        return
+    assert False

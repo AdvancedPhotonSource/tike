@@ -47,44 +47,50 @@
 # #########################################################################
 
 """
-This module contains the highest level functions for solving the combined
-ptychotomography problem.
+This module contains universal constants and physical relation functions.
 """
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import numpy as np
-from . import utils
-from . import externs
-import logging
 
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
-__docformat__ = 'restructuredtext en'
+__docformat__ = "restructuredtext en"
 __all__ = [
+           "PLANCK_CONSTANT",
+           "SPEED_OF_LIGHT",
+           "wavelength",
+           "wavenumber",
+           "complex_amplitude",
+           "complex_intensity",
+           "complex_phase",
            ]
 
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-
-def _combined_interface(object_grid, object_min, object_size,
-                        probe_grid, probe_size, theta, h, v,
-                        detector_grid, detector_min, detector_size,
-                        **kwargs):
-    """A function whose interface all functions in this module matches."""
-    assert np.all(object_size > 0), "Detector dimensions must be > 0."
-    assert np.all(probe_size > 0), "Probe dimensions must be > 0."
-    assert np.all(detector_size > 0), "Detector dimensions must be > 0."
-    assert theta.size == h.size == v.size == \
-        detector_grid.shape[0] == probe_grid.shape[0], \
-        "The size of theta, h, v must be the same as the number of probes."
-    logger.info(" _ptycho_interface says {}".format("Hello, World!"))
-    return None
+PLANCK_CONSTANT = 6.58211928e-19  # [keV*s]
+SPEED_OF_LIGHT = 299792458e+2  # [cm/s]
 
 
-def admm():
-    """Use Alternating Direction Method of Multipliers (ADMM)
-    """
-    pass
+def wavelength(energy):
+    """Return the wavelength [cm] for a given energy [keV]."""
+    return 2 * np.pi * PLANCK_CONSTANT * SPEED_OF_LIGHT / energy
+
+
+def wavenumber(energy):
+    """Return the wavenumber [1/cm] given energy [keV]."""
+    return energy / PLANCK_CONSTANT / SPEED_OF_LIGHT
+
+
+def complex_amplitude(probe_grid):
+    """Amplitude of the complex probe wave"""
+    return np.abs(probe_grid)
+
+
+def complex_intensity(probe_grid):
+    """Intensity of the complex wave."""
+    return np.square(np.abs(probe_grid))
+
+
+def complex_phase(probe_grid):
+    """Phase of the complex probe wave."""
+    return np.angle(probe_grid)

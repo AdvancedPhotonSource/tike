@@ -67,7 +67,7 @@ def test_forward_project_hv_quadrants1():
     pgrid = np.ones((4, 1, 1))
     pgrid[2, 0, 0] = 0
     psize = (1, 1)
-    integral = forward(obj, gmin, gsize,
+    integral = forward(obj, gsize, gmin,
                        pgrid, psize,
                        theta, h, v)
     truth = np.array([1, 0, 0, 0]).reshape(4, 1, 1)
@@ -82,7 +82,7 @@ def test_forward_project_hv_quadrants2():
     theta, h, v = [0, 0], [-1, 0], [0.5, 0.5]
     pgrid = np.ones((2, 1, 1))
     psize = (1, 1)
-    integral = forward(obj, gmin, gsize,
+    integral = forward(obj, gsize, gmin,
                        pgrid, psize,
                        theta, h, v)
     truth = np.array([0, 1]).reshape(2, 1, 1)
@@ -97,7 +97,7 @@ def test_forward_project_hv_quadrants4():
     theta, h, v = [0], [-0.5], [-0.5]
     pgrid = np.ones((1, 1, 1))
     psize = (1, 1)
-    integral = forward(obj, gmin, gsize,
+    integral = forward(obj, gsize, gmin,
                        pgrid, psize,
                        theta, h, v)
     truth = np.array([2]).reshape(1, 1, 1)

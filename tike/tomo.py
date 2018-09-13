@@ -69,16 +69,25 @@ object_grid : (Z, X, Y, P) :py:class:`numpy.array` float
     An array of material properties. The first three dimensions `Z, X, Y`
     are spatial dimensions. The fourth dimension, `P`,  holds properties at
     each grid position: refractive indices, attenuation coefficents, etc.
-object_min : (3, ) float
-    The min corner (z, x, y) of `object_grid`.
+
+        * (..., 0) : delta, the real phase velocity, the decrement of the
+            refractive index.
+        * (..., 1) : beta, the imaginary amplitude extinction / absorption
+            coefficient.
+
 object_size : (3, ) float
     The side lengths (z, x, y) of `object_grid` along each dimension.
+object_min : (3, ) float
+    The min corner (z, x, y) of `object_grid`.
+line_integrals : (M, H, V, P) :py:class:`numpy.array` float
+    Integrals across the `object_grid` for each of the `probe_grid` rays and
+    P parameters.
 probe_grid : (M, H, V, P) :py:class:`numpy.array` float
-    The parameters of the `M` probes to be collected or projected across
-    `object_grid`. The grid of each probe is `H` rays wide (the
+    The initial parameters of the `M` probes to be projected across
+    the `object_grid`. The grid of each probe is `H` rays wide (the
     horizontal direction) and `V` rays tall (the vertical direction). The
     fourth dimension, `P`, holds parameters at each grid position:
-    measured intensity, relative phase shift, etc.
+    real and imaginary wave components
 probe_size : (2, ) float
     The side lengths (h, v) of `probe_grid` along each dimension. The
     dimensions of each slice of probe_grid is the same for simplicity.
@@ -107,7 +116,6 @@ __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = ["reconstruct",
            "forward",
-           "backward",
            ]
 
 
@@ -115,7 +123,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _tomo_interface(object_grid, object_min, object_size,
+def _tomo_interface(object_grid, object_size, object_min,
                     probe_grid, probe_size, theta, h, v,
                     **kwargs):
     """A function whose interface all functions in this module matches.
@@ -158,7 +166,7 @@ def _tomo_interface(object_grid, object_min, object_size,
     v1 = (np.repeat(v, H*V).reshape(M, H, V) + dv)
     assert th1.shape == h1.shape == v1.shape == probe_grid.shape
     # logger.info(" _tomo_interface says {}".format("Hello, World!"))
-    return (object_grid, object_min, object_size,
+    return (object_grid, object_size, object_min,
             probe_grid, probe_size, th1, h1, v1)
 
 
@@ -180,9 +188,10 @@ def line_offsets(H, V, probe_size):
     return dh, dv
 
 
-def reconstruct(object_grid=None, object_min=None, object_size=None,
+def reconstruct(object_grid=None, object_size=None, object_min=None,
                 probe_grid=None, probe_size=None,
                 theta=None, h=None, v=None,
+                line_integrals=None,
                 algorithm=None, **kwargs):
     """Reconstruct the `object_grid` using the given `algorithm`.
 
@@ -205,15 +214,15 @@ def reconstruct(object_grid=None, object_min=None, object_size=None,
     object_grid : (Z, X, Y, P) :py:class:`numpy.array` float
         The updated object grid.
     """
-    object_grid, object_min, object_size, probe_grid, probe_size, theta, h, v \
-        = _tomo_interface(object_grid, object_min, object_size,
+    object_grid, object_size, object_min, probe_grid, probe_size, theta, h, v \
+        = _tomo_interface(object_grid, object_size, object_min,
                           probe_grid, probe_size, theta, h, v)
     assert niter >= 0, "Number of iterations should be >= 0"
     # Send data to c function
     logger.info("{} on {:,d} element grid for {:,d} iterations".format(
                 algorithm, object_grid.size, niter))
     ngrid = object_grid.shape
-    probe_grid = utils.as_float32(probe_grid)
+    line_integrals = utils.as_float32(line_integrals)
     theta = utils.as_float32(theta)
     h = utils.as_float32(h)
     v = utils.as_float32(v)
@@ -234,7 +243,7 @@ def reconstruct(object_grid=None, object_min=None, object_size=None,
             utils.as_c_int(ngrid[0]),
             utils.as_c_int(ngrid[1]),
             utils.as_c_int(ngrid[2]),
-            utils.as_c_float_p(probe_grid),
+            utils.as_c_float_p(line_integrals),
             utils.as_c_float_p(theta),
             utils.as_c_float_p(h),
             utils.as_c_float_p(v),
@@ -253,7 +262,7 @@ def reconstruct(object_grid=None, object_min=None, object_size=None,
             utils.as_c_int(ngrid[0]),
             utils.as_c_int(ngrid[1]),
             utils.as_c_int(ngrid[2]),
-            utils.as_c_float_p(probe_grid),
+            utils.as_c_float_p(line_integrals),
             utils.as_c_float_p(theta),
             utils.as_c_float_p(h),
             utils.as_c_float_p(v),
@@ -266,28 +275,14 @@ def reconstruct(object_grid=None, object_min=None, object_size=None,
     return object_grid
 
 
-def forward(object_grid=None, object_min=None, object_size=None,
+def forward(object_grid=None, object_size=None, object_min=None,
             probe_grid=None, probe_size=None,
             theta=None, h=None, v=None,
             **kwargs):
-    """Forward-project probes over an object; i.e. simulate data acquisition.
-
-    Parameters
-    ----------
-    probe_grid : (M, H, V, P) :py:class:`numpy.array` float
-        The inital parameters of the `M` probes to be projected across
-        `object_grid`. `P`, holds parameters at each grid position:
-
-            * (..., 0) : intensity / amplitude
-            * (..., 1) : relative phase shift
-
-    Returns
-    -------
-    exit_probe_grid : (M, H, V, P) :py:class:`numpy.array` float
-        The properties of the probe after exiting the `object_grid`.
+    """Compute line integrals over an object; i.e. simulate data acquisition.
     """
-    object_grid, object_min, object_size, probe_grid, probe_size, theta, h, v \
-        = _tomo_interface(object_grid, object_min, object_size,
+    object_grid, object_size, object_min, probe_grid, probe_size, theta, h, v \
+        = _tomo_interface(object_grid, object_size, object_min,
                           probe_grid, probe_size, theta, h, v)
     # Remove zero valued probe rays
     nonzeros = (probe_grid != 0)
@@ -324,31 +319,3 @@ def forward(object_grid=None, object_min=None, object_size=None,
     exit_probe_grid = np.zeros(probe_grid.shape, dtype=np.float32)
     exit_probe_grid[nonzeros] = line_integrals
     return exit_probe_grid
-
-
-def backward(object_grid, object_min, object_size,
-             probe_grid, probe_size, theta, h, v,
-             **kwargs):
-    """Back-project a probe over an object.
-
-    Parameters
-    ----------
-    probe_grid : (M, H, V, P) :py:class:`numpy.array` float
-        The parameters of the `M` probes to be projected across
-        `object_grid`. `P`, holds parameters at each grid position:
-
-            * (..., 0) : 0th probe back-projection weight
-            * (..., P-1) : (P-1)th probe back-projection weight
-
-    Returns
-    -------
-    new_object_grid : (Z, X, Y, P) :py:class:`numpy.array` float
-        An array of projection weights. The value at each grid position is the
-        area of intersection of the object with the probe multiplied by the
-        probe weight.
-    """
-    object_grid, object_min, object_size, probe_grid, probe_size, theta, h, v \
-        = _tomo_interface(object_grid, object_min, object_size,
-                          probe_grid, probe_size, theta, h, v)
-    raise NotImplementedError()
-    return new_object_grid
