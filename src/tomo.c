@@ -23,9 +23,9 @@ forward_project(
     make_grid(oxmin, xsize, ox, gridx);
     make_grid(oymin, ysize, oy, gridy);
     // Allocate arrays for tracking intersections
-    unsigned *pixels, *rays;
+    int *pixels, *rays;
     float *lengths;
-    unsigned psize;
+    int psize;
     get_pixel_indexes_and_lengths(
         ozmin, oxmin, oymin,
         zsize, xsize, ysize,
@@ -40,11 +40,11 @@ forward_project(
     assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
     assert(dsize >= 0 && "Data size must be a natural number");
     assert(data != NULL && obj_weights != NULL);
-    for (unsigned n=0; n < psize; n++)
+    for (int n=0; n < psize; n++)
     {
         // printf("pixel %u touched ray %u for length %f\n",
         //        pixels[n], rays[n], lengths[n]);
-        assert(pixels[n] < (unsigned)oz*ox*oy);
+        assert(pixels[n] < (int)oz*ox*oy);
         assert(rays[n] < dsize);
         data[rays[n]] += obj_weights[pixels[n]]*lengths[n];
     }
@@ -75,9 +75,9 @@ coverage(
     make_grid(oxmin, xsize, ox, gridx);
     make_grid(oymin, ysize, oy, gridy);
     // Allocate arrays for tracking intersections
-    unsigned *pixels, *rays;
+    int *pixels, *rays;
     float *lengths;
-    unsigned psize;
+    int psize;
     get_pixel_indexes_and_lengths(
         ozmin, oxmin, oymin,
         zsize, xsize, ysize,
@@ -92,11 +92,11 @@ coverage(
     assert(UINT_MAX/ox/oy/oz/ot > 0 && "Array is too large to index.");
     assert(theta != NULL && line_weights != NULL && coverage_map != NULL);
     assert(dsize >= 0);
-    for (unsigned n=0; n < psize; n++)
+    for (int n=0; n < psize; n++)
     {
         // printf("pixel %u touched ray %u for length %f\n",
         //        pixels[n], rays[n], lengths[n]);
-        assert(pixels[n] < (unsigned)oz*ox*oy);
+        assert(pixels[n] < (int)oz*ox*oy);
         assert(rays[n] < dsize);
         bin_angle(
             &coverage_map[pixels[n] * ot],
@@ -130,9 +130,9 @@ art(
     make_grid(xmin, xsize, nx, gridx);
     make_grid(ymin, ysize, ny, gridy);
     // Allocate arrays for tracking intersections
-    unsigned *pixels, *rays;
+    int *pixels, *rays;
     float *lengths;
-    unsigned psize;
+    int psize;
     get_pixel_indexes_and_lengths(
         zmin, xmin, ymin,
         zsize, xsize, ysize,
@@ -151,7 +151,7 @@ art(
     assert(sim != NULL && line_update != NULL && lengths_dot != NULL);
 
     memset(lengths_dot, 0, sizeof lengths_dot * ndata);
-    for (unsigned j=0; j < psize; j++)
+    for (int j=0; j < psize; j++)
     {
         lengths_dot[rays[j]] += lengths[j] * lengths[j];
     }
@@ -162,12 +162,12 @@ art(
         memset(sim, 0, sizeof sim * ndata);
         memset(line_update, 0, sizeof line_update * ndata);
         // simulate data acquisition by projecting over current model
-        for (unsigned j=0; j < psize; j++)
+        for (int j=0; j < psize; j++)
         {
             sim[rays[j]] += init[pixels[j]] * lengths[j];
         }
         // Compute an update value for each line
-        for (unsigned k=0; k < ndata; k++)
+        for (int k=0; k < ndata; k++)
         {
             if (lengths_dot[k] > 0)
             {
@@ -175,7 +175,7 @@ art(
             }
         }
         // Project the line update back over the current model.
-        for (unsigned j=0; j < psize; j++)
+        for (int j=0; j < psize; j++)
         {
             init[pixels[j]] += lengths[j] * line_update[rays[j]];
         }
@@ -209,9 +209,9 @@ sirt(
     make_grid(xmin, xsize, nx, gridx);
     make_grid(ymin, ysize, ny, gridy);
     // Allocate arrays for tracking intersections
-    unsigned *pixels, *rays;
+    int *pixels, *rays;
     float *lengths;
-    unsigned psize;
+    int psize;
     get_pixel_indexes_and_lengths(
         zmin, xmin, ymin,
         zsize, xsize, ysize,
@@ -224,7 +224,7 @@ sirt(
     assert(pixels != NULL && rays != NULL && lengths != NULL);
 
     assert(UINT_MAX/nz/nx/ny > 0 && "Array is too large to index.");
-    unsigned grid_size = (unsigned)nz*nx*ny;
+    int grid_size = (int)nz*nx*ny;
     float *grid_update = malloc(sizeof grid_update * grid_size);
     int *num_grid_updates = malloc(sizeof num_grid_updates * grid_size);
     assert(ndata >= 0);
@@ -235,7 +235,7 @@ sirt(
            && line_update != NULL && lengths_dot != NULL);
 
     memset(lengths_dot, 0, sizeof lengths_dot * ndata);
-    for (unsigned j=0; j < psize; j++)
+    for (int j=0; j < psize; j++)
     {
         lengths_dot[rays[j]] += lengths[j] * lengths[j];
     }
@@ -248,12 +248,12 @@ sirt(
         memset(sim, 0, sizeof sim * ndata);
         memset(line_update, 0, sizeof line_update * ndata);
         // simulate data acquisition by projecting over current model
-        for (unsigned j=0; j < psize; j++)
+        for (int j=0; j < psize; j++)
         {
             sim[rays[j]] += init[pixels[j]] * lengths[j];
         }
         // Compute an update value for each line
-        for (unsigned k=0; k < ndata; k++)
+        for (int k=0; k < ndata; k++)
         {
             if (lengths_dot[k] > 0)
             {
@@ -261,14 +261,14 @@ sirt(
             }
         }
         // Project the line update back over the grid update.
-        for (unsigned j=0; j < psize; j++)
+        for (int j=0; j < psize; j++)
         {
             grid_update[pixels[j]] += lengths[j] * line_update[rays[j]];
             num_grid_updates[pixels[j]] += 1;
 
         }
         // Update the inital guess.
-        for (unsigned l=0; l < grid_size; l++)
+        for (int l=0; l < grid_size; l++)
         {
             if (num_grid_updates[l] > 0)
             {
@@ -320,7 +320,7 @@ calc_back(
     int const dist_size,
     float const line_weight,
     float *cov,
-    const unsigned *ind_cov)
+    const int *ind_cov)
 {
     int n;
     for (n=0; n<dist_size-1; n++)

@@ -61,7 +61,7 @@ void get_intersections_and_lengths(const int numprob, const float *theta, const 
           &numpix[k], &domain[0], res, nx, ny);
   }
   //TRANSPOSE DATA STRUCTURES FIRST PASS
-  unsigned numunk = nx*ny;
+  int numunk = nx*ny;
   int *numrays = malloc(sizeof *numrays * numunk);
   int *raystart = malloc(sizeof *raystart * numunk);
   #pragma omp parallel for
