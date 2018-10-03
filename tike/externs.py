@@ -46,9 +46,9 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
+import sys
 import os.path
 import ctypes
-import glob
 from . import utils
 import logging
 
@@ -64,8 +64,26 @@ __all__ = ['c_shared_lib',
 
 logger = logging.getLogger(__name__)
 
-# Import shared library.
-LIBTIKE = ctypes.CDLL('/home/beams0/B242827/Documents/tike/tike/libtike.cpython-35m-x86_64-linux-gnu.so')
+
+def c_shared_lib(lib_name):
+    """Get the path and import the C-shared library."""
+    load_dll = ctypes.cdll.LoadLibrary
+    ext = '.so'
+    if sys.platform == 'darwin':
+        ext = '.dylib'
+    if os.name == 'nt':
+        ext = '.dll'
+        load_dll = ctypes.windll.LoadLibrary
+    base_path = os.path.abspath(os.path.dirname(__file__))
+    sharedlib = os.path.join(base_path, 'sharedlibs', '%s%s' % (lib_name, ext))
+    if os.path.exists(sharedlib):
+        return load_dll(sharedlib)
+    # cannot find shared lib:
+    logger.warning('OSError: The following shared lib is missing!\n{}'.format(
+                   sharedlib))
+
+
+LIBTIKE = c_shared_lib('libtike')
 
 
 def c_coverage(ozmin, oxmin, oymin, zsize, xsize, ysize, oz, ox, oy, ot,

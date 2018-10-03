@@ -58,7 +58,6 @@ from __future__ import (absolute_import, division, print_function,
 
 import numpy as np
 import logging
-from math import sqrt, atan2, cos
 from tike.tomo import coverage
 
 __author__ = "Doga Gursoy, Daniel Ching"
@@ -267,9 +266,9 @@ def euclidian_dist(theta, h, v, r=0.75):
         The radius to use when converting to euclidian space.
     """
     raise NotImplementedError()
-    r1 = sqrt(r**2 + h**2)
+    r1 = np.sqrt(r**2 + h**2)
     theta1 = np.diff(theta + np.atan2(h, r))
-    cosines = r1**2 + r2**2 - 2*r1*r2*cos(theta1)
+    cosines = r1**2 + r2**2 - 2*r1*r2*np.cos(theta1)
     return np.sqrt(np.abs(cosines) + v1**2)
 
 
