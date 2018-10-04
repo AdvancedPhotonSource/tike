@@ -35,7 +35,7 @@ calc_back(
     int const dist_size,
     float const line_weight,
     float *cov,
-    const unsigned *ind_cov)
+    const int *ind_cov)
 {
     int n;
     for (n=0; n<dist_size-1; n++)

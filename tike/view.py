@@ -53,7 +53,7 @@ This module contains functions for plotting and viewing data of various types.
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
 import numpy as np
 import logging
 

@@ -16,11 +16,11 @@ void
 get_pixel_indexes_and_lengths(
     const float ozmin, const float oxmin, const float oymin,
     const float zsize, const float xsize, const float ysize,
-    const unsigned oz, const unsigned ox, const unsigned oy,
+    const int oz, const int ox, const int oy,
     const float * const theta, const float * const h, const float * const v,
-    const unsigned dsize,
+    const int dsize,
     const float *gridx, const float *gridy,
-    unsigned **pixels, unsigned **rays, float **lengths, unsigned *psize)
+    int **pixels, int **rays, float **lengths, int *psize)
 {
     // Check inputs for valid values
     assert(oz > 0 && ox > 0 && oy > 0
@@ -52,14 +52,14 @@ get_pixel_indexes_and_lengths(
         coorx != NULL && coory != NULL &&
         midx != NULL && midy != NULL);
 
-    unsigned ray, quadrant, zi, asize, bsize, csize;
+    int ray, quadrant, zi, asize, bsize, csize;
     float ri, hi, theta_p, sin_p, cos_p;
 
     (*psize) = 0;
-    unsigned num_lists = 0;
-    unsigned *csize_list = malloc(sizeof *csize_list * dsize);
-    unsigned *rays_list = malloc(sizeof *rays_list *dsize);
-    unsigned * *pixels_list = malloc(sizeof *pixels_list * dsize);
+    int num_lists = 0;
+    int *csize_list = malloc(sizeof *csize_list * dsize);
+    int *rays_list = malloc(sizeof *rays_list *dsize);
+    int * *pixels_list = malloc(sizeof *pixels_list * dsize);
     float * *lengths_list = malloc(sizeof *lengths_list * dsize);
 
     for (ray = 0; ray < dsize; ray++)
@@ -69,7 +69,7 @@ get_pixel_indexes_and_lengths(
         if ((0 <= zi) && (zi < oz))
         {
             // Index of the grid that the ray passes through.
-            unsigned *indi = malloc(sizeof *indi * (ox+oy+1));
+            int *indi = malloc(sizeof *indi * (ox+oy+1));
             float *dist = malloc(sizeof *dist * (ox+oy+1));
             assert(dist != NULL && indi != NULL);
             // Calculate the sin and cos values of the projection angle and find
@@ -121,15 +121,15 @@ get_pixel_indexes_and_lengths(
     *rays = malloc(sizeof **rays * psize[0]);
     *lengths = malloc(sizeof **lengths * psize[0]);
     assert(*pixels != NULL && *rays != NULL && *lengths != NULL);
-    unsigned j = 0;
-    for(unsigned i=0; i < num_lists; i++)
+    int j = 0;
+    for(int i=0; i < num_lists; i++)
     {
         // Copy the data from buffers to final array
         memcpy(&(*pixels)[j], pixels_list[i], sizeof **pixels * csize_list[i]);
         free(pixels_list[i]);
         memcpy(&(*lengths)[j], lengths_list[i], sizeof **lengths * csize_list[i]);
         free(lengths_list[i]);
-        for(unsigned k=0; k < csize_list[i]; k++)
+        for(int k=0; k < csize_list[i]; k++)
         {
             (*rays)[j + k] = rays_list[i];
         }
@@ -309,24 +309,24 @@ calc_index(
     float const oxmin, float const oymin, float const ozmin,
     float const xstep, float const ystep, float const zstep,
     int const msize, const float * const midx, const float * const midy,
-    int const indz, unsigned * const indi)
+    int const indz, int * const indi)
 {
     assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
     // printf("SHAPE: %d, %d, %d : %f, %f, %f : %f, %f, %f\n",
     //         ox, oy, oz, oxmin, oymin, ozmin, xstep, ystep, zstep);
-    unsigned n, indx, indy;
+    int n, indx, indy;
     for (n=0; n<msize; n++)
     {
         // Midpoints assigned to pixels by nearest mincorner
         // Ensure above zero because some rounding error can cause dip below
         indx = floor((midx[n]-oxmin) / xstep);
-        assert(indx < (unsigned)ox);
+        assert(indx < (int)ox);
         // indx = fmin(fmax(0, indx), ox-1);
         indy = floor((midy[n]-oymin) / ystep);
-        assert(indy < (unsigned)oy);
+        assert(indy < (int)oy);
         // indy = fmin(fmax(0, indy), oy-1);
         // Convert from 3D to linear C-order indexing
         indi[n] = indy + oy * (indx + ox * (indz));
-        assert(0 <= indi[n] && indi[n] < (unsigned)ox*oy*oz);
+        assert(0 <= indi[n] && indi[n] < (int)ox*oy*oz);
     }
 }

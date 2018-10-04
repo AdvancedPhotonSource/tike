@@ -21,11 +21,11 @@ void
 get_pixel_indexes_and_lengths(
     const float ozmin, const float oxmin, const float oymin,
     const float zsize, const float xsize, const float ysize,
-    const unsigned oz, const unsigned ox, const unsigned oy,
+    const int oz, const int ox, const int oy,
     const float * const theta, const float * const h, const float * const v,
-    const unsigned dsize,
+    const int dsize,
     const float *gridx, const float *gridy,
-    unsigned **pixels, unsigned **rays, float **lengths, unsigned *psize);
+    int **pixels, int **rays, float **lengths, int *psize);
 
 /* @brief Returns 1 for first and third quadrants, 0 otherwise.
 */
@@ -91,5 +91,5 @@ calc_index(
     float const oxmin, float const oymin, float const ozmin,
     float const xstep, float const, float const,
     int const msize, const float *midx, const float *midy,
-    int const indz, unsigned *indi);
+    int const indz, int *indi);
 #endif

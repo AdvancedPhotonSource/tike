@@ -51,6 +51,8 @@ This module contains the shared c dynamically linked libraries.
 """
 
 import ctypes
+import sys
+import os.path
 import logging
 
 __author__ = "Doga Gursoy"
@@ -62,18 +64,21 @@ logger = logging.getLogger(__name__)
 
 
 def c_shared_lib(lib_name):
-    import os
-    import glob
-    try:
-        if os.name == 'nt':
-            ext = '.pyd'
-        else:
-            ext = '.so'
-        _fname = os.path.abspath(os.path.join(os.path.dirname(__file__)))
-        libpath = glob.glob(_fname + '/' + lib_name + '*' + ext)[0]
-        return ctypes.CDLL(libpath)
-    except (OSError, IndexError):
-        logger.warning('OSError: Shared library missing.')
+    """Get the path and import the C-shared library."""
+    load_dll = ctypes.cdll.LoadLibrary
+    ext = '.so'
+    if sys.platform == 'darwin':
+        ext = '.dylib'
+    if os.name == 'nt':
+        ext = '.dll'
+        load_dll = ctypes.windll.LoadLibrary
+    base_path = os.path.abspath(os.path.dirname(__file__))
+    sharedlib = os.path.join(base_path, 'sharedlibs', '%s%s' % (lib_name, ext))
+    if os.path.exists(sharedlib):
+        return load_dll(sharedlib)
+    # cannot find shared lib:
+    logger.warning('OSError: The following shared lib is missing!\n{}'.format(
+                   sharedlib))
 
 
 # Import C shared library called libtike

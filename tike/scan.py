@@ -59,7 +59,6 @@ from __future__ import (absolute_import, division, print_function,
 
 import numpy as np
 import logging
-from math import sqrt, atan2, cos
 
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
@@ -344,7 +343,7 @@ def lengths(x, y=None, z=None):
     a = np.diff(x)
     b = np.diff(y)
     c = np.diff(z)
-    return sqrt(a*a + b*b + c*c)
+    return np.sqrt(a*a + b*b + c*c)
 
 
 def distance(x, y=None, z=None):

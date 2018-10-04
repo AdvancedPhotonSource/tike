@@ -59,7 +59,6 @@ from __future__ import (absolute_import, division, print_function,
 
 import numpy as np
 import logging
-from math import sqrt, atan2, cos
 
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."

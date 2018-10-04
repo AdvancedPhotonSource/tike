@@ -1,22 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from setuptools import setup, Extension, find_packages
-import os
-
-tomoc = Extension(
-    name='tike.libtike',
-    undef_macros=['NDEBUG'],
-    extra_compile_args=['-c', '-Wall', '-std=c11', '-pedantic',
-                        '-fopenmp', '-fpic'],
-    extra_link_args=['-lgomp'],
-    sources=['src/utils.c', 'src/tomo.c', 'src/siddon.c'])
-
-ext_mods = [tomoc]
-
-# Remove external C code for RTD builds
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-if on_rtd:
-    ext_mods = []
+from setuptools import setup, find_packages
 
 setup(
     name='tike',
@@ -24,7 +8,6 @@ setup(
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
     include_package_data=True,
-    ext_modules=ext_mods,
     zip_safe=False,
     author='Doga Gursoy',
     author_email='dgursoy@anl.gov',
