@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <limits.h>
+#include <math.h>
+#include <string.h>
 
 #include "siddon.h"
 #include "utils.h"
