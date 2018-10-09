@@ -63,12 +63,13 @@ class Config:
             self.compilerdir = os.environ["GCC"]
         # includes
         top_include = pjoin(PREFIX, 'include')
-        includes = [top_include]
-        for fname in os.listdir(top_include):
-            tdir = pjoin(top_include, fname)
-            if os.path.isdir(tdir) and 'python' in fname:
-                includes.append(tdir)
-        self.includes += includes
+        if os.path.exists(top_include):
+            includes = [top_include]
+            for fname in os.listdir(top_include):
+                tdir = pjoin(top_include, fname)
+                if os.path.isdir(tdir) and 'python' in fname:
+                    includes.append(tdir)
+            self.includes += includes
 
     def format(self):
         """Return the formatted string, replacing Windows \\ with Unix /."""
