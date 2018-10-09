@@ -1,0 +1,6 @@
+include README.rst
+include LICENSE
+recursive-include tike/sharedlibs *
+recursive-include tests *
+recursive-exclude * __pycache__
+recursive-exclude config *
