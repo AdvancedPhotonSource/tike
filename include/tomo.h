@@ -12,7 +12,6 @@ rule. v is parallel to z, and h is parallel to y when theta is zero.
 
 @param obj_weights The weights of the grid being integrated over.
 @param min The minimum coordinates of the grid.
-@param size The width of the grid.
 @param n The number of grid spaces along the grid.
 @param theta, h, v The coordinates of the line for each integral.
 @param dsize The size of theta, h, v.
@@ -22,7 +21,6 @@ void
 forward_project(
     const float *obj_weights,
     const float zmin, const float xmin, const float ymin,
-    const float zsize, const float xsize, const float ysize,
     const int nz, const int nx, const int ny,
     const float *theta,
     const float *h,
@@ -44,7 +42,6 @@ rule. v is parallel to z, and h is parallel to y when theta is zero. The
 rotation axis is [0, 0, 1].
 
 @param min The minimum coordinates of the grid.
-@param size The width of the grid.
 @param n The number of grid spaces along the grid.
 @param theta, h, v The coordinates of the lines.
 @param line_weights The weight of each line in the integral.
@@ -77,7 +74,6 @@ coverage(
 void
 art(
     const float zmin, const float xmin, const float ymin,
-    const float zsize, const float xsize, const float ysize,
     const int nz, const int nx, const int ny,
     const float * const data,
     const float * const theta,

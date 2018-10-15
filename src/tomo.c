@@ -10,7 +10,6 @@ void
 forward_project(
     const float *obj_weights,
     const float ozmin, const float oxmin, const float oymin,
-    const float zsize, const float xsize, const float ysize,
     const int oz, const int ox, const int oy,
     const float *theta,
     const float *h,
@@ -23,15 +22,15 @@ forward_project(
     float *gridx = malloc(sizeof *gridx * (ox+1));
     float *gridy = malloc(sizeof *gridy * (oy+1));
     assert(gridx != NULL && gridy != NULL);
-    make_grid(oxmin, xsize, ox, gridx);
-    make_grid(oymin, ysize, oy, gridy);
+    make_grid(oxmin, ox, ox, gridx);
+    make_grid(oymin, oy, oy, gridy);
     // Allocate arrays for tracking intersections
     int *pixels, *rays;
     float *lengths;
     int psize;
     get_pixel_indexes_and_lengths(
         ozmin, oxmin, oymin,
-        zsize, xsize, ysize,
+        oz, ox, oy,
         oz, ox, oy,
         theta, h, v,
         dsize,
@@ -115,7 +114,6 @@ coverage(
 void
 art(
     const float zmin, const float xmin, const float ymin,
-    const float zsize, const float xsize, const float ysize,
     const int nz, const int nx, const int ny,
     const float * const data,
     const float * const theta, const float * const h, const float * const v,
@@ -128,15 +126,15 @@ art(
     float *gridx = malloc(sizeof *gridx * (nx+1));
     float *gridy = malloc(sizeof *gridy * (ny+1));
     assert(gridx != NULL && gridy != NULL);
-    make_grid(xmin, xsize, nx, gridx);
-    make_grid(ymin, ysize, ny, gridy);
+    make_grid(xmin, nx, nx, gridx);
+    make_grid(ymin, ny, ny, gridy);
     // Allocate arrays for tracking intersections
     int *pixels, *rays;
     float *lengths;
     int psize;
     get_pixel_indexes_and_lengths(
         zmin, xmin, ymin,
-        zsize, xsize, ysize,
+        nz, nx, ny,
         nz, nx, ny,
         theta, h, v,
         ndata,
@@ -190,7 +188,6 @@ art(
 void
 sirt(
     const float zmin, const float xmin, const float ymin,
-    const float zsize, const float xsize, const float ysize,
     const int nz, const int nx, const int ny,
     const float * const data,
     const float * const theta, const float * const h, const float * const v,
@@ -203,15 +200,15 @@ sirt(
     float *gridx = malloc(sizeof *gridx * (nx+1));
     float *gridy = malloc(sizeof *gridy * (ny+1));
     assert(gridx != NULL && gridy != NULL);
-    make_grid(xmin, xsize, nx, gridx);
-    make_grid(ymin, ysize, ny, gridy);
+    make_grid(xmin, nx, nx, gridx);
+    make_grid(ymin, ny, ny, gridy);
     // Allocate arrays for tracking intersections
     int *pixels, *rays;
     float *lengths;
     int psize;
     get_pixel_indexes_and_lengths(
         zmin, xmin, ymin,
-        zsize, xsize, ysize,
+        nz, nx, ny,
         nz, nx, ny,
         theta, h, v,
         ndata,

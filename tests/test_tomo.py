@@ -61,15 +61,11 @@ __docformat__ = 'restructuredtext en'
 def test_forward_project_hv_quadrants1():
     gmin = [0, 0, 0]
     obj = np.zeros((2, 3, 2))
-    gsize = obj.shape
     obj[0, 1, 0] = 1
     theta, h, v = [0, 0, 0, 0], [0, 1, 0, 1], [0, 0, 1, 1]
-    pgrid = np.ones((4, 1, 1))
-    pgrid[2, 0, 0] = 0
-    psize = (1, 1)
-    integral = forward(obj, gsize, gmin,
-                       pgrid, psize,
-                       theta, h, v)
+    pgrid = np.ones((1, 1))
+    integral = forward(obj, gmin,
+                       pgrid, theta, h, v)
     truth = np.array([1, 0, 0, 0]).reshape(4, 1, 1)
     np.testing.assert_equal(truth, integral)
 
@@ -80,11 +76,9 @@ def test_forward_project_hv_quadrants2():
     obj = np.zeros((3, 2, 2))
     obj[2, 0, 1] = 1
     theta, h, v = [0, 0], [-1, 0], [0.5, 0.5]
-    pgrid = np.ones((2, 1, 1))
-    psize = (1, 1)
-    integral = forward(obj, gsize, gmin,
-                       pgrid, psize,
-                       theta, h, v)
+    pgrid = np.ones((1, 1))
+    integral = forward(obj, gmin,
+                       pgrid, theta, h, v)
     truth = np.array([0, 1]).reshape(2, 1, 1)
     np.testing.assert_equal(truth, integral)
 
@@ -95,10 +89,9 @@ def test_forward_project_hv_quadrants4():
     obj = np.zeros((1, 2, 2))
     obj[0, :, 1] = 1
     theta, h, v = [0], [-0.5], [-0.5]
-    pgrid = np.ones((1, 1, 1))
+    pgrid = np.ones((1, 1))
     psize = (1, 1)
-    integral = forward(obj, gsize, gmin,
-                       pgrid, psize,
-                       theta, h, v)
+    integral = forward(obj, gmin,
+                       pgrid, theta, h, v)
     truth = np.array([2]).reshape(1, 1, 1)
     np.testing.assert_equal(truth, integral)
