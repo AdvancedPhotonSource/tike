@@ -71,7 +71,7 @@ psi : (T, H, V) :py:class:`numpy.array` complex
     The object transmission function for each of the `T` views.
 foo_min : (2, ) float [p]
     The min corner (h, v) of `foo` in the global coordinate system. `foo`
-    could be `data`, `probe`, `psi`, etc.
+    could be `data`, `psi`, etc.
 kwargs
     Keyword arguments specific to this function. `**kwargs` should always be
     included so that extra parameters are ignored instead of raising an error.
