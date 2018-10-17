@@ -1,7 +1,7 @@
 ## base Makefile for tomopy and gcc
 
 INSTALLDIR   = ../tike/sharedlibs
-LINK_CFLAGS  = -lgomp
+LINK_CFLAGS  =
 
 vpath %.c ../src
 vpath %.h ../include
