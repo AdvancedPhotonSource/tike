@@ -94,6 +94,7 @@ kwargs
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
+import tomopy
 import numpy as np
 from . import utils
 from tike.externs import LIBTIKE
@@ -119,15 +120,19 @@ def _tomo_interface(obj, obj_min,
     This function also sets default values for functions in this module.
     """
     if obj is None:
+        # An inital guess is required
         raise ValueError()
     obj = utils.as_float32(obj)
     if obj_min is None:
-        obj_min = (-0.5, -0.5, -0.5)  # (z, x, y)
+        # The default origin is at the center of the object
+        obj_min = - np.array(obj.shape) / 2  # (z, x, y)
     obj_min = utils.as_float32(obj_min)
     if probe is None:
-        raise ValueError()
+        # Assume a full field geometry
+        probe = np.ones([obj.shape[2], obj.shape[0]])
     probe = utils.as_float32(probe)
     if theta is None:
+        # Angle definitions are required
         raise ValueError()
     theta = utils.as_float32(theta)
     if h is None:
@@ -178,58 +183,74 @@ def reconstruct(obj=None, obj_min=None,
     obj : (Z, X, Y, P) :py:class:`numpy.array` float
         The updated obj grid.
     """
-    obj, obj_min, probe, theta, h, v \
-        = _tomo_interface(obj, obj_min, probe, theta, h, v)
-    assert niter >= 0, "Number of iterations should be >= 0"
-    # Send data to c function
-    logger.info("{} on {:,d} element grid for {:,d} iterations".format(
-                algorithm, obj.size, niter))
-    ngrid = obj.shape
-    line_integrals = utils.as_float32(line_integrals)
-    theta = utils.as_float32(theta)
-    h = utils.as_float32(h)
-    v = utils.as_float32(v)
-    obj = utils.as_float32(obj)
-    # Add new tomography algorithms here
-    # TODO: The size of this function may be reduced further if all recon clibs
-    #   have a standard interface. Perhaps pass unique params to a generic
-    #   struct or array.
-    if algorithm is "art":
-        LIBTIKE.art.restype = utils.as_c_void_p()
-        LIBTIKE.art(
-            utils.as_c_float(obj_min[0]),
-            utils.as_c_float(obj_min[1]),
-            utils.as_c_float(obj_min[2]),
-            utils.as_c_int(ngrid[0]),
-            utils.as_c_int(ngrid[1]),
-            utils.as_c_int(ngrid[2]),
-            utils.as_c_float_p(line_integrals),
-            utils.as_c_float_p(theta),
-            utils.as_c_float_p(h),
-            utils.as_c_float_p(v),
-            utils.as_c_int(line_integrals.size),
-            utils.as_c_float_p(obj),
-            utils.as_c_int(niter))
-    elif algorithm is "sirt":
-        LIBTIKE.sirt.restype = utils.as_c_void_p()
-        LIBTIKE.sirt(
-            utils.as_c_float(obj_min[0]),
-            utils.as_c_float(obj_min[1]),
-            utils.as_c_float(obj_min[2]),
-            utils.as_c_int(ngrid[0]),
-            utils.as_c_int(ngrid[1]),
-            utils.as_c_int(ngrid[2]),
-            utils.as_c_float_p(line_integrals),
-            utils.as_c_float_p(theta),
-            utils.as_c_float_p(h),
-            utils.as_c_float_p(v),
-            utils.as_c_int(line_integrals.size),
-            utils.as_c_float_p(obj),
-            utils.as_c_int(niter))
-    else:
-        raise ValueError("The {} algorithm is not an available.".format(
-            algorithm))
-    return obj
+    pb = tomopy.recon(tomo=np.real(line_integrals),
+                      theta=theta,
+                      algorithm=algorithm,
+                      init_recon=np.real(obj),
+                      num_iter=niter,
+                      )
+    pd = tomopy.recon(tomo=np.imag(line_integrals),
+                      theta=theta,
+                      algorithm=algorithm,
+                      init_recon=np.imag(obj),
+                      num_iter=niter,
+                      )
+    recon = np.empty(pb.shape, dtype=complex)
+    recon.real = pb
+    recon.imag = pd
+    return recon
+    # obj, obj_min, probe, theta, h, v \
+    #     = _tomo_interface(obj, obj_min, probe, theta, h, v)
+    # assert niter >= 0, "Number of iterations should be >= 0"
+    # # Send data to c function
+    # logger.info("{} on {:,d} element grid for {:,d} iterations".format(
+    #             algorithm, obj.size, niter))
+    # ngrid = obj.shape
+    # line_integrals = utils.as_float32(line_integrals)
+    # theta = utils.as_float32(theta)
+    # h = utils.as_float32(h)
+    # v = utils.as_float32(v)
+    # obj = utils.as_float32(obj)
+    # # Add new tomography algorithms here
+    # # TODO: The size of this function may be reduced further if all recon clibs
+    # #   have a standard interface. Perhaps pass unique params to a generic
+    # #   struct or array.
+    # if algorithm is "art":
+    #     LIBTIKE.art.restype = utils.as_c_void_p()
+    #     LIBTIKE.art(
+    #         utils.as_c_float(obj_min[0]),
+    #         utils.as_c_float(obj_min[1]),
+    #         utils.as_c_float(obj_min[2]),
+    #         utils.as_c_int(ngrid[0]),
+    #         utils.as_c_int(ngrid[1]),
+    #         utils.as_c_int(ngrid[2]),
+    #         utils.as_c_float_p(line_integrals),
+    #         utils.as_c_float_p(theta),
+    #         utils.as_c_float_p(h),
+    #         utils.as_c_float_p(v),
+    #         utils.as_c_int(line_integrals.size),
+    #         utils.as_c_float_p(obj),
+    #         utils.as_c_int(niter))
+    # elif algorithm is "sirt":
+    #     LIBTIKE.sirt.restype = utils.as_c_void_p()
+    #     LIBTIKE.sirt(
+    #         utils.as_c_float(obj_min[0]),
+    #         utils.as_c_float(obj_min[1]),
+    #         utils.as_c_float(obj_min[2]),
+    #         utils.as_c_int(ngrid[0]),
+    #         utils.as_c_int(ngrid[1]),
+    #         utils.as_c_int(ngrid[2]),
+    #         utils.as_c_float_p(line_integrals),
+    #         utils.as_c_float_p(theta),
+    #         utils.as_c_float_p(h),
+    #         utils.as_c_float_p(v),
+    #         utils.as_c_int(line_integrals.size),
+    #         utils.as_c_float_p(obj),
+    #         utils.as_c_int(niter))
+    # else:
+    #     raise ValueError("The {} algorithm is not an available.".format(
+    #         algorithm))
+    # return obj
 
 
 def forward(obj=None, obj_min=None,
@@ -237,34 +258,42 @@ def forward(obj=None, obj_min=None,
             **kwargs):
     """Compute line integrals over an obj; i.e. simulate data acquisition.
     """
-    obj, obj_min, probe, theta, h, v \
-        = _tomo_interface(obj, obj_min, probe, theta, h, v)
-    # TODO: Remove zero valued probe rays
-    th1 = theta
-    h1 = h
-    v1 = v
-    line_integrals = np.zeros(th1.shape, dtype=np.float32)
-    # Send data to c function
-    logger.info("forward {:,d} element grid".format(obj.size))
-    logger.info("forward {:,d} rays".format(line_integrals.size))
-    obj = utils.as_float32(obj)
-    ngrid = obj.shape
-    th1 = utils.as_float32(th1)
-    h1 = utils.as_float32(h1)
-    v1 = utils.as_float32(v1)
-    line_integrals = utils.as_float32(line_integrals)
-    LIBTIKE.forward_project.restype = utils.as_c_void_p()
-    LIBTIKE.forward_project(
-        utils.as_c_float_p(obj),
-        utils.as_c_float(obj_min[0]),
-        utils.as_c_float(obj_min[1]),
-        utils.as_c_float(obj_min[2]),
-        utils.as_c_int(ngrid[0]),
-        utils.as_c_int(ngrid[1]),
-        utils.as_c_int(ngrid[2]),
-        utils.as_c_float_p(th1),
-        utils.as_c_float_p(h1),
-        utils.as_c_float_p(v1),
-        utils.as_c_int(th1.size),
-        utils.as_c_float_p(line_integrals))
+    pb = tomopy.project(obj=np.real(obj), theta=theta, pad=False,
+                        sinogram_order=False)
+    pd = tomopy.project(obj=np.imag(obj), theta=theta, pad=False,
+                        sinogram_order=False)
+    line_integrals = np.empty(pb.shape, dtype=complex)
+    line_integrals.real = pb
+    line_integrals.imag = pd
     return line_integrals
+    # obj, obj_min, probe, theta, h, v \
+    #     = _tomo_interface(obj, obj_min, probe, theta, h, v)
+    # # TODO: Remove zero valued probe rays
+    # th1 = theta
+    # h1 = h
+    # v1 = v
+    # line_integrals = np.zeros(th1.shape, dtype=np.float32)
+    # # Send data to c function
+    # logger.info("forward {:,d} element grid".format(obj.size))
+    # logger.info("forward {:,d} rays".format(line_integrals.size))
+    # obj = utils.as_float32(obj)
+    # ngrid = obj.shape
+    # th1 = utils.as_float32(th1)
+    # h1 = utils.as_float32(h1)
+    # v1 = utils.as_float32(v1)
+    # line_integrals = utils.as_float32(line_integrals)
+    # LIBTIKE.forward_project.restype = utils.as_c_void_p()
+    # LIBTIKE.forward_project(
+    #     utils.as_c_float_p(obj),
+    #     utils.as_c_float(obj_min[0]),
+    #     utils.as_c_float(obj_min[1]),
+    #     utils.as_c_float(obj_min[2]),
+    #     utils.as_c_int(ngrid[0]),
+    #     utils.as_c_int(ngrid[1]),
+    #     utils.as_c_int(ngrid[2]),
+    #     utils.as_c_float_p(th1),
+    #     utils.as_c_float_p(h1),
+    #     utils.as_c_float_p(v1),
+    #     utils.as_c_int(th1.size),
+    #     utils.as_c_float_p(line_integrals))
+    # return line_integrals
