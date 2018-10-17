@@ -54,9 +54,8 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import numpy as np
-from . import utils
-from . import externs
 import logging
+from tike.constants import *
 
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
@@ -69,12 +68,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _combined_interface(object_grid, object_min, object_size,
-                        probe_grid, probe_size, theta, h, v,
-                        detector_grid, detector_min, detector_size,
+def _combined_interface(obj, obj_min,
+                        data, data_min,
+                        probe, theta, h, v,
                         **kwargs):
     """A function whose interface all functions in this module matches."""
-    assert np.all(object_size > 0), "Detector dimensions must be > 0."
+    assert np.all(obj_size > 0), "Detector dimensions must be > 0."
     assert np.all(probe_size > 0), "Probe dimensions must be > 0."
     assert np.all(detector_size > 0), "Detector dimensions must be > 0."
     assert theta.size == h.size == v.size == \
@@ -84,7 +83,64 @@ def _combined_interface(object_grid, object_min, object_size,
     return None
 
 
-def admm():
+def admm(obj=None, obj_min=None,
+         data=None, data_min=None,
+         probe=None, theta=None, h=None, v=None, energy=None,
+         algorithms=None,
+         niter=1, rho=1, gamma=0.5,
+         **kwargs):
     """Use Alternating Direction Method of Multipliers (ADMM)
+
+    Parameters
+    ----------
+    obj : (Z, X, Y, P) :py:class:`numpy.array` float
+        The initial guess for the reconstruction.
+    obj_min : (3, ) float
+        The min corner (z, x, y) of the `obj`.
+    data : (M, H, V) :py:class:`numpy.array` float
+        An array of detector intensities for each of the `M` probes. The
+        grid of each detector is `H` pixels wide (the horizontal
+        direction) and `V` pixels tall (the vertical direction).
+    data_min : (2, ) float [p]
+        The min corner (h, v) of the data in the global coordinate system.
+    probe : (H, V) :py:class:`numpy.array` complex
+        A single illumination function for the all probes.
+    energy : float [keV]
+        The energy of the probe
+    algorithms : (2, ) string
+        The names of the pytchography and tomography reconstruction algorithms.
+    kwargs :
+        Any keyword arguments for the pytchography and tomography
+        reconstruction algorithms.
     """
-    pass
+    Z, X, Y = obj.shape[0:3]
+    x = obj
+    psi = np.ones([Z, X, Y, 2]).view(complex).flatten()
+    hobj = np.ones([Z, X, Y, 2]).view(complex).flatten()
+    lamda = 0j
+    for i in range(niter):
+        # Ptychography.
+        psi = tike.ptycho.reconstruct(data=data,
+                                      probe=probe, theta=theta, h=h, v=v,
+                                      psi=psi,
+                                      algorithm='grad',
+                                      niter=1, rho=rho, gamma=gamma, reg=hobj,
+                                      lamda=lamda, **kwargs)
+        # Tomography.
+        phi = -1j * wavelength(energy) / 2 / np.pi * np.log(psi + lamda / rho)
+        x = tike.tomo.reconstruct(obj=x,
+                                  theta=theta,
+                                  line_integrals=phi,
+                                  algorithm='grad',
+                                  niter=1, **kwargs)
+        # Lambda update.
+        line_integrals = tike.tomo.forward(obj=x, theta=theta)
+        hobj = np.exp(1j * 2 * np.pi / wavelength(energy) * line_integrals)
+        lamda = lamda + rho * (psi - hobj)
+        # # Update residuals.
+        # r = 1 / M * np.sqrt(np.sum(np.square(np.abs(psi - hobj)),
+        #                            axis=(-1, -2)))
+        # s = rho * np.sqrt(np.sum(np.square(np.abs(x1 - x0)),
+        #                          axis=(-1, -2)))
+        # if r < epsilon_prime and s < epsilon_dual:
+        #     pass
