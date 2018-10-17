@@ -187,13 +187,13 @@ def reconstruct(obj=None, obj_min=None,
                       theta=theta,
                       algorithm=algorithm,
                       init_recon=np.real(obj),
-                      num_iter=niter,
+                      num_iter=niter, **kwargs,
                       )
     pd = tomopy.recon(tomo=np.imag(line_integrals),
                       theta=theta,
                       algorithm=algorithm,
                       init_recon=np.imag(obj),
-                      num_iter=niter,
+                      num_iter=niter, **kwargs,
                       )
     recon = np.empty(pb.shape, dtype=complex)
     recon.real = pb
