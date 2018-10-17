@@ -64,7 +64,7 @@ Each public function in this module should have the following interface:
 
 Parameters
 ----------
-object : (Z, X, Y, P) :py:class:`numpy.array` float
+obj : (Z, X, Y, P) :py:class:`numpy.array` float
     An array of material properties. The first three dimensions `Z, X, Y`
     are spatial dimensions. The fourth dimension, `P`,  holds properties at
     each grid position: refractive indices, attenuation coefficents, etc.
@@ -74,14 +74,14 @@ object : (Z, X, Y, P) :py:class:`numpy.array` float
         * (..., 1) : beta, the imaginary amplitude extinction / absorption
             coefficient.
 
-object_min : (3, ) float
-    The min corner (z, x, y) of the `object`.
+obj_min : (3, ) float
+    The min corner (z, x, y) of the `obj`.
 line_integrals : (M, H, V, P) :py:class:`numpy.array` float
-    Integrals across the `object` for each of the `probe` rays and
+    Integrals across the `obj` for each of the `probe` rays and
     P parameters.
 probe : (H, V, P) :py:class:`numpy.array` float
     The initial parameters of the probe to be projected across
-    the `object`. The grid of each probe is `H` rays wide (the
+    the `obj`. The grid of each probe is `H` rays wide (the
     horizontal direction) and `V` rays tall (the vertical direction). The
     fourth dimension, `P`, holds parameters at each grid position:
     real and imaginary wave components
@@ -111,19 +111,19 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _tomo_interface(object, object_min,
+def _tomo_interface(obj, obj_min,
                     probe, theta, h, v,
                     **kwargs):
     """A function whose interface all functions in this module matches.
 
     This function also sets default values for functions in this module.
     """
-    if object is None:
+    if obj is None:
         raise ValueError()
-    object = utils.as_float32(object)
-    if object_min is None:
-        object_min = (-0.5, -0.5, -0.5)  # (z, x, y)
-    object_min = utils.as_float32(object_min)
+    obj = utils.as_float32(obj)
+    if obj_min is None:
+        obj_min = (-0.5, -0.5, -0.5)  # (z, x, y)
+    obj_min = utils.as_float32(obj_min)
     if probe is None:
         raise ValueError()
     probe = utils.as_float32(probe)
@@ -131,10 +131,10 @@ def _tomo_interface(object, object_min,
         raise ValueError()
     theta = utils.as_float32(theta)
     if h is None:
-        h = np.full(theta.shape, object_min[2])
+        h = np.full(theta.shape, obj_min[2])
     h = utils.as_float32(h)
     if v is None:
-        v = np.full(theta.shape, object_min[0])
+        v = np.full(theta.shape, obj_min[0])
     v = utils.as_float32(v)
     assert theta.size == h.size == v.size, \
         "The size of theta, h, v must be the same as the number of probes."
@@ -150,18 +150,18 @@ def _tomo_interface(object, object_min,
     v1 = (np.repeat(v, H*V).reshape(M, H, V) + dv)
     assert th1.shape == h1.shape == v1.shape
     # logger.info(" _tomo_interface says {}".format("Hello, World!"))
-    return (object, object_min, probe, th1, h1, v1)
+    return (obj, obj_min, probe, th1, h1, v1)
 
 
-def reconstruct(object=None, object_min=None,
+def reconstruct(obj=None, obj_min=None,
                 probe=None, theta=None, h=None, v=None,
                 line_integrals=None,
                 algorithm=None, niter=0, **kwargs):
-    """Reconstruct the `object` using the given `algorithm`.
+    """Reconstruct the `obj` using the given `algorithm`.
 
     Parameters
     ----------
-    object : (Z, X, Y, P) :py:class:`numpy.array` float
+    obj : (Z, X, Y, P) :py:class:`numpy.array` float
         The initial guess for the reconstruction.
     algorithm : string
         The name of one of the following algorithms to use for reconstructing:
@@ -175,21 +175,21 @@ def reconstruct(object=None, object_min=None,
 
     Returns
     -------
-    object : (Z, X, Y, P) :py:class:`numpy.array` float
-        The updated object grid.
+    obj : (Z, X, Y, P) :py:class:`numpy.array` float
+        The updated obj grid.
     """
-    object, object_min, probe, theta, h, v \
-        = _tomo_interface(object, object_min, probe, theta, h, v)
+    obj, obj_min, probe, theta, h, v \
+        = _tomo_interface(obj, obj_min, probe, theta, h, v)
     assert niter >= 0, "Number of iterations should be >= 0"
     # Send data to c function
     logger.info("{} on {:,d} element grid for {:,d} iterations".format(
-                algorithm, object.size, niter))
-    ngrid = object.shape
+                algorithm, obj.size, niter))
+    ngrid = obj.shape
     line_integrals = utils.as_float32(line_integrals)
     theta = utils.as_float32(theta)
     h = utils.as_float32(h)
     v = utils.as_float32(v)
-    object = utils.as_float32(object)
+    obj = utils.as_float32(obj)
     # Add new tomography algorithms here
     # TODO: The size of this function may be reduced further if all recon clibs
     #   have a standard interface. Perhaps pass unique params to a generic
@@ -197,9 +197,9 @@ def reconstruct(object=None, object_min=None,
     if algorithm is "art":
         LIBTIKE.art.restype = utils.as_c_void_p()
         LIBTIKE.art(
-            utils.as_c_float(object_min[0]),
-            utils.as_c_float(object_min[1]),
-            utils.as_c_float(object_min[2]),
+            utils.as_c_float(obj_min[0]),
+            utils.as_c_float(obj_min[1]),
+            utils.as_c_float(obj_min[2]),
             utils.as_c_int(ngrid[0]),
             utils.as_c_int(ngrid[1]),
             utils.as_c_int(ngrid[2]),
@@ -208,14 +208,14 @@ def reconstruct(object=None, object_min=None,
             utils.as_c_float_p(h),
             utils.as_c_float_p(v),
             utils.as_c_int(line_integrals.size),
-            utils.as_c_float_p(object),
+            utils.as_c_float_p(obj),
             utils.as_c_int(niter))
     elif algorithm is "sirt":
         LIBTIKE.sirt.restype = utils.as_c_void_p()
         LIBTIKE.sirt(
-            utils.as_c_float(object_min[0]),
-            utils.as_c_float(object_min[1]),
-            utils.as_c_float(object_min[2]),
+            utils.as_c_float(obj_min[0]),
+            utils.as_c_float(obj_min[1]),
+            utils.as_c_float(obj_min[2]),
             utils.as_c_int(ngrid[0]),
             utils.as_c_int(ngrid[1]),
             utils.as_c_int(ngrid[2]),
@@ -224,41 +224,41 @@ def reconstruct(object=None, object_min=None,
             utils.as_c_float_p(h),
             utils.as_c_float_p(v),
             utils.as_c_int(line_integrals.size),
-            utils.as_c_float_p(object),
+            utils.as_c_float_p(obj),
             utils.as_c_int(niter))
     else:
         raise ValueError("The {} algorithm is not an available.".format(
             algorithm))
-    return object
+    return obj
 
 
-def forward(object=None, object_min=None,
+def forward(obj=None, obj_min=None,
             probe=None, theta=None, h=None, v=None,
             **kwargs):
-    """Compute line integrals over an object; i.e. simulate data acquisition.
+    """Compute line integrals over an obj; i.e. simulate data acquisition.
     """
-    object, object_min, probe, theta, h, v \
-        = _tomo_interface(object, object_min, probe, theta, h, v)
+    obj, obj_min, probe, theta, h, v \
+        = _tomo_interface(obj, obj_min, probe, theta, h, v)
     # TODO: Remove zero valued probe rays
     th1 = theta
     h1 = h
     v1 = v
     line_integrals = np.zeros(th1.shape, dtype=np.float32)
     # Send data to c function
-    logger.info("forward {:,d} element grid".format(object.size))
+    logger.info("forward {:,d} element grid".format(obj.size))
     logger.info("forward {:,d} rays".format(line_integrals.size))
-    object = utils.as_float32(object)
-    ngrid = object.shape
+    obj = utils.as_float32(obj)
+    ngrid = obj.shape
     th1 = utils.as_float32(th1)
     h1 = utils.as_float32(h1)
     v1 = utils.as_float32(v1)
     line_integrals = utils.as_float32(line_integrals)
     LIBTIKE.forward_project.restype = utils.as_c_void_p()
     LIBTIKE.forward_project(
-        utils.as_c_float_p(object),
-        utils.as_c_float(object_min[0]),
-        utils.as_c_float(object_min[1]),
-        utils.as_c_float(object_min[2]),
+        utils.as_c_float_p(obj),
+        utils.as_c_float(obj_min[0]),
+        utils.as_c_float(obj_min[1]),
+        utils.as_c_float(obj_min[2]),
         utils.as_c_int(ngrid[0]),
         utils.as_c_int(ngrid[1]),
         utils.as_c_int(ngrid[2]),
