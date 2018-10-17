@@ -81,7 +81,6 @@ from __future__ import (absolute_import, division, print_function,
 
 import numpy as np
 import logging
-from tike.constants import wavenumber, complex_intensity
 
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
@@ -105,7 +104,7 @@ def _ptycho_interface(data, data_min,
     if data is None:
         raise ValueError()
     if data_min is None:
-        object_min = (-0.5, -0.5)
+        data_min = (-0.5, -0.5)
     if probe is None:
         raise ValueError()
     if theta is None:
