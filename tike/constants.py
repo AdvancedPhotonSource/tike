@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 # #########################################################################
-# Copyright (c) 2016, UChicago Argonne, LLC. All rights reserved.         #
+# Copyright (c) 2017-2018, UChicago Argonne, LLC. All rights reserved.    #
 #                                                                         #
-# Copyright 2015. UChicago Argonne, LLC. This software was produced       #
+# Copyright 2018. UChicago Argonne, LLC. This software was produced       #
 # under U.S. Government contract DE-AC02-06CH11357 for Argonne National   #
 # Laboratory (ANL), which is operated by UChicago Argonne, LLC for the    #
 # U.S. Department of Energy. The U.S. Government has rights to use,       #
@@ -46,52 +46,51 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
+"""
+This module contains universal constants and physical relation functions.
+"""
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import numpy as np
-import matplotlib.pyplot as plt
-from tike.tomo import *
 
-__author__ = "Daniel Ching"
-__copyright__ = "Copyright (c) 2016, UChicago Argonne, LLC."
-__docformat__ = 'restructuredtext en'
+__author__ = "Doga Gursoy, Daniel Ching"
+__copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
+__docformat__ = "restructuredtext en"
+__all__ = [
+           "PLANCK_CONSTANT",
+           "SPEED_OF_LIGHT",
+           "wavelength",
+           "wavenumber",
+           "complex_amplitude",
+           "complex_intensity",
+           "complex_phase",
+           ]
 
-
-def test_forward_project_hv_quadrants1():
-    gmin = [0, 0, 0]
-    obj = np.zeros((2, 3, 2))
-    obj[0, 1, 0] = 1
-    theta, h, v = [0, 0, 0, 0], [0, 1, 0, 1], [0, 0, 1, 1]
-    pgrid = np.ones((1, 1))
-    integral = forward(obj, gmin,
-                       pgrid, theta, h, v)
-    truth = np.array([1, 0, 0, 0]).reshape(4, 1, 1)
-    np.testing.assert_equal(truth, integral)
+PLANCK_CONSTANT = 6.58211928e-19  # [keV*s]
+SPEED_OF_LIGHT = 299792458e+2  # [cm/s]
 
 
-def test_forward_project_hv_quadrants2():
-    gsize = np.array([3, 2, 2])
-    gmin = -gsize / 2.0
-    obj = np.zeros((3, 2, 2))
-    obj[2, 0, 1] = 1
-    theta, h, v = [0, 0], [-1, 0], [0.5, 0.5]
-    pgrid = np.ones((1, 1))
-    integral = forward(obj, gmin,
-                       pgrid, theta, h, v)
-    truth = np.array([0, 1]).reshape(2, 1, 1)
-    np.testing.assert_equal(truth, integral)
+def wavelength(energy):
+    """Return the wavelength [cm] for a given energy [keV]."""
+    return 2 * np.pi * PLANCK_CONSTANT * SPEED_OF_LIGHT / energy
 
 
-def test_forward_project_hv_quadrants4():
-    gsize = np.array([1, 2, 2])
-    gmin = -gsize / 2.0
-    obj = np.zeros((1, 2, 2))
-    obj[0, :, 1] = 1
-    theta, h, v = [0], [-0.5], [-0.5]
-    pgrid = np.ones((1, 1))
-    psize = (1, 1)
-    integral = forward(obj, gmin,
-                       pgrid, theta, h, v)
-    truth = np.array([2]).reshape(1, 1, 1)
-    np.testing.assert_equal(truth, integral)
+def wavenumber(energy):
+    """Return the wavenumber [1/cm] given energy [keV]."""
+    return energy / PLANCK_CONSTANT / SPEED_OF_LIGHT
+
+
+def complex_amplitude(probe_grid):
+    """Amplitude of the complex probe wave"""
+    return np.abs(probe_grid)
+
+
+def complex_intensity(probe_grid):
+    """Intensity of the complex wave."""
+    return np.square(np.abs(probe_grid))
+
+
+def complex_phase(probe_grid):
+    """Phase of the complex probe wave."""
+    return np.angle(probe_grid)
