@@ -61,13 +61,26 @@ import logging
 __author__ = "Doga Gursoy"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = ['trajectory',
+__all__ = ['plot_complex',
+           'trajectory',
            'plot_footprint',
            'plot_trajectories',
            'plot_sino_coverage']
 
 
 logger = logging.getLogger(__name__)
+
+
+def plot_complex(Z):
+    plt.figure()
+    plt.subplot(1, 2, 1)
+    plt.imshow(np.abs(Z))
+    plt.colorbar(orientation='horizontal')
+    plt.subplot(1, 2, 2)
+    plt.imshow(np.angle(Z))
+    plt.colorbar(orientation='horizontal')
+    plt.show()
+    print(np.min(Z), np.max(Z))
 
 
 def trajectory(x, y, connect=True, frame=None, pause=True, dt=1e-12):
@@ -94,7 +107,7 @@ def trajectory(x, y, connect=True, frame=None, pause=True, dt=1e-12):
     plt.show()
 
 
-def plot_footprint(theta, h, v):
+def plot_footprint(theta, v, h):
 
     theta = theta % (np.pi) / np.pi
 
@@ -119,7 +132,7 @@ def plot_footprint(theta, h, v):
     plt.xlabel("h")
 
 
-def plot_sino_coverage(theta, h, v, dwell=None, bins=[16, 8, 4],
+def plot_sino_coverage(theta, v, h, dwell=None, bins=[16, 8, 4],
                        probe_grid=[[1]], probe_size=(0, 0)):
     """Plots projections of minimum coverage in the sinogram space."""
     # Wrap theta into [0, pi)
@@ -130,19 +143,21 @@ def plot_sino_coverage(theta, h, v, dwell=None, bins=[16, 8, 4],
     # Make sure probe_grid is array
     probe_grid = np.asarray(probe_grid)
     # Create one ray for each pixel in the probe grid
-    dh, dv = np.meshgrid(np.linspace(0, probe_size[0], probe_grid.shape[0], endpoint=False)
+    dv, dh = np.meshgrid(np.linspace(0, probe_size[0], probe_grid.shape[0],
+                                     endpoint=False)
                          + probe_size[0]/probe_grid.shape[0]/2,
-                         np.linspace(0, probe_size[1], probe_grid.shape[1], endpoint=False)
+                         np.linspace(0, probe_size[1], probe_grid.shape[1],
+                                     endpoint=False)
                          + probe_size[1]/probe_grid.shape[1]/2,)
 
-    dh = dh.flatten()
     dv = dv.flatten()
+    dh = dh.flatten()
     probe_grid = probe_grid.flatten()
     H = np.zeros(bins)
     for i in range(probe_grid.size):
         if probe_grid[i] > 0:
             # Compute histogram
-            sample = np.stack([theta, h+dh[i], v+dv[i]], axis=1)
+            sample = np.stack([theta, v+dv[i]], h+dh[i], axis=1)
             dH, edges = np.histogramdd(sample, bins=bins,
                                        range=[[0, np.pi], [-.5, .5], [-.5, .5]],
                                        weights=dwell*probe_grid[i])
@@ -177,7 +192,7 @@ def plot_sino_coverage(theta, h, v, dwell=None, bins=[16, 8, 4],
     return H
 
 
-def plot_trajectories(theta, h, v, t):
+def plot_trajectories(theta, v, h, t):
     """Plot each trajectory as a function of time in the current figure
 
     Plots two subplots in the current figure. The top one shows horizonal

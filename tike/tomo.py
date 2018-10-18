@@ -51,9 +51,9 @@ This module contains functions for solving the tomography problem.
 
 Coordinate Systems
 ==================
-`theta, h, v`. `h, v` are the horizontal vertical directions perpendicular
-to the probe direction where positive directions are to the right and up
-respectively. `theta` is the rotation angle around the vertical reconstruction
+`theta, v, h`. `v, h` are the horizontal vertical directions perpendicular
+to the probe direction where positive directions are to the right and up.
+`theta` is the rotation angle around the vertical reconstruction
 space axis, `z`. `z` is parallel to `v`, and uses the right hand rule to
 determine reconstruction space coordinates `z, x, y`. `theta` is measured
 from the `x` axis, so when `theta = 0`, `h` is parallel to `y`.
@@ -76,17 +76,17 @@ obj : (Z, X, Y, P) :py:class:`numpy.array` float
 
 obj_min : (3, ) float
     The min corner (z, x, y) of the `obj`.
-line_integrals : (M, H, V, P) :py:class:`numpy.array` float
+line_integrals : (M, V, H, P) :py:class:`numpy.array` float
     Integrals across the `obj` for each of the `probe` rays and
     P parameters.
-probe : (H, V, P) :py:class:`numpy.array` float
+probe : (V, H, P) :py:class:`numpy.array` float
     The initial parameters of the probe to be projected across
     the `obj`. The grid of each probe is `H` rays wide (the
     horizontal direction) and `V` rays tall (the vertical direction). The
     fourth dimension, `P`, holds parameters at each grid position:
     real and imaginary wave components
-theta, h, v : (M, ) :py:class:`numpy.array` float
-    The min corner (theta, h, v) of the `probe` for each measurement.
+theta, v, h : (M, ) :py:class:`numpy.array` float
+    The min corner (theta, v, h) of the `probe` for each measurement.
 kwargs
     Keyword arguments specific to this function. `**kwargs` should always be
     included so that extra parameters are ignored instead of raising an error.
@@ -113,7 +113,7 @@ logger = logging.getLogger(__name__)
 
 
 def _tomo_interface(obj, obj_min,
-                    probe, theta, h, v,
+                    probe, theta, v, h,
                     **kwargs):
     """A function whose interface all functions in this module matches.
 
@@ -129,37 +129,37 @@ def _tomo_interface(obj, obj_min,
     obj_min = utils.as_float32(obj_min)
     if probe is None:
         # Assume a full field geometry
-        probe = np.ones([obj.shape[2], obj.shape[0]])
+        probe = np.ones([obj.shape[0], obj.shape[2]])
     probe = utils.as_float32(probe)
     if theta is None:
         # Angle definitions are required
         raise ValueError()
     theta = utils.as_float32(theta)
-    if h is None:
-        h = np.full(theta.shape, obj_min[2])
-    h = utils.as_float32(h)
     if v is None:
         v = np.full(theta.shape, obj_min[0])
     v = utils.as_float32(v)
-    assert theta.size == h.size == v.size, \
-        "The size of theta, h, v must be the same as the number of probes."
+    if h is None:
+        h = np.full(theta.shape, obj_min[2])
+    h = utils.as_float32(h)
+    assert theta.size == v.size == h.size, \
+        "The size of theta, v, h must be the same as the number of probes."
     # Generate a grid of offset vectors
-    H, V = probe.shape
-    gh = (np.arange(H) + 0.5)
+    V, H = probe.shape
     gv = (np.arange(V) + 0.5)
-    dh, dv = np.meshgrid(gh, gv, indexing='ij')
+    gh = (np.arange(H) + 0.5)
+    dv, dh = np.meshgrid(gv, gh, indexing='ij')
     # Duplicate the trajectory by size of probe
     M = theta.size
-    th1 = np.repeat(theta, H*V).reshape(M, H, V)
-    h1 = (np.repeat(h, H*V).reshape(M, H, V) + dh)
-    v1 = (np.repeat(v, H*V).reshape(M, H, V) + dv)
-    assert th1.shape == h1.shape == v1.shape
+    th1 = np.repeat(theta, V*H).reshape(M, V, H)
+    v1 = (np.repeat(v, V*H).reshape(M, V, H) + dv)
+    h1 = (np.repeat(h, V*H).reshape(M, V, H) + dh)
+    assert th1.shape == v1.shape == h1.shape
     # logger.info(" _tomo_interface says {}".format("Hello, World!"))
-    return (obj, obj_min, probe, th1, h1, v1)
+    return (obj, obj_min, probe, th1, v1, h1)
 
 
 def reconstruct(obj=None, obj_min=None,
-                probe=None, theta=None, h=None, v=None,
+                probe=None, theta=None, v=None, h=None,
                 line_integrals=None,
                 algorithm=None, niter=0, **kwargs):
     """Reconstruct the `obj` using the given `algorithm`.
@@ -199,8 +199,8 @@ def reconstruct(obj=None, obj_min=None,
     recon.real = pb
     recon.imag = pd
     return recon
-    # obj, obj_min, probe, theta, h, v \
-    #     = _tomo_interface(obj, obj_min, probe, theta, h, v)
+    # obj, obj_min, probe, theta, v, h \
+    #     = _tomo_interface(obj, obj_min, probe, theta, v, h)
     # assert niter >= 0, "Number of iterations should be >= 0"
     # # Send data to c function
     # logger.info("{} on {:,d} element grid for {:,d} iterations".format(
@@ -208,8 +208,8 @@ def reconstruct(obj=None, obj_min=None,
     # ngrid = obj.shape
     # line_integrals = utils.as_float32(line_integrals)
     # theta = utils.as_float32(theta)
-    # h = utils.as_float32(h)
     # v = utils.as_float32(v)
+    # h = utils.as_float32(h)
     # obj = utils.as_float32(obj)
     # # Add new tomography algorithms here
     # # TODO: The size of this function may be reduced further if all recon clibs
@@ -254,7 +254,7 @@ def reconstruct(obj=None, obj_min=None,
 
 
 def forward(obj=None, obj_min=None,
-            probe=None, theta=None, h=None, v=None,
+            probe=None, theta=None, v=None, h=None,
             **kwargs):
     """Compute line integrals over an obj; i.e. simulate data acquisition.
     """
@@ -266,12 +266,12 @@ def forward(obj=None, obj_min=None,
     line_integrals.real = pb
     line_integrals.imag = pd
     return line_integrals
-    # obj, obj_min, probe, theta, h, v \
-    #     = _tomo_interface(obj, obj_min, probe, theta, h, v)
+    # obj, obj_min, probe, theta, v, h \
+    #     = _tomo_interface(obj, obj_min, probe, theta, v, h)
     # # TODO: Remove zero valued probe rays
     # th1 = theta
-    # h1 = h
     # v1 = v
+    # h1 = h
     # line_integrals = np.zeros(th1.shape, dtype=np.float32)
     # # Send data to c function
     # logger.info("forward {:,d} element grid".format(obj.size))
@@ -279,8 +279,8 @@ def forward(obj=None, obj_min=None,
     # obj = utils.as_float32(obj)
     # ngrid = obj.shape
     # th1 = utils.as_float32(th1)
-    # h1 = utils.as_float32(h1)
     # v1 = utils.as_float32(v1)
+    # h1 = utils.as_float32(h1)
     # line_integrals = utils.as_float32(line_integrals)
     # LIBTIKE.forward_project.restype = utils.as_c_void_p()
     # LIBTIKE.forward_project(

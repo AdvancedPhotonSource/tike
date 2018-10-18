@@ -70,7 +70,7 @@ logger = logging.getLogger(__name__)
 
 def _combined_interface(obj, obj_min,
                         data, data_min,
-                        probe, theta, h, v,
+                        probe, theta, v, h,
                         **kwargs):
     """A function whose interface all functions in this module matches."""
     assert np.all(obj_size > 0), "Detector dimensions must be > 0."
@@ -85,7 +85,7 @@ def _combined_interface(obj, obj_min,
 
 def admm(obj=None, obj_min=None,
          data=None, data_min=None,
-         probe=None, theta=None, h=None, v=None, energy=None,
+         probe=None, theta=None, v=None, h=None, energy=None,
          algorithms=None,
          niter=1, rho=1, gamma=0.5,
          **kwargs):
@@ -97,13 +97,13 @@ def admm(obj=None, obj_min=None,
         The initial guess for the reconstruction.
     obj_min : (3, ) float
         The min corner (z, x, y) of the `obj`.
-    data : (M, H, V) :py:class:`numpy.array` float
+    data : (M, V, H) :py:class:`numpy.array` float
         An array of detector intensities for each of the `M` probes. The
         grid of each detector is `H` pixels wide (the horizontal
         direction) and `V` pixels tall (the vertical direction).
     data_min : (2, ) float [p]
         The min corner (h, v) of the data in the global coordinate system.
-    probe : (H, V) :py:class:`numpy.array` complex
+    probe : (V, H) :py:class:`numpy.array` complex
         A single illumination function for the all probes.
     energy : float [keV]
         The energy of the probe
@@ -121,7 +121,7 @@ def admm(obj=None, obj_min=None,
     for i in range(niter):
         # Ptychography.
         psi = tike.ptycho.reconstruct(data=data,
-                                      probe=probe, h=h, v=v,
+                                      probe=probe, v=v, h=h,
                                       psi=psi,
                                       algorithm='grad',
                                       niter=1, rho=rho, gamma=gamma, reg=hobj,

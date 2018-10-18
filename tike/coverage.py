@@ -70,7 +70,7 @@ logger = logging.getLogger(__name__)
 
 
 def _coverage_interface(object_grid, object_min, object_size,
-                        probe_grid, probe_size, theta, h, v,
+                        probe_grid, probe_size, theta, v, h,
                         **kwargs):
     """A function whose interface all functions in this module matches.
 
@@ -94,24 +94,24 @@ def _coverage_interface(object_grid, object_min, object_size,
     if theta is None:
         raise ValueError()
     theta = utils.as_float32(theta)
-    if h is None:
-        h = np.full(theta.shape, -0.5)
-    h = utils.as_float32(h)
     if v is None:
         v = np.full(theta.shape, -0.5)
     v = utils.as_float32(v)
+    if h is None:
+        h = np.full(theta.shape, -0.5)
+    h = utils.as_float32(h)
     assert np.all(object_size > 0), "Object dimensions must be > 0."
     assert np.all(probe_size > 0), "Probe dimensions must be > 0."
     # different from _tomo_interface
-    assert theta.size == h.size == v.size, \
-        "The size of theta, h, v must be the same as the number of probes."
+    assert theta.size == v.size == h.size, \
+        "The size of theta, v, h must be the same as the number of probes."
     # logger.info(" _tomo_interface says {}".format("Hello, World!"))
     return (object_grid, object_min, object_size,
-            probe_grid, probe_size, theta, h, v)
+            probe_grid, probe_size, theta, v, h)
 
 
 def coverage(object_grid, object_min, object_size,
-             probe_grid, probe_size, theta, h, v,
+             probe_grid, probe_size, theta, v, h,
              dwell=None, **kwargs):
     """Return a coverage map using this probe.
 
@@ -121,7 +121,7 @@ def coverage(object_grid, object_min, object_size,
 
     Parameters
     ----------
-    theta, h, v [radians, cm]
+    theta, v, h [radians, cm]
         The positions of the min_corner of the probe.
     dwell : (M, ) :py:class:`numpy.array` [s]
         Multiply the intersections lengths of the pixels and each line by these
@@ -134,16 +134,16 @@ def coverage(object_grid, object_min, object_size,
         intersection lengths multiplied by the line_weights.
         A discretized map of the approximated procedure coverage.
     """
-    object_grid, object_min, object_size, probe_grid, probe_size, theta, h, v \
+    object_grid, object_min, object_size, probe_grid, probe_size, theta, v, h \
         = _coverage_interface(object_grid, object_min, object_size,
-                              probe_grid, probe_size, theta, h, v)
+                              probe_grid, probe_size, theta, v, h)
     ngrid = object_grid.shape
     assert len(ngrid) == 4, "Coverage map must have 4 dimensions."
     # Multiply the trajectory by size of probe_grid
-    dh, dv = line_offsets(probe_grid, probe_size)
+    dv, dh = line_offsets(probe_grid, probe_size)
     th1 = np.repeat(theta, dh.size)
-    h1 = np.repeat(h, dh.size).reshape(h.size, dh.size) + dh
     v1 = np.repeat(v, dv.size).reshape(v.size, dv.size) + dv
+    h1 = np.repeat(h, dh.size).reshape(h.size, dh.size) + dh
     if dwell is None:
         dw1 = np.ones(th1.shape)
     else:
@@ -155,8 +155,8 @@ def coverage(object_grid, object_min, object_size,
     logger.info(" coverage {:,d} element grid".format(object_grid.size))
     # Send data to c function
     th1 = utils.as_float32(th1)
-    h1 = utils.as_float32(h1)
     v1 = utils.as_float32(v1)
+    h1 = utils.as_float32(h1)
     weights = utils.as_float32(weights)
     object_grid = utils.as_float32(object_grid)
     LIBTIKE.coverage.restype = utils.as_c_void_p()
@@ -181,24 +181,24 @@ def coverage(object_grid, object_min, object_size,
 
 
 def line_offsets(probe_grid, probe_size):
-    """Generate h, v line offsets from the min corner and filter
+    """Generate v, h line offsets from the min corner and filter
     zero-weighted lines.
 
     Returns
     -------
-    dh, dv : (N, ) np.array [cm]
+    dv, dh : (N, ) np.array [cm]
         The offsets in the horizontal and vertical directions
     """
     # Generate a grid of offset vectors
-    gh = (np.linspace(0, probe_size[0], probe_grid.shape[0], endpoint=False)
+    gv = (np.linspace(0, probe_size[0], probe_grid.shape[0], endpoint=False)
           + probe_size[0] / probe_grid.shape[0] / 2)
-    gv = (np.linspace(0, probe_size[1], probe_grid.shape[1], endpoint=False)
+    gh = (np.linspace(0, probe_size[1], probe_grid.shape[1], endpoint=False)
           + probe_size[1] / probe_grid.shape[1] / 2)
-    dh, dv = np.meshgrid(gh, gv, indexing='ij')
+    dv, dh = np.meshgrid(gv, gh, indexing='ij')
     # Remove zero values
     nonzeros = probe_grid != 0
-    h = dh[nonzeros].flatten()
     v = dv[nonzeros].flatten()
+    h = dh[nonzeros].flatten()
     logger.info(" probe uses {:,d} lines".format(h.size))
     assert dv.size == dh.size
-    return h, v
+    return v, h
