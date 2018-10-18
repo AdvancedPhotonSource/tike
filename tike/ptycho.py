@@ -117,7 +117,7 @@ def _ptycho_interface(data, data_min,
     if psi is None:
         raise ValueError()
     if psi_min is None:
-        psi_min = (-0.5, -0.5)
+        psi_min = (0, 0)
     assert data.shape[0] % h.size == data.shape[0] % v.size == 0, \
         "The size of h, v must be a factor of the number of data."
     # logger.info(" _ptycho_interface says {}".format("Hello, World!"))
@@ -202,7 +202,7 @@ def unpad_grid(padded_grid=None, padded_min=None,
     return padded_grid[..., hmin:hmax, vmin:vmax]
 
 
-def combine_grids(grids, T, h, v,
+def combine_grids(grids, h, v,
                   combined_shape, combined_min):
     """Combines some grids by summation.
 
@@ -211,12 +211,10 @@ def combine_grids(grids, T, h, v,
 
     Parameters
     ----------
-    grids : (M, H, V) :py:class:`numpy.array`
+    grids : (N, H, V) :py:class:`numpy.array`
         The values on the grids
     h, v : (M, ) :py:class:`numpy.array` float [m]
         The coordinates of the minimum corner of the M grids
-    T : (M, ) :py:class:`numpy.array` int
-        An index to separate the grids
     combined_shape : (N+2, ) int
         The last two are numbers of the tuple are the number of indices along
         the h and v directions of the combined grid.
@@ -229,40 +227,52 @@ def combine_grids(grids, T, h, v,
         The combined grid
     """
     m_shape, h_shape, v_shape = grids.shape
-    ch_shape, cv_shape = combined_shape[-2:]
+
+    # SHARED
     # Find the float coordinates of the grids on the combined grid
     hshift = h - combined_min[-2]
     vshift = v - combined_min[-1]
     assert np.all(hshift >= 0)
     assert np.all(vshift >= 0)
     # Find integer indices (floor) of the min corner of each grid on the
-    # combined grid The grids will be padded on all sides by 1 before shifting,
-    # so adjust indices for that.
-    T = np.floor(T).astype(int)
-    H = np.floor(hshift).astype(int) - 1
+    # combined grid
+    H = np.floor(hshift).astype(int)
     H1 = (H + (h_shape + 2)).astype(int)
-    V = np.floor(vshift).astype(int) - 1
+    V = np.floor(vshift).astype(int)
     V1 = (V + (v_shape + 2)).astype(int)
-    assert np.all(H >= 0), "Some h coords are off the combined grid!"
-    assert np.all(V >= 0), "Some v coords are off the combined grid!"
-    grids = np.pad(grids, [[0, 0], [1, 1], [1, 1]], mode='constant')
-    # Create a summed_grids large enough to hold all of the grids
-    # Assume that the overlapping grids are not sparse
-    ct_shape = np.max(T) + 1
-    combined = np.zeros([ct_shape, ch_shape, cv_shape], dtype=grids.dtype)
+    assert np.all(H >= 0), "{} is off the combined grid!".format(np.min(H))
+    assert np.all(V >= 0), "{} is off the combined grid!".format(np.min(V))
     # Convert to shift less than 1
     hshift -= hshift.astype(int)
     vshift -= vshift.astype(int)
+    # END SHARED
+
+    # Create a summed_grids large enough to hold all of the grids
+    # plus some padding to cancel out the padding added for shifting
+    grids = np.pad(grids, [[0, 0], [1, 1], [1, 1]], mode='constant')
+    combined = np.zeros([combined_shape[0],
+                         combined_shape[1] + 2,
+                         combined_shape[2] + 2], dtype=grids.dtype)
     # Add each of the grids to the appropriate place on the summed_grids
-    for M in range(m_shape):
-        combined[T[M], H[M]:H1[M], V[M]:V1[M]] += sni.shift(grids[M, :, :],
-                                                            [hshift[M],
-                                                             vshift[M]],
-                                                            order=1)
-    return combined
+    nviews = combined_shape[0]
+    nprobes = h.size
+    assert grids.shape[0] == nviews * nprobes, ("Wrong number of grids to "
+                                                "combine!")
+    grids = grids.view(float).reshape(*grids.shape, 2)
+    combined = combined.view(float).reshape(*combined.shape, 2)
+    for M in range(nviews):
+        for N in range(nprobes):
+            combined[M,
+                     H[N]:H1[N],
+                     V[N]:V1[N],
+                     ...] += sni.shift(grids[M * nprobes + N],
+                                       [hshift[N], vshift[N], 0],
+                                       order=1)
+    combined = combined.view(complex)
+    return combined[:, 1:-1, 1:-1, 0]
 
 
-def uncombine_grids(grid_shape, T, h, v,
+def uncombine_grids(grids_shape, h, v,
                     combined, combined_min):
     """Extract a series of grids from a single grid.
 
@@ -271,7 +281,7 @@ def uncombine_grids(grid_shape, T, h, v,
 
     Parameters
     ----------
-    grid_shape : (N+2, ) int
+    grids_shape : (N+2, ) int
         The last two are numbers of the tuple are the number of indices along
         the h and v directions of the grids.
     T : (M, ) :py:class:`numpy.array` int
@@ -289,37 +299,48 @@ def uncombine_grids(grid_shape, T, h, v,
     grids : (M, H, V) :py:class:`numpy.array`
         The decombined grids
     """
-    # TODO: assert grid resolution is the same for grids and combined
-    m_shape = T.size
-    h_shape, v_shape = grid_shape[-2:]
-    ch_shape, cv_shape = combined.shape[-2:]
+    h_shape, v_shape = grids_shape[-2:]
+
+    # SHARED
     # Find the float coordinates of the grids on the combined grid
     hshift = h - combined_min[-2]
     vshift = v - combined_min[-1]
     assert np.all(hshift >= 0)
     assert np.all(vshift >= 0)
     # Find integer indices (floor) of the min corner of each grid on the
-    # combined grid The grids will be padded on all sides by 1 before shifting,
-    # so adjust indices for that.
-    T = np.floor(T).astype(int)
-    H = np.floor(hshift).astype(int) - 1
+    # combined grid
+    H = np.floor(hshift).astype(int)
     H1 = (H + (h_shape + 2)).astype(int)
-    V = np.floor(vshift).astype(int) - 1
+    V = np.floor(vshift).astype(int)
     V1 = (V + (v_shape + 2)).astype(int)
-    assert np.all(H >= 0), "Some h coords are off the combined grid!"
-    assert np.all(V >= 0), "Some v coords are off the combined grid!"
-    # Create a grids large enough to hold all of the grids
-    # Assume that the overlapping grids are not sparse
-    grids = np.empty([m_shape, h_shape, v_shape], dtype=combined.dtype)
+    assert np.all(H >= 0), "{} is off the combined grid!".format(np.min(H))
+    assert np.all(V >= 0), "{} is off the combined grid!".format(np.min(V))
     # Convert to shift less than 1
     hshift -= hshift.astype(int)
     vshift -= vshift.astype(int)
+    # END SHARED
+
+    # Create a grids large enough to hold all of the grids
+    # plus some padding to cancel out the padding added for shifting
+    combined = np.pad(combined, [[0, 0], [1, 1], [1, 1]], mode='constant')
+    grids = np.empty(grids_shape, dtype=combined.dtype)
     # Retrive the updated values of each of the grids
-    for M in range(m_shape):
-        grids[M, :, :] = sni.shift(combined[T[M], H[M]:H1[M], V[M]:V1[M]],
-                                   [-hshift[M], -vshift[M]],
-                                   order=1)[1:-1, 1:-1]
-    return grids
+    nviews = combined.shape[0]
+    nprobes = h.size
+    assert grids_shape[0] == nviews * nprobes, ("Wrong number of grids to"
+                                                " uncombine!")
+    grids = grids.view(float).reshape(*grids.shape, 2)
+    combined = combined.view(float).reshape(*combined.shape, 2)
+    for M in range(nviews):
+        for N in range(nprobes):
+            grids[M * nprobes + N] = sni.shift(combined[M,
+                                                        H[N]:H1[N],
+                                                        V[N]:V1[N],
+                                                        ...],
+                                               [-hshift[N], -vshift[N], 0],
+                                               order=1)[1:-1, 1:-1, ...]
+
+    return grids.view(complex)[..., 0]
 
 
 def grad(data=None, data_min=None,
@@ -355,16 +376,11 @@ def grad(data=None, data_min=None,
     # Compute probe inverse
     # TODO: Update the probe too
     probe_inverse = np.conj(probe)
-    wavefronts = np.empty([nviews * nprobes, probe.shape[0], probe.shape[1]],
-                          dtype='complex')
+    wavefront_shape = [nviews * nprobes, probe.shape[0], probe.shape[1]]
     for i in range(niter):
-        upd_psi = np.zeros(psi.shape, dtype='complex')
         # combine all wavefronts into one array
-        for m in range(nviews):
-            for n in range(nprobes):
-                wavefronts[m*nprobes + n] = psi[m,
-                                                h[n]:h[n] + probe.shape[0],
-                                                v[n]:v[n] + probe.shape[1]]
+        wavefronts = uncombine_grids(grids_shape=wavefront_shape, h=h, v=v,
+                                     combined=psi, combined_min=psi_min)
         # Compute near-plane wavefront
         nearplane = probe * wavefronts
         # Pad before FFT
@@ -382,11 +398,7 @@ def grad(data=None, data_min=None,
         # Update measurement patch.
         upd_m = probe_inverse * (new_nearplane - nearplane)
         # Combine measurement with other updates
-        for m in range(nviews):
-            for n in range(nprobes):
-                upd_psi[m,
-                        h[n]:h[n]+probe.shape[0],
-                        v[n]:v[n]+probe.shape[1]] += upd_m[m*nprobes + n]
+        upd_psi = combine_grids(upd_m, h, v, psi.shape, psi_min)
         # Update psi
         psi = ((1 - gamma * rho) * psi
                + gamma * rho * (reg - lamda / rho)
@@ -403,25 +415,22 @@ def pad(phi, padded_shape):
                   mode='constant')
 
 
-def exitwave(probe, psi, h, v):
+def exitwave(probe, psi, h, v, psi_min=None):
     """Compute the wavefront from probe function and stack of psi"""
     nviews = psi.shape[0]
     nprobes = h.size
-    wave = np.zeros([nviews * nprobes] + list(probe.shape), dtype=complex)
-    for m in range(nviews):
-        for n in range(nprobes):
-            wave[m*nprobes + n] = psi[m,
-                                      h[n]:h[n] + probe.shape[0],
-                                      v[n]:v[n] + probe.shape[1]]
+    wave_shape = [nviews * nprobes] + list(probe.shape)
+    wave = uncombine_grids(grids_shape=wave_shape, h=h, v=v,
+                           combined=psi, combined_min=psi_min)
     return probe * wave
 
 
 def simulate(data_shape=None, data_min=None,
              probe=None, theta=None, h=None, v=None,
-             psi=None, psi_min=None,
+             psi=None, psi_min=(0, 0),
              **kwargs):
     """Propagate the wavefront to the detector."""
-    phi = pad(exitwave(probe, psi, h, v), data_shape)
+    phi = pad(exitwave(probe, psi, h, v, psi_min=psi_min), data_shape)
     intensity = np.square(np.abs(np.fft.fft2(phi)))
     return intensity.astype('float')
 
