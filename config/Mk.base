@@ -1,4 +1,4 @@
-## base Makefile for tomopy and gcc
+## base Makefile for sharedlibs using gcc
 
 INSTALLDIR   = ../tike/sharedlibs
 LINK_CFLAGS  =
