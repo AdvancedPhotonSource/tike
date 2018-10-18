@@ -81,6 +81,7 @@ from __future__ import (absolute_import, division, print_function,
 
 import numpy as np
 import logging
+import scipy.ndimage.interpolation as sni
 
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
@@ -200,39 +201,6 @@ def unpad_grid(padded_grid=None, padded_min=None,
     return padded_grid[..., hmin:hmax, vmin:vmax]
 
 
-def float_shift(a, shift):
-    """Use linear interpolation to shift an array less than 1 index.
-
-    The shift is truncated to whatever is after the decimal. For example
-    -2.3 becomes -0.3 and 23 becomes 0.
-
-    Parameters
-    ----------
-    a : array_like
-        Input array.
-    shift : array_like
-        The distance to shift in each dimension.
-
-    Return
-    ------
-    lo : ndarray
-        Output array, one unit larger than `a`
-
-    Example
-    -------
-    A = np.ones([3])
-    B = float_shift(A, [-0.2])
-    B
-    array([ 0.2,  1. ,  1. ,  0.8])
-    """
-    shift = np.asanyarray(shift, dtype=float) % 1.0
-    lo = np.pad(a, [0, 1], mode='constant')
-    for i in range(shift.size):
-        hi = np.roll(lo, 1, axis=i)
-        lo = lo + shift[i]*(hi-lo)
-    return lo
-
-
 def combine_grids(grids, T, h, v,
                   combined_shape, combined_min):
     """Combines some grids by summation.
@@ -259,28 +227,37 @@ def combine_grids(grids, T, h, v,
     combined : (T, H, V) :py:class:`numpy.array`
         The combined grid
     """
-    # TODO: assert grid resolution is the same for grids and combined
     m_shape, h_shape, v_shape = grids.shape
     ch_shape, cv_shape = combined_shape[-2:]
-
-    # Find integer indices of the min corner of each grid
-    H = h // 1
-    V = v // 1
-    Hmin = combined_min[-2] // 1
-    Vmin = combined_min[-1] // 1
-    # Shift the integer indices such that the min corner of all grids is zero
-    T = (T).astype(int)
-    H = (H - Hmin).astype(int)
-    H1 = (H + h_shape).astype(int)
-    V = (V - Vmin).astype(int)
-    V1 = (V + v_shape).astype(int)
+    # Find the float coordinates of the grids on the combined grid
+    hshift = h - combined_min[-2]
+    vshift = v - combined_min[-1]
+    assert np.all(hshift >= 0)
+    assert np.all(vshift >= 0)
+    # Find integer indices (floor) of the min corner of each grid on the
+    # combined grid The grids will be padded on all sides by 1 before shifting,
+    # so adjust indices for that.
+    T = np.floor(T).astype(int)
+    H = np.floor(hshift).astype(int) - 1
+    H1 = (H + (h_shape + 2)).astype(int)
+    V = np.floor(vshift).astype(int) - 1
+    V1 = (V + (v_shape + 2)).astype(int)
+    assert np.all(H >= 0), "Some h coords are off the combined grid!"
+    assert np.all(V >= 0), "Some v coords are off the combined grid!"
+    grids = np.pad(grids, [[0, 0], [1, 1], [1, 1]], mode='constant')
     # Create a summed_grids large enough to hold all of the grids
     # Assume that the overlapping grids are not sparse
     ct_shape = np.max(T) + 1
     combined = np.zeros([ct_shape, ch_shape, cv_shape], dtype=grids.dtype)
+    # Convert to shift less than 1
+    hshift -= hshift.astype(int)
+    vshift -= vshift.astype(int)
     # Add each of the grids to the appropriate place on the summed_grids
     for M in range(m_shape):
-        combined[T[M], H[M]:H1[M], V[M]:V1[M]] += grids[M, :, :]
+        combined[T[M], H[M]:H1[M], V[M]:V1[M]] += sni.shift(grids[M, :, :],
+                                                            [hshift[M],
+                                                             vshift[M]],
+                                                            order=1)
     return combined
 
 
@@ -315,23 +292,32 @@ def uncombine_grids(grid_shape, T, h, v,
     m_shape = T.size
     h_shape, v_shape = grid_shape[-2:]
     ch_shape, cv_shape = combined.shape[-2:]
-    # Find integer indices of the min corner of each grid
-    H = h // 1
-    V = v // 1
-    Hmin = combined_min[-2] // 1
-    Vmin = combined_min[-1] // 1
-    # Shift the integer indices such that the min corner of all grids is zero
-    T = (T).astype(int)
-    H = (H - Hmin).astype(int)
-    H1 = (H + h_shape).astype(int)
-    V = (V - Vmin).astype(int)
-    V1 = (V + v_shape).astype(int)
-    # Create a summed_grids large enough to hold all of the grids
+    # Find the float coordinates of the grids on the combined grid
+    hshift = h - combined_min[-2]
+    vshift = v - combined_min[-1]
+    assert np.all(hshift >= 0)
+    assert np.all(vshift >= 0)
+    # Find integer indices (floor) of the min corner of each grid on the
+    # combined grid The grids will be padded on all sides by 1 before shifting,
+    # so adjust indices for that.
+    T = np.floor(T).astype(int)
+    H = np.floor(hshift).astype(int) - 1
+    H1 = (H + (h_shape + 2)).astype(int)
+    V = np.floor(vshift).astype(int) - 1
+    V1 = (V + (v_shape + 2)).astype(int)
+    assert np.all(H >= 0), "Some h coords are off the combined grid!"
+    assert np.all(V >= 0), "Some v coords are off the combined grid!"
+    # Create a grids large enough to hold all of the grids
     # Assume that the overlapping grids are not sparse
     grids = np.zeros([m_shape, h_shape, v_shape], dtype=combined.dtype)
+    # Convert to shift less than 1
+    hshift -= hshift.astype(int)
+    vshift -= vshift.astype(int)
     # Retrive the updated values of each of the grids
     for M in range(m_shape):
-        grids[M, :, :] = combined[T[M], H[M]:H1[M], V[M]:V1[M]]
+        grids[M, :, :] = sni.shift(combined[T[M], H[M]:H1[M], V[M]:V1[M]],
+                                   [-hshift[M], -vshift[M]],
+                                   order=1)[1:-1, 1:-1]
     return grids
 
 
