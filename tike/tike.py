@@ -121,7 +121,7 @@ def admm(obj=None, obj_min=None,
     for i in range(niter):
         # Ptychography.
         psi = tike.ptycho.reconstruct(data=data,
-                                      probe=probe, theta=theta, h=h, v=v,
+                                      probe=probe, h=h, v=v,
                                       psi=psi,
                                       algorithm='grad',
                                       niter=1, rho=rho, gamma=gamma, reg=hobj,

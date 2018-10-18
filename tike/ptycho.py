@@ -108,21 +108,22 @@ def _ptycho_interface(data, data_min,
         data_min = (-0.5, -0.5)
     if probe is None:
         raise ValueError()
-    if theta is None:
-        raise ValueError()
     if h is None:
         raise ValueError()
     if v is None:
         raise ValueError()
+    if theta is None:
+        pass
     if psi is None:
         raise ValueError()
     if psi_min is None:
         psi_min = (-0.5, -0.5)
-    assert theta.size == h.size == v.size == data.shape[0] == \
-        "The size of theta, h, v must be the same as the number of data."
+    assert data.shape[0] % h.size == data.shape[0] % v.size == 0, \
+        "The size of h, v must be a factor of the number of data."
     # logger.info(" _ptycho_interface says {}".format("Hello, World!"))
     return (data, data_min,
-            probe, theta, h, v)
+            probe, theta, h, v,
+            psi, psi_min)
 
 
 def locate_pad(pshape, ushape):
@@ -309,7 +310,7 @@ def uncombine_grids(grid_shape, T, h, v,
     assert np.all(V >= 0), "Some v coords are off the combined grid!"
     # Create a grids large enough to hold all of the grids
     # Assume that the overlapping grids are not sparse
-    grids = np.zeros([m_shape, h_shape, v_shape], dtype=combined.dtype)
+    grids = np.empty([m_shape, h_shape, v_shape], dtype=combined.dtype)
     # Convert to shift less than 1
     hshift -= hshift.astype(int)
     vshift -= vshift.astype(int)
@@ -349,18 +350,21 @@ def grad(data=None, data_min=None,
     # Compute padding between probe and detector size
     npadx = (data.shape[1] - probe.shape[0]) // 2
     npady = (data.shape[2] - probe.shape[1]) // 2
+    nviews = psi.shape[0]
+    nprobes = h.size
     # Compute probe inverse
     # TODO: Update the probe too
     probe_inverse = np.conj(probe)
-    wavefronts = np.empty([h.size, probe.shape[0], probe.shape[1]],
+    wavefronts = np.empty([nviews * nprobes, probe.shape[0], probe.shape[1]],
                           dtype='complex')
     for i in range(niter):
         upd_psi = np.zeros(psi.shape, dtype='complex')
         # combine all wavefronts into one array
-        for m in range(h.size):
-            wavefronts[m] = psi[theta[m],
-                                h[m]:h[m] + probe.shape[0],
-                                v[m]:v[m] + probe.shape[1]]
+        for m in range(nviews):
+            for n in range(nprobes):
+                wavefronts[m*nprobes + n] = psi[m,
+                                                h[n]:h[n] + probe.shape[0],
+                                                v[n]:v[n] + probe.shape[1]]
         # Compute near-plane wavefront
         nearplane = probe * wavefronts
         # Pad before FFT
@@ -378,10 +382,11 @@ def grad(data=None, data_min=None,
         # Update measurement patch.
         upd_m = probe_inverse * (new_nearplane - nearplane)
         # Combine measurement with other updates
-        for m in range(h.size):
-            upd_psi[theta[m],
-                    h[m]:h[m]+probe.shape[0],
-                    v[m]:v[m]+probe.shape[1]] += upd_m[m]
+        for m in range(nviews):
+            for n in range(nprobes):
+                upd_psi[m,
+                        h[n]:h[n]+probe.shape[0],
+                        v[n]:v[n]+probe.shape[1]] += upd_m[m*nprobes + n]
         # Update psi
         psi = ((1 - gamma * rho) * psi
                + gamma * rho * (reg - lamda / rho)
@@ -398,14 +403,17 @@ def pad(phi, padded_shape):
                   mode='constant')
 
 
-def exitwave(prb, psi, theta, h, v):
-    """Compute the wavefront from probe function and track of psi"""
-    wave = np.zeros([h.size] + list(prb.shape), dtype=complex)
-    for m in range(h.size):
-        wave[m] = prb * psi[theta[m],
-                            h[m]:h[m] + prb.shape[0],
-                            v[m]:v[m] + prb.shape[1]]
-    return wave
+def exitwave(probe, psi, h, v):
+    """Compute the wavefront from probe function and stack of psi"""
+    nviews = psi.shape[0]
+    nprobes = h.size
+    wave = np.zeros([nviews * nprobes] + list(probe.shape), dtype=complex)
+    for m in range(nviews):
+        for n in range(nprobes):
+            wave[m*nprobes + n] = psi[m,
+                                      h[n]:h[n] + probe.shape[0],
+                                      v[n]:v[n] + probe.shape[1]]
+    return probe * wave
 
 
 def simulate(data_shape=None, data_min=None,
@@ -413,7 +421,7 @@ def simulate(data_shape=None, data_min=None,
              psi=None, psi_min=None,
              **kwargs):
     """Propagate the wavefront to the detector."""
-    phi = pad(exitwave(probe, psi, theta, h, v), data_shape)
+    phi = pad(exitwave(probe, psi, h, v), data_shape)
     intensity = np.square(np.abs(np.fft.fft2(phi)))
     return intensity.astype('float')
 
@@ -454,12 +462,10 @@ def reconstruct(data=None, data_min=None,
     #   have a standard interface. Perhaps pass unique params to a generic
     #   struct or array.
     if algorithm is "grad":
-        new_psi = grad(data=data,
-                       probe=probe.view(complex).squeeze(),
+        new_psi = grad(data=data, data_min=data_min,
+                       probe=probe, theta=theta, h=h, v=v,
+                       psi=psi, psi_min=psi_min,
                        niter=niter, **kwargs)
-        assert np.iscomplexobj(new_psi)
-        new_psi = new_psi.view(float).reshape(
-            line_integrals.shape)
     else:
         raise ValueError("The {} algorithm is not an available.".format(
             algorithm))
