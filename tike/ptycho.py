@@ -164,9 +164,8 @@ def gaussian(size, rin=0.8, rout=1.0):
     return img
 
 
-def pad_grid(padded_shape=None, padded_min=None,
-             unpadded_grid=None, h=None, v=None):
-    """Pad the `unpadded_grid` with zeros to match the `padded_shape`.
+def fast_pad(unpadded_grid, npadv, npadh):
+    """Pad symmetrically with zeros along the last two dimensions
 
     The `unpadded_grid` keeps its own data type. The padded_shape is the same
     in all dimensions except for the last two. The unpadded_grid is extracted
@@ -177,28 +176,12 @@ def pad_grid(padded_shape=None, padded_min=None,
     Issue (numpy/numpy #11126, 21 May 2018): Copying into preallocated array
     is faster because of the way that np.pad uses concatenate.
     """
-    assert np.all(list(padded_shape[-2:]) >= list(unpadded_grid.shape[-2:])), \
-        "Padded shape is smaller than unpadded shape!"
+    padded_shape = list(unpadded_grid.shape)
+    padded_shape[-2] += 2 * npadv
+    padded_shape[-1] += 2 * npadh
     padded_grid = np.zeros(padded_shape, dtype=unpadded_grid.dtype)
-    vmin, vmax = locate_pad(padded_shape[-2], unpadded_grid.shape[-2])
-    hmin, hmax = locate_pad(padded_shape[-1], unpadded_grid.shape[-1])
-    padded_grid[..., vmin:vmax, hmin:hmax] = unpadded_grid
+    padded_grid[..., npadv:-npadv, npadh:-npadh] = unpadded_grid
     return padded_grid
-
-
-def unpad_grid(padded_grid=None, padded_min=None,
-               unpadded_shape=None, v=None, h=None):
-    """Crop the `padded_grid` to match the `unpadded_shape`.
-
-    The `padded_grid` keeps its own data type. The padded_grid is the same
-    in all dimensions except for the last two. The unpadded_grid is extracted
-    or placed into the an array that is the size of the padded_grid.
-    """
-    assert np.all(list(padded_grid.shape[-2:]) >= list(unpadded_shape[-2:])), \
-        "Padded shape is smaller than unpadded shape!"
-    vmin, vmax = locate_pad(padded_grid.shape[-2], unpadded_shape[-2])
-    hmin, hmax = locate_pad(padded_grid.shape[-1], unpadded_shape[-1])
-    return padded_grid[..., vmin:vmax, hmin:hmax]
 
 
 def combine_grids(grids, v, h,
@@ -248,7 +231,7 @@ def combine_grids(grids, v, h,
 
     # Create a summed_grids large enough to hold all of the grids
     # plus some padding to cancel out the padding added for shifting
-    grids = np.pad(grids, [[0, 0], [1, 1], [1, 1]], mode='constant')
+    grids = fast_pad(grids, 1, 1)
     combined = np.zeros([combined_shape[0],
                          combined_shape[1] + 2,
                          combined_shape[2] + 2], dtype=grids.dtype)
@@ -321,7 +304,7 @@ def uncombine_grids(grids_shape, v, h,
 
     # Create a grids large enough to hold all of the grids
     # plus some padding to cancel out the padding added for shifting
-    combined = np.pad(combined, [[0, 0], [1, 1], [1, 1]], mode='constant')
+    combined = fast_pad(combined, 1, 1)
     grids = np.empty(grids_shape, dtype=combined.dtype)
     # Retrive the updated values of each of the grids
     nviews = combined.shape[0]
@@ -381,9 +364,7 @@ def grad(data=None, data_min=None,
         # Compute near-plane wavefront
         nearplane = probe * wavefronts
         # Pad before FFT
-        nearplane_pad = np.pad(nearplane,
-                               ((0, 0), (npadv, npadv), (npadh, npadh)),
-                               mode='constant')
+        nearplane_pad = fast_pad(nearplane, npadv, npadh)
         # Go far-plane
         farplane = np.fft.fft2(nearplane_pad)
         # Replace the amplitude with the measured amplitude.
@@ -405,14 +386,6 @@ def grad(data=None, data_min=None,
     return psi
 
 
-def pad(phi, padded_shape):
-    """Pads phi according to detector size."""
-    npadx = (padded_shape[0] - phi.shape[1]) // 2
-    npady = (padded_shape[1] - phi.shape[2]) // 2
-    return np.pad(phi, ((0, 0), (npadx, npadx), (npady, npady)),
-                  mode='constant')
-
-
 def exitwave(probe, psi, v, h, psi_min=None):
     """Compute the wavefront from probe function and stack of psi"""
     wave_shape = [psi.shape[0] * h.size, probe.shape[0], probe.shape[1]]
@@ -426,8 +399,11 @@ def simulate(data_shape=None, data_min=None,
              psi=None, psi_min=(0, 0),
              **kwargs):
     """Propagate the wavefront to the detector."""
-    phi = pad(exitwave(probe, psi, v, h, psi_min=psi_min), data_shape)
-    intensity = np.square(np.abs(np.fft.fft2(phi)))
+    wavefront = exitwave(probe, psi, v, h, psi_min=psi_min)
+    npadx = (data_shape[0] - wavefront.shape[1]) // 2
+    npady = (data_shape[1] - wavefront.shape[2]) // 2
+    padded_wave = fast_pad(wavefront, npadx, npady)
+    intensity = np.square(np.abs(np.fft.fft2(padded_wave)))
     return intensity.astype('float')
 
 
