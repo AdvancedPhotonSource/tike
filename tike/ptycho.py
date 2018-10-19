@@ -460,8 +460,8 @@ def reconstruct(data=None, data_min=None,
                           probe, theta, v, h,
                           psi, psi_min, **kwargs)
     # Send data to c function
-    logger.info("{} on {:,d} element grid for {:,d} iterations".format(
-                algorithm, data.size, niter))
+    logger.info("{} on {:,d} - {:,d} by {:,d} grids for {:,d} "
+                "iterations".format(algorithm, *data.shape, niter))
     # Add new algorithms here
     # TODO: The size of this function may be reduced further if all recon clibs
     #   have a standard interface. Perhaps pass unique params to a generic
