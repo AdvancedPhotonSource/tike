@@ -62,6 +62,7 @@ __author__ = "Doga Gursoy"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = ['plot_complex',
+           'plot_phase',
            'trajectory',
            'plot_footprint',
            'plot_trajectories',
@@ -72,7 +73,18 @@ logger = logging.getLogger(__name__)
 
 
 def plot_complex(Z):
-    plt.figure()
+    plt.figure(dpi=128)
+    plt.subplot(1, 2, 1)
+    plt.imshow(Z.real)
+    plt.colorbar(orientation='horizontal')
+    plt.subplot(1, 2, 2)
+    plt.imshow(Z.imag)
+    plt.colorbar(orientation='horizontal')
+    plt.show()
+
+
+def plot_phase(Z):
+    plt.figure(dpi=128)
     plt.subplot(1, 2, 1)
     plt.imshow(np.abs(Z))
     plt.colorbar(orientation='horizontal')

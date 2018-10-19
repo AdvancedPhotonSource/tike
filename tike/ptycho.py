@@ -355,7 +355,7 @@ def grad(data=None, data_min=None,
     reg : (T, V, H, P) :py:class:`numpy.array` complex
         The regularizer for psi.
     rho : float
-        The positive penalty parameter. TODO@Selin Create better description
+        The positive penalty parameter. It should be less than 1.
     gamma : float
         The ptychography gradient descent step size.
     lamda : float

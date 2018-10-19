@@ -183,21 +183,21 @@ def reconstruct(obj=None, obj_min=None,
     obj : (Z, X, Y, P) :py:class:`numpy.array` float
         The updated obj grid.
     """
-    pb = tomopy.recon(tomo=np.real(line_integrals),
+    Lr = tomopy.recon(tomo=line_integrals.real,
                       theta=theta,
                       algorithm=algorithm,
-                      init_recon=np.real(obj),
+                      init_recon=obj.real,
                       num_iter=niter, **kwargs,
                       )
-    pd = tomopy.recon(tomo=np.imag(line_integrals),
+    Li = tomopy.recon(tomo=line_integrals.imag,
                       theta=theta,
                       algorithm=algorithm,
-                      init_recon=np.imag(obj),
+                      init_recon=obj.imag,
                       num_iter=niter, **kwargs,
                       )
-    recon = np.empty(pb.shape, dtype=complex)
-    recon.real = pb
-    recon.imag = pd
+    recon = np.empty(Lr.shape, dtype=complex)
+    recon.real = Lr
+    recon.imag = Li
     return recon
     # obj, obj_min, probe, theta, v, h \
     #     = _tomo_interface(obj, obj_min, probe, theta, v, h)
