@@ -78,15 +78,15 @@ def test_coded_exposure():
                       0.2, 0.2,   2,   0, 0.3, 1.0, 1.0])
 
     theta = np.arange(time.size)
-    h = np.arange(time.size)
     v = np.arange(time.size)
+    h = np.arange(time.size)
 
-    th1, h1, v1, t1, d1, b1 = coded_exposure(theta, h, v, time, dwell, c_time,
+    th1, v1, h1, t1, d1, b1 = coded_exposure(theta, v, h, time, dwell, c_time,
                                              c_dwell)
 
     np.testing.assert_equal(th1, [2, 3, 4, 5, 6, 9, 11, 9])
-    np.testing.assert_equal(h1, [2, 3, 4, 5, 6, 9, 11, 9])
     np.testing.assert_equal(v1, [2, 3, 4, 5, 6, 9, 11, 9])
+    np.testing.assert_equal(h1, [2, 3, 4, 5, 6, 9, 11, 9])
     np.testing.assert_equal(t1, [2., 3., 4.1, 4.2, 6.1, 9., 9., 10.])
     np.testing.assert_allclose(d1, [0.2, 0.5, 0.1, 0.1, 0.4, 0.5, 0.2, 0.5])
     np.testing.assert_equal(b1, [0, 1, 2, 4, 5, 7])

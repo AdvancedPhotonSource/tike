@@ -12,8 +12,8 @@ forward_project(
     const float ozmin, const float oxmin, const float oymin,
     const int oz, const int ox, const int oy,
     const float *theta,
-    const float *h,
     const float *v,
+    const float *h,
     const int dsize,
     float *data)
 {

@@ -55,12 +55,14 @@ from __future__ import (absolute_import, division, print_function,
 
 import numpy as np
 import logging
+import tike.tomo
+import tike.ptycho
 from tike.constants import *
 
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = [
+__all__ = ['admm',
            ]
 
 
@@ -70,7 +72,7 @@ logger = logging.getLogger(__name__)
 
 def _combined_interface(obj, obj_min,
                         data, data_min,
-                        probe, theta, h, v,
+                        probe, theta, v, h,
                         **kwargs):
     """A function whose interface all functions in this module matches."""
     assert np.all(obj_size > 0), "Detector dimensions must be > 0."
@@ -83,11 +85,10 @@ def _combined_interface(obj, obj_min,
     return None
 
 
-def admm(obj=None, obj_min=None,
-         data=None, data_min=None,
+def admm(obj=None, voxelsize=None,
+         data=None,
          probe=None, theta=None, h=None, v=None, energy=None,
-         algorithms=None,
-         niter=1, rho=1, gamma=0.5,
+         niter=1, rho=0.5, gamma=0.25,
          **kwargs):
     """Use Alternating Direction Method of Multipliers (ADMM)
 
@@ -114,28 +115,29 @@ def admm(obj=None, obj_min=None,
         reconstruction algorithms.
     """
     Z, X, Y = obj.shape[0:3]
+    T = theta.size
     x = obj
-    psi = np.ones([Z, X, Y, 2]).view(complex).flatten()
-    hobj = np.ones([Z, X, Y, 2]).view(complex).flatten()
+    psi = np.ones([T, Z, Y], dtype=obj.dtype)
+    hobj = 1 + 0j  # np.ones([T, Z, Y], dtype=obj.dtype)
     lamda = 0j
     for i in range(niter):
         # Ptychography.
         psi = tike.ptycho.reconstruct(data=data,
-                                      probe=probe, theta=theta, h=h, v=v,
+                                      probe=probe, v=v, h=h,
                                       psi=psi,
                                       algorithm='grad',
                                       niter=1, rho=rho, gamma=gamma, reg=hobj,
                                       lamda=lamda, **kwargs)
         # Tomography.
-        phi = -1j * wavelength(energy) / 2 / np.pi * np.log(psi + lamda / rho)
+        phi = -1j / wavenumber(energy) * np.log(psi + lamda / rho) / voxelsize
         x = tike.tomo.reconstruct(obj=x,
                                   theta=theta,
                                   line_integrals=phi,
-                                  algorithm='grad',
+                                  algorithm='grad', reg_par=-1,
                                   niter=1, **kwargs)
         # Lambda update.
-        line_integrals = tike.tomo.forward(obj=x, theta=theta)
-        hobj = np.exp(1j * 2 * np.pi / wavelength(energy) * line_integrals)
+        line_integrals = tike.tomo.forward(obj=x, theta=theta) * voxelsize
+        hobj = np.exp(1j * wavenumber(energy) * line_integrals)
         lamda = lamda + rho * (psi - hobj)
         # # Update residuals.
         # r = 1 / M * np.sqrt(np.sum(np.square(np.abs(psi - hobj)),
@@ -144,3 +146,4 @@ def admm(obj=None, obj_min=None,
         #                          axis=(-1, -2)))
         # if r < epsilon_prime and s < epsilon_dual:
         #     pass
+    return x

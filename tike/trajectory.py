@@ -50,8 +50,8 @@
 This module defines a `Probe` class for generating 3D coverage maps of user
 defined functions.
 
-User defines a function in `thetahv` space. `user_func(t) -> theta, h, v`
-where t, theta, h, and v are 1D numpy arrays.
+User defines a function in `thetahv` space. `user_func(t) -> theta, v, h`
+where t, theta, v, and h are 1D numpy arrays.
 """
 
 from __future__ import (absolute_import, division, print_function,
@@ -72,13 +72,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def euclidian_dist(theta, h, v, r=0.5):
+def euclidian_dist(theta, v, h, r=0.5):
     """Return the euclidian distance between consecutive points in
-    theta, h, v space.
+    theta, v, h space.
 
     Parameters
     ----------
-    theta, h, v : (M,) :py:class:`numpy.array`
+    theta, v, h : (M,) :py:class:`numpy.array`
         Coordinates of points.
     r : float
         The radius to use when converting to euclidian space.
@@ -92,7 +92,7 @@ def euclidian_dist(theta, h, v, r=0.5):
     return np.sqrt(dv*dv + dh*dh)
 
 
-def euclidian_dist_approx(theta, h, v, r=0.75):
+def euclidian_dist_approx(theta, v, h, r=0.75):
     """Approximate the euclidian distance between consecutive elements of the
     points by adding the arclength travelled to the hv distance.
 
@@ -101,15 +101,15 @@ def euclidian_dist_approx(theta, h, v, r=0.75):
 
     Parameters
     ----------
-    theta, h, v : (M,) :py:class:`numpy.array`
+    theta, v, h : (M,) :py:class:`numpy.array`
         Coordinates of points.
     r : float
         The radius to use when converting to euclidian space.
     """
     t1 = np.diff(theta)
-    h1 = np.diff(h)
     v1 = np.diff(v)
-    return np.abs(t1) * r + np.sqrt(h1**2 + v1**2)
+    h1 = np.diff(h)
+    return np.abs(t1) * r + np.sqrt(v1**2 + h1**2)
 
 
 def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep, tkwargs={}):
@@ -119,7 +119,7 @@ def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep, tkwargs={}):
 
     Parameters
     ----------
-    trajectory : function(time, **tkwargs) -> theta, h, v
+    trajectory : function(time, **tkwargs) -> theta, v, h
         A *continuous* function taking a single 1D array and returning three
         1D arrays.
     [tmin, tmax) : float
@@ -131,7 +131,7 @@ def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep, tkwargs={}):
 
     Returns
     -------
-    theta, h, v : (N,) vectors [m]
+    theta, v, h : (N,) vectors [m]
         Discrete measurement positions along the trajectory satisfying
         constraints.
     dwell : (N,) vector [s]
@@ -140,14 +140,14 @@ def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep, tkwargs={}):
         Discrete times along trajectory satisfying constraints.
     """
     dist_func = euclidian_dist_approx
-    all_theta, all_h, all_v, all_times = discrete_helper(trajectory,
+    all_theta, all_v, all_h, all_times = discrete_helper(trajectory,
                                                          tmin, tmax,
                                                          xstep, tstep,
                                                          dist_func,
                                                          tkwargs=tkwargs)
     all_theta = np.concatenate(all_theta)
-    all_h = np.concatenate(all_h)
     all_v = np.concatenate(all_v)
+    all_h = np.concatenate(all_h)
     all_times = np.concatenate(all_times)
     # Compute dwell time because you can't while recursing
     dwell = np.empty(all_times.size)
@@ -158,22 +158,22 @@ def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep, tkwargs={}):
         "Some times not less than tstep\n{}".format(dwell[dwell > tstep][0])
     # assert dist_func([trajectory(all_times[-1]), trajectory(tmax)]) < xstep,
     #     "Last distance not less than dstep"
-    assert np.all(dist_func(all_theta, all_h, all_v) <= xstep), \
+    assert np.all(dist_func(all_theta, all_v, all_h) <= xstep), \
         "Some distances wrong"
     # These assertions are vulnerable to rounding errors
-    return all_theta, all_h, all_v, dwell, all_times
+    return all_theta, all_v, all_h, dwell, all_times
 
 
 def discrete_helper(trajectory, tmin, tmax, xstep, tstep, dist_func,
                     tkwargs={}):
     """Do a recursive sampling of the trajectory."""
-    all_theta, all_h = list(), list()
-    all_v, all_times = list(), list()
+    all_theta, all_v = list(), list()
+    all_h, all_times = list(), list()
     # Sample en masse the trajectory over time
     times = np.arange(tmin, tmax + tstep, tstep)
-    theta, h, v = trajectory(times, **tkwargs)
+    theta, v, h = trajectory(times, **tkwargs)
     # Compute spatial distances between samples
-    distances = dist_func(theta, h, v)
+    distances = dist_func(theta, v, h)
     # determine which ranges are too large and which to keep
     keepit = xstep > distances
     len_keepit = keepit.size
@@ -187,8 +187,8 @@ def discrete_helper(trajectory, tmin, tmax, xstep, tstep, dist_func,
             # print("keep: {}, {}".format(klo, khi))
             # concatenate the ranges to keep
             all_theta.append(theta[klo:khi])
-            all_h.append(h[klo:khi])
             all_v.append(v[klo:khi])
+            all_h.append(h[klo:khi])
             all_times.append(times[klo:khi])
             klo = khi
         if keepit[rlo]:
@@ -201,15 +201,15 @@ def discrete_helper(trajectory, tmin, tmax, xstep, tstep, dist_func,
                                                      xstep, tstep/2,
                                                      dist_func, tkwargs)
             all_theta += itheta
-            all_h += ih
             all_v += iv
+            all_h += ih
             all_times += itimes
             rlo = rhi
     khi += 1
-    return all_theta, all_h, all_v, all_times
+    return all_theta, all_v, all_h, all_times
 
 
-def coded_exposure(theta, h, v, time, dwell, c_time, c_dwell):
+def coded_exposure(theta, v, h, time, dwell, c_time, c_dwell):
     """Returns the intersection of a scanning procedure and coded exposure
     with measurements reordered and bundled by code.
 
@@ -226,7 +226,7 @@ def coded_exposure(theta, h, v, time, dwell, c_time, c_dwell):
 
     Parameters
     ----------
-    theta, h, v : :py:class:`numpy.array` (M, )
+    theta, v, h : :py:class:`numpy.array` (M, )
         The position of each ray at each measurement.
     dwell, time : :py:class:`numpy.array` (M, )
         The duration and start time of each measurement.
@@ -235,7 +235,7 @@ def coded_exposure(theta, h, v, time, dwell, c_time, c_dwell):
 
     Returns
     -------
-    theta1, h1, v1, time1, dwell1 :py:class:`numpy.array` (M, )
+    theta1, v1, h1, time1, dwell1 :py:class:`numpy.array` (M, )
         New position and time coordates which fit into the code.
     bundles : :py:class:`numpy.array` (N, )
         The starting index of each coded bundle.
@@ -291,7 +291,7 @@ def coded_exposure(theta, h, v, time, dwell, c_time, c_dwell):
     dwells1 = np.array(dwells)[new_order]
     # Clip the measurements
     bundles = np.nonzero(np.diff(np.concatenate([[-1], codes])))[0]
-    return (theta[positions], h[positions], v[positions], times1, dwells1,
+    return (theta[positions], v[positions], h[positions], times1, dwells1,
             bundles)
 
 

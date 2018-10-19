@@ -69,14 +69,14 @@ def init_coverage():
 
 def test_stationary_coverage_x():
     def all_x(t):
-        return np.pi + 0*t, 0*t + 0.5, 0*t - 0.5
+        return np.pi + 0*t, 0*t - 0.5, 0*t + 0.5
     probe_grid, probe_size, region, region_min, region_size = init_coverage()
     region = np.zeros((1, 3, 3, 8))
-    theta, h, v, dwell, times = discrete_trajectory(all_x,
+    theta, v, h, dwell, times = discrete_trajectory(all_x,
                                                     tmin=0, tmax=10, tstep=1,
                                                     xstep=1/32)
     cov_map = coverage(region, region_min, region_size,
-                       probe_grid, probe_size, theta, h, v, dwell)
+                       probe_grid, probe_size, theta, v, h, dwell)
     truth = np.zeros(cov_map.shape)
     truth[0, :, 0, 0] = 10
     np.testing.assert_equal(truth, cov_map)
@@ -87,11 +87,11 @@ def test_stationary_coverage_y():
         return -np.pi/2 + 0*t, 0*t - 0.5, 0*t - 0.5
     probe_grid, probe_size, region, region_min, region_size = init_coverage()
     region = np.zeros((1, 3, 3, 3))
-    theta, h, v, dwell, times = discrete_trajectory(all_y,
+    theta, v, h, dwell, times = discrete_trajectory(all_y,
                                                     tmin=0, tmax=10, tstep=1,
                                                     xstep=1/32)
     cov_map = coverage(region, region_min, region_size,
-                       probe_grid, probe_size, theta, h, v, dwell)
+                       probe_grid, probe_size, theta, v, h, dwell)
     # cov_map = cov_map.reshape((3, 3, 4))
     cov_map = cov_map
     truth = np.zeros(cov_map.shape)
@@ -110,11 +110,11 @@ def test_split_z():
     def split_z(t):
         return 0*t, 0*t - 0.5, 0*t - 0.5
 
-    theta, h, v, dwell, times = discrete_trajectory(split_z,
+    theta, v, h, dwell, times = discrete_trajectory(split_z,
                                                     tmin=0, tmax=10, tstep=1,
                                                     xstep=1/32)
     cov_map = coverage(region, region_min, region_size,
-                       probe_grid, probe_size, theta, h, v, dwell)[..., 0]
+                       probe_grid, probe_size, theta, v, h, dwell)[..., 0]
     truth = np.zeros(cov_map.shape)
     truth[1:3, :, 1:3] = 2.5
     np.testing.assert_equal(truth, cov_map,)
@@ -131,15 +131,15 @@ def test_Nbin_equivalent():
     region_min = [-1, -2, -2]
     region_size = [2, 4, 4]
     # Discretize the trajectory
-    theta, h, v, dwell, times = discrete_trajectory(round,
+    theta, v, h, dwell, times = discrete_trajectory(round,
                                                     tmin=0, tmax=10, tstep=1,
                                                     xstep=1/32)
     # Compute coverage for one and many bins
     region1 = np.zeros((2, 4, 4, 1))
     one_bin_map = coverage(region1, region_min, region_size,
-                           probe_grid, probe_size, theta, h, v, dwell)
+                           probe_grid, probe_size, theta, v, h, dwell)
     region7 = np.zeros((2, 4, 4, 7))
     any_bin_map = coverage(region7, region_min, region_size,
-                           probe_grid, probe_size, theta, h, v, dwell)
+                           probe_grid, probe_size, theta, v, h, dwell)
     np.testing.assert_allclose(np.sum(one_bin_map, axis=3),
                                np.sum(any_bin_map, axis=3), atol=1e-4)
