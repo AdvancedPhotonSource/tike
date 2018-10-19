@@ -6,6 +6,11 @@
 #include <stdio.h>
 #include <stdbool.h>
 
+#ifdef WIN32
+#define DLL __declspec(dllexport)
+#else
+#define DLL
+#endif
 
 /** @brief Allocates and fills the projection and backprojection sparse
 matricies
@@ -34,7 +39,8 @@ intersection are computed.
 @return rays The indices of the rays touching pixels.
 @return ray_lengths The lengths of intersection between the pixels and rays.
 */
-void get_intersections_and_lengths(
+void DLL
+get_intersections_and_lengths(
     const int nray, const float * const theta, const float * const rho,
     const int nx, const float xmin, const float xsize,
     const int ny, const float ymin, const float ysize
@@ -46,7 +52,8 @@ and rho.
 TODO
 
 */
-void findnumpix(
+void DLL
+findnumpix(
     float theta, float rho,
     int *numpix, float *domain,
     float res, int nx, int ny
@@ -57,7 +64,8 @@ void findnumpix(
 TODO
 
 */
-void placepixels(float theta, float rho, int *indices,
+void DLL
+placepixels(float theta, float rho, int *indices,
     float *weights,
     int *numpix, float *domain, float res,
     int nx, int ny);
@@ -76,7 +84,8 @@ rays, add the ray_lengths * sinogram to object
 @param object The weights of each pixel
 @param sinogram The weights of each ray
 */
-void back_project(
+void DLL
+back_project(
     const int npix,
     const int * const num_rays, const int * const ray_start,
     const int * const rays, const float * const ray_lengths,
@@ -96,7 +105,8 @@ domain, compute a ray-sum over the object.
 @param object The weights of each pixel
 @param sinogram The ray sums of each ray
 */
-void forward_project(
+void DLL
+forward_project(
     const int nrays,
     const int * const num_pix, const int * const pix_start,
     const int * const pix, const float * const pix_lengths,

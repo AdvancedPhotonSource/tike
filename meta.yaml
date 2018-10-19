@@ -1,0 +1,49 @@
+package:
+  name: tike
+  version: 0.3
+
+source:
+  path: .
+
+build:
+  number: 0
+  script:
+    - "{{ PYTHON }} build.py"
+    - "{{ PYTHON }} -m pip install . --no-deps --ignore-installed --no-cache-dir -vvv"
+
+requirements:
+  build:
+    - {{ compiler('c') }}  # [not win]
+  host:
+    - Make  # [win]
+    - MinGW  # [win]
+    - pip
+    - python={{ python }}
+    - setuptools
+    - setuptools_scm
+  run:
+    - futures  # [py2k]
+    - numpy
+    - matplotlib
+    - openmp
+    - python={{ python }}
+    - six
+    - tomopy
+
+test:
+  requires:
+    - nose
+  imports:
+    - tike
+  source_files:
+    - test*
+  commands:
+    - nosetests
+
+app:
+    own_environment: True
+
+about:
+    license: BSD 3-Clause
+    license_family: BSD
+    license_file: LICENSE
