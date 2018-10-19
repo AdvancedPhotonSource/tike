@@ -63,12 +63,13 @@ class Config:
             self.compilerdir = os.environ["GCC"]
         # includes
         top_include = pjoin(PREFIX, 'include')
-        includes = [top_include]
-        for fname in os.listdir(top_include):
-            tdir = pjoin(top_include, fname)
-            if os.path.isdir(tdir) and 'python' in fname:
-                includes.append(tdir)
-        self.includes += includes
+        if os.path.exists(top_include):
+            includes = [top_include]
+            for fname in os.listdir(top_include):
+                tdir = pjoin(top_include, fname)
+                if os.path.isdir(tdir) and 'python' in fname:
+                    includes.append(tdir)
+            self.includes += includes
 
     def format(self):
         """Return the formatted string, replacing Windows \\ with Unix /."""
@@ -109,11 +110,10 @@ def config_windows():
     compilerdir = None
     if 'conda' in sys.version:
         # Look for GCC in the conda directory
-        mingw_path = pjoin(PREFIX, 'MinGW', 'bin')
-        mingw_gcc = pjoin(mingw_path, 'gcc.exe')
+        mingw_gcc = pjoin(PREFIX, 'MinGW', 'bin', 'gcc.exe')
         if os.path.exists(mingw_gcc):
             logger.info("COMPILER_DIR is {}".format(mingw_gcc))
-            compilerdir = mingw_path
+            compilerdir = mingw_gcc
         else:
             logger.warn("Compiler not found at {}".format(mingw_gcc))
     if compilerdir is None:

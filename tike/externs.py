@@ -46,21 +46,19 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
+"""
+This module contains the shared c dynamically linked libraries.
+"""
+
+import ctypes
 import sys
 import os.path
-import ctypes
-from . import utils
 import logging
-
 
 __author__ = "Doga Gursoy"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = ['c_shared_lib',
-           'c_art',
-           'c_project',
-           'c_coverage']
-
+__all__ = ['LIBTIKE']
 
 logger = logging.getLogger(__name__)
 
@@ -83,91 +81,5 @@ def c_shared_lib(lib_name):
                    sharedlib))
 
 
+# Import C shared library called libtike
 LIBTIKE = c_shared_lib('libtike')
-
-
-def c_coverage(ozmin, oxmin, oymin, zsize, xsize, ysize, oz, ox, oy, ot,
-               theta, h, v, w, dsize, cov):
-    LIBTIKE.coverage.restype = utils.as_c_void_p()
-    return LIBTIKE.coverage(
-            utils.as_c_float(ozmin),
-            utils.as_c_float(oxmin),
-            utils.as_c_float(oymin),
-            utils.as_c_float(zsize),
-            utils.as_c_float(xsize),
-            utils.as_c_float(ysize),
-            utils.as_c_int(oz),
-            utils.as_c_int(ox),
-            utils.as_c_int(oy),
-            utils.as_c_int(ot),
-            utils.as_c_float_p(theta),
-            utils.as_c_float_p(h),
-            utils.as_c_float_p(v),
-            utils.as_c_float_p(w),
-            utils.as_c_int(dsize),
-            utils.as_c_float_p(cov))
-
-
-def c_project(obj, ozmin, oxmin, oymin, zsize, xsize, ysize, oz, ox, oy,
-              theta, h, v, dsize, data):
-    LIBTIKE.forward_project.restype = utils.as_c_void_p()
-    return LIBTIKE.forward_project(
-            utils.as_c_float_p(obj),
-            utils.as_c_float(ozmin),
-            utils.as_c_float(oxmin),
-            utils.as_c_float(oymin),
-            utils.as_c_float(zsize),
-            utils.as_c_float(xsize),
-            utils.as_c_float(ysize),
-            utils.as_c_int(oz),
-            utils.as_c_int(ox),
-            utils.as_c_int(oy),
-            utils.as_c_float_p(theta),
-            utils.as_c_float_p(h),
-            utils.as_c_float_p(v),
-            utils.as_c_int(dsize),
-            utils.as_c_float_p(data))
-
-
-def c_art(ozmin, oxmin, oymin, zsize, xsize, ysize, oz, ox, oy,
-          data, theta, h, v, dsize, recon, n_iter):
-    LIBTIKE.art.restype = utils.as_c_void_p()
-    return LIBTIKE.art(
-            utils.as_c_float(ozmin),
-            utils.as_c_float(oxmin),
-            utils.as_c_float(oymin),
-            utils.as_c_float(zsize),
-            utils.as_c_float(xsize),
-            utils.as_c_float(ysize),
-            utils.as_c_int(oz),
-            utils.as_c_int(ox),
-            utils.as_c_int(oy),
-            utils.as_c_float_p(data),
-            utils.as_c_float_p(theta),
-            utils.as_c_float_p(h),
-            utils.as_c_float_p(v),
-            utils.as_c_int(dsize),
-            utils.as_c_float_p(recon),
-            utils.as_c_int(n_iter))
-
-
-def c_sirt(ozmin, oxmin, oymin, zsize, xsize, ysize, oz, ox, oy,
-           data, theta, h, v, dsize, recon, n_iter):
-    LIBTIKE.art.restype = utils.as_c_void_p()
-    return LIBTIKE.sirt(
-            utils.as_c_float(ozmin),
-            utils.as_c_float(oxmin),
-            utils.as_c_float(oymin),
-            utils.as_c_float(zsize),
-            utils.as_c_float(xsize),
-            utils.as_c_float(ysize),
-            utils.as_c_int(oz),
-            utils.as_c_int(ox),
-            utils.as_c_int(oy),
-            utils.as_c_float_p(data),
-            utils.as_c_float_p(theta),
-            utils.as_c_float_p(h),
-            utils.as_c_float_p(v),
-            utils.as_c_int(dsize),
-            utils.as_c_float_p(recon),
-            utils.as_c_int(n_iter))

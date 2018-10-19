@@ -5,7 +5,8 @@ from setuptools import setup, find_packages
 setup(
     name='tike',
     packages=find_packages(exclude=['tests*']),
-    version=open('VERSION').read().strip(),
+    use_scm_version=True,
+    setup_requires=['setuptools_scm'],
     include_package_data=True,
     zip_safe=False,
     author='Doga Gursoy',

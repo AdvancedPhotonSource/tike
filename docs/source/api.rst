@@ -8,12 +8,16 @@ This section contains the API reference.
 
 .. toctree::
 
+   api/tike.coverage
+   api/tike.pytcho
    api/tike.scan
+   api/tike.tike
    api/tike.tomo
+   api/tike.trajectory
    api/tike.view
 
 
 .. automodule:: tike
    :members:
    :undoc-members:
-   :show-inheritance: 
+   :show-inheritance:

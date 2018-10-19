@@ -46,207 +46,245 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
+"""
+This module contains functions for solving the tomography problem.
+
+Coordinate Systems
+==================
+`theta, v, h`. `v, h` are the horizontal vertical directions perpendicular
+to the probe direction where positive directions are to the right and up.
+`theta` is the rotation angle around the vertical reconstruction
+space axis, `z`. `z` is parallel to `v`, and uses the right hand rule to
+determine reconstruction space coordinates `z, x, y`. `theta` is measured
+from the `x` axis, so when `theta = 0`, `h` is parallel to `y`.
+
+Functions
+=========
+Each public function in this module should have the following interface:
+
+Parameters
+----------
+obj : (Z, X, Y, P) :py:class:`numpy.array` float
+    An array of material properties. The first three dimensions `Z, X, Y`
+    are spatial dimensions. The fourth dimension, `P`,  holds properties at
+    each grid position: refractive indices, attenuation coefficents, etc.
+
+        * (..., 0) : delta, the real phase velocity, the decrement of the
+            refractive index.
+        * (..., 1) : beta, the imaginary amplitude extinction / absorption
+            coefficient.
+
+obj_min : (3, ) float
+    The min corner (z, x, y) of the `obj`.
+line_integrals : (M, V, H, P) :py:class:`numpy.array` float
+    Integrals across the `obj` for each of the `probe` rays and
+    P parameters.
+probe : (V, H, P) :py:class:`numpy.array` float
+    The initial parameters of the probe to be projected across
+    the `obj`. The grid of each probe is `H` rays wide (the
+    horizontal direction) and `V` rays tall (the vertical direction). The
+    fourth dimension, `P`, holds parameters at each grid position:
+    real and imaginary wave components
+theta, v, h : (M, ) :py:class:`numpy.array` float
+    The min corner (theta, v, h) of the `probe` for each measurement.
+kwargs
+    Keyword arguments specific to this function. `**kwargs` should always be
+    included so that extra parameters are ignored instead of raising an error.
+"""
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
+import tomopy
 import numpy as np
 from . import utils
-from . import externs
+from tike.externs import LIBTIKE
 import logging
 
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = ['art',
-           'sirt',
-           'project',
-           'coverage']
+__all__ = ["reconstruct",
+           "forward",
+           ]
 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def coverage(grid_min, grid_size, ngrid, theta, h, v, line_weight=None,
-             anisotropy=1):
-    """Back-project lines over a grid.
+def _tomo_interface(obj, obj_min,
+                    probe, theta, v, h,
+                    **kwargs):
+    """A function whose interface all functions in this module matches.
 
-    Coverage will be calculated on a grid covering the range
-    `[grid_min, grid_min + grid_size)`.
-
-    Parameters
-    ----------
-    grid_min : tuple float (z, x, y)
-        The min corner of the grid.
-    grid_size : tuple float (z, x, y)
-        The side lengths of the grid along each dimension.
-    ngrid : tuple int (z, x, y)
-        The number of grid spaces along each dimension.
-    theta, h, v : (M, ) :py:class:`numpy.array`
-        The h, v, and theta coordinates of lines to back-project over
-        the grid.
-    line_weight : (M, ) :py:class:`numpy.array`
-        Multiply the intersections lengths of the pixels and each line by these
-        weights.
-
-    Returns
-    -------
-    coverage_map : :py:class:`numpy.ndarray` [length * line_weight]
-        An array of shape (ngrid, anisotropy) containing the sum of the
-        intersection lengths multiplied by the line_weights.
+    This function also sets default values for functions in this module.
     """
-    grid_min = utils.as_float32(grid_min)
-    grid_size = utils.as_float32(grid_size)
-    ngrid = utils.as_int32(ngrid)
-    assert np.all(grid_size > 0), "Grid dimensions must be > 0"
-    assert np.all(ngrid > 0), "Number of grid lines must be > 0"
-    h = utils.as_float32(h)
-    v = utils.as_float32(v)
+    if obj is None:
+        # An inital guess is required
+        raise ValueError()
+    # obj = utils.as_float32(obj)  # complex data
+    if obj_min is None:
+        # The default origin is at the center of the object
+        obj_min = - np.array(obj.shape) / 2  # (z, x, y)
+    obj_min = utils.as_float32(obj_min)
+    if probe is None:
+        # Assume a full field geometry
+        probe = np.ones([obj.shape[0], obj.shape[2]])
+    # probe = utils.as_float32(probe)  # complex data
+    if theta is None:
+        # Angle definitions are required
+        raise ValueError()
     theta = utils.as_float32(theta)
-    if line_weight is None:
-        line_weight = np.ones(theta.shape, dtype=np.float32)
-    line_weight = utils.as_float32(line_weight)
-    assert theta.size == h.size == v.size == line_weight.size, "line_weight," \
-        " theta, h, v must be the same size"
-    if anisotropy > 1:
-        coverage_map = np.zeros(list(ngrid) + [anisotropy], dtype=np.float32)
-    else:
-        coverage_map = np.zeros(ngrid, dtype=np.float32)
-        anisotropy = 1
-    logging.info(" coverage {:,d} element grid".format(coverage_map.size))
-    externs.c_coverage(grid_min[0], grid_min[1], grid_min[2],
-                       grid_size[0], grid_size[1], grid_size[2],
-                       ngrid[0], ngrid[1], ngrid[2], anisotropy,
-                       theta, h, v, line_weight, h.size, coverage_map)
-    return coverage_map
+    if v is None:
+        v = np.full(theta.shape, obj_min[0])
+    v = utils.as_float32(v)
+    if h is None:
+        h = np.full(theta.shape, obj_min[2])
+    h = utils.as_float32(h)
+    assert theta.size == v.size == h.size, \
+        "The size of theta, v, h must be the same as the number of probes."
+    # Generate a grid of offset vectors
+    V, H = probe.shape
+    gv = (np.arange(V) + 0.5)
+    gh = (np.arange(H) + 0.5)
+    dv, dh = np.meshgrid(gv, gh, indexing='ij')
+    # Duplicate the trajectory by size of probe
+    M = theta.size
+    th1 = np.repeat(theta, V*H).reshape(M, V, H)
+    v1 = (np.repeat(v, V*H).reshape(M, V, H) + dv)
+    h1 = (np.repeat(h, V*H).reshape(M, V, H) + dh)
+    assert th1.shape == v1.shape == h1.shape
+    # logger.info(" _tomo_interface says {}".format("Hello, World!"))
+    return (obj, obj_min, probe, th1, v1, h1)
 
 
-def project(obj, grid_min, grid_size, theta, h, v):
-    """Forward-project lines over an object.
+def reconstruct(obj=None, obj_min=None,
+                probe=None, theta=None, v=None, h=None,
+                line_integrals=None,
+                algorithm=None, niter=0, **kwargs):
+    """Reconstruct the `obj` using the given `algorithm`.
 
     Parameters
     ----------
-    obj : (Z, X, Y) :py:class:`numpy.array`
-        An array of weights to integrate each line over.
-    theta, h, v : (M, ) :py:class:`numpy.array`
-        The h, v, and theta coordinates of lines to integrate over `obj`.
-    grid_min : tuple float (z, x, y)
-        The min corner of the grid.
-    grid_size : tuple float (z, x, y)
-        The side lengths of the grid along each dimension.
-    theta, h, v : (M, ) :py:class:`numpy.array`
-        The h, v, and theta coordinates of lines to forward-project over an
-        `obj.shape` grid.
+    obj : (Z, X, Y, P) :py:class:`numpy.array` float
+        The initial guess for the reconstruction.
+    algorithm : string
+        The name of one of the following algorithms to use for reconstructing:
+
+            * art : Algebraic Reconstruction Technique
+                :cite:`gordon1970algebraic`.
+            * sirt : Simultaneous Iterative Reconstruction Technique.
+
+    niter : int
+        The number of iterations to perform
 
     Returns
     -------
-    data : (M, ) :py:class:`numpy.array`
-        The integral of each line over the object.
+    obj : (Z, X, Y, P) :py:class:`numpy.array` float
+        The updated obj grid.
     """
-    obj = utils.as_float32(obj)
+    Lr = tomopy.recon(tomo=line_integrals.real,
+                      theta=theta,
+                      algorithm=algorithm,
+                      init_recon=obj.real,
+                      num_iter=niter, **kwargs,
+                      )
+    Li = tomopy.recon(tomo=line_integrals.imag,
+                      theta=theta,
+                      algorithm=algorithm,
+                      init_recon=obj.imag,
+                      num_iter=niter, **kwargs,
+                      )
+    recon = np.empty(Lr.shape, dtype=complex)
+    recon.real = Lr
+    recon.imag = Li
+    return recon
+    # obj, obj_min, probe, theta, v, h \
+    #     = _tomo_interface(obj, obj_min, probe, theta, v, h)
+    # assert niter >= 0, "Number of iterations should be >= 0"
+    # # Send data to c function
+    # logger.info("{} on {:,d} element grid for {:,d} iterations".format(
+    #             algorithm, obj.size, niter))
+    # ngrid = obj.shape
+    # line_integrals = utils.as_float32(line_integrals)
+    # theta = utils.as_float32(theta)
+    # v = utils.as_float32(v)
+    # h = utils.as_float32(h)
+    # obj = utils.as_float32(obj)
+    # # Add new tomography algorithms here
+    # # TODO: The size of this function may be reduced further if all recon clibs
+    # #   have a standard interface. Perhaps pass unique params to a generic
+    # #   struct or array.
+    # if algorithm is "art":
+    #     LIBTIKE.art.restype = utils.as_c_void_p()
+    #     LIBTIKE.art(
+    #         utils.as_c_float(obj_min[0]),
+    #         utils.as_c_float(obj_min[1]),
+    #         utils.as_c_float(obj_min[2]),
+    #         utils.as_c_int(ngrid[0]),
+    #         utils.as_c_int(ngrid[1]),
+    #         utils.as_c_int(ngrid[2]),
+    #         utils.as_c_float_p(line_integrals),
+    #         utils.as_c_float_p(theta),
+    #         utils.as_c_float_p(h),
+    #         utils.as_c_float_p(v),
+    #         utils.as_c_int(line_integrals.size),
+    #         utils.as_c_float_p(obj),
+    #         utils.as_c_int(niter))
+    # elif algorithm is "sirt":
+    #     LIBTIKE.sirt.restype = utils.as_c_void_p()
+    #     LIBTIKE.sirt(
+    #         utils.as_c_float(obj_min[0]),
+    #         utils.as_c_float(obj_min[1]),
+    #         utils.as_c_float(obj_min[2]),
+    #         utils.as_c_int(ngrid[0]),
+    #         utils.as_c_int(ngrid[1]),
+    #         utils.as_c_int(ngrid[2]),
+    #         utils.as_c_float_p(line_integrals),
+    #         utils.as_c_float_p(theta),
+    #         utils.as_c_float_p(h),
+    #         utils.as_c_float_p(v),
+    #         utils.as_c_int(line_integrals.size),
+    #         utils.as_c_float_p(obj),
+    #         utils.as_c_int(niter))
+    # else:
+    #     raise ValueError("The {} algorithm is not an available.".format(
+    #         algorithm))
+    # return obj
+
+
+def forward(obj=None, obj_min=None,
+            probe=None, theta=None, v=None, h=None,
+            **kwargs):
+    """Compute line integrals over an obj; i.e. simulate data acquisition.
+    """
+    obj, obj_min, probe, theta, v, h \
+        = _tomo_interface(obj, obj_min, probe, theta, v, h)
+    logger.info("forward {:,d} element grid".format(obj.size))
+    logger.info("forward {:,d} rays".format(h.size))
     ngrid = obj.shape
-    assert np.all(np.array(grid_size) > 0), "Grid dimensions must be > 0"
-    assert np.all(np.array(ngrid) > 0), "Number of grid lines must be > 0"
     theta = utils.as_float32(theta)
-    h = utils.as_float32(h)
     v = utils.as_float32(v)
-    assert theta.size == h.size == v.size, \
-        " theta, h, v must be the same size"
-    dsize = theta.size
-    data = np.zeros((dsize, ), dtype=np.float32)
-    externs.c_project(obj,
-                      grid_min[0], grid_min[1], grid_min[2],
-                      grid_size[0], grid_size[1], grid_size[2],
-                      ngrid[0], ngrid[1], ngrid[2],
-                      theta, h, v, dsize, data)
-    return data
-
-
-def art(grid_min, grid_size, data, theta, h, v, init, niter=1):
-    """Reconstruct using Algebraic Reconstruction Technique (ART)
-
-    See :cite:`gordon1970algebraic` for original description of ART.
-
-    Parameters
-    ----------
-    grid_min : tuple float (z, x, y)
-        The min corner of the grid.
-    grid_size : tuple float (z, x, y)
-        The width of the grid along each dimension.
-    data : (M, ) :py:class:`np.array`
-        The data for reconstruction
-    theta, h, v : (M, ) :py:class:`np.array`
-        The h, v, and theta coordinates of the data
-    niter : int
-        The number of ART iterations to perform
-    init : :py:class:`np.array`
-        An initial guess for reconstruction.
-
-    Returns
-    -------
-    recon : :py:class:`numpy.ndarray`
-        A reconstruction of grid_size.
-    """
-    grid_min = utils.as_float32(grid_min)
-    grid_size = utils.as_float32(grid_size)
-    assert np.all(grid_size > 0), "Grid dimensions must be > 0"
-    data = utils.as_float32(data)
-    theta = utils.as_float32(theta)
     h = utils.as_float32(h)
-    v = utils.as_float32(v)
-    assert theta.size == h.size == v.size == data.size, "data, theta, h, v " \
-        "must be the same size"
-    assert niter >= 0, "Number of iterations should be >= 0"
-    init = utils.as_float32(init)
-    nz, nx, ny = init.shape
-    logging.info(" ART {:,d} element grid for {:,d} iterations".format(
-        init.size, niter))
-    externs.c_art(grid_min[0], grid_min[1], grid_min[2],
-                  grid_size[0], grid_size[1], grid_size[2],
-                  nz, nx, ny,
-                  data, theta, h, v, data.size, init, niter)
-    return init
-
-
-def sirt(grid_min, grid_size, data, theta, h, v, init, niter=1):
-    """Reconstruct using Simultaneous Iterative Reconstruction Technique (SIRT)
-
-    Parameters
-    ----------
-    grid_min : tuple float (z, x, y)
-        The min corner of the grid.
-    grid_size : tuple float (z, x, y)
-        The width of the grid along each dimension.
-    data : (M, ) :py:class:`np.array`
-        The data for reconstruction
-    theta, h, v : (M, ) :py:class:`np.array`
-        The h, v, and theta coordinates of the data
-    niter : int
-        The number of SIRT iterations to perform
-    init : :py:class:`np.array`
-        An initial guess for reconstruction.
-
-    Returns
-    -------
-    recon : :py:class:`numpy.ndarray`
-        A reconstruction of grid_size.
-    """
-    grid_min = utils.as_float32(grid_min)
-    grid_size = utils.as_float32(grid_size)
-    assert np.all(grid_size > 0), "Grid dimensions must be > 0"
-    data = utils.as_float32(data)
-    theta = utils.as_float32(theta)
-    h = utils.as_float32(h)
-    v = utils.as_float32(v)
-    assert theta.size == h.size == v.size == data.size, "data, theta, h, v " \
-        "must be the same size"
-    assert niter >= 0, "Number of iterations should be >= 0"
-    init = utils.as_float32(init)
-    nz, nx, ny = init.shape
-    logging.info(" SIRT {:,d} element grid for {:,d} iterations".format(
-        init.size, niter))
-    externs.c_sirt(grid_min[0], grid_min[1], grid_min[2],
-                   grid_size[0], grid_size[1], grid_size[2],
-                   nz, nx, ny,
-                   data, theta, h, v, data.size, init, niter)
-    return init
+    line_integrals = np.zeros([*theta.shape, 2], dtype=float)
+    obj = obj.view(float).reshape(*obj.shape, 2)
+    # Send data to c function
+    for i in range(2):
+        line = utils.as_float32(line_integrals[..., i])
+        objt = utils.as_float32(obj[..., i])
+        LIBTIKE.forward_project.restype = utils.as_c_void_p()
+        LIBTIKE.forward_project(
+            utils.as_c_float_p(objt),
+            utils.as_c_float(obj_min[0]),
+            utils.as_c_float(obj_min[1]),
+            utils.as_c_float(obj_min[2]),
+            utils.as_c_int(ngrid[0]),
+            utils.as_c_int(ngrid[1]),
+            utils.as_c_int(ngrid[2]),
+            utils.as_c_float_p(theta),
+            utils.as_c_float_p(v),
+            utils.as_c_float_p(h),
+            utils.as_c_int(theta.size),
+            utils.as_c_float_p(line))
+        line_integrals[..., i] = line
+    return line_integrals.view(complex)[..., 0]

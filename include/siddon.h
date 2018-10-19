@@ -1,17 +1,11 @@
 #ifndef _siddon_h
 #define _siddon_h
 
-#define _USE_MATH_DEFINES
-#ifndef M_PI
-#define M_PI 3.14159265358979323846264338327
+#ifdef WIN32
+#define DLL __declspec(dllexport)
+#else
+#define DLL
 #endif
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
-#include <stdbool.h>
-#include <assert.h>
-#include "string.h"
 
 /* @brief Calculates the indices of the pixels and rays which intersect along
           along with their lengths of intersection.
@@ -29,7 +23,7 @@
 @return lengths The intersections lengths at each pixel.
 @return psize The size of pixels and lengths.
 */
-void
+void DLL
 get_pixel_indexes_and_lengths(
     const float ozmin, const float oxmin, const float oymin,
     const float zsize, const float xsize, const float ysize,
@@ -50,7 +44,7 @@ calc_quadrant(
 The intersections are then located in two lists: (gridx, coordy) and
 (coordx, gridy). The length of gridx is ngridx+1.
 */
-void
+void DLL
 calc_coords(
     const int ngridx, const int ngridy,
     const float xi, const float yi,
@@ -63,7 +57,7 @@ calc_coords(
 
 (coordx, gridy) and (gridx, coordy) are sets of points along a line.
 */
-void
+void DLL
 trim_coords(
     const int ox, const int oy,
     const float *coordx, const float *coordy,
@@ -76,7 +70,7 @@ trim_coords(
 (ax, ay) and (bx, by) are two sets of ordered points along a line. The total
 number of points is asize + bsize = csize.
 */
-void
+void DLL
 sort_intersections(
     const int ind_condition,
     const int asize, const float *ax, const float *ay,
@@ -89,7 +83,7 @@ sort_intersections(
 (coorx, coory) describe the ordered points where the line intersects the
 grid.
 */
-void
+void DLL
 calc_dist(
     int const csize, const float *coorx, const float *coory,
     float *midx, float *midy, float *dist);
@@ -97,7 +91,7 @@ calc_dist(
 /* @brief Finds the linear index of the pixels containing the points
           (midx, midy) on the grid.
 */
-void
+void DLL
 calc_index(
     int const ox, int const oy, int const oz,
     float const oxmin, float const oymin, float const ozmin,

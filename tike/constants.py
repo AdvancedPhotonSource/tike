@@ -47,29 +47,50 @@
 # #########################################################################
 
 """
-This file tells import which submodules exist in the `tike` namespace and what
-functions to import when someone calls `import tike`. Note that `tike.externs`
-and `tike.utils` are not imported here because they are not part of the public
-API.
+This module contains universal constants and physical relation functions.
 """
-
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
-from pkg_resources import get_distribution, DistributionNotFound
 
-from tike.coverage import *
-from tike.ptycho import *
-from tike.scan import *
-from tike.tike import *
-from tike.tomo import *
-from tike.trajectory import *
-from tike.view import *
-import logging
+import numpy as np
 
-logging.getLogger(__name__).addHandler(logging.NullHandler())
+__author__ = "Doga Gursoy, Daniel Ching"
+__copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
+__docformat__ = "restructuredtext en"
+__all__ = [
+           "PLANCK_CONSTANT",
+           "SPEED_OF_LIGHT",
+           "wavelength",
+           "wavenumber",
+           "complex_amplitude",
+           "complex_intensity",
+           "complex_phase",
+           ]
 
-try:
-    __version__ = get_distribution(__name__).version
-except DistributionNotFound:
-    # package is not installed
-    pass
+PLANCK_CONSTANT = 6.58211928e-19  # [keV*s]
+SPEED_OF_LIGHT = 299792458e+2  # [cm/s]
+
+
+def wavelength(energy):
+    """Return the wavelength [cm] for a given energy [keV]."""
+    return 2 * np.pi * PLANCK_CONSTANT * SPEED_OF_LIGHT / energy
+
+
+def wavenumber(energy):
+    """Return the wavenumber [1/cm] given energy [keV]."""
+    return energy / PLANCK_CONSTANT / SPEED_OF_LIGHT
+
+
+def complex_amplitude(probe_grid):
+    """Amplitude of the complex probe wave"""
+    return np.abs(probe_grid)
+
+
+def complex_intensity(probe_grid):
+    """Intensity of the complex wave."""
+    return np.square(np.abs(probe_grid))
+
+
+def complex_phase(probe_grid):
+    """Phase of the complex probe wave."""
+    return np.angle(probe_grid)

@@ -1,7 +1,7 @@
-## base Makefile for tomopy and gcc
+## base Makefile for sharedlibs using gcc
 
 INSTALLDIR   = ../tike/sharedlibs
-LINK_CFLAGS  = -lgomp
+LINK_CFLAGS  =
 
 vpath %.c ../src
 vpath %.h ../include
@@ -11,10 +11,11 @@ vpath %.o ../build
 
 default: $(INSTALLDIR)/$(SHAREDLIB)
 
-OBJ = tomo.o siddon.o
+OBJ = tomo.o siddon.o utils.o
 
 tomo.o: tomo.h
 siddon.o: siddon.h
+utils.o: utils.h
 
 $(INSTALLDIR)/$(SHAREDLIB): $(OBJ)
 	$(LINK) -o $(INSTALLDIR)/$(SHAREDLIB) $(OBJ) $(LINK_CFLAGS)

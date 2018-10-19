@@ -47,7 +47,11 @@
 # #########################################################################
 
 """
-Module for scanning building blocks
+This module contains functions which are building blocks of scanning
+trajectories and related functions.
+
+Each trajectory returns position as a function of time and some other
+parameters.
 """
 
 from __future__ import (absolute_import, division, print_function,
@@ -62,6 +66,7 @@ __docformat__ = 'restructuredtext en'
 __all__ = ['scantimes',
            'sinusoid',
            'triangle',
+           'triangle_fs',
            'sawtooth',
            'square',
            'staircase',
@@ -72,14 +77,36 @@ __all__ = ['scantimes',
            'scan3',
            'avgspeed',
            'lengths',
-           'distance']
+           'distance',
+           'billiard']
 
 
 logger = logging.getLogger(__name__)
 
 
+def _periodic_function_interface(t, A=0.5, f=60, p=0):
+    """An exemplar periodic function for this module.
+
+    Each trajectory function is a function of t, an array of time
+    steps, and optional keyword arguements which determine the shape of
+    the function. The function returns at least one spatial coordinate.
+
+    Parameters
+    ----------
+    t : np.array
+        Time steps to evaluate the function.
+    A : float
+        The amplitude of the function.
+    f : float
+        The temporal frequency of the function.
+    p : float [radians]
+        The phase shift of the function.
+    """
+    raise NotImplementedError()
+
+
 def f2w(f):
-    """Return the angular frequency from the given frequency"""
+    """Return the angular frequency [rad] from the given frequency"""
     return 2*np.pi*f
 
 
@@ -88,10 +115,10 @@ def period(f):
     return 1 / f
 
 
-def scantimes(t0, t1, hz):
-    """An array of points in the range [t0, t1) at the given frequency (hz)
+def scantimes(t0, t1, f=60):
+    """An array of points in the range [t0, t1) at the given frequency (f)
     """
-    return np.linspace(t0, t1, (t1-t0)*hz, endpoint=False)
+    return np.linspace(t0, t1, (t1-t0)*f, endpoint=False)
 
 
 def sinusoid(A, f, p, t):
@@ -99,6 +126,7 @@ def sinusoid(A, f, p, t):
     #continuous #1D
 
     Parameters
+    ----------
     A : float
         The amplitude of the function
     f : float
@@ -115,6 +143,7 @@ def triangle(A, f, p, t):
     #continuous #1d
 
     Parameters
+    ----------
     A : float
         The amplitude of the function
     f : float
@@ -122,10 +151,21 @@ def triangle(A, f, p, t):
     p : float
         The phase shift of the function
     """
-    a = 0.5 / f
-    ts = t - p/(2*np.pi)/f
-    q = np.floor(ts/a + 0.5)
-    return A * (2/a * (ts - a*q) * np.power(-1, q))
+    w = f2w(f)
+    return A * 2 / np.pi * np.arcsin(np.sin(w*t - p))
+
+
+def triangle_fs(A, f, p, t, N=8):
+    """A Fourier series approximation of the triangle function using N
+    sinusoids.
+    #continuous #1d
+    """
+    w = f2w(f)
+    x = np.sin(w * t - p)
+    for n in range(3, 2*N, 2):
+        x += (-1)**((n-1) / 2) / (n * n) * np.sin(n * (w * t - p))
+
+    return A * 8 / np.pi / np.pi * x
 
 
 def sawtooth(A, f, p, t):
@@ -133,6 +173,7 @@ def sawtooth(A, f, p, t):
     #discontinuous #1d
 
     Parameters
+    ----------
     A : float
         The amplitude of the function
     f : float
@@ -150,6 +191,7 @@ def square(A, f, p, t):
     #discontinuous #1d
 
     Parameters
+    ----------
     A : float
         The amplitude of the function
     f : float
@@ -166,6 +208,7 @@ def staircase(A, f, p, t):
     #discontinuous #1d
 
     Parameters
+    ----------
     A : float
         The amplitude of the function
     f : float
@@ -186,6 +229,7 @@ def lissajous(A, B, fx, fy, px, py, t):
     least common multiple of the two periods.
 
     Parameters
+    ----------
     A, B : float
         The horizontal and vertical amplitudes of the function
     fx, fy : float
@@ -195,6 +239,16 @@ def lissajous(A, B, fx, fy, px, py, t):
     """
     x = sinusoid(A, fx, px, t)
     y = sinusoid(B, fy, py, t)
+    return x, y
+
+
+def billiard(Ax, Ay, fx, fy, px, py, t, N):
+    """A lissajous using triangle functions. The trajectory of a frictionless
+    billard ball in a rectangular table.
+    #continuous #2d
+    """
+    x = triangle_fs(Ax, fx, px, t, N)
+    y = triangle_fs(Ay, fy, py, t, N)
     return x, y
 
 
@@ -228,6 +282,7 @@ def spiral(r1, t1, v, t):
     The spiral is centered on the origin and spins clockwise.
 
     Parameters
+    ----------
     r1 : float
         The radius at time t1.
     t1: float
@@ -257,6 +312,7 @@ def diagonal(A, B, fx, fy, px, py, t):
     The diagonal is centered on the origin.
 
     Parameters
+    ----------
     A, B : float
         The horizontal and vertical amplitudes of the function
     fx, fy : float

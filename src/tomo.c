@@ -1,17 +1,19 @@
+#include <stdlib.h>
+#include <assert.h>
+#include <limits.h>
+
 #include "tomo.h"
+#include "utils.h"
 #include "siddon.h"
-#include "limits.h"
-#include <omp.h>
 
 void
 forward_project(
     const float *obj_weights,
     const float ozmin, const float oxmin, const float oymin,
-    const float zsize, const float xsize, const float ysize,
     const int oz, const int ox, const int oy,
     const float *theta,
-    const float *h,
     const float *v,
+    const float *h,
     const int dsize,
     float *data)
 {
@@ -20,22 +22,23 @@ forward_project(
     float *gridx = malloc(sizeof *gridx * (ox+1));
     float *gridy = malloc(sizeof *gridy * (oy+1));
     assert(gridx != NULL && gridy != NULL);
-    make_grid(oxmin, xsize, ox, gridx);
-    make_grid(oymin, ysize, oy, gridy);
+    make_grid(oxmin, ox, ox, gridx);
+    make_grid(oymin, oy, oy, gridy);
     // Allocate arrays for tracking intersections
     int *pixels, *rays;
     float *lengths;
     int psize;
     get_pixel_indexes_and_lengths(
         ozmin, oxmin, oymin,
-        zsize, xsize, ysize,
+        oz, ox, oy,
         oz, ox, oy,
         theta, h, v,
         dsize,
         gridx, gridy,
         &pixels, &rays, &lengths, &psize
     );
-    assert(pixels != NULL && rays != NULL && lengths != NULL);
+    free(gridx);
+    free(gridy);
     // Bin the intersections by angle
     assert(UINT_MAX/ox/oy/oz > 0 && "Array is too large to index.");
     assert(dsize >= 0 && "Data size must be a natural number");
@@ -51,8 +54,6 @@ forward_project(
     free(pixels);
     free(rays);
     free(lengths);
-    free(gridx);
-    free(gridy);
 }
 
 void
@@ -87,7 +88,8 @@ coverage(
         gridx, gridy,
         &pixels, &rays, &lengths, &psize
     );
-    assert(pixels != NULL && rays != NULL && lengths != NULL);
+    free(gridx);
+    free(gridy);
     // Bin the intersections by angle
     assert(UINT_MAX/ox/oy/oz/ot > 0 && "Array is too large to index.");
     assert(theta != NULL && line_weights != NULL && coverage_map != NULL);
@@ -107,14 +109,11 @@ coverage(
     free(pixels);
     free(rays);
     free(lengths);
-    free(gridx);
-    free(gridy);
 }
 
 void
 art(
     const float zmin, const float xmin, const float ymin,
-    const float zsize, const float xsize, const float ysize,
     const int nz, const int nx, const int ny,
     const float * const data,
     const float * const theta, const float * const h, const float * const v,
@@ -127,30 +126,27 @@ art(
     float *gridx = malloc(sizeof *gridx * (nx+1));
     float *gridy = malloc(sizeof *gridy * (ny+1));
     assert(gridx != NULL && gridy != NULL);
-    make_grid(xmin, xsize, nx, gridx);
-    make_grid(ymin, ysize, ny, gridy);
+    make_grid(xmin, nx, nx, gridx);
+    make_grid(ymin, ny, ny, gridy);
     // Allocate arrays for tracking intersections
     int *pixels, *rays;
     float *lengths;
     int psize;
     get_pixel_indexes_and_lengths(
         zmin, xmin, ymin,
-        zsize, xsize, ysize,
+        nz, nx, ny,
         nz, nx, ny,
         theta, h, v,
         ndata,
         gridx, gridy,
         &pixels, &rays, &lengths, &psize
     );
-    assert(pixels != NULL && rays != NULL && lengths != NULL);
+    free(gridx);
+    free(gridy);
 
     assert(ndata >= 0);
-    float *sim = malloc(sizeof sim * ndata);
-    float *line_update = malloc(sizeof line_update * ndata);
-    float *lengths_dot = malloc(sizeof lengths_dot * ndata);
-    assert(sim != NULL && line_update != NULL && lengths_dot != NULL);
-
-    memset(lengths_dot, 0, sizeof lengths_dot * ndata);
+    float *lengths_dot = calloc(ndata, sizeof *lengths_dot);
+    assert(lengths_dot != NULL);
     for (int j=0; j < psize; j++)
     {
         lengths_dot[rays[j]] += lengths[j] * lengths[j];
@@ -159,8 +155,9 @@ art(
     assert(init != NULL && data != NULL);
     for (int i=0; i < niter; i++)
     {
-        memset(sim, 0, sizeof sim * ndata);
-        memset(line_update, 0, sizeof line_update * ndata);
+        float *sim = calloc(ndata, sizeof *sim);
+        float *line_update = calloc(ndata, sizeof *line_update );
+        assert(sim != NULL && line_update != NULL);
         // simulate data acquisition by projecting over current model
         for (int j=0; j < psize; j++)
         {
@@ -179,21 +176,18 @@ art(
         {
             init[pixels[j]] += lengths[j] * line_update[rays[j]];
         }
+        free(sim);
+        free(line_update);
     }
-    free(sim);
-    free(line_update);
     free(lengths_dot);
     free(pixels);
     free(rays);
     free(lengths);
-    free(gridx);
-    free(gridy);
 }
 
 void
 sirt(
     const float zmin, const float xmin, const float ymin,
-    const float zsize, const float xsize, const float ysize,
     const int nz, const int nx, const int ny,
     const float * const data,
     const float * const theta, const float * const h, const float * const v,
@@ -206,35 +200,29 @@ sirt(
     float *gridx = malloc(sizeof *gridx * (nx+1));
     float *gridy = malloc(sizeof *gridy * (ny+1));
     assert(gridx != NULL && gridy != NULL);
-    make_grid(xmin, xsize, nx, gridx);
-    make_grid(ymin, ysize, ny, gridy);
+    make_grid(xmin, nx, nx, gridx);
+    make_grid(ymin, ny, ny, gridy);
     // Allocate arrays for tracking intersections
     int *pixels, *rays;
     float *lengths;
     int psize;
     get_pixel_indexes_and_lengths(
         zmin, xmin, ymin,
-        zsize, xsize, ysize,
+        nz, nx, ny,
         nz, nx, ny,
         theta, h, v,
         ndata,
         gridx, gridy,
         &pixels, &rays, &lengths, &psize
     );
-    assert(pixels != NULL && rays != NULL && lengths != NULL);
+    free(gridx);
+    free(gridy);
 
     assert(UINT_MAX/nz/nx/ny > 0 && "Array is too large to index.");
     int grid_size = (int)nz*nx*ny;
-    float *grid_update = malloc(sizeof grid_update * grid_size);
-    int *num_grid_updates = malloc(sizeof num_grid_updates * grid_size);
     assert(ndata >= 0);
-    float *sim = malloc(sizeof sim * ndata);
-    float *line_update = malloc(sizeof line_update * ndata);
-    float *lengths_dot = malloc(sizeof lengths_dot * ndata);
-    assert(grid_update != NULL && num_grid_updates != NULL && sim != NULL
-           && line_update != NULL && lengths_dot != NULL);
-
-    memset(lengths_dot, 0, sizeof lengths_dot * ndata);
+    float *lengths_dot = calloc(ndata, sizeof *lengths_dot);
+    assert(lengths_dot != NULL);
     for (int j=0; j < psize; j++)
     {
         lengths_dot[rays[j]] += lengths[j] * lengths[j];
@@ -243,10 +231,12 @@ sirt(
     assert(init != NULL && data != NULL);
     for (int i=0; i < niter; i++)
     {
-        memset(grid_update, 0, sizeof grid_update * grid_size);
-        memset(num_grid_updates, 0, sizeof num_grid_updates * grid_size);
-        memset(sim, 0, sizeof sim * ndata);
-        memset(line_update, 0, sizeof line_update * ndata);
+        float *grid_update = calloc(grid_size, sizeof *grid_update);
+        int *num_grid_updates = calloc(grid_size, sizeof *num_grid_updates);
+        float *sim = calloc(ndata, sizeof *sim);
+        float *line_update = calloc(ndata, sizeof *line_update);
+        assert(grid_update != NULL && num_grid_updates != NULL && sim != NULL
+            && line_update != NULL);
         // simulate data acquisition by projecting over current model
         for (int j=0; j < psize; j++)
         {
@@ -275,56 +265,13 @@ sirt(
                 init[l] += grid_update[l] / num_grid_updates[l];
             }
         }
+        free(grid_update);
+        free(num_grid_updates);
+        free(sim);
+        free(line_update);
     }
-    free(grid_update);
-    free(num_grid_updates);
-    free(sim);
-    free(line_update);
     free(lengths_dot);
     free(pixels);
     free(rays);
     free(lengths);
-    free(gridx);
-    free(gridy);
-}
-
-void make_grid(
-    const float xmin, const float xsize, const int nx, float * const gridx)
-{
-    assert(xsize > 0 && nx > 0 && "Grid must have non-zero dimensions.");
-    float xstep = xsize / nx;
-    assert(gridx != NULL);
-    for(int i=0; i<=nx; i++)
-    {
-        gridx[i] = xmin + i * xstep;
-    }
-    assert(gridx[nx] == xmin + xsize);
-}
-
-void bin_angle(
-    float *bins, const float magnitude,
-    const float theta, const int nbins)
-{
-    assert(bins != NULL);
-    assert(nbins > 0);
-    int bin = floor(fmod(theta, M_PI) / (M_PI / nbins));
-    // Negative angles yield negative bins
-    if (bin < 0) bin += nbins;
-    assert(bin >= 0 && bin < nbins);
-    bins[bin] += magnitude;
-}
-
-void
-calc_back(
-    const float *dist,
-    int const dist_size,
-    float const line_weight,
-    float *cov,
-    const int *ind_cov)
-{
-    int n;
-    for (n=0; n<dist_size-1; n++)
-    {
-      cov[ind_cov[n]] += dist[n]*line_weight;
-    }
 }

@@ -50,96 +50,48 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import numpy as np
-from tike import *
+from tike.trajectory import *
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2016, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 
-def init_coverage():
-    """Create a (1, 1) probe and a (1, 3, 3) grid centered on the origin."""
-    probe_grid = np.ones((16, 16))
-    probe_size = (1, 1)
-    region = np.zeros((1, 3, 3, 8))
-    region_min = [-0.5, -1.5, -1.5]
-    region_size = [1, 3, 3]
-    return probe_grid, probe_size, region, region_min, region_size
+def test_discrete_trajectory():
+    def stationary(t):
+        """Probe is stationary at location h = 8, v = 8"""
+        return 0*t, 8 + 0*t, 8 + 0*t
+
+    answer = discrete_trajectory(stationary,
+                                 tmin=0, tmax=0.65, xstep=0.1, tstep=1)
+    truth = ([0], [8], [8], [0.65], [0])
+    np.testing.assert_equal(answer, truth)
 
 
-def test_stationary_coverage_x():
-    def all_x(t):
-        return np.pi + 0*t, 0*t - 0.5, 0*t + 0.5
-    probe_grid, probe_size, region, region_min, region_size = init_coverage()
-    region = np.zeros((1, 3, 3, 8))
-    theta, v, h, dwell, times = discrete_trajectory(all_x,
-                                                    tmin=0, tmax=10, tstep=1,
-                                                    xstep=1/32)
-    cov_map = coverage(region, region_min, region_size,
-                       probe_grid, probe_size, theta, v, h, dwell)
-    truth = np.zeros(cov_map.shape)
-    truth[0, :, 0, 0] = 10
-    np.testing.assert_equal(truth, cov_map)
+def test_coded_exposure():
+    c_time = np.arange(11)
+    c_dwell = np.ones(11) * 0.5
+
+    time = np.array([-1., 0.8, 1.8, 3.0, 4.1, 4.2, 6.1,
+                     7.5, 8.6, 8.9, 8.9, 8.9, 20, 21])
+    dwell = np.array([0.1, 0.2, 0.4, 0.5, 0.1, 0.1, 0.6,
+                      0.2, 0.2,   2,   0, 0.3, 1.0, 1.0])
+
+    theta = np.arange(time.size)
+    v = np.arange(time.size)
+    h = np.arange(time.size)
+
+    th1, v1, h1, t1, d1, b1 = coded_exposure(theta, v, h, time, dwell, c_time,
+                                             c_dwell)
+
+    np.testing.assert_equal(th1, [2, 3, 4, 5, 6, 9, 11, 9])
+    np.testing.assert_equal(v1, [2, 3, 4, 5, 6, 9, 11, 9])
+    np.testing.assert_equal(h1, [2, 3, 4, 5, 6, 9, 11, 9])
+    np.testing.assert_equal(t1, [2., 3., 4.1, 4.2, 6.1, 9., 9., 10.])
+    np.testing.assert_allclose(d1, [0.2, 0.5, 0.1, 0.1, 0.4, 0.5, 0.2, 0.5])
+    np.testing.assert_equal(b1, [0, 1, 2, 4, 5, 7])
 
 
-def test_stationary_coverage_y():
-    def all_y(t):
-        return -np.pi/2 + 0*t, 0*t - 0.5, 0*t - 0.5
-    probe_grid, probe_size, region, region_min, region_size = init_coverage()
-    region = np.zeros((1, 3, 3, 3))
-    theta, v, h, dwell, times = discrete_trajectory(all_y,
-                                                    tmin=0, tmax=10, tstep=1,
-                                                    xstep=1/32)
-    cov_map = coverage(region, region_min, region_size,
-                       probe_grid, probe_size, theta, v, h, dwell)
-    # cov_map = cov_map.reshape((3, 3, 4))
-    cov_map = cov_map
-    truth = np.zeros(cov_map.shape)
-    truth[0, 1, :, 1] = 10
-    np.testing.assert_equal(truth, cov_map)
-
-
-def test_split_z():
-    """A probe can be split across z slices."""
-    probe_grid = np.ones((16, 16))
-    probe_size = (1, 1)
-    region = np.zeros((4, 4, 4, 1))
-    region_min = [-2, -2, -2]
-    region_size = [4, 4, 4]
-
-    def split_z(t):
-        return 0*t, 0*t - 0.5, 0*t - 0.5
-
-    theta, v, h, dwell, times = discrete_trajectory(split_z,
-                                                    tmin=0, tmax=10, tstep=1,
-                                                    xstep=1/32)
-    cov_map = coverage(region, region_min, region_size,
-                       probe_grid, probe_size, theta, v, h, dwell)[..., 0]
-    truth = np.zeros(cov_map.shape)
-    truth[1:3, :, 1:3] = 2.5
-    np.testing.assert_equal(truth, cov_map,)
-
-
-def test_Nbin_equivalent():
-    """A coverage map with 1 or many angular bins has similar result."""
-    # Define a trajectory for an origin-centered probe rotating once
-    def round(t):
-        return np.pi/3 + np.pi*t/10, 0*t - 0.5, 0*t - 0.5
-    # Define the probe and grid extents
-    probe_grid = np.ones((16, 16))
-    probe_size = (1, 1)
-    region_min = [-1, -2, -2]
-    region_size = [2, 4, 4]
-    # Discretize the trajectory
-    theta, v, h, dwell, times = discrete_trajectory(round,
-                                                    tmin=0, tmax=10, tstep=1,
-                                                    xstep=1/32)
-    # Compute coverage for one and many bins
-    region1 = np.zeros((2, 4, 4, 1))
-    one_bin_map = coverage(region1, region_min, region_size,
-                           probe_grid, probe_size, theta, v, h, dwell)
-    region7 = np.zeros((2, 4, 4, 7))
-    any_bin_map = coverage(region7, region_min, region_size,
-                           probe_grid, probe_size, theta, v, h, dwell)
-    np.testing.assert_allclose(np.sum(one_bin_map, axis=3),
-                               np.sum(any_bin_map, axis=3), atol=1e-4)
+if __name__ == '__main__':
+    test_discrete_trajectory()
+    test_coded_exposure()

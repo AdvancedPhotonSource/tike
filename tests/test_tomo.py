@@ -50,8 +50,6 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import numpy as np
-from numpy.testing import assert_allclose, assert_raises, assert_equal
-import matplotlib.pyplot as plt
 from tike.tomo import *
 
 __author__ = "Daniel Ching"
@@ -59,106 +57,40 @@ __copyright__ = "Copyright (c) 2016, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 
-def test_coverage_hv_quadrants1_crop():
-    theta, h, v = [0], [0], [0.5]
-    gmin = np.array([-2, 0, -1])
-    gsize = np.array([5, 1, 3])
-    cov_map = coverage(gmin, gsize, gsize, theta, h, v)[:, 0, :]
-    truth = np.array([[0,  0,  0,  0,  0],
-                      [0,  0,  1,  0,  0],
-                      [0,  0,  0,  0,  0]])
-    truth = np.moveaxis(truth, 1, 0)
-    assert_equal(truth, cov_map)
-
-
-def test_coverage_hv_quadrants1():
-    gsize = np.array([1, 2, 2])
-    gmin = -gsize / 2.0
-    theta, h, v = [0], [0.5], [0]
-    cov_map = coverage(gmin, gsize, gsize, theta, h, v)[0, ...]
-    truth = np.array([[0.,  1.],
-                      [0.,  1.]])
-    assert_equal(truth, cov_map)
-
-
-def test_coverage_hv_quadrants1b():
-    gsize = np.array([1, 2, 2])
-    gmin = -gsize / 2.0
-    theta, h, v = [np.pi/2], [0.5], [0]
-    cov_map = coverage(gmin, gsize, gsize, theta, h, v)[0, ...]
-    truth = np.array([[1.,  1.],
-                      [0.,  0.]])
-    assert_equal(truth, cov_map)
-
-
-def test_coverage_hv_quadrants1c():
-    gsize = np.array([1, 2, 2])
-    gmin = -gsize / 2.0
-    theta, h, v = [-np.pi/2], [0.5], [0]
-    cov_map = coverage(gmin, gsize, gsize, theta, h, v)[0, ...]
-    truth = np.array([[0.,  0.],
-                      [1.,  1.]])
-    assert_equal(truth, cov_map)
-
-
-def test_coverage_hv_quadrants1d():
-    gsize = np.array([1, 2, 2])
-    gmin = -gsize / 2.0
-    theta, h, v = [np.pi], [0.5], [0]
-    cov_map = coverage(gmin, gsize, gsize, theta, h, v)[0, ...]
-    truth = np.array([[1.,  0.],
-                      [1.,  0.]])
-    assert_equal(truth, cov_map)
-
-
-def test_coverage_hv_quadrants2():
-    gsize = np.array([2, 2, 2])
-    gmin = -gsize / 2.0
-    obj = np.zeros((2, 2, 2))
-    theta, h, v = [0], [-0.5], [0.5]
-    cov_map = coverage(gmin, gsize, gsize, theta, h, v)
-    obj[1, :, 0] = 1
-    assert_equal(obj, cov_map)
-
-
-def test_coverage_hv_quadrants4():
-    gsize = np.array([2, 2, 2])
-    gmin = -gsize / 2.0
-    obj = np.zeros((2, 2, 2))
-    theta, h, v = [0], [0.5], [-0.5]
-    cov_map = coverage(gmin, gsize, gsize, theta, h, v)
-    obj[0, :, 1] = 1
-    assert_equal(obj, cov_map)
-
-
 def test_forward_project_hv_quadrants1():
     gmin = [0, 0, 0]
-    obj = np.zeros((2, 3, 2))
-    gsize = obj.shape
+    obj = np.zeros((2, 3, 2), dtype=complex)
     obj[0, 1, 0] = 1
-    theta, h, v = [0, 0, 0, 0], [0.5, 1.5, 0.5, 1.5], [0.5, 0.5, 1.5, 1.5]
-    integral = project(obj, gmin, gsize, theta, h, v)
-    truth = [1, 0, 0, 0]
-    assert_equal(truth, integral)
+    theta, h, v = [0, 0, 0, 0], [0, 1, 0, 1], [0, 0, 1, 1]
+    pgrid = np.ones((1, 1))
+    integral = forward(obj, gmin,
+                       pgrid, theta, v, h)
+    truth = np.array([1, 0, 0, 0]).reshape(4, 1, 1)
+    np.testing.assert_equal(truth, integral)
 
 
 def test_forward_project_hv_quadrants2():
     gsize = np.array([3, 2, 2])
     gmin = -gsize / 2.0
-    obj = np.zeros((3, 2, 2))
+    obj = np.zeros((3, 2, 2), dtype=complex)
     obj[2, 0, 1] = 1
-    theta, h, v = [0, 0], [-0.5, 0.5], [1, 1]
-    integral = project(obj, gmin, gsize, theta, h, v)
-    truth = [0, 1]
-    assert_equal(truth, integral)
+    theta, h, v = [0, 0], [-1, 0], [0.5, 0.5]
+    pgrid = np.ones((1, 1))
+    integral = forward(obj, gmin,
+                       pgrid, theta, v, h)
+    truth = np.array([0, 1]).reshape(2, 1, 1)
+    np.testing.assert_equal(truth, integral)
 
 
 def test_forward_project_hv_quadrants4():
     gsize = np.array([1, 2, 2])
     gmin = -gsize / 2.0
-    obj = np.zeros((1, 2, 2))
+    obj = np.zeros((1, 2, 2), dtype=complex)
     obj[0, :, 1] = 1
-    theta, h, v = [0], [0.5], [0]
-    integral = project(obj, gmin, gsize, theta, h, v)
-    truth = [2]
-    assert_equal(truth, integral)
+    theta, h, v = [0], [-0.5], [-0.5]
+    pgrid = np.ones((1, 1))
+    psize = (1, 1)
+    integral = forward(obj, gmin,
+                       pgrid, theta, v, h)
+    truth = np.array([2]).reshape(1, 1, 1)
+    np.testing.assert_equal(truth, integral)

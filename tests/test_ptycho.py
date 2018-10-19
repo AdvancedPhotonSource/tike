@@ -50,96 +50,45 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import numpy as np
-from tike import *
+import matplotlib.pyplot as plt
+from tike.ptycho import pad_grid, unpad_grid
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2016, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 
-def init_coverage():
-    """Create a (1, 1) probe and a (1, 3, 3) grid centered on the origin."""
-    probe_grid = np.ones((16, 16))
-    probe_size = (1, 1)
-    region = np.zeros((1, 3, 3, 8))
-    region_min = [-0.5, -1.5, -1.5]
-    region_size = [1, 3, 3]
-    return probe_grid, probe_size, region, region_min, region_size
+def test_pad_grid():
+    A = np.ones([3, 4])
+    # Pad one larger and two larger
+    B = pad_grid(padded_shape=[5, 5], unpadded_grid=A)
+    # Unpadd back to original
+    A1 = unpad_grid(padded_grid=B, unpadded_shape=[3, 4])
+    np.testing.assert_equal(A, A1)
+    # Apply no padding
+    A2 = pad_grid(padded_shape=[3, 4], unpadded_grid=A)
+    np.testing.assert_equal(A, A2)
 
 
-def test_stationary_coverage_x():
-    def all_x(t):
-        return np.pi + 0*t, 0*t - 0.5, 0*t + 0.5
-    probe_grid, probe_size, region, region_min, region_size = init_coverage()
-    region = np.zeros((1, 3, 3, 8))
-    theta, v, h, dwell, times = discrete_trajectory(all_x,
-                                                    tmin=0, tmax=10, tstep=1,
-                                                    xstep=1/32)
-    cov_map = coverage(region, region_min, region_size,
-                       probe_grid, probe_size, theta, v, h, dwell)
-    truth = np.zeros(cov_map.shape)
-    truth[0, :, 0, 0] = 10
-    np.testing.assert_equal(truth, cov_map)
+def test_pad_error():
+    A = np.ones([3, 4])
+    # Should raise error because padded shape is smaller than unpadded shape
+    try:
+        pad_grid(padded_shape=[2, 2], unpadded_grid=A)
+    except AssertionError as err:
+        print(err)
+        return
+    assert False
 
 
-def test_stationary_coverage_y():
-    def all_y(t):
-        return -np.pi/2 + 0*t, 0*t - 0.5, 0*t - 0.5
-    probe_grid, probe_size, region, region_min, region_size = init_coverage()
-    region = np.zeros((1, 3, 3, 3))
-    theta, v, h, dwell, times = discrete_trajectory(all_y,
-                                                    tmin=0, tmax=10, tstep=1,
-                                                    xstep=1/32)
-    cov_map = coverage(region, region_min, region_size,
-                       probe_grid, probe_size, theta, v, h, dwell)
-    # cov_map = cov_map.reshape((3, 3, 4))
-    cov_map = cov_map
-    truth = np.zeros(cov_map.shape)
-    truth[0, 1, :, 1] = 10
-    np.testing.assert_equal(truth, cov_map)
-
-
-def test_split_z():
-    """A probe can be split across z slices."""
-    probe_grid = np.ones((16, 16))
-    probe_size = (1, 1)
-    region = np.zeros((4, 4, 4, 1))
-    region_min = [-2, -2, -2]
-    region_size = [4, 4, 4]
-
-    def split_z(t):
-        return 0*t, 0*t - 0.5, 0*t - 0.5
-
-    theta, v, h, dwell, times = discrete_trajectory(split_z,
-                                                    tmin=0, tmax=10, tstep=1,
-                                                    xstep=1/32)
-    cov_map = coverage(region, region_min, region_size,
-                       probe_grid, probe_size, theta, v, h, dwell)[..., 0]
-    truth = np.zeros(cov_map.shape)
-    truth[1:3, :, 1:3] = 2.5
-    np.testing.assert_equal(truth, cov_map,)
-
-
-def test_Nbin_equivalent():
-    """A coverage map with 1 or many angular bins has similar result."""
-    # Define a trajectory for an origin-centered probe rotating once
-    def round(t):
-        return np.pi/3 + np.pi*t/10, 0*t - 0.5, 0*t - 0.5
-    # Define the probe and grid extents
-    probe_grid = np.ones((16, 16))
-    probe_size = (1, 1)
-    region_min = [-1, -2, -2]
-    region_size = [2, 4, 4]
-    # Discretize the trajectory
-    theta, v, h, dwell, times = discrete_trajectory(round,
-                                                    tmin=0, tmax=10, tstep=1,
-                                                    xstep=1/32)
-    # Compute coverage for one and many bins
-    region1 = np.zeros((2, 4, 4, 1))
-    one_bin_map = coverage(region1, region_min, region_size,
-                           probe_grid, probe_size, theta, v, h, dwell)
-    region7 = np.zeros((2, 4, 4, 7))
-    any_bin_map = coverage(region7, region_min, region_size,
-                           probe_grid, probe_size, theta, v, h, dwell)
-    np.testing.assert_allclose(np.sum(one_bin_map, axis=3),
-                               np.sum(any_bin_map, axis=3), atol=1e-4)
+def test_unpad_error():
+    A = np.ones([3, 4])
+    # Pad one larger and two larger
+    B = pad_grid(padded_shape=[5, 5], unpadded_grid=A)
+    # Should raise error because padded shape is smaller than unpadded shape
+    try:
+        unpad_grid(padded_grid=B, unpadded_shape=[20, 20])
+    except AssertionError as err:
+        print(err)
+        return
+    assert False
