@@ -55,5 +55,8 @@ jobs:
     inputs:
       packageSpecs: 'python=$(python.version) conda-build conda-verify'
       updateConda: True # Optional
+      installOptions: '-c conda-forge'
+  - bash: conda config --add channels conda-forge
+    displayName: Set main channel to conda-forge
   - bash: conda build . --no-anaconda-upload -c conda-forge
     displayName: Conda build
