@@ -6,9 +6,15 @@
 #define M_PI 3.14159265358979323846264338327
 #endif
 
+#ifdef WIN32
+#define DLL __declspec(dllexport)
+#else
+#define DLL
+#endif
+
 /* @brief Fill gridx with n+1 floats across the range [xmin, xmin + xsize].
 */
-void
+void DLL
 make_grid(
     const float xmin,
     const float xsize,
@@ -25,12 +31,12 @@ added to the bins + i.
 @param theta The angle used to determine the ith bin
 @param nbins The number of angular bins
 */
-void
+void DLL
 bin_angle(
     float *bins, const float magnitude,
     const float theta, const int nbins);
 
-void
+void DLL
 calc_back(
     const float *dist,
     int const dist_size,
