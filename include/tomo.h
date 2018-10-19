@@ -23,8 +23,8 @@ forward_project(
     const float zmin, const float xmin, const float ymin,
     const int nz, const int nx, const int ny,
     const float *theta,
-    const float *h,
     const float *v,
+    const float *h,
     const int dsize,
     float *data);
 

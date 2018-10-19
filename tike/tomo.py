@@ -122,7 +122,7 @@ def _tomo_interface(obj, obj_min,
     if obj is None:
         # An inital guess is required
         raise ValueError()
-    obj = utils.as_float32(obj)
+    # obj = utils.as_float32(obj)  # complex data
     if obj_min is None:
         # The default origin is at the center of the object
         obj_min = - np.array(obj.shape) / 2  # (z, x, y)
@@ -130,7 +130,7 @@ def _tomo_interface(obj, obj_min,
     if probe is None:
         # Assume a full field geometry
         probe = np.ones([obj.shape[0], obj.shape[2]])
-    probe = utils.as_float32(probe)
+    # probe = utils.as_float32(probe)  # complex data
     if theta is None:
         # Angle definitions are required
         raise ValueError()
@@ -258,42 +258,33 @@ def forward(obj=None, obj_min=None,
             **kwargs):
     """Compute line integrals over an obj; i.e. simulate data acquisition.
     """
-    pb = tomopy.project(obj=np.real(obj), theta=theta, pad=False,
-                        sinogram_order=False)
-    pd = tomopy.project(obj=np.imag(obj), theta=theta, pad=False,
-                        sinogram_order=False)
-    line_integrals = np.empty(pb.shape, dtype=complex)
-    line_integrals.real = pb
-    line_integrals.imag = pd
-    return line_integrals
-    # obj, obj_min, probe, theta, v, h \
-    #     = _tomo_interface(obj, obj_min, probe, theta, v, h)
-    # # TODO: Remove zero valued probe rays
-    # th1 = theta
-    # v1 = v
-    # h1 = h
-    # line_integrals = np.zeros(th1.shape, dtype=np.float32)
-    # # Send data to c function
-    # logger.info("forward {:,d} element grid".format(obj.size))
-    # logger.info("forward {:,d} rays".format(line_integrals.size))
-    # obj = utils.as_float32(obj)
-    # ngrid = obj.shape
-    # th1 = utils.as_float32(th1)
-    # v1 = utils.as_float32(v1)
-    # h1 = utils.as_float32(h1)
-    # line_integrals = utils.as_float32(line_integrals)
-    # LIBTIKE.forward_project.restype = utils.as_c_void_p()
-    # LIBTIKE.forward_project(
-    #     utils.as_c_float_p(obj),
-    #     utils.as_c_float(obj_min[0]),
-    #     utils.as_c_float(obj_min[1]),
-    #     utils.as_c_float(obj_min[2]),
-    #     utils.as_c_int(ngrid[0]),
-    #     utils.as_c_int(ngrid[1]),
-    #     utils.as_c_int(ngrid[2]),
-    #     utils.as_c_float_p(th1),
-    #     utils.as_c_float_p(h1),
-    #     utils.as_c_float_p(v1),
-    #     utils.as_c_int(th1.size),
-    #     utils.as_c_float_p(line_integrals))
-    # return line_integrals
+    obj, obj_min, probe, theta, v, h \
+        = _tomo_interface(obj, obj_min, probe, theta, v, h)
+    logger.info("forward {:,d} element grid".format(obj.size))
+    logger.info("forward {:,d} rays".format(h.size))
+    ngrid = obj.shape
+    theta = utils.as_float32(theta)
+    v = utils.as_float32(v)
+    h = utils.as_float32(h)
+    line_integrals = np.zeros([*theta.shape, 2], dtype=float)
+    obj = obj.view(float).reshape(*obj.shape, 2)
+    # Send data to c function
+    for i in range(2):
+        line = utils.as_float32(line_integrals[..., i])
+        objt = utils.as_float32(obj[..., i])
+        LIBTIKE.forward_project.restype = utils.as_c_void_p()
+        LIBTIKE.forward_project(
+            utils.as_c_float_p(objt),
+            utils.as_c_float(obj_min[0]),
+            utils.as_c_float(obj_min[1]),
+            utils.as_c_float(obj_min[2]),
+            utils.as_c_int(ngrid[0]),
+            utils.as_c_int(ngrid[1]),
+            utils.as_c_int(ngrid[2]),
+            utils.as_c_float_p(theta),
+            utils.as_c_float_p(v),
+            utils.as_c_float_p(h),
+            utils.as_c_int(theta.size),
+            utils.as_c_float_p(line))
+        line_integrals[..., i] = line
+    return line_integrals.view(complex)[..., 0]
