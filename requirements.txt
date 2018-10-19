@@ -2,4 +2,6 @@ numpy
 matplotlib
 openmp
 python
+scipy
 six
+"tomopy>=1.2"

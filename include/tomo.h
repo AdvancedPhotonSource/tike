@@ -1,6 +1,12 @@
 #ifndef _tomo_h
 #define _tomo_h
 
+#ifdef WIN32
+#define DLL __declspec(dllexport)
+#else
+#define DLL
+#endif
+
 /** @brief Computes line integrals across a 3D object.
 
 Computes the sum of the lengths * grid_weights of all intersections with
@@ -17,14 +23,14 @@ rule. v is parallel to z, and h is parallel to y when theta is zero.
 @param dsize The size of theta, h, v.
 @param data The line integrals.
 */
-void
+void DLL
 forward_project(
     const float *obj_weights,
     const float zmin, const float xmin, const float ymin,
     const int nz, const int nx, const int ny,
     const float *theta,
-    const float *h,
     const float *v,
+    const float *h,
     const int dsize,
     float *data);
 
@@ -48,7 +54,7 @@ rotation axis is [0, 0, 1].
 @param dsize The length of theta, h, v, line_weights.
 @param coverage_map The grid to project over.
 */
-void
+void DLL
 coverage(
     const float zmin, const float xmin, const float ymin,
     const float zsize, const float xsize, const float ysize,
@@ -71,7 +77,7 @@ coverage(
 @param init The initial guess of the reconstruction
 @param niter The number of iterations of ART to complete
 */
-void
+void DLL
 art(
     const float zmin, const float xmin, const float ymin,
     const int nz, const int nx, const int ny,
