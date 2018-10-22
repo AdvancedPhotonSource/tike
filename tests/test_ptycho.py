@@ -49,46 +49,6 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import numpy as np
-import matplotlib.pyplot as plt
-from tike.ptycho import pad_grid, unpad_grid
-
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2016, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-
-
-def test_pad_grid():
-    A = np.ones([3, 4])
-    # Pad one larger and two larger
-    B = pad_grid(padded_shape=[5, 5], unpadded_grid=A)
-    # Unpadd back to original
-    A1 = unpad_grid(padded_grid=B, unpadded_shape=[3, 4])
-    np.testing.assert_equal(A, A1)
-    # Apply no padding
-    A2 = pad_grid(padded_shape=[3, 4], unpadded_grid=A)
-    np.testing.assert_equal(A, A2)
-
-
-def test_pad_error():
-    A = np.ones([3, 4])
-    # Should raise error because padded shape is smaller than unpadded shape
-    try:
-        pad_grid(padded_shape=[2, 2], unpadded_grid=A)
-    except AssertionError as err:
-        print(err)
-        return
-    assert False
-
-
-def test_unpad_error():
-    A = np.ones([3, 4])
-    # Pad one larger and two larger
-    B = pad_grid(padded_shape=[5, 5], unpadded_grid=A)
-    # Should raise error because padded shape is smaller than unpadded shape
-    try:
-        unpad_grid(padded_grid=B, unpadded_shape=[20, 20])
-    except AssertionError as err:
-        print(err)
-        return
-    assert False

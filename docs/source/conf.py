@@ -161,10 +161,11 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index',
-  project+'.tex',
-  project+u' Documentation',
-  Argonne,'manual'),
+    ('index',
+     project+'.tex',
+     project+u' Documentation',
+     Argonne,
+     'manual'),
 ]
 
 
@@ -173,10 +174,10 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index',project,
-    project+u' Documentation',
-    [Argonne,],
-    1)
+    ('index', project,
+     project+u' Documentation',
+     [Argonne, ],
+     1)
 ]
 
 
@@ -186,16 +187,17 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index',
-  project,
-  project+u' Documentation',
-  Argonne,
-  project,
-  'Tike',
-  'Miscellaneous'),
+    ('index',
+     project,
+     project+u' Documentation',
+     Argonne,
+     project,
+     'Tike',
+     'Miscellaneous'),
 ]
 
 autodoc_mock_imports = ['numpy', 'matplotlib']
+
 
 class Mock(object):
     def __init__(self, *args):
@@ -203,6 +205,7 @@ class Mock(object):
 
     def __getattr__(self, name):
         return Mock
+
 
 for mod_name in ('tike.utils', 'tike.externs'):
     sys.modules[mod_name] = Mock()

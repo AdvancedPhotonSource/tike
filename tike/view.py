@@ -171,14 +171,17 @@ def plot_sino_coverage(theta, v, h, dwell=None, bins=[16, 8, 4],
             # Compute histogram
             sample = np.stack([theta, v+dv[i]], h+dh[i], axis=1)
             dH, edges = np.histogramdd(sample, bins=bins,
-                                       range=[[0, np.pi], [-.5, .5], [-.5, .5]],
+                                       range=[[0, np.pi],
+                                              [-.5, .5],
+                                              [-.5, .5]],
                                        weights=dwell*probe_grid[i])
             H += dH
     ideal_bin_count = np.sum(dwell) * np.sum(probe_grid) / np.prod(bins)
     H /= ideal_bin_count
     # Plot
     ax1a = plt.subplot(1, 3, 2)
-    plt.imshow(np.min(H, axis=0).T, vmin=0, vmax=2, origin="lower", cmap=plt.cm.RdBu)
+    plt.imshow(np.min(H, axis=0).T, vmin=0, vmax=2, origin="lower",
+               cmap=plt.cm.RdBu)
     ax1a.axis('equal')
     plt.xticks(np.array([0, bins[1]/2, bins[1]]) - 0.5, [-.5, 0, .5])
     plt.yticks(np.array([0, bins[2]/2, bins[2]]) - 0.5, [-.5, 0, .5])
@@ -186,7 +189,8 @@ def plot_sino_coverage(theta, v, h, dwell=None, bins=[16, 8, 4],
     plt.ylabel("v")
 
     ax1b = plt.subplot(1, 3, 3)
-    plt.imshow(np.min(H, axis=1).T, vmin=0, vmax=2, origin="lower", cmap=plt.cm.RdBu)
+    plt.imshow(np.min(H, axis=1).T, vmin=0, vmax=2, origin="lower",
+               cmap=plt.cm.RdBu)
     ax1b.axis('equal')
     plt.xlabel('theta')
     plt.ylabel("v")
@@ -194,7 +198,8 @@ def plot_sino_coverage(theta, v, h, dwell=None, bins=[16, 8, 4],
     plt.yticks(np.array([0, bins[2]/2, bins[2]]) - 0.5, [-.5, 0, .5])
 
     ax1c = plt.subplot(1, 3, 1)
-    plt.imshow(np.min(H, axis=2), vmin=0, vmax=2,  origin="lower", cmap=plt.cm.RdBu)
+    plt.imshow(np.min(H, axis=2), vmin=0, vmax=2,  origin="lower",
+               cmap=plt.cm.RdBu)
     ax1c.axis('equal')
     plt.ylabel('theta')
     plt.xlabel("h")
