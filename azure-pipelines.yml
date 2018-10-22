@@ -41,21 +41,21 @@ jobs:
   - bash: conda build . --no-anaconda-upload -c conda-forge
     displayName: Conda build
 
-# - job: Windows
-#   pool:
-#     vmImage: 'vs2017-win2016'
-#   strategy:
-#     matrix:
-#       Python36:
-#         python.version: '3.6'
-#     maxParallel: 4
-#   steps:
-#   - task: CondaEnvironment@1
-#     inputs:
-#       packageSpecs: 'python=$(python.version) conda-build conda-verify'
-#       updateConda: True # Optional
-#       installOptions: '-c conda-forge'
-#   - bash: conda config --add channels conda-forge
-#     displayName: Set main channel to conda-forge
-#   - bash: conda build . --no-anaconda-upload -c conda-forge
-#     displayName: Conda build
+- job: Windows
+  pool:
+    vmImage: 'vs2017-win2016'
+  strategy:
+    matrix:
+      Python36:
+        python.version: '3.6'
+    maxParallel: 4
+  steps:
+  - task: CondaEnvironment@1
+    inputs:
+      packageSpecs: 'python=$(python.version) conda-build conda-verify'
+      updateConda: True # Optional
+      installOptions: '-c conda-forge'
+  - bash: conda config --add channels conda-forge
+    displayName: Set main channel to conda-forge
+  - bash: conda build . --no-anaconda-upload -c conda-forge
+    displayName: Conda build
