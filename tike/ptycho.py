@@ -368,8 +368,9 @@ def grad(data=None, data_min=None,
         # Go far-plane
         farplane = np.fft.fft2(nearplane_pad)
         # Replace the amplitude with the measured amplitude.
-        farplane = np.sqrt(data) * np.exp(1j * np.arctan2(farplane.imag,
-                                                          farplane.real))
+        farplane = (np.sqrt(data) * (farplane.real + 1j * farplane.imag)
+                    / np.sqrt(farplane.imag * farplane.imag
+                              + farplane.real * farplane.real))
         # Back to near-plane.
         new_nearplane = np.fft.ifft2(farplane)[...,
                                                npadv:npadv+probe.shape[0],
