@@ -258,33 +258,39 @@ def forward(obj=None, obj_min=None,
             **kwargs):
     """Compute line integrals over an obj; i.e. simulate data acquisition.
     """
-    obj, obj_min, probe, theta, v, h \
-        = _tomo_interface(obj, obj_min, probe, theta, v, h)
-    logger.info("forward {:,d} element grid".format(obj.size))
-    logger.info("forward {:,d} rays".format(h.size))
-    ngrid = obj.shape
-    theta = utils.as_float32(theta)
-    v = utils.as_float32(v)
-    h = utils.as_float32(h)
-    line_integrals = np.zeros([*theta.shape, 2], dtype=float)
-    obj = obj.view(float).reshape(*obj.shape, 2)
-    # Send data to c function
-    for i in range(2):
-        line = utils.as_float32(line_integrals[..., i])
-        objt = utils.as_float32(obj[..., i])
-        LIBTIKE.forward_project.restype = utils.as_c_void_p()
-        LIBTIKE.forward_project(
-            utils.as_c_float_p(objt),
-            utils.as_c_float(obj_min[0]),
-            utils.as_c_float(obj_min[1]),
-            utils.as_c_float(obj_min[2]),
-            utils.as_c_int(ngrid[0]),
-            utils.as_c_int(ngrid[1]),
-            utils.as_c_int(ngrid[2]),
-            utils.as_c_float_p(theta),
-            utils.as_c_float_p(v),
-            utils.as_c_float_p(h),
-            utils.as_c_int(theta.size),
-            utils.as_c_float_p(line))
-        line_integrals[..., i] = line
-    return line_integrals.view(complex)[..., 0]
+    Lr = tomopy.project(obj=obj.real, theta=theta, pad=False)
+    Li = tomopy.project(obj=obj.imag, theta=theta, pad=False)
+    line_integrals = np.empty(Lr.shape, dtype=complex)
+    line_integrals.real = Lr
+    line_integrals.imag = Li
+    return line_integrals
+    # obj, obj_min, probe, theta, v, h \
+    #     = _tomo_interface(obj, obj_min, probe, theta, v, h)
+    # logger.info("forward {:,d} element grid".format(obj.size))
+    # logger.info("forward {:,d} rays".format(h.size))
+    # ngrid = obj.shape
+    # theta = utils.as_float32(theta)
+    # v = utils.as_float32(v)
+    # h = utils.as_float32(h)
+    # line_integrals = np.zeros([*theta.shape, 2], dtype=float)
+    # obj = obj.view(float).reshape(*obj.shape, 2)
+    # # Send data to c function
+    # for i in range(2):
+    #     line = utils.as_float32(line_integrals[..., i])
+    #     objt = utils.as_float32(obj[..., i])
+    #     LIBTIKE.forward_project.restype = utils.as_c_void_p()
+    #     LIBTIKE.forward_project(
+    #         utils.as_c_float_p(objt),
+    #         utils.as_c_float(obj_min[0]),
+    #         utils.as_c_float(obj_min[1]),
+    #         utils.as_c_float(obj_min[2]),
+    #         utils.as_c_int(ngrid[0]),
+    #         utils.as_c_int(ngrid[1]),
+    #         utils.as_c_int(ngrid[2]),
+    #         utils.as_c_float_p(theta),
+    #         utils.as_c_float_p(v),
+    #         utils.as_c_float_p(h),
+    #         utils.as_c_int(theta.size),
+    #         utils.as_c_float_p(line))
+    #     line_integrals[..., i] = line
+    # return line_integrals.view(complex)[..., 0]
