@@ -215,12 +215,12 @@ def test_stationary_coverage():
     cov_map = coverage(region, region_min, region_size,
                        probe_grid, probe_size, theta, v, h, dwell)[..., 0]
 
-    show_coverage(cov_map)
+    # show_coverage(cov_map)
     key = cov_map[:, 8, :]
     truth = np.zeros([16, 16])
     truth[8, 10] = 10
-    plt.figure()
-    plt.plot(key[8, :], 'o')
+    # plt.figure()
+    # plt.plot(key[8, :], 'o')
     np.testing.assert_equal(key, truth)
 
 
@@ -236,12 +236,12 @@ def test_stationary_coverage_crop():
     cov_map = coverage(region, region_min, region_size,
                        probe_grid, probe_size, theta, v, h, dwell)[..., 0]
 
-    show_coverage(cov_map)
+    # show_coverage(cov_map)
     key = cov_map[:, 1, :]
     truth = np.zeros([16, 4])
     truth[8, 2] = 10
-    plt.figure()
-    plt.plot(key[8, :], 'o')
+    # plt.figure()
+    # plt.plot(key[8, :], 'o')
     np.testing.assert_equal(key, truth)
 
 
@@ -259,13 +259,13 @@ def test_horizontal_coverage():
                                                     xstep=1/32)
     cov_map = coverage(region, region_min, region_size,
                        probe_grid, probe_size, theta, v, h, dwell)[..., 0]
-    show_coverage(cov_map)
+    # show_coverage(cov_map)
     key = cov_map[:, 10, :]
     truth = np.zeros([16, 16])
     truth[10, 5:18] = 10
     truth[10, (4, 8)] = 5
-    plt.figure()
-    plt.plot(key[10, :], 'o')
+    # plt.figure()
+    # plt.plot(key[10, :], 'o')
     print(key[10, :])
     # np.testing.assert_equal(key, truth)
     assert key[10, 8] >= 5 and key[10, 8] < 6
@@ -285,13 +285,13 @@ def test_vertical_coverage():
                                                     xstep=1/32)
     cov_map = coverage(region, region_min, region_size,
                        probe_grid, probe_size, theta, v, h, dwell)[..., 0]
-    show_coverage(cov_map)
+    # show_coverage(cov_map)
     key = cov_map[:, 4, :]
     truth = np.zeros([16, 16])
     truth[9:12, 8] = 10
     truth[(8, 12), 8] = 5
-    plt.figure()
-    plt.plot(key[:, 8], 'o')
+    # plt.figure()
+    # plt.plot(key[:, 8], 'o')
     # print(key[8, :])
     # assert_array_equal(key, truth)
     assert key[8, 8] >= 5 and key[8, 8] < 6
@@ -317,7 +317,7 @@ def test_theta_coverage():
                        probe_grid, probe_size, theta, v, h, dwell)[..., 0]
     # np.save('tests/theta_coverage.npy', cov_map)
     truth = np.load('tests/theta_coverage.npy')
-    show_coverage(cov_map)
+    # show_coverage(cov_map)
     print("Computed map\n{}\n".format(cov_map))
     print("True map\n{}\n".format(truth))
     # np.testing.assert_equal(cov_map, truth)
