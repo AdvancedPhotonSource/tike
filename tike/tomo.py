@@ -212,9 +212,9 @@ def reconstruct(obj=None, obj_min=None,
     # h = utils.as_float32(h)
     # obj = utils.as_float32(obj)
     # # Add new tomography algorithms here
-    # # TODO: The size of this function may be reduced further if all recon clibs
-    # #   have a standard interface. Perhaps pass unique params to a generic
-    # #   struct or array.
+    # # TODO: The size of this function may be reduced further if all recon
+    # #   clibs have a standard interface. Perhaps pass unique params to a
+    # #   generic struct or array.
     # if algorithm is "art":
     #     LIBTIKE.art.restype = utils.as_c_void_p()
     #     LIBTIKE.art(
