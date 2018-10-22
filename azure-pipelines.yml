@@ -20,10 +20,13 @@ jobs:
   steps:
   - task: CondaEnvironment@1
     inputs:
-      packageSpecs: 'python=$(python.version) conda-build conda-verify'
+      packageSpecs: >
+        python=$(python.version) conda-build conda-verify pycodestyle
       updateConda: True # Optional
   - bash: conda build . --no-anaconda-upload -c conda-forge
     displayName: Conda build
+  - bash: pycodestyle --count .
+    displayName: Run python linter
 
 - job: macOS
   pool:
