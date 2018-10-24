@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for reading this. We're happy that you have decided to report a bug or request a feature because your contribution will help make `tike` better.
+Thank you for reading this. We're happy that you have decided to report a bug or request a feature; your contribution will help make `tike` better.
 
 ## Report bugs
 
@@ -8,23 +8,23 @@ Please open an Issue on our GitHub project page. Be sure to include the steps th
 
 ## Feature requests
 
-If you have an idea about how to improve our code, open an issue. Discussion beforehand about the best way to implement the idea will reduce its development time.
+If you have an idea about how to improve our code, open an Issue on our GitHub project page. Discussion about and planning for the best way to implement the idea will reduce its development time.
 
 ## Pull Requests
 
 We want the `tike` codebase to be maintainable, simple, and lightweight. Please expect pull requests to be reviewed with the following criterion in mind:
 
-- Commit messages follow guidelines.
+- Commit messages follow our guidelines.
 - Documentation and tests are present.
 - Variable names are explanatory.
 - Code comments are used to clarify algorithms.
-- Structure is modular.
-- The use of external dependencies is minimized.
+- Code structure is modular.
+- Use of external dependencies is minimized.
 - Code generally adheres to [PEP8](https://www.python.org/dev/peps/pep-0008/#package-and-module-names) style.
 
 ### Commit messages
 
-Clear commit messages help us understand what and why changes were made. They should follow the format below which we copied from the `numpy` development workflow. Example:
+Clear commit messages help us understand what and why changes were made. They should follow the format below which we copied from the [`numpy` development workflow](https://docs.scipy.org/doc/numpy-1.15.0/dev/gitwash/development_workflow.html). Example:
 
 ```
 ENH: add functionality X to numpy.<submodule>.
@@ -38,6 +38,7 @@ characters.  If the commit is related to a ticket, indicate that with
 
 Standard acronyms to start the commit message with are:
 
+```
 API: an (incompatible) API change
 BENCH: changes to the benchmark suite
 BLD: change related to building numpy
@@ -51,7 +52,8 @@ REV: revert an earlier commit
 STY: style fix (whitespace, PEP8)
 TST: addition or modification of tests
 REL: related to releasing numpy
+```
 
 ### Linting
 
-We [lint](https://en.wikipedia.org/wiki/Lint_(software)) our code as part of our continuous integration tests using [`pycodestyle`](https://github.com/PyCQA/pycodestyle).
+As part of our continuous integration tests, we [lint](https://en.wikipedia.org/wiki/Lint_(software)) our code using [`pycodestyle`](https://github.com/PyCQA/pycodestyle) and [`pydocstyle`](https://github.com/PyCQA/pydocstyle).
