@@ -23,12 +23,18 @@ jobs:
   - task: CondaEnvironment@1
     inputs:
       packageSpecs: >
-        python=$(python.version) conda-build conda-verify pycodestyle
+        python=$(python.version)
+        conda-build
+        conda-verify
+        pycodestyle
+        pydocstyle
       updateConda: True # Optional
   - bash: conda build . --no-anaconda-upload -c conda-forge
     displayName: Conda build
-  - bash: pycodestyle --count .
-    displayName: Run python linter
+  - bash: pycodestyle --count -v .
+    displayName: Run python code linter
+  - bash: pydocstyle --match='(?!utils).*\.py' --count -v tike/
+    displayName: Run python docstring linter
 
 - job: macOS
   pool:
