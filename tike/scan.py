@@ -46,9 +46,7 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-"""
-This module contains functions which are building blocks of scanning
-trajectories and related functions.
+"""Define building blocks of scanning trajectories and related functions.
 
 Each trajectory returns position as a function of time and some other
 parameters.
@@ -85,7 +83,7 @@ logger = logging.getLogger(__name__)
 
 
 def _periodic_function_interface(t, A=0.5, f=60, p=0):
-    """An exemplar periodic function for this module.
+    """Define an exemplar periodic function for this module.
 
     Each trajectory function is a function of t, an array of time
     steps, and optional keyword arguements which determine the shape of
@@ -101,28 +99,29 @@ def _periodic_function_interface(t, A=0.5, f=60, p=0):
         The temporal frequency of the function.
     p : float [radians]
         The phase shift of the function.
+
     """
     raise NotImplementedError()
 
 
 def f2w(f):
-    """Return the angular frequency [rad] from the given frequency"""
+    """Return the angular frequency [rad] from the given frequency."""
     return 2*np.pi*f
 
 
 def period(f):
-    """Return the period from the given frequency"""
+    """Return the period from the given frequency."""
     return 1 / f
 
 
 def scantimes(t0, t1, f=60):
-    """An array of points in the range [t0, t1) at the given frequency (f)
-    """
+    """Return times in the range [t0, t1) at the given frequency (f)."""
     return np.linspace(t0, t1, (t1-t0)*f, endpoint=False)
 
 
 def sinusoid(A, f, p, t):
     """Return the value of a sine function at time `t`.
+
     #continuous #1D
 
     Parameters
@@ -133,6 +132,7 @@ def sinusoid(A, f, p, t):
         The temporal frequency of the function
     p : float
         The phase shift of the function
+
     """
     w = f2w(f)
     return A * np.sin(w*t - p)
@@ -140,6 +140,7 @@ def sinusoid(A, f, p, t):
 
 def triangle(A, f, p, t):
     """Return the value of a triangle function at time `t`.
+
     #continuous #1d
 
     Parameters
@@ -150,14 +151,15 @@ def triangle(A, f, p, t):
         The temporal frequency of the function
     p : float
         The phase shift of the function
+
     """
     w = f2w(f)
     return A * 2 / np.pi * np.arcsin(np.sin(w*t - p))
 
 
 def triangle_fs(A, f, p, t, N=8):
-    """A Fourier series approximation of the triangle function using N
-    sinusoids.
+    """Approximate the triangle function using a Fourier series of N sinusoids.
+
     #continuous #1d
     """
     w = f2w(f)
@@ -170,6 +172,7 @@ def triangle_fs(A, f, p, t, N=8):
 
 def sawtooth(A, f, p, t):
     """Return the value of a sawtooth function at time `t`.
+
     #discontinuous #1d
 
     Parameters
@@ -180,6 +183,7 @@ def sawtooth(A, f, p, t):
         The temporal frequency of the function
     p : float
         The phase shift of the function
+
     """
     ts = t*f - p/(2*np.pi)
     q = np.floor(ts + 0.5)
@@ -188,6 +192,7 @@ def sawtooth(A, f, p, t):
 
 def square(A, f, p, t):
     """Return the value of a square function at time `t`.
+
     #discontinuous #1d
 
     Parameters
@@ -198,6 +203,7 @@ def square(A, f, p, t):
         The temporal frequency of the function
     p : float
         The phase shift of the function
+
     """
     ts = t - p/(2*np.pi)/f
     return A * (np.power(-1, np.floor(2*f*ts)))
@@ -205,6 +211,7 @@ def square(A, f, p, t):
 
 def staircase(A, f, p, t):
     """Return the value of a staircase function at time `t`.
+
     #discontinuous #1d
 
     Parameters
@@ -215,6 +222,7 @@ def staircase(A, f, p, t):
         The temporal frequency of the function
     p : float
         The phase shift of the function
+
     """
     ts = t*f - p/(2*np.pi)
     return A * np.floor(ts)
@@ -222,8 +230,8 @@ def staircase(A, f, p, t):
 
 def lissajous(A, B, fx, fy, px, py, t):
     """Return the value of a lissajous function at time `t`.
-    #continuous #2d
 
+    #continuous #2d
     The lissajous is centered on the origin. The lissajous is periodic if and
     only if the fx / fy is rational. The overall period is the
     least common multiple of the two periods.
@@ -236,6 +244,7 @@ def lissajous(A, B, fx, fy, px, py, t):
         The temporal frequencies of the function
     px, py : float
         The phase shifts of the x and y components of the function
+
     """
     x = sinusoid(A, fx, px, t)
     y = sinusoid(B, fy, py, t)
@@ -243,9 +252,10 @@ def lissajous(A, B, fx, fy, px, py, t):
 
 
 def billiard(Ax, Ay, fx, fy, px, py, t, N):
-    """A lissajous using triangle functions. The trajectory of a frictionless
-    billard ball in a rectangular table.
+    """Return the trajectory of a frictionless ball in a rectangular table.
+
     #continuous #2d
+    It's a lissajous using triangle functions.
     """
     x = triangle_fs(Ax, fx, px, t, N)
     y = triangle_fs(Ay, fy, py, t, N)
@@ -254,8 +264,8 @@ def billiard(Ax, Ay, fx, fy, px, py, t, N):
 
 def raster(A, B, f, x0, y0, t):
     """Return the value of a raster function at time `t`.
-    #discontinuous #2d
 
+    #discontinuous #2d
     The raster starts at (x0, y0) and moves initially in the positive
     directions.
 
@@ -269,6 +279,7 @@ def raster(A, B, f, x0, y0, t):
         The number of raster lines per second
     x0, y0 : float
         Starting positions of the raster
+
     """
     x = 0.5 * (triangle(A, 0.5*f, 0.5*np.pi, t) + A) + x0
     y = staircase(B, f, 0, t) + y0
@@ -277,8 +288,8 @@ def raster(A, B, f, x0, y0, t):
 
 def spiral(r1, t1, v, t):
     """Return a spiral of constant linear velcity at time `t`.
-    #continuous #2d
 
+    #continuous #2d
     The spiral is centered on the origin and spins clockwise.
 
     Parameters
@@ -296,6 +307,7 @@ def spiral(r1, t1, v, t):
     constant-linear-velocity spiral trajectories by approximate internal model
     control," 2017 IEEE Conference on Control Technology and Applications
     (CCTA), Mauna Lani, HI, 2017, pp. 129-134. doi: 10.1109/CCTA.2017.8062452
+
     """
     P = np.pi * r1 * r1 / t1 / v
     r = np.sqrt(P * v * t / np.pi)
@@ -307,8 +319,8 @@ def spiral(r1, t1, v, t):
 
 def diagonal(A, B, fx, fy, px, py, t):
     """Return the value of a diagonal function at time `t`.
-    #discontinuous #2d
 
+    #discontinuous #2d
     The diagonal is centered on the origin.
 
     Parameters
@@ -319,6 +331,7 @@ def diagonal(A, B, fx, fy, px, py, t):
         The temporal frequencies of the function
     px, py : float
         The phase shifts of the x and y components of the function
+
     """
     x = triangle(A, fx, px+np.pi/2, t)
     y = triangle(B, fy, py+np.pi/2, t)
@@ -326,16 +339,19 @@ def diagonal(A, B, fx, fy, px, py, t):
 
 
 def scan3(A, B, fx, fy, fz, px, py, time, hz):
+    """Return a 3D combination of lissajous and sawtooth trajectories."""
     x, y, t = lissajous(A, B, fx, fy, px, py, time, hz)
     z = sawtooth(np.pi, 0.5*fz, 0.5*np.pi, t, hz)
     return z, x, y, t
 
 
 def avgspeed(time, x, y=None, z=None):
+    """Return the average speed along trajectory x, y, z if covered in time."""
     return distance(z, x, y) / time
 
 
 def lengths(x, y=None, z=None):
+    """Return the absolute displacements between points defined by x, y, z."""
     if y is None:
         y = np.zeros(x.shape)
     if z is None:
@@ -347,5 +363,6 @@ def lengths(x, y=None, z=None):
 
 
 def distance(x, y=None, z=None):
+    """Return the total distance travelled along the trajectory x, y, z."""
     d = lengths(z, x, y)
     return np.sum(d)

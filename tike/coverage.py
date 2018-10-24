@@ -46,10 +46,8 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-"""
-This module contains functions for determining the coverage of a scanning
-trajectory.
-"""
+"""Determine the coverage of a scanning trajectory."""
+
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
@@ -72,7 +70,7 @@ logger = logging.getLogger(__name__)
 def _coverage_interface(object_grid, object_min, object_size,
                         probe_grid, probe_size, theta, v, h,
                         **kwargs):
-    """A function whose interface all functions in this module matches.
+    """Define an interface that all functions in this module match.
 
     This function also sets default values for functions in this module.
     """
@@ -133,6 +131,7 @@ def coverage(object_grid, object_min, object_size,
         An array of shape (ngrid, anisotropy) containing the sum of the
         intersection lengths multiplied by the line_weights.
         A discretized map of the approximated procedure coverage.
+
     """
     object_grid, object_min, object_size, probe_grid, probe_size, theta, v, h \
         = _coverage_interface(object_grid, object_min, object_size,
@@ -181,13 +180,13 @@ def coverage(object_grid, object_min, object_size,
 
 
 def line_offsets(probe_grid, probe_size):
-    """Generate v, h line offsets from the min corner and filter
-    zero-weighted lines.
+    """Generate line offsets from the min and filter zero-weighted lines.
 
     Returns
     -------
     dv, dh : (N, ) np.array [cm]
         The offsets in the horizontal and vertical directions
+
     """
     # Generate a grid of offset vectors
     gv = (np.linspace(0, probe_size[0], probe_grid.shape[0], endpoint=False)

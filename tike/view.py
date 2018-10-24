@@ -46,9 +46,7 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-"""
-This module contains functions for plotting and viewing data of various types.
-"""
+"""Define functions for plotting and viewing data of various types."""
 
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
@@ -73,6 +71,7 @@ logger = logging.getLogger(__name__)
 
 
 def plot_complex(Z):
+    """Plot real and imaginary parts of a 2D image size by side."""
     plt.figure(dpi=128)
     plt.subplot(1, 2, 1)
     plt.imshow(Z.real)
@@ -84,6 +83,7 @@ def plot_complex(Z):
 
 
 def plot_phase(Z):
+    """Plot the amplitude and phase of a 2D image side by side."""
     plt.figure(dpi=128)
     plt.subplot(1, 2, 1)
     plt.imshow(np.abs(Z))
@@ -96,6 +96,7 @@ def plot_phase(Z):
 
 
 def trajectory(x, y, connect=True, frame=None, pause=True, dt=1e-12):
+    """Plot a 2D trajectory."""
     if frame is None:
         frame = [np.min(x), np.max(x), np.min(y), np.max(y)]
     fig = plt.figure(figsize=(6, 6))
@@ -120,7 +121,7 @@ def trajectory(x, y, connect=True, frame=None, pause=True, dt=1e-12):
 
 
 def plot_footprint(theta, v, h):
-
+    """Plot 2D projections of the trajectory for each pair of axes."""
     theta = theta % (np.pi) / np.pi
 
     ax1a = plt.subplot(1, 3, 2)
@@ -146,7 +147,7 @@ def plot_footprint(theta, v, h):
 
 def plot_sino_coverage(theta, v, h, dwell=None, bins=[16, 8, 4],
                        probe_grid=[[1]], probe_size=(0, 0)):
-    """Plots projections of minimum coverage in the sinogram space."""
+    """Plot projections of minimum coverage in the sinogram space."""
     # Wrap theta into [0, pi)
     theta = theta % (np.pi)
     # Set default dwell value
@@ -210,19 +211,17 @@ def plot_sino_coverage(theta, v, h, dwell=None, bins=[16, 8, 4],
 
 
 def plot_trajectories(theta, v, h, t):
-    """Plot each trajectory as a function of time in the current figure
+    """Plot each trajectory as a function of time in the current figure.
 
     Plots two subplots in the current figure. The top one shows horizonal
     and vertical position as a function of time and the bottom shows angular
     position as a function of time.
 
-    Parameters
-    ----------
-
     Returns
     -------
     ax1, ax1b : axes
         Handles to the two axes
+
     """
     ax1a = plt.subplot(2, 1, 1)
     plt.plot(t, h, 'c--', t, v, 'm.')

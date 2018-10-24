@@ -46,7 +46,8 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-"""
+"""Import all submodules in the `tike` namespace.
+
 This file tells import which submodules exist in the `tike` namespace and what
 functions to import when someone calls `import tike`. Note that `tike.externs`
 and `tike.utils` are not imported here because they are not part of the public
