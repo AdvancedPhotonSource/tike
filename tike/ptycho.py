@@ -46,8 +46,7 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-"""
-This module contains functions for solving the phase-retrieval problem.
+"""Solve the phase-retrieval problem.
 
 Coordinate Systems
 ==================
@@ -74,6 +73,7 @@ foo_min : (2, ) float [p]
 kwargs
     Keyword arguments specific to this function. `**kwargs` should always be
     included so that extra parameters are ignored instead of raising an error.
+
 """
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
@@ -97,7 +97,7 @@ logger = logging.getLogger(__name__)
 def _ptycho_interface(data, data_min,
                       probe, theta, v, h,
                       psi, psi_min, **kwargs):
-    """A function whose interface all functions in this module matchesself.
+    """Define and interface that all functions in this module match.
 
     This function also sets default values for functions in this module.
     """
@@ -133,7 +133,7 @@ def locate_pad(pshape, ushape):
 
 
 def gaussian(size, rin=0.8, rout=1.0):
-    """Return a complex gaussian probe distribution
+    """Return a complex gaussian probe distribution.
 
     Illumination probe represented on a 2D regular grid.
 
@@ -151,6 +151,7 @@ def gaussian(size, rin=0.8, rout=1.0):
     rout : float (0, 1] > rin
         The outer radius of the distribution where the intensity will reach
         zero.
+
     """
     r, c = np.mgrid[:size, :size] + 0.5
     rs = np.sqrt((r - size/2)**2 + (c - size/2)**2)
@@ -165,7 +166,7 @@ def gaussian(size, rin=0.8, rout=1.0):
 
 
 def fast_pad(unpadded_grid, npadv, npadh):
-    """Pad symmetrically with zeros along the last two dimensions
+    """Pad symmetrically with zeros along the last two dimensions.
 
     The `unpadded_grid` keeps its own data type. The padded_shape is the same
     in all dimensions except for the last two. The unpadded_grid is extracted
@@ -175,6 +176,7 @@ def fast_pad(unpadded_grid, npadv, npadh):
     -----
     Issue (numpy/numpy #11126, 21 May 2018): Copying into preallocated array
     is faster because of the way that np.pad uses concatenate.
+
     """
     padded_shape = list(unpadded_grid.shape)
     padded_shape[-2] += 2 * npadv
@@ -186,7 +188,7 @@ def fast_pad(unpadded_grid, npadv, npadh):
 
 def combine_grids(grids, v, h,
                   combined_shape, combined_min):
-    """Combines some grids by summation.
+    """Combine some grids by summation.
 
     The grids are interpolated onto the combined grid using bilinear
     interpolation.
@@ -207,6 +209,7 @@ def combine_grids(grids, v, h,
     ------
     combined : (T, V, H) :py:class:`numpy.array`
         The combined grid
+
     """
     m_shape, v_shape, h_shape = grids.shape
 
@@ -280,6 +283,7 @@ def uncombine_grids(grids_shape, v, h,
     ------
     grids : (M, V, H) :py:class:`numpy.array`
         The decombined grids
+
     """
     v_shape, h_shape = grids_shape[-2:]
 
@@ -330,8 +334,7 @@ def grad(data=None, data_min=None,
          psi=None, psi_min=None,
          reg=(1+0j), niter=1, rho=0.5, gamma=0.25, lamda=0j, epsilon=1e-8,
          **kwargs):
-    """Use gradient descent to update estimates for `psi`, the object
-    transmission function.
+    """Use gradient descent to estimate `psi`.
 
     Parameters
     ----------
@@ -346,6 +349,7 @@ def grad(data=None, data_min=None,
     epsilon : float
         Primal residual absolute termination criterion.
         TODO:@Selin Create better description
+
     """
     if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)
             and np.iscomplexobj(reg)):
@@ -388,7 +392,7 @@ def grad(data=None, data_min=None,
 
 
 def exitwave(probe, psi, v, h, psi_min=None):
-    """Compute the wavefront from probe function and stack of psi"""
+    """Compute the wavefront from probe function and stack of `psi`."""
     wave_shape = [psi.shape[0] * h.size, probe.shape[0], probe.shape[1]]
     wave = uncombine_grids(grids_shape=wave_shape, v=v, h=h,
                            combined=psi, combined_min=psi_min)
@@ -431,6 +435,7 @@ def reconstruct(data=None, data_min=None,
         The updated illumination function of each measurement.
     new_psi : (T, V, H, P) :py:class:`numpy.array` float
         The updated obect transmission function at each angle.
+
     """
     data, data_min, probe, theta, v, h, psi, psi_min = \
         _ptycho_interface(data, data_min,

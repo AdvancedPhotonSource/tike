@@ -46,10 +46,8 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-"""
-This module contains the highest level functions for solving the combined
-ptychotomography problem.
-"""
+"""Define the highest level functions for solving ptycho-tomography problem."""
+
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
@@ -74,7 +72,7 @@ def _combined_interface(obj, obj_min,
                         data, data_min,
                         probe, theta, v, h,
                         **kwargs):
-    """A function whose interface all functions in this module matches."""
+    """Define an interface that all functions in this module match."""
     assert np.all(obj_size > 0), "Detector dimensions must be > 0."
     assert np.all(probe_size > 0), "Probe dimensions must be > 0."
     assert np.all(detector_size > 0), "Detector dimensions must be > 0."
@@ -90,7 +88,7 @@ def admm(obj=None, voxelsize=None,
          probe=None, theta=None, h=None, v=None, energy=None,
          niter=1, rho=0.5, gamma=0.25,
          **kwargs):
-    """Use Alternating Direction Method of Multipliers (ADMM)
+    """Solve using the Alternating Direction Method of Multipliers (ADMM).
 
     Parameters
     ----------
@@ -113,6 +111,7 @@ def admm(obj=None, voxelsize=None,
     kwargs :
         Any keyword arguments for the pytchography and tomography
         reconstruction algorithms.
+
     """
     Z, X, Y = obj.shape[0:3]
     T = theta.size

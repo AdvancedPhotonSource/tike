@@ -46,9 +46,7 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-"""
-This module contains the shared c dynamically linked libraries.
-"""
+"""Find and load the shared c dynamically linked libraries."""
 
 import ctypes
 import sys
