@@ -52,6 +52,7 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import matplotlib.pyplot as plt
+from matplotlib import ticker
 import numpy as np
 import logging
 
@@ -75,10 +76,15 @@ def plot_complex(Z):
     plt.figure(dpi=128)
     plt.subplot(1, 2, 1)
     plt.imshow(Z.real)
-    plt.colorbar(orientation='horizontal')
+    cb0 = plt.colorbar(orientation='horizontal')
     plt.subplot(1, 2, 2)
     plt.imshow(Z.imag)
-    plt.colorbar(orientation='horizontal')
+    cb1 = plt.colorbar(orientation='horizontal')
+    tick_locator = ticker.MaxNLocator(nbins=5)
+    cb0.locator = tick_locator
+    cb0.update_ticks()
+    cb1.locator = tick_locator
+    cb1.update_ticks()
     plt.show()
 
 
@@ -87,10 +93,15 @@ def plot_phase(Z):
     plt.figure(dpi=128)
     plt.subplot(1, 2, 1)
     plt.imshow(np.abs(Z))
-    plt.colorbar(orientation='horizontal')
+    cb0 = plt.colorbar(orientation='horizontal')
     plt.subplot(1, 2, 2)
     plt.imshow(np.angle(Z))
-    plt.colorbar(orientation='horizontal')
+    cb1 = plt.colorbar(orientation='horizontal')
+    tick_locator = ticker.MaxNLocator(nbins=5)
+    cb0.locator = tick_locator
+    cb0.update_ticks()
+    cb1.locator = tick_locator
+    cb1.update_ticks()
     plt.show()
     print(np.min(Z), np.max(Z))
 
