@@ -95,9 +95,9 @@ logger = logging.getLogger(__name__)
 
 
 def _ptycho_interface(data, data_min,
-                      probe, theta, v, h,
+                      probe, v, h,
                       psi, psi_min, **kwargs):
-    """Define and interface that all functions in this module match.
+    """Define an interface that all functions in this module match.
 
     This function also sets default values for functions in this module.
     """
@@ -111,17 +111,15 @@ def _ptycho_interface(data, data_min,
             raise ValueError()
     if h is None:
         raise ValueError()
-    if theta is None:
-        pass
     if psi is None:
         raise ValueError()
     if psi_min is None:
         psi_min = (0, 0)
-    assert data.shape[0] % v.size == data.shape[0] % h.size == 0, \
-        "The size of v, h must be a factor of the number of data."
+    assert len(data) == v.size == h.size, \
+        "The size of v, h must be the same as the number of data."
     # logger.info(" _ptycho_interface says {}".format("Hello, World!"))
     return (data, data_min,
-            probe, theta, v, h,
+            probe, v, h,
             psi, psi_min)
 
 
@@ -190,8 +188,8 @@ def combine_grids(grids, v, h,
                   combined_shape, combined_min):
     """Combine some grids by summation.
 
-    The grids are interpolated onto the combined grid using bilinear
-    interpolation.
+    Multiple grids are interpolated onto a single combined grid using
+    bilinear interpolation.
 
     Parameters
     ----------
@@ -199,7 +197,7 @@ def combine_grids(grids, v, h,
         The values on the grids
     v, h : (M, ) :py:class:`numpy.array` float [m]
         The coordinates of the minimum corner of the M grids
-    combined_shape : (N+2, ) int
+    combined_shape : (2, ) int
         The last two are numbers of the tuple are the number of indices along
         the h and v directions of the combined grid.
     combined_min : (2, ) float [m]
@@ -215,8 +213,8 @@ def combine_grids(grids, v, h,
 
     # SHARED
     # Find the float coordinates of the grids on the combined grid
-    vshift = v - combined_min[-2]
-    hshift = h - combined_min[-1]
+    vshift = (v - combined_min[-2]).flatten()
+    hshift = (h - combined_min[-1]).flatten()
     assert np.all(vshift >= 0)
     assert np.all(hshift >= 0)
     # Find integer indices (floor) of the min corner of each grid on the
@@ -235,26 +233,22 @@ def combine_grids(grids, v, h,
     # Create a summed_grids large enough to hold all of the grids
     # plus some padding to cancel out the padding added for shifting
     grids = fast_pad(grids, 1, 1)
-    combined = np.zeros([combined_shape[0],
-                         combined_shape[1] + 2,
-                         combined_shape[2] + 2], dtype=grids.dtype)
+    combined = np.zeros([
+                         combined_shape[-2] + 2,
+                         combined_shape[-1] + 2], dtype=grids.dtype)
     # Add each of the grids to the appropriate place on the summed_grids
-    nviews = combined_shape[0]
     nprobes = h.size
-    assert grids.shape[0] == nviews * nprobes, ("Wrong number of grids to "
-                                                "combine!")
     grids = grids.view(float).reshape(*grids.shape, 2)
     combined = combined.view(float).reshape(*combined.shape, 2)
-    for M in range(nviews):
-        for N in range(nprobes):
-            combined[M,
-                     V[N]:V1[N],
-                     H[N]:H1[N],
-                     ...] += sni.shift(grids[M * nprobes + N],
-                                       [vshift[N], hshift[N], 0],
-                                       order=1)
+    for N in range(nprobes):
+        combined[
+                 V[N]:V1[N],
+                 H[N]:H1[N],
+                 ...] += sni.shift(grids[N],
+                                   [vshift[N], hshift[N], 0],
+                                   order=1)
     combined = combined.view(complex)
-    return combined[:, 1:-1, 1:-1, 0]
+    return combined[1:-1, 1:-1, 0]
 
 
 def uncombine_grids(grids_shape, v, h,
@@ -266,15 +260,13 @@ def uncombine_grids(grids_shape, v, h,
 
     Parameters
     ----------
-    grids_shape : (N+2, ) int
+    grids_shape : (2, ) int
         The last two are numbers of the tuple are the number of indices along
         the h and v directions of the grids.
-    T : (M, ) :py:class:`numpy.array` int
-        An index to separate the grids.
     v, h : (M, ) :py:class:`numpy.array` float [m]
         The real coordinates of the minimum corner of the M grids.
 
-    combined : (T, V, H) :py:class:`numpy.array`
+    combined : (V, H) :py:class:`numpy.array`
         The combined grids.
     combined_min : (2, ) float [m]
         The real coordinates of the minimum corner of the combined grids
@@ -289,8 +281,8 @@ def uncombine_grids(grids_shape, v, h,
 
     # SHARED
     # Find the float coordinates of the grids on the combined grid
-    vshift = v - combined_min[-2]
-    hshift = h - combined_min[-1]
+    vshift = (v - combined_min[-2]).flatten()
+    hshift = (h - combined_min[-1]).flatten()
     assert np.all(vshift >= 0)
     assert np.all(hshift >= 0)
     # Find integer indices (floor) of the min corner of each grid on the
@@ -311,27 +303,23 @@ def uncombine_grids(grids_shape, v, h,
     combined = fast_pad(combined, 1, 1)
     grids = np.empty(grids_shape, dtype=combined.dtype)
     # Retrive the updated values of each of the grids
-    nviews = combined.shape[0]
     nprobes = h.size
-    assert grids_shape[0] == nviews * nprobes, ("Wrong number of grids to"
-                                                " uncombine!")
     grids = grids.view(float).reshape(*grids.shape, 2)
     combined = combined.view(float).reshape(*combined.shape, 2)
-    for M in range(nviews):
-        for N in range(nprobes):
-            grids[M * nprobes + N] = sni.shift(combined[M,
-                                                        V[N]:V1[N],
-                                                        H[N]:H1[N],
-                                                        ...],
-                                               [-vshift[N], -hshift[N], 0],
-                                               order=1)[1:-1, 1:-1, ...]
+    for N in range(nprobes):
+        grids[N] = sni.shift(combined[
+                                      V[N]:V1[N],
+                                      H[N]:H1[N],
+                                      ...],
+                             [-vshift[N], -hshift[N], 0],
+                             order=1)[1:-1, 1:-1, ...]
 
     return grids.view(complex)[..., 0]
 
 
-def grad(data=None, data_min=None,
-         probe=None, theta=None, v=None, h=None,
-         psi=None, psi_min=None,
+def grad(data,
+         probe, v, h,
+         psi, psi_min,
          reg=(1+0j), niter=1, rho=0.5, gamma=0.25, lamda=0j, epsilon=1e-8,
          **kwargs):
     """Use gradient descent to estimate `psi`.
@@ -360,7 +348,7 @@ def grad(data=None, data_min=None,
     # Compute probe inverse
     # TODO: Update the probe too
     probe_inverse = np.conj(probe)
-    wavefront_shape = [psi.shape[0] * h.size, probe.shape[0], probe.shape[1]]
+    wavefront_shape = [h.size, probe.shape[0], probe.shape[1]]
     for i in range(niter):
         # combine all wavefronts into one array
         wavefronts = uncombine_grids(grids_shape=wavefront_shape, v=v, h=h,
@@ -391,29 +379,29 @@ def grad(data=None, data_min=None,
     return psi
 
 
-def exitwave(probe, psi, v, h, psi_min=None):
+def exitwave(probe, v, h, psi, psi_min=None):
     """Compute the wavefront from probe function and stack of `psi`."""
-    wave_shape = [psi.shape[0] * h.size, probe.shape[0], probe.shape[1]]
+    wave_shape = [h.size, probe.shape[0], probe.shape[1]]
     wave = uncombine_grids(grids_shape=wave_shape, v=v, h=h,
                            combined=psi, combined_min=psi_min)
     return probe * wave
 
 
-def simulate(data_shape=None, data_min=None,
-             probe=None, theta=None, v=None, h=None,
-             psi=None, psi_min=(0, 0),
+def simulate(data_shape,
+             probe, v, h,
+             psi, psi_min=(0, 0),
              **kwargs):
     """Propagate the wavefront to the detector."""
-    wavefront = exitwave(probe, psi, v, h, psi_min=psi_min)
-    npadx = (data_shape[0] - wavefront.shape[1]) // 2
-    npady = (data_shape[1] - wavefront.shape[2]) // 2
+    wavefront = exitwave(probe, v, h,
+                         psi, psi_min=psi_min)
+    npadx = (data_shape[0] - wavefront.shape[-2]) // 2
+    npady = (data_shape[1] - wavefront.shape[-1]) // 2
     padded_wave = fast_pad(wavefront, npadx, npady)
-    intensity = np.square(np.abs(np.fft.fft2(padded_wave)))
-    return intensity.astype('float')
+    return np.square(np.abs(np.fft.fft2(padded_wave)))
 
 
 def reconstruct(data=None, data_min=None,
-                probe=None, theta=None, v=None, h=None,
+                probe=None, v=None, h=None,
                 psi=None, psi_min=None,
                 algorithm=None, niter=1, **kwargs):
     """Reconstruct the `psi` and `probe` using the given `algorithm`.
@@ -437,22 +425,24 @@ def reconstruct(data=None, data_min=None,
         The updated obect transmission function at each angle.
 
     """
-    data, data_min, probe, theta, v, h, psi, psi_min = \
+    data, data_min, probe, v, h, psi, psi_min = \
         _ptycho_interface(data, data_min,
-                          probe, theta, v, h,
+                          probe, v, h,
                           psi, psi_min, **kwargs)
     # Send data to c function
     logger.info("{} on {:,d} - {:,d} by {:,d} grids for {:,d} "
-                "iterations".format(algorithm, *data.shape, niter))
+                "iterations".format(algorithm,
+                                    len(data), *data.shape[1:], niter))
     # Add new algorithms here
     # TODO: The size of this function may be reduced further if all recon clibs
     #   have a standard interface. Perhaps pass unique params to a generic
     #   struct or array.
     if algorithm is "grad":
-        new_psi = grad(data=data, data_min=data_min,
-                       probe=probe, theta=theta, v=v, h=h,
+        new_psi = grad(data=data,
+                       probe=probe, v=v, h=h,
                        psi=psi, psi_min=psi_min,
-                       niter=niter, **kwargs)
+                       niter=niter, **kwargs
+                       )
     else:
         raise ValueError("The {} algorithm is not an available.".format(
             algorithm))

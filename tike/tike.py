@@ -83,7 +83,7 @@ def _combined_interface(obj, obj_min,
     return None
 
 
-def admm(obj=None, voxelsize=None,
+def admm(obj=None, voxelsize=1.0,
          data=None,
          probe=None, theta=None, h=None, v=None, energy=None,
          niter=1, rho=0.5, gamma=0.25,
@@ -117,16 +117,19 @@ def admm(obj=None, voxelsize=None,
     T = theta.size
     x = obj
     psi = np.ones([T, Z, Y], dtype=obj.dtype)
-    hobj = 1 + 0j  # np.ones([T, Z, Y], dtype=obj.dtype)
-    lamda = 0j
+    hobj = np.ones_like(psi)
+    lamda = np.zeros_like(psi)
     for i in range(niter):
         # Ptychography.
-        psi = tike.ptycho.reconstruct(data=data,
-                                      probe=probe, v=v, h=h,
-                                      psi=psi,
-                                      algorithm='grad',
-                                      niter=1, rho=rho, gamma=gamma, reg=hobj,
-                                      lamda=lamda, **kwargs)
+        for view in range(len(psi)):
+            psi[view] = tike.ptycho.reconstruct(data=data[view],
+                                                probe=probe,
+                                                v=v[view], h=h[view],
+                                                psi=psi[view],
+                                                algorithm='grad',
+                                                niter=1, rho=rho, gamma=gamma,
+                                                reg=hobj[view],
+                                                lamda=lamda[view], **kwargs)
         # Tomography.
         phi = -1j / wavenumber(energy) * np.log(psi + lamda / rho) / voxelsize
         x = tike.tomo.reconstruct(obj=x,
