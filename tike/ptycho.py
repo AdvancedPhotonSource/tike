@@ -176,11 +176,14 @@ def fast_pad(unpadded_grid, npadv, npadh):
     is faster because of the way that np.pad uses concatenate.
 
     """
+    assert npadv >= 0 and npadh >= 0, "Pads must be non-negative."
     padded_shape = list(unpadded_grid.shape)
     padded_shape[-2] += 2 * npadv
     padded_shape[-1] += 2 * npadh
     padded_grid = np.zeros(padded_shape, dtype=unpadded_grid.dtype)
-    padded_grid[..., npadv:-npadv, npadh:-npadh] = unpadded_grid
+    padded_grid[...,
+                npadv:padded_shape[-2] - npadv,
+                npadh:padded_shape[-1] - npadh] = unpadded_grid
     return padded_grid
 
 
