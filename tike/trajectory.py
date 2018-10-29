@@ -46,13 +46,7 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-"""
-This module defines a `Probe` class for generating 3D coverage maps of user
-defined functions.
-
-User defines a function in `thetahv` space. `user_func(t) -> theta, v, h`
-where t, theta, v, and h are 1D numpy arrays.
-"""
+"""Define functions for modifying trajectories."""
 
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
@@ -73,8 +67,7 @@ logger = logging.getLogger(__name__)
 
 
 def euclidian_dist(theta, v, h, r=0.5):
-    """Return the euclidian distance between consecutive points in
-    theta, v, h space.
+    """Return the euclidian distance between consecutive points.
 
     Parameters
     ----------
@@ -82,6 +75,7 @@ def euclidian_dist(theta, v, h, r=0.5):
         Coordinates of points.
     r : float
         The radius to use when converting to euclidian space.
+
     """
     # Assume the arclength is the same as the tangential displacement
     dr = np.diff(theta) * r
@@ -93,10 +87,10 @@ def euclidian_dist(theta, v, h, r=0.5):
 
 
 def euclidian_dist_approx(theta, v, h, r=0.75):
-    """Approximate the euclidian distance between consecutive elements of the
-    points by adding the arclength travelled to the hv distance.
+    """Approximate the euclidian distance between consecutive elements.
 
-    This method is abour 2x faster than the unapproximated. The output array
+    Approximate by adding the arclength travelled to the vh distance. This
+    method is about 2x faster than the unapproximated. The output array
     size is one less than the input sizes.
 
     Parameters
@@ -105,6 +99,7 @@ def euclidian_dist_approx(theta, v, h, r=0.75):
         Coordinates of points.
     r : float
         The radius to use when converting to euclidian space.
+
     """
     t1 = np.diff(theta)
     v1 = np.diff(v)
@@ -113,8 +108,9 @@ def euclidian_dist_approx(theta, v, h, r=0.75):
 
 
 def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep, tkwargs={}):
-    """Create a linear approximation of `trajectory` between `tmin` and `tmax`
-    such that space between measurements is less than `xstep` and the time
+    """Create a linear approximation of `trajectory` between `tmin` and `tmax`.
+
+    The space between measurements is less than `xstep` and the time
     between measurements is less than `tstep`.
 
     Parameters
@@ -138,6 +134,7 @@ def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep, tkwargs={}):
         The time spent at each position before moving to the next measurement.
     time : (N,) vector [s]
         Discrete times along trajectory satisfying constraints.
+
     """
     dist_func = euclidian_dist_approx
     all_theta, all_v, all_h, all_times = discrete_helper(trajectory,
@@ -210,13 +207,12 @@ def discrete_helper(trajectory, tmin, tmax, xstep, tstep, dist_func,
 
 
 def coded_exposure(theta, v, h, time, dwell, c_time, c_dwell):
-    """Returns the intersection of a scanning procedure and coded exposure
-    with measurements reordered and bundled by code.
+    """Return the intersection of a scanning procedure and coded exposure.
 
     Given a series of discrete measurements with time and duration
     (dwell) and series of coded exposures, the measurments are adjusted to only
     include measurements that fit under the masks. The measurements are also
-    sorted by which code they fit into.
+    reordered and bundled by which code they fit into.
 
     Measurements and codes must be ordered monotonically increasing by time
     i.e. time[1] >= time[0].
@@ -239,6 +235,7 @@ def coded_exposure(theta, v, h, time, dwell, c_time, c_dwell):
         New position and time coordates which fit into the code.
     bundles : :py:class:`numpy.array` (N, )
         The starting index of each coded bundle.
+
     """
     _fname = "coded_exposure"
     # Implementation uses the assumption that both the measurement times
@@ -296,13 +293,13 @@ def coded_exposure(theta, v, h, time, dwell, c_time, c_dwell):
 
 
 def monotonic(x):
-    """Check whether x is monomtically increasing"""
+    """Check whether x is monomtically increasing."""
     dx = np.diff(x)
     return np.all(dx >= 0)
 
 
 def has_overlap(x0, xd, y0, yd):
-    """Return True if ranges overlap
+    """Return True if the ranges overlap.
 
     Parameters
     ----------
@@ -310,12 +307,13 @@ def has_overlap(x0, xd, y0, yd):
         The min values of the ranges
     xd, yd : float
         The widths of the ranges
+
     """
     return x0 + xd >= y0 and y0 + yd >= x0
 
 
 def get_overlap(x0, xd, y0, yd):
-    """Return the min edge and width of overlap
+    """Return the min edge and width of overlap.
 
     Parameters
     ----------
@@ -330,6 +328,7 @@ def get_overlap(x0, xd, y0, yd):
         The min value of the overlap region
     width : float
         The width of the overlap region. May be zero if ranges share an edge.
+
     """
     lo = max(x0, y0)
     width = min(x0 + xd, y0 + yd) - lo

@@ -46,9 +46,8 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-"""
-This module contains universal constants and physical relation functions.
-"""
+"""Define universal constants and physical relation functions."""
+
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
@@ -82,7 +81,7 @@ def wavenumber(energy):
 
 
 def complex_amplitude(probe_grid):
-    """Amplitude of the complex probe wave"""
+    """Amplitude of the complex probe wave."""
     return np.abs(probe_grid)
 
 

@@ -1,7 +1,7 @@
 Tike
 ####
 
-Tike is a toolbox for tomographic reconstruction of 3D objects from ptychography data. 
+Tike is a toolbox for tomographic reconstruction of 3D objects from ptychography data.
 
 The aim of Tike is to provide fast and accurate implementations of a wide variety of reconstruction algorithms, and to provide a common platform for the synchrotron research community.
 
@@ -23,7 +23,7 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 1
-   
+
    api
 
 
@@ -33,3 +33,9 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+
+
+Bibliography
+============
+
+.. bibliography:: bibtex/zrefs.bib

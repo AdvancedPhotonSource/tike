@@ -46,8 +46,7 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-"""
-This module contains functions for solving the tomography problem.
+"""Define functions for solving the tomography problem.
 
 Coordinate Systems
 ==================
@@ -90,6 +89,7 @@ theta, v, h : (M, ) :py:class:`numpy.array` float
 kwargs
     Keyword arguments specific to this function. `**kwargs` should always be
     included so that extra parameters are ignored instead of raising an error.
+
 """
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
@@ -115,7 +115,7 @@ logger = logging.getLogger(__name__)
 def _tomo_interface(obj, obj_min,
                     probe, theta, v, h,
                     **kwargs):
-    """A function whose interface all functions in this module matches.
+    """Define an interface all functions in this module match.
 
     This function also sets default values for functions in this module.
     """
@@ -182,6 +182,7 @@ def reconstruct(obj=None, obj_min=None,
     -------
     obj : (Z, X, Y, P) :py:class:`numpy.array` float
         The updated obj grid.
+
     """
     Lr = tomopy.recon(tomo=line_integrals.real,
                       theta=theta,
@@ -256,8 +257,7 @@ def reconstruct(obj=None, obj_min=None,
 def forward(obj=None, obj_min=None,
             probe=None, theta=None, v=None, h=None,
             **kwargs):
-    """Compute line integrals over an obj; i.e. simulate data acquisition.
-    """
+    """Compute line integrals over an obj; i.e. simulate data acquisition."""
     Lr = tomopy.project(obj=obj.real, theta=theta, pad=False)
     Li = tomopy.project(obj=obj.imag, theta=theta, pad=False)
     line_integrals = np.empty(Lr.shape, dtype=complex)
