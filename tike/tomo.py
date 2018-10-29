@@ -95,6 +95,7 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import tomopy
+import tomopy.util.extern as extern
 import numpy as np
 from . import utils
 from tike.externs import LIBTIKE
@@ -126,16 +127,16 @@ def _tomo_interface(
     # The default origin is at the center of the object
     if obj_corner is None:
         obj_corner = - np.array(obj.shape) / 2  # (z, x, y)
-    obj_corner = utils.as_float32(obj_corner)
+    obj_corner = utils.as_c_float(obj_corner)
     # Assume a full field geometry
     probe = np.ones([obj.shape[0], obj.shape[2]]) if probe is None else probe
     if theta is None:
         raise ValueError()  # Angle definitions are required
-    theta = utils.as_float32(theta)
+    theta = utils.as_c_float(theta)
     v = np.full(theta.shape, obj_corner[0]) if v is None else v
-    v = utils.as_float32(v)
+    v = utils.as_c_float(v)
     h = np.full(theta.shape, obj_corner[2]) if h is None else h
-    h = utils.as_float32(h)
+    h = utils.as_c_float(h)
     assert theta.size == v.size == h.size, \
         "The size of theta, v, h must be the same as the number of probes."
     # Generate a grid of offset vectors
@@ -204,11 +205,11 @@ def reconstruct(
     # logger.info("{} on {:,d} element grid for {:,d} iterations".format(
     #             algorithm, obj.size, niter))
     # ngrid = obj.shape
-    # line_integrals = utils.as_float32(line_integrals)
-    # theta = utils.as_float32(theta)
-    # v = utils.as_float32(v)
-    # h = utils.as_float32(h)
-    # obj = utils.as_float32(obj)
+    # line_integrals = utils.as_c_float(line_integrals)
+    # theta = utils.as_c_float(theta)
+    # v = utils.as_c_float(v)
+    # h = utils.as_c_float(h)
+    # obj = utils.as_c_float(obj)
     # # Add new tomography algorithms here
     # # TODO: The size of this function may be reduced further if all recon
     # #   clibs have a standard interface. Perhaps pass unique params to a
@@ -257,39 +258,64 @@ def forward(
     **kwargs
 ):
     """Compute line integrals over an obj; i.e. simulate data acquisition."""
-    Lr = tomopy.project(obj=obj.real, theta=theta, pad=False)
-    Li = tomopy.project(obj=obj.imag, theta=theta, pad=False)
+    Lr = project(obj=obj.real, theta=theta)
+    Li = project(obj=obj.imag, theta=theta)
     line_integrals = np.empty(Lr.shape, dtype=complex)
     line_integrals.real = Lr
     line_integrals.imag = Li
     return line_integrals
-    # obj, obj_corner, probe, theta, v, h \
-    #     = _tomo_interface(obj, obj_corner, probe, theta, v, h)
-    # logger.info("forward {:,d} element grid".format(obj.size))
-    # logger.info("forward {:,d} rays".format(h.size))
-    # ngrid = obj.shape
-    # theta = utils.as_float32(theta)
-    # v = utils.as_float32(v)
-    # h = utils.as_float32(h)
-    # line_integrals = np.zeros([*theta.shape, 2], dtype=float)
-    # obj = obj.view(float).reshape(*obj.shape, 2)
-    # # Send data to c function
-    # for i in range(2):
-    #     line = utils.as_float32(line_integrals[..., i])
-    #     objt = utils.as_float32(obj[..., i])
-    #     LIBTIKE.forward_project.restype = utils.as_c_void_p()
-    #     LIBTIKE.forward_project(
-    #         utils.as_c_float_p(objt),
-    #         utils.as_c_float(obj_corner[0]),
-    #         utils.as_c_float(obj_corner[1]),
-    #         utils.as_c_float(obj_corner[2]),
-    #         utils.as_c_int(ngrid[0]),
-    #         utils.as_c_int(ngrid[1]),
-    #         utils.as_c_int(ngrid[2]),
-    #         utils.as_c_float_p(theta),
-    #         utils.as_c_float_p(v),
-    #         utils.as_c_float_p(h),
-    #         utils.as_c_int(theta.size),
-    #         utils.as_c_float_p(line))
-    #     line_integrals[..., i] = line
-    # return line_integrals.view(complex)[..., 0]
+
+
+def project(
+        obj,
+        theta,
+        center=None,
+        sinogram_order=False,
+        ):
+    """
+    Project x-rays through a given 3D object.
+
+    Parameters
+    ----------
+    obj : ndarray
+        Voxelized 3D object.
+    theta : array
+        Projection angles in radian.
+    center: array, optional
+        Location of rotation axis.
+    sinogram_order: bool, optional
+        Determines whether output data is a stack of sinograms
+        (True, y-axis first axis) or a stack of radiographs
+        (False, theta first axis).
+
+    Returns
+    -------
+    ndarray
+        3D tomographic data.
+
+    """
+    oy, ox, oz = obj.shape
+    dt = theta.size
+    dy = oy
+    dx = ox
+    shape = (dy, dt, dx)
+    center = get_center(shape, center)
+    tomo = np.zeros(shape, dtype=np.float32)
+    extern.c_project(
+        utils.as_float32(obj),
+        utils.as_float32(center),
+        utils.as_float32(tomo),
+        utils.as_float32(theta),
+        )
+    if not sinogram_order:
+        # rotate to radiograph order
+        tomo = np.swapaxes(tomo, 0, 1)  # doesn't copy data
+    return tomo
+
+
+def get_center(shape, center):
+    if center is None:
+        center = np.ones(shape[0], dtype='float32') * (shape[2] / 2.)
+    elif np.array(center).size == 1:
+        center = np.ones(shape[0], dtype='float32') * center
+    return center
