@@ -49,6 +49,105 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
+import lzma
+import numpy as np
+import os
+import pickle
+import tike.ptycho
+import unittest
+
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2016, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
+
+
+class TestPtychoRecon(unittest.TestCase):
+    """Test various ptychography reconstruction methods for consistency."""
+
+    def create_dataset(self, dataset_file):
+        """Create a dataset for testing this module."""
+        import matplotlib.pyplot as plt
+        amplitude = plt.imread("./tests/data/Cryptomeria_japonica-0128.tif")
+        phase = plt.imread("./tests/data/Bombus_terrestris-0128.tif")
+        self.original = amplitude / 255 * np.exp(1j * phase / 255 * np.pi)
+
+        pw = 15  # probe width
+        weights = tike.ptycho.gaussian(pw, rin=0.8, rout=1.0)
+        self.probe = weights * np.exp(1j * weights * 0.2)
+
+        self.v, self.h = np.meshgrid(
+            np.linspace(0, amplitude.shape[0]-pw, 13, endpoint=False),
+            np.linspace(0, amplitude.shape[0]-pw, 13, endpoint=False),
+            indexing='ij'
+            )
+
+        self.data_shape = np.ones(2, dtype=int) * pw * 2
+
+        self.data = tike.ptycho.simulate(
+            data_shape=self.data_shape,
+            probe=self.probe,
+            v=self.v,
+            h=self.h,
+            psi=self.original
+            )
+
+        setup_data = [
+            self.data,
+            self.data_shape,
+            self.v,
+            self.h,
+            self.probe,
+            self.original,
+            ]
+
+        with lzma.open(dataset_file, 'wb') as file:
+            pickle.dump(setup_data, file)
+
+    def setUp(self):
+        """Load a dataset for reconstruction."""
+        dataset_file = './tests/data/ptycho_setup.pickle.lzma'
+        if not os.path.isfile(dataset_file):
+            self.create_dataset(dataset_file)
+        with lzma.open(dataset_file, 'rb') as file:
+            [
+                self.data,
+                self.data_shape,
+                self.v,
+                self.h,
+                self.probe,
+                self.original,
+            ] = pickle.load(file)
+
+    def test_sim(self):
+        """Check consistency of ptycho.simulate."""
+        data = tike.ptycho.simulate(
+            data_shape=self.data_shape,
+            probe=self.probe,
+            v=self.v,
+            h=self.h,
+            psi=self.original
+            )
+        np.testing.assert_equal(data, self.data)
+
+    def test_grad(self):
+        """Check consistency of ptycho.grad."""
+        new_psi = tike.ptycho.reconstruct(
+            data=self.data,
+            probe=self.probe,
+            v=self.v,
+            h=self.h,
+            psi=np.ones_like(self.original),
+            algorithm='grad',
+            niter=10,
+            rho=0.5,
+            gamma=0.25
+            )
+        recon_file = './tests/data/ptycho_grad.pickle.lzma'
+        try:
+            with lzma.open(recon_file, 'rb') as file:
+                standard = pickle.load(file)
+        except FileNotFoundError as e:
+            with lzma.open(recon_file, 'wb') as file:
+                pickle.dump(new_psi, file)
+            raise e
+        np.testing.assert_equal(new_psi, standard)
