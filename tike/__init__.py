@@ -58,6 +58,7 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 from pkg_resources import get_distribution, DistributionNotFound
 
+from tike.communicator import *
 from tike.coverage import *
 from tike.ptycho import *
 from tike.scan import *

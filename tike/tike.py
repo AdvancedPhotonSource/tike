@@ -56,6 +56,7 @@ import logging
 import tike.tomo
 import tike.ptycho
 from tike.constants import *
+from tike.communicator import MPICommunicator
 
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
@@ -117,14 +118,22 @@ def admm(
         reconstruction algorithms.
 
     """
-    Z, X, Y = obj.shape[0:3]
-    T = theta.size
-    x = obj
-    psi = np.ones([T, Z, Y], dtype=obj.dtype)
-    hobj = np.ones_like(psi)
+    comm = MPICommunicator()
+    voxelsize, probe, theta, energy, niter, rho, gamma, V, H = \
+        comm.broadcast(voxelsize, probe, theta, energy, niter, rho, gamma,
+                       0 if obj is None else obj.shape[0],
+                       0 if obj is None else obj.shape[2])
+    x, data, h, v = comm.scatter(obj, data, h, v)
+    psi = np.ones([
+        len(data),  # The number of views.
+        V,  # The height of psi.
+        H,  # The width of psi.
+    ], dtype=x.dtype)
     lamda = np.zeros_like(psi)
+    hobj = np.ones_like(psi)
     for i in range(niter):
-        # Ptychography.
+        logger.info("ADMM iteration {}".format(i))
+        # Ptychography
         for view in range(len(psi)):
             psi[view] = tike.ptycho.reconstruct(data=data[view],
                                                 probe=probe,
@@ -134,8 +143,9 @@ def admm(
                                                 niter=1, rho=rho, gamma=gamma,
                                                 reg=hobj[view],
                                                 lamda=lamda[view], **kwargs)
-        # Tomography.
         phi = -1j / wavenumber(energy) * np.log(psi + lamda / rho) / voxelsize
+        # Tomography
+        phi = comm.get_tomo_slice(phi)
         x = tike.tomo.reconstruct(obj=x,
                                   theta=theta,
                                   line_integrals=phi,
@@ -144,12 +154,6 @@ def admm(
         # Lambda update.
         line_integrals = tike.tomo.forward(obj=x, theta=theta) * voxelsize
         hobj = np.exp(1j * wavenumber(energy) * line_integrals)
+        hobj = comm.get_ptycho_slice(hobj)
         lamda = lamda + rho * (psi - hobj)
-        # # Update residuals.
-        # r = 1 / M * np.sqrt(np.sum(np.square(np.abs(psi - hobj)),
-        #                            axis=(-1, -2)))
-        # s = rho * np.sqrt(np.sum(np.square(np.abs(x1 - x0)),
-        #                          axis=(-1, -2)))
-        # if r < epsilon_prime and s < epsilon_dual:
-        #     pass
     return x
