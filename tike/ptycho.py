@@ -187,6 +187,39 @@ def fast_pad(unpadded_grid, npadv, npadh):
     return padded_grid
 
 
+def shift_coords(v, v_shape, combined_min, combined_shape):
+    """Find the positions of some 1D ranges in a new 1D coordinate system.
+
+    Pad the new range coordinates with one on each side.
+
+    Parameters
+    ----------
+    v, v_shape : :py:class:`numpy.array` float, int
+        1D min and range to be transformed.
+    combined_min, combined_shape : :py:class:`numpy.array` float, int
+        The min and range of the new coordinate system.
+
+    Return
+    ------
+    vshift : :py:class:`numpy.array` float
+        The shifted coordinate remainder.
+    V, V1 : :py:class:`numpy.array` int
+        new range integer starts and ends.
+
+    """
+    # Find the float coordinates of each v on the combined grid
+    vshift = (v - combined_min).flatten()
+    # Find integer indices (floor) of each v on the combined grid
+    V = np.floor(vshift).astype(int)
+    V1 = (V + (v_shape + 2)).astype(int)
+    if np.any(V < 0) or np.any(V1 > combined_min + combined_shape + 2):
+        raise ValueError("Index {} or {} is off the grid!".format(
+                         np.min(V), np.max(V1)))
+    # Find the remainder shift less than 1
+    vshift -= vshift.astype(int)
+    return vshift, V, V1
+
+
 def combine_grids(grids, v, h,
                   combined_shape, combined_min):
     """Combine some grids by summation.
@@ -213,26 +246,10 @@ def combine_grids(grids, v, h,
 
     """
     m_shape, v_shape, h_shape = grids.shape
-
-    # SHARED
-    # Find the float coordinates of the grids on the combined grid
-    vshift = (v - combined_min[-2]).flatten()
-    hshift = (h - combined_min[-1]).flatten()
-    assert np.all(vshift >= 0)
-    assert np.all(hshift >= 0)
-    # Find integer indices (floor) of the min corner of each grid on the
-    # combined grid
-    V = np.floor(vshift).astype(int)
-    V1 = (V + (v_shape + 2)).astype(int)
-    assert np.all(V >= 0), "{} is off the combined grid!".format(np.min(V))
-    H = np.floor(hshift).astype(int)
-    H1 = (H + (h_shape + 2)).astype(int)
-    assert np.all(H >= 0), "{} is off the combined grid!".format(np.min(H))
-    # Convert to shift less than 1
-    vshift -= vshift.astype(int)
-    hshift -= hshift.astype(int)
-    # END SHARED
-
+    vshift, V, V1 = shift_coords(v, v_shape,
+                                 combined_min[-2], combined_shape[-2])
+    hshift, H, H1 = shift_coords(h, h_shape,
+                                 combined_min[-1], combined_shape[-1])
     # Create a summed_grids large enough to hold all of the grids
     # plus some padding to cancel out the padding added for shifting
     grids = fast_pad(grids, 1, 1)
@@ -278,26 +295,10 @@ def uncombine_grids(grids_shape, v, h,
 
     """
     v_shape, h_shape = grids_shape[-2:]
-
-    # SHARED
-    # Find the float coordinates of the grids on the combined grid
-    vshift = (v - combined_min[-2]).flatten()
-    hshift = (h - combined_min[-1]).flatten()
-    assert np.all(vshift >= 0)
-    assert np.all(hshift >= 0)
-    # Find integer indices (floor) of the min corner of each grid on the
-    # combined grid
-    V = np.floor(vshift).astype(int)
-    V1 = (V + (v_shape + 2)).astype(int)
-    assert np.all(V >= 0), "{} is off the combined grid!".format(np.min(V))
-    H = np.floor(hshift).astype(int)
-    H1 = (H + (h_shape + 2)).astype(int)
-    assert np.all(H >= 0), "{} is off the combined grid!".format(np.min(H))
-    # Convert to shift less than 1
-    vshift -= vshift.astype(int)
-    hshift -= hshift.astype(int)
-    # END SHARED
-
+    vshift, V, V1 = shift_coords(v, v_shape,
+                                 combined_min[-2], combined.shape[-2])
+    hshift, H, H1 = shift_coords(h, h_shape,
+                                 combined_min[-1], combined.shape[-1])
     # Create a grids large enough to hold all of the grids
     # plus some padding to cancel out the padding added for shifting
     combined = fast_pad(combined, 1, 1)
@@ -311,7 +312,6 @@ def uncombine_grids(grids_shape, v, h,
                              [-vshift[N], -hshift[N], 0],
                              order=1,
                              )[1:-1, 1:-1, ...]
-
     return grids.view(complex)[..., 0]
 
 
