@@ -68,8 +68,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _combined_interface(obj, obj_min,
-                        data, data_min,
+def _combined_interface(obj, obj_corner,
+                        data, data_corner,
                         probe, theta, v, h,
                         **kwargs):
     """Define an interface that all functions in this module match."""
@@ -96,13 +96,13 @@ def admm(obj=None, voxelsize=1.0,
         The initial guess for the reconstruction.
     voxelsize : float [cm]
         The side length of an `obj` voxel.
-    obj_min : (3, ) float
+    obj_corner : (3, ) float
         The min corner (z, x, y) of the `obj`.
     data : (M, H, V) :py:class:`numpy.array` float
         An array of detector intensities for each of the `M` probes. The
         grid of each detector is `H` pixels wide (the horizontal
         direction) and `V` pixels tall (the vertical direction).
-    data_min : (2, ) float [p]
+    data_corner : (2, ) float [p]
         The min corner (h, v) of the data in the global coordinate system.
     probe : (H, V) :py:class:`numpy.array` complex
         A single illumination function for the all probes.
