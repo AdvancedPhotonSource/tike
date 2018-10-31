@@ -236,17 +236,14 @@ def combine_grids(grids, v, h,
     # Create a summed_grids large enough to hold all of the grids
     # plus some padding to cancel out the padding added for shifting
     grids = fast_pad(grids, 1, 1)
-    combined = np.zeros([
-                         combined_shape[-2] + 2,
-                         combined_shape[-1] + 2], dtype=grids.dtype)
+    combined = np.zeros([combined_shape[-2] + 2, combined_shape[-1] + 2],
+                        dtype=grids.dtype)
     # Add each of the grids to the appropriate place on the summed_grids
     nprobes = h.size
     grids = grids.view(float).reshape(*grids.shape, 2)
     combined = combined.view(float).reshape(*combined.shape, 2)
     for N in range(nprobes):
-        combined[
-                 V[N]:V1[N],
-                 H[N]:H1[N],
+        combined[V[N]:V1[N], H[N]:H1[N],
                  ...] += sni.shift(grids[N],
                                    [vshift[N], hshift[N], 0],
                                    order=1)
@@ -310,12 +307,10 @@ def uncombine_grids(grids_shape, v, h,
     grids = grids.view(float).reshape(*grids.shape, 2)
     combined = combined.view(float).reshape(*combined.shape, 2)
     for N in range(nprobes):
-        grids[N] = sni.shift(combined[
-                                      V[N]:V1[N],
-                                      H[N]:H1[N],
-                                      ...],
+        grids[N] = sni.shift(combined[V[N]:V1[N], H[N]:H1[N], ...],
                              [-vshift[N], -hshift[N], 0],
-                             order=1)[1:-1, 1:-1, ...]
+                             order=1,
+                             )[1:-1, 1:-1, ...]
 
     return grids.view(complex)[..., 0]
 
