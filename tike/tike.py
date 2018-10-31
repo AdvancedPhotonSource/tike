@@ -94,6 +94,8 @@ def admm(obj=None, voxelsize=1.0,
     ----------
     obj : (Z, X, Y, P) :py:class:`numpy.array` float
         The initial guess for the reconstruction.
+    voxelsize : float [cm]
+        The side length of an `obj` voxel.
     obj_min : (3, ) float
         The min corner (z, x, y) of the `obj`.
     data : (M, H, V) :py:class:`numpy.array` float
@@ -108,6 +110,8 @@ def admm(obj=None, voxelsize=1.0,
         The energy of the probe
     algorithms : (2, ) string
         The names of the pytchography and tomography reconstruction algorithms.
+    niter : int
+        The number of ADMM interations.
     kwargs :
         Any keyword arguments for the pytchography and tomography
         reconstruction algorithms.
