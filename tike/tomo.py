@@ -122,26 +122,19 @@ def _tomo_interface(
     This function also sets default values for functions in this module.
     """
     if obj is None:
-        # An inital guess is required
-        raise ValueError()
-    # obj = utils.as_float32(obj)  # complex data
+        raise ValueError()  # An inital guess is required
+    # The default origin is at the center of the object
     if obj_corner is None:
-        # The default origin is at the center of the object
         obj_corner = - np.array(obj.shape) / 2  # (z, x, y)
     obj_corner = utils.as_float32(obj_corner)
-    if probe is None:
-        # Assume a full field geometry
-        probe = np.ones([obj.shape[0], obj.shape[2]])
-    # probe = utils.as_float32(probe)  # complex data
+    # Assume a full field geometry
+    probe = np.ones([obj.shape[0], obj.shape[2]]) if probe is None else probe
     if theta is None:
-        # Angle definitions are required
-        raise ValueError()
+        raise ValueError()  # Angle definitions are required
     theta = utils.as_float32(theta)
-    if v is None:
-        v = np.full(theta.shape, obj_corner[0])
+    v = np.full(theta.shape, obj_corner[0]) if v is None else v
     v = utils.as_float32(v)
-    if h is None:
-        h = np.full(theta.shape, obj_corner[2])
+    h = np.full(theta.shape, obj_corner[2]) if h is None else h
     h = utils.as_float32(h)
     assert theta.size == v.size == h.size, \
         "The size of theta, v, h must be the same as the number of probes."

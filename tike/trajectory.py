@@ -136,7 +136,7 @@ def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep, tkwargs=None):
         Discrete times along trajectory satisfying constraints.
 
     """
-    tkwargs = dict() if tkwargs is None
+    tkwargs = dict() if tkwargs is None else tkwargs
     dist_func = euclidian_dist_approx
     all_theta, all_v, all_h, all_times = discrete_helper(trajectory,
                                                          tmin, tmax,
@@ -167,7 +167,7 @@ def discrete_helper(
     tkwargs=None
 ):
     """Do a recursive sampling of the trajectory."""
-    tkwargs = dict() if tkwargs is None
+    tkwargs = dict() if tkwargs is None else tkwargs
     all_theta, all_v = list(), list()
     all_h, all_times = list(), list()
     # Sample en masse the trajectory over time
