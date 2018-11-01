@@ -67,9 +67,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _coverage_interface(object_grid, object_corner, object_size,
-                        probe_grid, probe_size, theta, v, h,
-                        **kwargs):
+def _coverage_interface(
+    object_grid, object_corner, object_size,
+    probe_grid, probe_size, theta, v, h,
+    **kwargs
+):
     """Define an interface that all functions in this module match.
 
     This function also sets default values for functions in this module.
@@ -108,9 +110,11 @@ def _coverage_interface(object_grid, object_corner, object_size,
             probe_grid, probe_size, theta, v, h)
 
 
-def coverage(object_grid, object_corner, object_size,
-             probe_grid, probe_size, theta, v, h,
-             dwell=None, **kwargs):
+def coverage(
+    object_grid, object_corner, object_size,
+    probe_grid, probe_size, theta, v, h,
+    dwell=None, **kwargs
+):
     """Return a coverage map using this probe.
 
     The intersection between each line and each pixel is approximated by

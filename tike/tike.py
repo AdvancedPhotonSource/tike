@@ -68,10 +68,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _combined_interface(obj,
-                        data,
-                        probe, theta, v, h,
-                        **kwargs):
+def _combined_interface(
+    obj,
+    data,
+    probe, theta, v, h,
+    **kwargs
+):
     """Define an interface that all functions in this module match."""
     assert np.all(obj_size > 0), "Detector dimensions must be > 0."
     assert np.all(probe_size > 0), "Probe dimensions must be > 0."
@@ -83,11 +85,13 @@ def _combined_interface(obj,
     return None
 
 
-def admm(obj=None, voxelsize=1.0,
-         data=None,
-         probe=None, theta=None, h=None, v=None, energy=None,
-         niter=1, rho=0.5, gamma=0.25,
-         **kwargs):
+def admm(
+    obj=None, voxelsize=1.0,
+    data=None,
+    probe=None, theta=None, h=None, v=None, energy=None,
+    niter=1, rho=0.5, gamma=0.25,
+    **kwargs
+):
     """Solve using the Alternating Direction Method of Multipliers (ADMM).
 
     Parameters

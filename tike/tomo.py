@@ -112,9 +112,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _tomo_interface(obj, obj_corner,
-                    probe, theta, v, h,
-                    **kwargs):
+def _tomo_interface(
+    obj, obj_corner,
+    probe, theta, v, h,
+    **kwargs
+):
     """Define an interface all functions in this module match.
 
     This function also sets default values for functions in this module.
@@ -158,10 +160,12 @@ def _tomo_interface(obj, obj_corner,
     return (obj, obj_corner, probe, th1, v1, h1)
 
 
-def reconstruct(obj=None,
-                probe=None, theta=None, v=None, h=None,
-                line_integrals=None,
-                algorithm=None, niter=0, **kwargs):
+def reconstruct(
+    obj=None,
+    probe=None, theta=None, v=None, h=None,
+    line_integrals=None,
+    algorithm=None, niter=0, **kwargs
+):
     """Reconstruct the `obj` using the given `algorithm`.
 
     Parameters
@@ -254,9 +258,11 @@ def reconstruct(obj=None,
     # return obj
 
 
-def forward(obj=None, obj_corner=None,
-            probe=None, theta=None, v=None, h=None,
-            **kwargs):
+def forward(
+    obj=None, obj_corner=None,
+    probe=None, theta=None, v=None, h=None,
+    **kwargs
+):
     """Compute line integrals over an obj; i.e. simulate data acquisition."""
     Lr = tomopy.project(obj=obj.real, theta=theta, pad=False)
     Li = tomopy.project(obj=obj.imag, theta=theta, pad=False)

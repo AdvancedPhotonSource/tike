@@ -94,9 +94,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _ptycho_interface(data,
-                      probe, v, h,
-                      psi, psi_corner, **kwargs):
+def _ptycho_interface(
+    data,
+    probe, v, h,
+    psi, psi_corner, **kwargs
+):
     """Define an interface that all functions in this module match.
 
     This function also sets default values for functions in this module.
@@ -221,8 +223,10 @@ def shift_coords(v, v_shape, combined_min, combined_shape):
     return vshift, V, V1
 
 
-def combine_grids(grids, v, h,
-                  combined_shape, combined_corner):
+def combine_grids(
+    grids, v, h,
+    combined_shape, combined_corner
+):
     """Combine some grids by summation.
 
     Multiple grids are interpolated onto a single combined grid using
@@ -269,8 +273,10 @@ def combine_grids(grids, v, h,
     return combined[1:-1, 1:-1, 0]
 
 
-def uncombine_grids(grids_shape, v, h,
-                    combined, combined_corner):
+def uncombine_grids(
+    grids_shape, v, h,
+    combined, combined_corner
+):
     """Extract a series of grids from a single grid.
 
     The grids are interpolated onto the combined grid using bilinear
@@ -316,11 +322,13 @@ def uncombine_grids(grids_shape, v, h,
     return grids.view(complex)[..., 0]
 
 
-def grad(data,
-         probe, v, h,
-         psi, psi_corner,
-         reg=(1+0j), niter=1, rho=0, gamma=0.25, lamda=0j, epsilon=1e-8,
-         **kwargs):
+def grad(
+    data,
+    probe, v, h,
+    psi, psi_corner,
+    reg=(1+0j), niter=1, rho=0, gamma=0.25, lamda=0j, epsilon=1e-8,
+    **kwargs
+):
     """Use gradient descent to estimate `psi`.
 
     Parameters
@@ -387,10 +395,12 @@ def exitwave(probe, v, h, psi, psi_corner=None):
     return probe * wave
 
 
-def simulate(data_shape,
-             probe, v, h,
-             psi, psi_corner=(0, 0),
-             **kwargs):
+def simulate(
+    data_shape,
+    probe, v, h,
+    psi, psi_corner=(0, 0),
+    **kwargs
+):
     """Propagate the wavefront to the detector."""
     wavefront = exitwave(probe, v, h,
                          psi, psi_corner=psi_corner)
@@ -400,10 +410,12 @@ def simulate(data_shape,
     return np.square(np.abs(np.fft.fft2(padded_wave)))
 
 
-def reconstruct(data=None,
-                probe=None, v=None, h=None,
-                psi=None, psi_corner=None,
-                algorithm=None, niter=1, **kwargs):
+def reconstruct(
+    data=None,
+    probe=None, v=None, h=None,
+    psi=None, psi_corner=None,
+    algorithm=None, niter=1, **kwargs
+):
     """Reconstruct the `psi` and `probe` using the given `algorithm`.
 
     Parameters
