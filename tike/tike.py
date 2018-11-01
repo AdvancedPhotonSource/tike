@@ -68,8 +68,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _combined_interface(obj, obj_min,
-                        data, data_min,
+def _combined_interface(obj,
+                        data,
                         probe, theta, v, h,
                         **kwargs):
     """Define an interface that all functions in this module match."""
@@ -83,7 +83,7 @@ def _combined_interface(obj, obj_min,
     return None
 
 
-def admm(obj=None, voxelsize=None,
+def admm(obj=None, voxelsize=1.0,
          data=None,
          probe=None, theta=None, h=None, v=None, energy=None,
          niter=1, rho=0.5, gamma=0.25,
@@ -94,20 +94,20 @@ def admm(obj=None, voxelsize=None,
     ----------
     obj : (Z, X, Y, P) :py:class:`numpy.array` float
         The initial guess for the reconstruction.
-    obj_min : (3, ) float
-        The min corner (z, x, y) of the `obj`.
+    voxelsize : float [cm]
+        The side length of an `obj` voxel.
     data : (M, H, V) :py:class:`numpy.array` float
         An array of detector intensities for each of the `M` probes. The
         grid of each detector is `H` pixels wide (the horizontal
         direction) and `V` pixels tall (the vertical direction).
-    data_min : (2, ) float [p]
-        The min corner (h, v) of the data in the global coordinate system.
     probe : (H, V) :py:class:`numpy.array` complex
         A single illumination function for the all probes.
     energy : float [keV]
         The energy of the probe
     algorithms : (2, ) string
         The names of the pytchography and tomography reconstruction algorithms.
+    niter : int
+        The number of ADMM interations.
     kwargs :
         Any keyword arguments for the pytchography and tomography
         reconstruction algorithms.
@@ -117,16 +117,19 @@ def admm(obj=None, voxelsize=None,
     T = theta.size
     x = obj
     psi = np.ones([T, Z, Y], dtype=obj.dtype)
-    hobj = 1 + 0j  # np.ones([T, Z, Y], dtype=obj.dtype)
-    lamda = 0j
+    hobj = np.ones_like(psi)
+    lamda = np.zeros_like(psi)
     for i in range(niter):
         # Ptychography.
-        psi = tike.ptycho.reconstruct(data=data,
-                                      probe=probe, v=v, h=h,
-                                      psi=psi,
-                                      algorithm='grad',
-                                      niter=1, rho=rho, gamma=gamma, reg=hobj,
-                                      lamda=lamda, **kwargs)
+        for view in range(len(psi)):
+            psi[view] = tike.ptycho.reconstruct(data=data[view],
+                                                probe=probe,
+                                                v=v[view], h=h[view],
+                                                psi=psi[view],
+                                                algorithm='grad',
+                                                niter=1, rho=rho, gamma=gamma,
+                                                reg=hobj[view],
+                                                lamda=lamda[view], **kwargs)
         # Tomography.
         phi = -1j / wavenumber(energy) * np.log(psi + lamda / rho) / voxelsize
         x = tike.tomo.reconstruct(obj=x,

@@ -194,11 +194,11 @@ def init_coverage():
     probe_grid = np.ones([4, 2])
     probe_size = [1/16, 1/16]
     region = np.zeros([16, 16, 16, 1])
-    region_min = [-8/16, -8/16, -8/16]
+    region_corner = [-8/16, -8/16, -8/16]
     region_size = [1, 1, 1]
     # FIXME: Tests fail if region is adjusted to region below
     # region = np.array([[-8/16, 8/16], [-8/16, 3/16], [-4/16, 8/16]])
-    return probe_grid, probe_size, region, region_min, region_size
+    return probe_grid, probe_size, region, region_corner, region_size
 
 
 def stationary(t):
@@ -208,11 +208,12 @@ def stationary(t):
 
 def test_stationary_coverage():
     """A beam of magnitude 10 at (:, 10, 8)."""
-    probe_grid, probe_size, region, region_min, region_size = init_coverage()
+    probe_grid, probe_size, \
+        region, region_corner, region_size = init_coverage()
     theta, v, h, dwell, times = discrete_trajectory(stationary,
                                                     tmin=0, tmax=10, tstep=1,
                                                     xstep=1/32)
-    cov_map = coverage(region, region_min, region_size,
+    cov_map = coverage(region, region_corner, region_size,
                        probe_grid, probe_size, theta, v, h, dwell)[..., 0]
 
     # show_coverage(cov_map)
@@ -226,14 +227,15 @@ def test_stationary_coverage():
 
 def test_stationary_coverage_crop():
     """A beam of magnitude 10 at (:, 10, 8)."""
-    probe_grid, probe_size, region, region_min, region_size = init_coverage()
+    probe_grid, probe_size, \
+        region, region_corner, region_size = init_coverage()
     theta, v, h, dwell, times = discrete_trajectory(stationary,
                                                     tmin=0, tmax=10, tstep=1,
                                                     xstep=1/32)
     region = np.zeros([16, 8, 4, 1])
-    region_min = [-8/16, -0/16, -0/16]
+    region_corner = [-8/16, -0/16, -0/16]
     region_size = [1, 8/16, 4/16]
-    cov_map = coverage(region, region_min, region_size,
+    cov_map = coverage(region, region_corner, region_size,
                        probe_grid, probe_size, theta, v, h, dwell)[..., 0]
 
     # show_coverage(cov_map)
@@ -253,11 +255,12 @@ def horizontal_move(t, h_speed=-2/320):
 def test_horizontal_coverage():
     # NOTE: The forward edge of the smear will be slightly larger. The two
     # edges even out as the time step approaches zero.
-    probe_grid, probe_size, region, region_min, region_size = init_coverage()
+    probe_grid, probe_size, \
+        region, region_corner, region_size = init_coverage()
     theta, v, h, dwell, times = discrete_trajectory(horizontal_move,
                                                     tmin=0, tmax=40, tstep=1,
                                                     xstep=1/32)
-    cov_map = coverage(region, region_min, region_size,
+    cov_map = coverage(region, region_corner, region_size,
                        probe_grid, probe_size, theta, v, h, dwell)[..., 0]
     # show_coverage(cov_map)
     key = cov_map[:, 10, :]
@@ -279,11 +282,12 @@ def vertical_move(t, v_speed=2/320):
 
 
 def test_vertical_coverage():
-    probe_grid, probe_size, region, region_min, region_size = init_coverage()
+    probe_grid, probe_size, \
+        region, region_corner, region_size = init_coverage()
     theta, v, h, dwell, times = discrete_trajectory(vertical_move,
                                                     tmin=0, tmax=40, tstep=1,
                                                     xstep=1/32)
-    cov_map = coverage(region, region_min, region_size,
+    cov_map = coverage(region, region_corner, region_size,
                        probe_grid, probe_size, theta, v, h, dwell)[..., 0]
     # show_coverage(cov_map)
     key = cov_map[:, 4, :]
@@ -306,14 +310,15 @@ def theta_move(t, Hz=1):
 
 
 def test_theta_coverage():
-    probe_grid, probe_size, region, region_min, region_size = init_coverage()
+    probe_grid, probe_size, \
+        region, region_corner, region_size = init_coverage()
     theta, v, h, dwell, times = discrete_trajectory(theta_move,
                                                     tmin=0, tmax=1, tstep=0.5,
                                                     xstep=1/32)
     region = np.zeros([4, 16, 16, 1])
-    region_min = [-2/16, -8/16, -8/16]
+    region_corner = [-2/16, -8/16, -8/16]
     region_size = [4/16, 16/16, 16/16]
-    cov_map = coverage(region, region_min, region_size,
+    cov_map = coverage(region, region_corner, region_size,
                        probe_grid, probe_size, theta, v, h, dwell)[..., 0]
     # np.save('tests/theta_coverage.npy', cov_map)
     truth = np.load('tests/theta_coverage.npy')

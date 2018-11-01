@@ -73,7 +73,7 @@ obj : (Z, X, Y, P) :py:class:`numpy.array` float
         * (..., 1) : beta, the imaginary amplitude extinction / absorption
             coefficient.
 
-obj_min : (3, ) float
+obj_corner : (3, ) float
     The min corner (z, x, y) of the `obj`.
 line_integrals : (M, V, H, P) :py:class:`numpy.array` float
     Integrals across the `obj` for each of the `probe` rays and
@@ -112,7 +112,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _tomo_interface(obj, obj_min,
+def _tomo_interface(obj, obj_corner,
                     probe, theta, v, h,
                     **kwargs):
     """Define an interface all functions in this module match.
@@ -123,10 +123,10 @@ def _tomo_interface(obj, obj_min,
         # An inital guess is required
         raise ValueError()
     # obj = utils.as_float32(obj)  # complex data
-    if obj_min is None:
+    if obj_corner is None:
         # The default origin is at the center of the object
-        obj_min = - np.array(obj.shape) / 2  # (z, x, y)
-    obj_min = utils.as_float32(obj_min)
+        obj_corner = - np.array(obj.shape) / 2  # (z, x, y)
+    obj_corner = utils.as_float32(obj_corner)
     if probe is None:
         # Assume a full field geometry
         probe = np.ones([obj.shape[0], obj.shape[2]])
@@ -136,10 +136,10 @@ def _tomo_interface(obj, obj_min,
         raise ValueError()
     theta = utils.as_float32(theta)
     if v is None:
-        v = np.full(theta.shape, obj_min[0])
+        v = np.full(theta.shape, obj_corner[0])
     v = utils.as_float32(v)
     if h is None:
-        h = np.full(theta.shape, obj_min[2])
+        h = np.full(theta.shape, obj_corner[2])
     h = utils.as_float32(h)
     assert theta.size == v.size == h.size, \
         "The size of theta, v, h must be the same as the number of probes."
@@ -155,10 +155,10 @@ def _tomo_interface(obj, obj_min,
     h1 = (np.repeat(h, V*H).reshape(M, V, H) + dh)
     assert th1.shape == v1.shape == h1.shape
     # logger.info(" _tomo_interface says {}".format("Hello, World!"))
-    return (obj, obj_min, probe, th1, v1, h1)
+    return (obj, obj_corner, probe, th1, v1, h1)
 
 
-def reconstruct(obj=None, obj_min=None,
+def reconstruct(obj=None,
                 probe=None, theta=None, v=None, h=None,
                 line_integrals=None,
                 algorithm=None, niter=0, **kwargs):
@@ -200,8 +200,8 @@ def reconstruct(obj=None, obj_min=None,
     recon.real = Lr
     recon.imag = Li
     return recon
-    # obj, obj_min, probe, theta, v, h \
-    #     = _tomo_interface(obj, obj_min, probe, theta, v, h)
+    # obj, obj_corner, probe, theta, v, h \
+    #     = _tomo_interface(obj, obj_corner, probe, theta, v, h)
     # assert niter >= 0, "Number of iterations should be >= 0"
     # # Send data to c function
     # logger.info("{} on {:,d} element grid for {:,d} iterations".format(
@@ -219,9 +219,9 @@ def reconstruct(obj=None, obj_min=None,
     # if algorithm is "art":
     #     LIBTIKE.art.restype = utils.as_c_void_p()
     #     LIBTIKE.art(
-    #         utils.as_c_float(obj_min[0]),
-    #         utils.as_c_float(obj_min[1]),
-    #         utils.as_c_float(obj_min[2]),
+    #         utils.as_c_float(obj_corner[0]),
+    #         utils.as_c_float(obj_corner[1]),
+    #         utils.as_c_float(obj_corner[2]),
     #         utils.as_c_int(ngrid[0]),
     #         utils.as_c_int(ngrid[1]),
     #         utils.as_c_int(ngrid[2]),
@@ -235,9 +235,9 @@ def reconstruct(obj=None, obj_min=None,
     # elif algorithm is "sirt":
     #     LIBTIKE.sirt.restype = utils.as_c_void_p()
     #     LIBTIKE.sirt(
-    #         utils.as_c_float(obj_min[0]),
-    #         utils.as_c_float(obj_min[1]),
-    #         utils.as_c_float(obj_min[2]),
+    #         utils.as_c_float(obj_corner[0]),
+    #         utils.as_c_float(obj_corner[1]),
+    #         utils.as_c_float(obj_corner[2]),
     #         utils.as_c_int(ngrid[0]),
     #         utils.as_c_int(ngrid[1]),
     #         utils.as_c_int(ngrid[2]),
@@ -254,7 +254,7 @@ def reconstruct(obj=None, obj_min=None,
     # return obj
 
 
-def forward(obj=None, obj_min=None,
+def forward(obj=None, obj_corner=None,
             probe=None, theta=None, v=None, h=None,
             **kwargs):
     """Compute line integrals over an obj; i.e. simulate data acquisition."""
@@ -264,8 +264,8 @@ def forward(obj=None, obj_min=None,
     line_integrals.real = Lr
     line_integrals.imag = Li
     return line_integrals
-    # obj, obj_min, probe, theta, v, h \
-    #     = _tomo_interface(obj, obj_min, probe, theta, v, h)
+    # obj, obj_corner, probe, theta, v, h \
+    #     = _tomo_interface(obj, obj_corner, probe, theta, v, h)
     # logger.info("forward {:,d} element grid".format(obj.size))
     # logger.info("forward {:,d} rays".format(h.size))
     # ngrid = obj.shape
@@ -281,9 +281,9 @@ def forward(obj=None, obj_min=None,
     #     LIBTIKE.forward_project.restype = utils.as_c_void_p()
     #     LIBTIKE.forward_project(
     #         utils.as_c_float_p(objt),
-    #         utils.as_c_float(obj_min[0]),
-    #         utils.as_c_float(obj_min[1]),
-    #         utils.as_c_float(obj_min[2]),
+    #         utils.as_c_float(obj_corner[0]),
+    #         utils.as_c_float(obj_corner[1]),
+    #         utils.as_c_float(obj_corner[2]),
     #         utils.as_c_int(ngrid[0]),
     #         utils.as_c_int(ngrid[1]),
     #         utils.as_c_int(ngrid[2]),

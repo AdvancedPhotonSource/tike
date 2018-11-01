@@ -67,7 +67,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _coverage_interface(object_grid, object_min, object_size,
+def _coverage_interface(object_grid, object_corner, object_size,
                         probe_grid, probe_size, theta, v, h,
                         **kwargs):
     """Define an interface that all functions in this module match.
@@ -77,9 +77,9 @@ def _coverage_interface(object_grid, object_min, object_size,
     if object_grid is None:
         raise ValueError()
     object_grid = utils.as_float32(object_grid)
-    if object_min is None:
-        object_min = (-0.5, -0.5, -0.5)
-    object_min = utils.as_float32(object_min)
+    if object_corner is None:
+        object_corner = (-0.5, -0.5, -0.5)
+    object_corner = utils.as_float32(object_corner)
     if object_size is None:
         object_size = (1.0, 1.0, 1.0)
     object_size = utils.as_float32(object_size)
@@ -104,11 +104,11 @@ def _coverage_interface(object_grid, object_min, object_size,
     assert theta.size == v.size == h.size, \
         "The size of theta, v, h must be the same as the number of probes."
     # logger.info(" _tomo_interface says {}".format("Hello, World!"))
-    return (object_grid, object_min, object_size,
+    return (object_grid, object_corner, object_size,
             probe_grid, probe_size, theta, v, h)
 
 
-def coverage(object_grid, object_min, object_size,
+def coverage(object_grid, object_corner, object_size,
              probe_grid, probe_size, theta, v, h,
              dwell=None, **kwargs):
     """Return a coverage map using this probe.
@@ -133,8 +133,9 @@ def coverage(object_grid, object_min, object_size,
         A discretized map of the approximated procedure coverage.
 
     """
-    object_grid, object_min, object_size, probe_grid, probe_size, theta, v, h \
-        = _coverage_interface(object_grid, object_min, object_size,
+    object_grid, object_corner, object_size, probe_grid, probe_size, \
+        theta, v, h \
+        = _coverage_interface(object_grid, object_corner, object_size,
                               probe_grid, probe_size, theta, v, h)
     ngrid = object_grid.shape
     assert len(ngrid) == 4, "Coverage map must have 4 dimensions."
@@ -160,9 +161,9 @@ def coverage(object_grid, object_min, object_size,
     object_grid = utils.as_float32(object_grid)
     LIBTIKE.coverage.restype = utils.as_c_void_p()
     LIBTIKE.coverage(
-        utils.as_c_float(object_min[0]),
-        utils.as_c_float(object_min[1]),
-        utils.as_c_float(object_min[2]),
+        utils.as_c_float(object_corner[0]),
+        utils.as_c_float(object_corner[1]),
+        utils.as_c_float(object_corner[2]),
         utils.as_c_float(object_size[0]),
         utils.as_c_float(object_size[1]),
         utils.as_c_float(object_size[2]),

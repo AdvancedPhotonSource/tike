@@ -62,20 +62,21 @@ def init_coverage():
     probe_grid = np.ones((16, 16))
     probe_size = (1, 1)
     region = np.zeros((1, 3, 3, 8))
-    region_min = [-0.5, -1.5, -1.5]
+    region_corner = [-0.5, -1.5, -1.5]
     region_size = [1, 3, 3]
-    return probe_grid, probe_size, region, region_min, region_size
+    return probe_grid, probe_size, region, region_corner, region_size
 
 
 def test_stationary_coverage_x():
     def all_x(t):
         return np.pi + 0*t, 0*t - 0.5, 0*t + 0.5
-    probe_grid, probe_size, region, region_min, region_size = init_coverage()
+    probe_grid, probe_size, \
+        region, region_corner, region_size = init_coverage()
     region = np.zeros((1, 3, 3, 8))
     theta, v, h, dwell, times = discrete_trajectory(all_x,
                                                     tmin=0, tmax=10, tstep=1,
                                                     xstep=1/32)
-    cov_map = coverage(region, region_min, region_size,
+    cov_map = coverage(region, region_corner, region_size,
                        probe_grid, probe_size, theta, v, h, dwell)
     truth = np.zeros(cov_map.shape)
     truth[0, :, 0, 0] = 10
@@ -85,12 +86,13 @@ def test_stationary_coverage_x():
 def test_stationary_coverage_y():
     def all_y(t):
         return -np.pi/2 + 0*t, 0*t - 0.5, 0*t - 0.5
-    probe_grid, probe_size, region, region_min, region_size = init_coverage()
+    probe_grid, probe_size, \
+        region, region_corner, region_size = init_coverage()
     region = np.zeros((1, 3, 3, 3))
     theta, v, h, dwell, times = discrete_trajectory(all_y,
                                                     tmin=0, tmax=10, tstep=1,
                                                     xstep=1/32)
-    cov_map = coverage(region, region_min, region_size,
+    cov_map = coverage(region, region_corner, region_size,
                        probe_grid, probe_size, theta, v, h, dwell)
     # cov_map = cov_map.reshape((3, 3, 4))
     cov_map = cov_map
@@ -104,7 +106,7 @@ def test_split_z():
     probe_grid = np.ones((16, 16))
     probe_size = (1, 1)
     region = np.zeros((4, 4, 4, 1))
-    region_min = [-2, -2, -2]
+    region_corner = [-2, -2, -2]
     region_size = [4, 4, 4]
 
     def split_z(t):
@@ -113,7 +115,7 @@ def test_split_z():
     theta, v, h, dwell, times = discrete_trajectory(split_z,
                                                     tmin=0, tmax=10, tstep=1,
                                                     xstep=1/32)
-    cov_map = coverage(region, region_min, region_size,
+    cov_map = coverage(region, region_corner, region_size,
                        probe_grid, probe_size, theta, v, h, dwell)[..., 0]
     truth = np.zeros(cov_map.shape)
     truth[1:3, :, 1:3] = 2.5
@@ -128,7 +130,7 @@ def test_Nbin_equivalent():
     # Define the probe and grid extents
     probe_grid = np.ones((16, 16))
     probe_size = (1, 1)
-    region_min = [-1, -2, -2]
+    region_corner = [-1, -2, -2]
     region_size = [2, 4, 4]
     # Discretize the trajectory
     theta, v, h, dwell, times = discrete_trajectory(round,
@@ -136,10 +138,10 @@ def test_Nbin_equivalent():
                                                     xstep=1/32)
     # Compute coverage for one and many bins
     region1 = np.zeros((2, 4, 4, 1))
-    one_bin_map = coverage(region1, region_min, region_size,
+    one_bin_map = coverage(region1, region_corner, region_size,
                            probe_grid, probe_size, theta, v, h, dwell)
     region7 = np.zeros((2, 4, 4, 7))
-    any_bin_map = coverage(region7, region_min, region_size,
+    any_bin_map = coverage(region7, region_corner, region_size,
                            probe_grid, probe_size, theta, v, h, dwell)
     np.testing.assert_allclose(np.sum(one_bin_map, axis=3),
                                np.sum(any_bin_map, axis=3), atol=1e-4)
