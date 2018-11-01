@@ -208,7 +208,8 @@ def stationary(t):
 
 def test_stationary_coverage():
     """A beam of magnitude 10 at (:, 10, 8)."""
-    probe_grid, probe_size, region, region_corner, region_size = init_coverage()
+    probe_grid, probe_size, \
+        region, region_corner, region_size = init_coverage()
     theta, v, h, dwell, times = discrete_trajectory(stationary,
                                                     tmin=0, tmax=10, tstep=1,
                                                     xstep=1/32)
@@ -226,7 +227,8 @@ def test_stationary_coverage():
 
 def test_stationary_coverage_crop():
     """A beam of magnitude 10 at (:, 10, 8)."""
-    probe_grid, probe_size, region, region_corner, region_size = init_coverage()
+    probe_grid, probe_size, \
+        region, region_corner, region_size = init_coverage()
     theta, v, h, dwell, times = discrete_trajectory(stationary,
                                                     tmin=0, tmax=10, tstep=1,
                                                     xstep=1/32)
@@ -253,7 +255,8 @@ def horizontal_move(t, h_speed=-2/320):
 def test_horizontal_coverage():
     # NOTE: The forward edge of the smear will be slightly larger. The two
     # edges even out as the time step approaches zero.
-    probe_grid, probe_size, region, region_corner, region_size = init_coverage()
+    probe_grid, probe_size, \
+        region, region_corner, region_size = init_coverage()
     theta, v, h, dwell, times = discrete_trajectory(horizontal_move,
                                                     tmin=0, tmax=40, tstep=1,
                                                     xstep=1/32)
@@ -279,7 +282,8 @@ def vertical_move(t, v_speed=2/320):
 
 
 def test_vertical_coverage():
-    probe_grid, probe_size, region, region_corner, region_size = init_coverage()
+    probe_grid, probe_size, \
+        region, region_corner, region_size = init_coverage()
     theta, v, h, dwell, times = discrete_trajectory(vertical_move,
                                                     tmin=0, tmax=40, tstep=1,
                                                     xstep=1/32)
@@ -306,7 +310,8 @@ def theta_move(t, Hz=1):
 
 
 def test_theta_coverage():
-    probe_grid, probe_size, region, region_corner, region_size = init_coverage()
+    probe_grid, probe_size, \
+        region, region_corner, region_size = init_coverage()
     theta, v, h, dwell, times = discrete_trajectory(theta_move,
                                                     tmin=0, tmax=1, tstep=0.5,
                                                     xstep=1/32)

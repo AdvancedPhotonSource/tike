@@ -70,7 +70,8 @@ def init_coverage():
 def test_stationary_coverage_x():
     def all_x(t):
         return np.pi + 0*t, 0*t - 0.5, 0*t + 0.5
-    probe_grid, probe_size, region, region_corner, region_size = init_coverage()
+    probe_grid, probe_size, \
+        region, region_corner, region_size = init_coverage()
     region = np.zeros((1, 3, 3, 8))
     theta, v, h, dwell, times = discrete_trajectory(all_x,
                                                     tmin=0, tmax=10, tstep=1,
@@ -85,7 +86,8 @@ def test_stationary_coverage_x():
 def test_stationary_coverage_y():
     def all_y(t):
         return -np.pi/2 + 0*t, 0*t - 0.5, 0*t - 0.5
-    probe_grid, probe_size, region, region_corner, region_size = init_coverage()
+    probe_grid, probe_size, \
+        region, region_corner, region_size = init_coverage()
     region = np.zeros((1, 3, 3, 3))
     theta, v, h, dwell, times = discrete_trajectory(all_y,
                                                     tmin=0, tmax=10, tstep=1,
