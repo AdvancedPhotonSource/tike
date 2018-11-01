@@ -158,7 +158,7 @@ def _tomo_interface(obj, obj_corner,
     return (obj, obj_corner, probe, th1, v1, h1)
 
 
-def reconstruct(obj=None, obj_corner=None,
+def reconstruct(obj=None,
                 probe=None, theta=None, v=None, h=None,
                 line_integrals=None,
                 algorithm=None, niter=0, **kwargs):

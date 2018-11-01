@@ -94,7 +94,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _ptycho_interface(data, data_corner,
+def _ptycho_interface(data,
                       probe, v, h,
                       psi, psi_corner, **kwargs):
     """Define an interface that all functions in this module match.
@@ -103,8 +103,6 @@ def _ptycho_interface(data, data_corner,
     """
     if data is None:
         raise ValueError()
-    if data_corner is None:
-        data_corner = (-0.5, -0.5)
     if probe is None:
         raise ValueError()
     if v is None:
@@ -118,7 +116,7 @@ def _ptycho_interface(data, data_corner,
     assert len(data) == v.size == h.size, \
         "The size of v, h must be the same as the number of data."
     # logger.info(" _ptycho_interface says {}".format("Hello, World!"))
-    return (data, data_corner,
+    return (data,
             probe, v, h,
             psi, psi_corner)
 
@@ -402,7 +400,7 @@ def simulate(data_shape,
     return np.square(np.abs(np.fft.fft2(padded_wave)))
 
 
-def reconstruct(data=None, data_corner=None,
+def reconstruct(data=None,
                 probe=None, v=None, h=None,
                 psi=None, psi_corner=None,
                 algorithm=None, niter=1, **kwargs):
@@ -427,8 +425,8 @@ def reconstruct(data=None, data_corner=None,
         The updated obect transmission function at each angle.
 
     """
-    data, data_corner, probe, v, h, psi, psi_corner = \
-        _ptycho_interface(data, data_corner,
+    data, probe, v, h, psi, psi_corner = \
+        _ptycho_interface(data,
                           probe, v, h,
                           psi, psi_corner, **kwargs)
     # Send data to c function
