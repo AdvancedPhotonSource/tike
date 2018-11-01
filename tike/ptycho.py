@@ -321,7 +321,7 @@ def uncombine_grids(grids_shape, v, h,
 def grad(data,
          probe, v, h,
          psi, psi_corner,
-         reg=(1+0j), niter=1, rho=0.5, gamma=0.25, lamda=0j, epsilon=1e-8,
+         reg=(1+0j), niter=1, rho=0, gamma=0.25, lamda=0j, epsilon=1e-8,
          **kwargs):
     """Use gradient descent to estimate `psi`.
 
@@ -376,8 +376,8 @@ def grad(data,
                                 combined_corner=psi_corner)
         # Update psi
         psi = ((1 - gamma * rho) * psi
-               + gamma * rho * (reg - lamda / rho)
-               + (gamma / 2) * upd_psi)
+               + gamma * (reg * rho - lamda)  # refactored to remove division
+               + (gamma * 0.5) * upd_psi)
     return psi
 
 
