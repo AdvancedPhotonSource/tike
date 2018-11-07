@@ -62,6 +62,7 @@ __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = ['admm',
+           'simulate',
            ]
 
 
@@ -166,3 +167,27 @@ def admm(
     logging.getLogger('tike.ptycho').setLevel(log_levels[0])
     logging.getLogger('tike.tomo').setLevel(log_levels[1])
     return x
+
+
+def simulate(
+    obj, voxelsize,
+    probe, theta, v, h, energy,
+    detector_shape,
+):
+    """Simulate data acquisition from an object, probe, and positions."""
+    comm = MPICommunicator()
+    theta, probe, voxelsize, detector_shape, energy = \
+        comm.broadcast(theta, probe, voxelsize, detector_shape, energy)
+    v, h, obj, = comm.scatter(v, h, obj)
+    # Tomography simulation
+    line_integrals = tike.tomo.forward(obj=obj, theta=theta) * voxelsize
+    psi = np.exp(1j * wavenumber(energy) * line_integrals)
+    psi = comm.get_ptycho_slice(psi)
+    # Ptychography simulation
+    data = list()
+    for view in range(len(psi)):
+        data.append(tike.ptycho.simulate(data_shape=detector_shape,
+                                         probe=probe, v=v[view], h=h[view],
+                                         psi=psi[view]))
+    data = comm.gather(data, root=0)
+    return data
