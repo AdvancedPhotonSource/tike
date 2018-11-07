@@ -127,7 +127,7 @@ class TestPtychoRecon(unittest.TestCase):
             h=self.h,
             psi=self.original
             )
-        np.testing.assert_equal(data, self.data)
+        np.testing.assert_allclose(data, self.data, rtol=1e-3)
 
     def test_grad(self):
         """Check consistency of ptycho.grad."""
@@ -150,4 +150,4 @@ class TestPtychoRecon(unittest.TestCase):
             with lzma.open(recon_file, 'wb') as file:
                 pickle.dump(new_psi, file)
             raise e
-        np.testing.assert_equal(new_psi, standard)
+        np.testing.assert_allclose(new_psi, standard, rtol=1e-3)
