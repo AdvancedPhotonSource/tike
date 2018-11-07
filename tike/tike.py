@@ -118,6 +118,12 @@ def admm(
         reconstruction algorithms.
 
     """
+    # Supress logging in the ptycho and tomo modules
+    plog = logging.getLogger('tike.ptycho')
+    tlog = logging.getLogger('tike.tomo')
+    log_levels = [plog.level, tlog.level]
+    plog.setLevel(logging.WARNING)
+    tlog.setLevel(logging.WARNING)
     comm = MPICommunicator()
     voxelsize, probe, theta, energy, niter, rho, gamma, V, H = \
         comm.broadcast(voxelsize, probe, theta, energy, niter, rho, gamma,
@@ -156,4 +162,7 @@ def admm(
         hobj = np.exp(1j * wavenumber(energy) * line_integrals)
         hobj = comm.get_ptycho_slice(hobj)
         lamda = lamda + rho * (psi - hobj)
+    # Restore logging in the tomo and ptycho modules
+    logging.getLogger('tike.ptycho').setLevel(log_levels[0])
+    logging.getLogger('tike.tomo').setLevel(log_levels[1])
     return x
