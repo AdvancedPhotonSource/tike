@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # #########################################################################
-# Copyright (c) 2016, UChicago Argonne, LLC. All rights reserved.         #
+# Copyright (c) 2018, UChicago Argonne, LLC. All rights reserved.         #
 #                                                                         #
 # Copyright 2015. UChicago Argonne, LLC. This software was produced       #
 # under U.S. Government contract DE-AC02-06CH11357 for Argonne National   #
@@ -55,7 +55,7 @@ from tike.coverage import *
 from tike.trajectory import discrete_trajectory
 
 __author__ = "Daniel Ching"
-__copyright__ = "Copyright (c) 2016, UChicago Argonne, LLC."
+__copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 pgrid = np.ones((1, 1))
