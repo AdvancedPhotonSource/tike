@@ -95,9 +95,9 @@ logger = logging.getLogger(__name__)
 
 
 def _ptycho_interface(
-    data,
-    probe, v, h,
-    psi, psi_corner, **kwargs
+        data,
+        probe, v, h,
+        psi, psi_corner, **kwargs
 ):
     """Define an interface that all functions in this module match.
 
@@ -222,8 +222,8 @@ def shift_coords(r_min, r_shape, combined_min, combined_shape):
 
 
 def combine_grids(
-    grids, v, h,
-    combined_shape, combined_corner
+        grids, v, h,
+        combined_shape, combined_corner
 ):
     """Combine grids by summation.
 
@@ -272,8 +272,8 @@ def combine_grids(
 
 
 def uncombine_grids(
-    grids_shape, v, h,
-    combined, combined_corner
+        grids_shape, v, h,
+        combined, combined_corner
 ):
     """Extract a series of grids from a single grid.
 
@@ -321,11 +321,11 @@ def uncombine_grids(
 
 
 def grad(
-    data,
-    probe, v, h,
-    psi, psi_corner,
-    reg=(1+0j), niter=1, rho=0, gamma=0.25, lamda=0j, epsilon=1e-8,
-    **kwargs
+        data,
+        probe, v, h,
+        psi, psi_corner,
+        reg=1+0j, niter=1, rho=0, gamma=0.25, lamda=0j, epsilon=1e-8,
+        **kwargs
 ):
     """Use gradient descent to estimate `psi`.
 
@@ -394,10 +394,10 @@ def exitwave(probe, v, h, psi, psi_corner=None):
 
 
 def simulate(
-    data_shape,
-    probe, v, h,
-    psi, psi_corner=(0, 0),
-    **kwargs
+        data_shape,
+        probe, v, h,
+        psi, psi_corner=(0, 0),
+        **kwargs
 ):
     """Propagate the wavefront to the detector."""
     wavefront = exitwave(probe, v, h,
@@ -409,10 +409,10 @@ def simulate(
 
 
 def reconstruct(
-    data,
-    probe=None, v=None, h=None,
-    psi=None, psi_corner=None,
-    algorithm=None, niter=1, **kwargs
+        data,
+        probe=None, v=None, h=None,
+        psi=None, psi_corner=None,
+        algorithm=None, niter=1, **kwargs
 ):
     """Reconstruct the `psi` and `probe` using the given `algorithm`.
 

@@ -113,9 +113,9 @@ logger = logging.getLogger(__name__)
 
 
 def _tomo_interface(
-    obj, obj_corner,
-    probe, theta, v, h,
-    **kwargs
+        obj, obj_corner,
+        probe, theta, v, h,
+        **kwargs
 ):
     """Define an interface all functions in this module match.
 
@@ -153,10 +153,10 @@ def _tomo_interface(
 
 
 def reconstruct(
-    obj=None,
-    probe=None, theta=None, v=None, h=None,
-    line_integrals=None,
-    algorithm=None, niter=0, **kwargs
+        obj=None,
+        probe=None, theta=None, v=None, h=None,
+        line_integrals=None,
+        algorithm=None, niter=0, **kwargs
 ):
     """Reconstruct the `obj` using the given `algorithm`.
 
@@ -251,9 +251,9 @@ def reconstruct(
 
 
 def forward(
-    obj=None, obj_corner=None,
-    probe=None, theta=None, v=None, h=None,
-    **kwargs
+        obj=None, obj_corner=None,
+        probe=None, theta=None, v=None, h=None,
+        **kwargs
 ):
     """Compute line integrals over an obj; i.e. simulate data acquisition."""
     Lr = tomopy.project(obj=obj.real, theta=theta, pad=False)

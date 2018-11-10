@@ -163,8 +163,8 @@ def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep, tkwargs=None):
 
 
 def discrete_helper(
-    trajectory, tmin, tmax, xstep, tstep, dist_func,
-    tkwargs=None
+        trajectory, tmin, tmax, xstep, tstep, dist_func,
+        tkwargs=None
 ):
     """Do a recursive sampling of the trajectory."""
     tkwargs = dict() if tkwargs is None else tkwargs

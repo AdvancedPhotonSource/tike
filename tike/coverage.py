@@ -68,9 +68,9 @@ logger = logging.getLogger(__name__)
 
 
 def _coverage_interface(
-    object_grid, object_corner, object_size,
-    probe_grid, probe_size, theta, v, h,
-    **kwargs
+        object_grid, object_corner, object_size,
+        probe_grid, probe_size, theta, v, h,
+        **kwargs
 ):
     """Define an interface that all functions in this module match.
 
@@ -111,9 +111,9 @@ def _coverage_interface(
 
 
 def coverage(
-    object_grid, object_corner, object_size,
-    probe_grid, probe_size, theta, v, h,
-    dwell=None, **kwargs
+        object_grid, object_corner, object_size,
+        probe_grid, probe_size, theta, v, h,
+        dwell=None, **kwargs
 ):
     """Return a coverage map using this probe.
 
