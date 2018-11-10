@@ -116,7 +116,6 @@ def _ptycho_interface(
     psi_corner = (0, 0) if psi_corner is None else psi_corner
     assert len(data) == v.size == h.size, \
         "The size of v, h must be the same as the number of data."
-    # logger.info(" _ptycho_interface says {}".format("Hello, World!"))
     return (data,
             probe, v, h,
             psi, psi_corner)

@@ -149,7 +149,6 @@ def _tomo_interface(
     v1 = (np.repeat(v, V*H).reshape(M, V, H) + dv)
     h1 = (np.repeat(h, V*H).reshape(M, V, H) + dh)
     assert th1.shape == v1.shape == h1.shape
-    # logger.info(" _tomo_interface says {}".format("Hello, World!"))
     return (obj, obj_corner, probe, th1, v1, h1)
 
 
