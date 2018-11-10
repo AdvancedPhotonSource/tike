@@ -189,37 +189,37 @@ def fast_pad(unpadded_grid, npadv, npadh):
     return unpadded_grid
 
 
-def shift_coords(v, v_shape, combined_min, combined_shape):
+def shift_coords(r_min, r_shape, combined_min, combined_shape):
     """Find the positions of some 1D ranges in a new 1D coordinate system.
 
     Pad the new range coordinates with one on each side.
 
     Parameters
     ----------
-    v, v_shape : :py:class:`numpy.array` float, int
+    r_min, r_shape : :py:class:`numpy.array` float, int
         1D min and range to be transformed.
     combined_min, combined_shape : :py:class:`numpy.array` float, int
         The min and range of the new coordinate system.
 
     Return
     ------
-    vshift : :py:class:`numpy.array` float
+    r_shift : :py:class:`numpy.array` float
         The shifted coordinate remainder.
-    V, V1 : :py:class:`numpy.array` int
-        new range integer starts and ends.
+    r_lo, r_hi : :py:class:`numpy.array` int
+        New range integer starts and ends.
 
     """
-    # Find the float coordinates of each v on the combined grid
-    vshift = (v - combined_min).flatten()
-    # Find integer indices (floor) of each v on the combined grid
-    V = np.floor(vshift).astype(int)
-    V1 = (V + (v_shape + 2)).astype(int)
-    if np.any(V < 0) or np.any(V1 > combined_min + combined_shape + 2):
+    # Find the float coordinates of each range on the combined grid
+    r_shift = (r_min - combined_min).flatten()
+    # Find integer indices (floor) of each range on the combined grid
+    r_lo = np.floor(r_shift).astype(int)
+    r_hi = (r_lo + (r_shape + 2)).astype(int)
+    if np.any(r_lo < 0) or np.any(r_hi > combined_min + combined_shape + 2):
         raise ValueError("Index {} or {} is off the grid!".format(
-                         np.min(V), np.max(V1)))
+                         np.min(r_lo), np.max(r_hi)))
     # Find the remainder shift less than 1
-    vshift -= vshift.astype(int)
-    return vshift, V, V1
+    r_shift -= r_shift.astype(int)
+    return r_shift, r_lo, r_hi
 
 
 def combine_grids(
