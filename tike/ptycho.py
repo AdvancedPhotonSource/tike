@@ -410,7 +410,7 @@ def simulate(
 
 
 def reconstruct(
-    data=None,
+    data,
     probe=None, v=None, h=None,
     psi=None, psi_corner=None,
     algorithm=None, niter=1, **kwargs
