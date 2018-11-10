@@ -226,7 +226,7 @@ def combine_grids(
     grids, v, h,
     combined_shape, combined_corner
 ):
-    """Combine some grids by summation.
+    """Combine grids by summation.
 
     Multiple grids are interpolated onto a single combined grid using
     bilinear interpolation.
