@@ -118,8 +118,8 @@ class TestPtychoRecon(unittest.TestCase):
                 self.original,
             ] = pickle.load(file)
 
-    def test_sim(self):
-        """Check consistency of ptycho.simulate."""
+    def test_consistent_simulate(self):
+        """Check the consistency of ptycho.simulate."""
         data = tike.ptycho.simulate(
             data_shape=self.data_shape,
             probe=self.probe,
@@ -129,8 +129,8 @@ class TestPtychoRecon(unittest.TestCase):
             )
         np.testing.assert_allclose(data, self.data, rtol=1e-3)
 
-    def test_grad(self):
-        """Check consistency of ptycho.grad."""
+    def test_consistent_grad(self):
+        """Check the consistency of ptycho.grad."""
         new_psi = tike.ptycho.reconstruct(
             data=self.data,
             probe=self.probe,
