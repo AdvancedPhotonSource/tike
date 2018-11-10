@@ -67,49 +67,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _coverage_interface(
-        object_grid, object_corner, object_size,
-        probe_grid, probe_size, theta, v, h,
-        **kwargs
-):
-    """Define an interface that all functions in this module match.
-
-    This function also sets default values for functions in this module.
-    """
-    if object_grid is None:
-        raise ValueError()
-    object_grid = utils.as_float32(object_grid)
-    if object_corner is None:
-        object_corner = (-0.5, -0.5, -0.5)
-    object_corner = utils.as_float32(object_corner)
-    if object_size is None:
-        object_size = (1.0, 1.0, 1.0)
-    object_size = utils.as_float32(object_size)
-    if probe_grid is None:
-        raise ValueError()
-    probe_grid = utils.as_float32(probe_grid)
-    if probe_size is None:
-        probe_size = (1, 1)
-    probe_size = utils.as_float32(probe_size)
-    if theta is None:
-        raise ValueError()
-    theta = utils.as_float32(theta)
-    if v is None:
-        v = np.full(theta.shape, -0.5)
-    v = utils.as_float32(v)
-    if h is None:
-        h = np.full(theta.shape, -0.5)
-    h = utils.as_float32(h)
-    assert np.all(object_size > 0), "Object dimensions must be > 0."
-    assert np.all(probe_size > 0), "Probe dimensions must be > 0."
-    # different from _tomo_interface
-    assert theta.size == v.size == h.size, \
-        "The size of theta, v, h must be the same as the number of probes."
-    # logger.info(" _tomo_interface says {}".format("Hello, World!"))
-    return (object_grid, object_corner, object_size,
-            probe_grid, probe_size, theta, v, h)
-
-
 def coverage(
         object_grid, object_corner, object_size,
         probe_grid, probe_size, theta, v, h,
@@ -137,10 +94,22 @@ def coverage(
         A discretized map of the approximated procedure coverage.
 
     """
-    object_grid, object_corner, object_size, probe_grid, probe_size, \
-        theta, v, h \
-        = _coverage_interface(object_grid, object_corner, object_size,
-                              probe_grid, probe_size, theta, v, h)
+    object_grid = utils.as_float32(object_grid)
+    if object_corner is None:
+        object_corner = (-0.5, -0.5, -0.5)
+    object_corner = utils.as_float32(object_corner)
+    object_size = (1.0, 1.0, 1.0) if object_size is None else object_size
+    object_size = utils.as_float32(object_size)
+    probe_grid = utils.as_float32(probe_grid)
+    probe_size = (1, 1) if probe_size is None else probe_size
+    probe_size = utils.as_float32(probe_size)
+    theta = utils.as_float32(theta)
+    v = utils.as_float32(v)
+    h = utils.as_float32(h)
+    assert np.all(object_size > 0), "Object dimensions must be > 0."
+    assert np.all(probe_size > 0), "Probe dimensions must be > 0."
+    assert theta.size == v.size == h.size, \
+        "The size of theta, v, h must be the same as the number of probes."
     ngrid = object_grid.shape
     assert len(ngrid) == 4, "Coverage map must have 4 dimensions."
     # Multiply the trajectory by size of probe_grid
