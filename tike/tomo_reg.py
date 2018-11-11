@@ -107,7 +107,7 @@ if __name__ == '__main__':
     plt.show()
 
 
-    #reconstruct by CG without regularization (tau=0)
+    #reconstruct by CG without regularization (0*||nabla(recon)-grad||^2_2)
     recon0 = np.zeros(f.shape,dtype="float32")+1e-6
     grad = np.zeros([2,f.shape[0],f.shape[1],f.shape[2]],dtype="float32")
 
@@ -115,7 +115,7 @@ if __name__ == '__main__':
     plt.subplot(1,2,1)
     plt.imshow(recon0[0,:,:],cmap="gray")
 
-    #reconstruct by CG with regularization (tau=0.1)
+    #reconstruct by CG with regularization (0.1*||nabla(recon)-grad||^2_2)
     recon = np.zeros(f.shape,dtype="float32")+1e-6
     grad = np.zeros([2,f.shape[0],f.shape[1],f.shape[2]],dtype="float32")
     recon = tomo_reg(lp, tomo, recon, grad, reg_par=[1,0.1], num_iter=32, gpu=gpu)
