@@ -346,7 +346,7 @@ def grad(data,
     npadh = (data.shape[2] - probe.shape[1]) // 2
     # Compute probe inverse
     # TODO: Update the probe too
-    probe_inverse = np.conj(probe)
+    probe_inverse = np.conj(probe) / np.max(np.square(np.abs(np.conj(probe))))
     wavefront_shape = [h.size, probe.shape[0], probe.shape[1]]
     for i in range(niter):
         # combine all wavefronts into one array
