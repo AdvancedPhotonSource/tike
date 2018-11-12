@@ -221,6 +221,38 @@ def shift_coords(r_min, r_shape, combined_min, combined_shape):
     return r_shift, r_lo, r_hi
 
 
+def float_shift(a, shift):
+    """Shift `a` along dimensions 0 and 1 using bilinear interpolation.
+
+    `a` is an ND array to be shifted by less than one index in each of the
+    first two dimensions. The last dimensions are untouched.
+
+    Parameters
+    ----------
+    shift : float (2, )
+        The amount to shift the array in the first two dimensions.
+
+    """
+    assert np.all(np.abs(shift) < 1), "Float shifts must be less than 1."
+    a = np.asanyarray(a)
+    # Bilinear interpolation is decomposable into linear interpolation along
+    # each dimension.
+    for i in [0, 1]:
+        a_diff = np.empty_like(a)
+        if shift[i] > 0:
+            a_diff[0, ...] = 0  # TODO: Why is this required to pass tests?
+            a_diff[1:, ...] = np.diff(a, axis=0)
+        elif shift[i] < 0:
+            a_diff[-1, ...] = 0
+            a_diff[:-1, ...] = np.diff(a, axis=0)
+        else:
+            pass  # shift is zero; a_diff is irreleveant.
+        b = -shift[i] * a_diff + a
+        # Cycle through dimensions to reduce code length
+        a = np.swapaxes(b, 0, 1)
+    return a
+
+
 def combine_grids(
         grids, v, h,
         combined_shape, combined_corner
@@ -264,9 +296,7 @@ def combine_grids(
     combined = combined.view(float).reshape(*combined.shape, 2)
     for N in range(nprobes):
         combined[V[N]:V1[N], H[N]:H1[N],
-                 ...] += sni.shift(grids[N],
-                                   [vshift[N], hshift[N], 0],
-                                   order=1)
+                 ...] += float_shift(grids[N], [vshift[N], hshift[N]])
     combined = combined.view(complex)
     return combined[1:-1, 1:-1, 0]
 
@@ -313,10 +343,9 @@ def uncombine_grids(
     grids = grids.view(float).reshape(*grids.shape, 2)
     combined = combined.view(float).reshape(*combined.shape, 2)
     for N in range(nprobes):
-        grids[N] = sni.shift(combined[V[N]:V1[N], H[N]:H1[N], ...],
-                             [-vshift[N], -hshift[N], 0],
-                             order=1,
-                             )[1:-1, 1:-1, ...]
+        grids[N] = float_shift(combined[V[N]:V1[N], H[N]:H1[N], ...],
+                               [-vshift[N], -hshift[N]],
+                               )[1:-1, 1:-1, ...]
     return grids.view(complex)[..., 0]
 
 
