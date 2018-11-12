@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # #########################################################################
-# Copyright (c) 2017-2018, UChicago Argonne, LLC. All rights reserved.    #
+# Copyright (c) 2018, UChicago Argonne, LLC. All rights reserved.    #
 #                                                                         #
 # Copyright 2018. UChicago Argonne, LLC. This software was produced       #
 # under U.S. Government contract DE-AC02-06CH11357 for Argonne National   #
@@ -94,9 +94,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _ptycho_interface(data,
-                      probe, v, h,
-                      psi, psi_corner, **kwargs):
+def _ptycho_interface(
+        data,
+        probe, v, h,
+        psi, psi_corner, **kwargs
+):
     """Define an interface that all functions in this module match.
 
     This function also sets default values for functions in this module.
@@ -106,16 +108,14 @@ def _ptycho_interface(data,
     if probe is None:
         raise ValueError()
     if v is None:
-            raise ValueError()
+        raise ValueError()
     if h is None:
         raise ValueError()
     if psi is None:
         raise ValueError()
-    if psi_corner is None:
-        psi_corner = (0, 0)
+    psi_corner = (0, 0) if psi_corner is None else psi_corner
     assert len(data) == v.size == h.size, \
         "The size of v, h must be the same as the number of data."
-    # logger.info(" _ptycho_interface says {}".format("Hello, World!"))
     return (data,
             probe, v, h,
             psi, psi_corner)
@@ -188,42 +188,44 @@ def fast_pad(unpadded_grid, npadv, npadh):
     return unpadded_grid
 
 
-def shift_coords(v, v_shape, combined_min, combined_shape):
+def shift_coords(r_min, r_shape, combined_min, combined_shape):
     """Find the positions of some 1D ranges in a new 1D coordinate system.
 
     Pad the new range coordinates with one on each side.
 
     Parameters
     ----------
-    v, v_shape : :py:class:`numpy.array` float, int
+    r_min, r_shape : :py:class:`numpy.array` float, int
         1D min and range to be transformed.
     combined_min, combined_shape : :py:class:`numpy.array` float, int
         The min and range of the new coordinate system.
 
     Return
     ------
-    vshift : :py:class:`numpy.array` float
+    r_shift : :py:class:`numpy.array` float
         The shifted coordinate remainder.
-    V, V1 : :py:class:`numpy.array` int
-        new range integer starts and ends.
+    r_lo, r_hi : :py:class:`numpy.array` int
+        New range integer starts and ends.
 
     """
-    # Find the float coordinates of each v on the combined grid
-    vshift = (v - combined_min).flatten()
-    # Find integer indices (floor) of each v on the combined grid
-    V = np.floor(vshift).astype(int)
-    V1 = (V + (v_shape + 2)).astype(int)
-    if np.any(V < 0) or np.any(V1 > combined_min + combined_shape + 2):
+    # Find the float coordinates of each range on the combined grid
+    r_shift = (r_min - combined_min).flatten()
+    # Find integer indices (floor) of each range on the combined grid
+    r_lo = np.floor(r_shift).astype(int)
+    r_hi = (r_lo + (r_shape + 2)).astype(int)
+    if np.any(r_lo < 0) or np.any(r_hi > combined_min + combined_shape + 2):
         raise ValueError("Index {} or {} is off the grid!".format(
-                         np.min(V), np.max(V1)))
+                         np.min(r_lo), np.max(r_hi)))
     # Find the remainder shift less than 1
-    vshift -= vshift.astype(int)
-    return vshift, V, V1
+    r_shift -= r_shift.astype(int)
+    return r_shift, r_lo, r_hi
 
 
-def combine_grids(grids, v, h,
-                  combined_shape, combined_corner):
-    """Combine some grids by summation.
+def combine_grids(
+        grids, v, h,
+        combined_shape, combined_corner
+):
+    """Combine grids by summation.
 
     Multiple grids are interpolated onto a single combined grid using
     bilinear interpolation.
@@ -269,8 +271,10 @@ def combine_grids(grids, v, h,
     return combined[1:-1, 1:-1, 0]
 
 
-def uncombine_grids(grids_shape, v, h,
-                    combined, combined_corner):
+def uncombine_grids(
+        grids_shape, v, h,
+        combined, combined_corner
+):
     """Extract a series of grids from a single grid.
 
     The grids are interpolated onto the combined grid using bilinear
@@ -316,11 +320,13 @@ def uncombine_grids(grids_shape, v, h,
     return grids.view(complex)[..., 0]
 
 
-def grad(data,
-         probe, v, h,
-         psi, psi_corner,
-         reg=(1+0j), niter=1, rho=0, gamma=0.25, lamda=0j, epsilon=1e-8,
-         **kwargs):
+def grad(
+        data,
+        probe, v, h,
+        psi, psi_corner,
+        reg=1+0j, niter=1, rho=0, gamma=0.25, lamda=0j, epsilon=1e-8,
+        **kwargs
+):
     """Use gradient descent to estimate `psi`.
 
     Parameters
@@ -387,10 +393,12 @@ def exitwave(probe, v, h, psi, psi_corner=None):
     return probe * wave
 
 
-def simulate(data_shape,
-             probe, v, h,
-             psi, psi_corner=(0, 0),
-             **kwargs):
+def simulate(
+        data_shape,
+        probe, v, h,
+        psi, psi_corner=(0, 0),
+        **kwargs
+):
     """Propagate the wavefront to the detector."""
     wavefront = exitwave(probe, v, h,
                          psi, psi_corner=psi_corner)
@@ -400,10 +408,12 @@ def simulate(data_shape,
     return np.square(np.abs(np.fft.fft2(padded_wave)))
 
 
-def reconstruct(data=None,
-                probe=None, v=None, h=None,
-                psi=None, psi_corner=None,
-                algorithm=None, niter=1, **kwargs):
+def reconstruct(
+        data,
+        probe=None, v=None, h=None,
+        psi=None, psi_corner=None,
+        algorithm=None, niter=1, **kwargs
+):
     """Reconstruct the `psi` and `probe` using the given `algorithm`.
 
     Parameters

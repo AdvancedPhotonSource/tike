@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # #########################################################################
-# Copyright (c) 2017-2018, UChicago Argonne, LLC. All rights reserved.    #
+# Copyright (c) 2018, UChicago Argonne, LLC. All rights reserved.    #
 #                                                                         #
 # Copyright 2018. UChicago Argonne, LLC. This software was produced       #
 # under U.S. Government contract DE-AC02-06CH11357 for Argonne National   #
@@ -112,34 +112,29 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _tomo_interface(obj, obj_corner,
-                    probe, theta, v, h,
-                    **kwargs):
+def _tomo_interface(
+        obj, obj_corner,
+        probe, theta, v, h,
+        **kwargs
+):
     """Define an interface all functions in this module match.
 
     This function also sets default values for functions in this module.
     """
     if obj is None:
-        # An inital guess is required
-        raise ValueError()
-    # obj = utils.as_float32(obj)  # complex data
+        raise ValueError()  # An inital guess is required
+    # The default origin is at the center of the object
     if obj_corner is None:
-        # The default origin is at the center of the object
         obj_corner = - np.array(obj.shape) / 2  # (z, x, y)
     obj_corner = utils.as_float32(obj_corner)
-    if probe is None:
-        # Assume a full field geometry
-        probe = np.ones([obj.shape[0], obj.shape[2]])
-    # probe = utils.as_float32(probe)  # complex data
+    # Assume a full field geometry
+    probe = np.ones([obj.shape[0], obj.shape[2]]) if probe is None else probe
     if theta is None:
-        # Angle definitions are required
-        raise ValueError()
+        raise ValueError()  # Angle definitions are required
     theta = utils.as_float32(theta)
-    if v is None:
-        v = np.full(theta.shape, obj_corner[0])
+    v = np.full(theta.shape, obj_corner[0]) if v is None else v
     v = utils.as_float32(v)
-    if h is None:
-        h = np.full(theta.shape, obj_corner[2])
+    h = np.full(theta.shape, obj_corner[2]) if h is None else h
     h = utils.as_float32(h)
     assert theta.size == v.size == h.size, \
         "The size of theta, v, h must be the same as the number of probes."
@@ -154,14 +149,15 @@ def _tomo_interface(obj, obj_corner,
     v1 = (np.repeat(v, V*H).reshape(M, V, H) + dv)
     h1 = (np.repeat(h, V*H).reshape(M, V, H) + dh)
     assert th1.shape == v1.shape == h1.shape
-    # logger.info(" _tomo_interface says {}".format("Hello, World!"))
     return (obj, obj_corner, probe, th1, v1, h1)
 
 
-def reconstruct(obj=None,
-                probe=None, theta=None, v=None, h=None,
-                line_integrals=None,
-                algorithm=None, niter=0, **kwargs):
+def reconstruct(
+        obj=None,
+        probe=None, theta=None, v=None, h=None,
+        line_integrals=None,
+        algorithm=None, niter=0, **kwargs
+):
     """Reconstruct the `obj` using the given `algorithm`.
 
     Parameters
@@ -254,9 +250,11 @@ def reconstruct(obj=None,
     # return obj
 
 
-def forward(obj=None, obj_corner=None,
-            probe=None, theta=None, v=None, h=None,
-            **kwargs):
+def forward(
+        obj=None, obj_corner=None,
+        probe=None, theta=None, v=None, h=None,
+        **kwargs
+):
     """Compute line integrals over an obj; i.e. simulate data acquisition."""
     Lr = tomopy.project(obj=obj.real, theta=theta, pad=False)
     Li = tomopy.project(obj=obj.imag, theta=theta, pad=False)

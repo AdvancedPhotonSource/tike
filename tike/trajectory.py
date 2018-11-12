@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # #########################################################################
-# Copyright (c) 2017-2018, UChicago Argonne, LLC. All rights reserved.    #
+# Copyright (c) 2018, UChicago Argonne, LLC. All rights reserved.    #
 #                                                                         #
 # Copyright 2018. UChicago Argonne, LLC. This software was produced       #
 # under U.S. Government contract DE-AC02-06CH11357 for Argonne National   #
@@ -107,7 +107,7 @@ def euclidian_dist_approx(theta, v, h, r=0.75):
     return np.abs(t1) * r + np.sqrt(v1**2 + h1**2)
 
 
-def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep, tkwargs={}):
+def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep, tkwargs=None):
     """Create a linear approximation of `trajectory` between `tmin` and `tmax`.
 
     The space between measurements is less than `xstep` and the time
@@ -136,6 +136,7 @@ def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep, tkwargs={}):
         Discrete times along trajectory satisfying constraints.
 
     """
+    tkwargs = dict() if tkwargs is None else tkwargs
     dist_func = euclidian_dist_approx
     all_theta, all_v, all_h, all_times = discrete_helper(trajectory,
                                                          tmin, tmax,
@@ -161,9 +162,12 @@ def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep, tkwargs={}):
     return all_theta, all_v, all_h, dwell, all_times
 
 
-def discrete_helper(trajectory, tmin, tmax, xstep, tstep, dist_func,
-                    tkwargs={}):
+def discrete_helper(
+        trajectory, tmin, tmax, xstep, tstep, dist_func,
+        tkwargs=None
+):
     """Do a recursive sampling of the trajectory."""
+    tkwargs = dict() if tkwargs is None else tkwargs
     all_theta, all_v = list(), list()
     all_h, all_times = list(), list()
     # Sample en masse the trajectory over time
