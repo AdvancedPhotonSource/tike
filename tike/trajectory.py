@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # #########################################################################
-# Copyright (c) 2017-2018, UChicago Argonne, LLC. All rights reserved.    #
+# Copyright (c) 2018, UChicago Argonne, LLC. All rights reserved.    #
 #                                                                         #
 # Copyright 2018. UChicago Argonne, LLC. This software was produced       #
 # under U.S. Government contract DE-AC02-06CH11357 for Argonne National   #
@@ -163,8 +163,8 @@ def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep, tkwargs=None):
 
 
 def discrete_helper(
-    trajectory, tmin, tmax, xstep, tstep, dist_func,
-    tkwargs=None
+        trajectory, tmin, tmax, xstep, tstep, dist_func,
+        tkwargs=None
 ):
     """Do a recursive sampling of the trajectory."""
     tkwargs = dict() if tkwargs is None else tkwargs

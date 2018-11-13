@@ -10,7 +10,7 @@ import numpy as np
 from tike.trajectory import *
 
 __author__ = "Daniel Ching"
-__copyright__ = "Copyright (c) 2016, UChicago Argonne, LLC."
+__copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # #########################################################################
-# Copyright (c) 2016, UChicago Argonne, LLC. All rights reserved.         #
+# Copyright (c) 2018, UChicago Argonne, LLC. All rights reserved.         #
 #                                                                         #
 # Copyright 2015. UChicago Argonne, LLC. This software was produced       #
 # under U.S. Government contract DE-AC02-06CH11357 for Argonne National   #
@@ -57,15 +57,34 @@ import tike.ptycho
 import unittest
 
 __author__ = "Daniel Ching"
-__copyright__ = "Copyright (c) 2016, UChicago Argonne, LLC."
+__copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
+
+
+class TestPtychoUtils(unittest.TestCase):
+    """Test various utility functions for correctness."""
+
+    def test_gaussian(self):
+        """Check ptycho.gaussian for correctness."""
+        fname = './tests/data/ptycho_gaussian.pickle.lzma'
+        weights = tike.ptycho.gaussian(15, rin=0.8, rout=1.0)
+        if os.path.isfile(fname):
+            with lzma.open(fname, 'rb') as file:
+                truth = pickle.load(file)
+        else:
+            with lzma.open(fname, 'wb') as file:
+                truth = pickle.dump(weights, file)
+        np.testing.assert_array_equal(weights, truth)
 
 
 class TestPtychoRecon(unittest.TestCase):
     """Test various ptychography reconstruction methods for consistency."""
 
     def create_dataset(self, dataset_file):
-        """Create a dataset for testing this module."""
+        """Create a dataset for testing this module.
+
+        Only called with setUp detects that `dataset_file` has been deleted.
+        """
         import matplotlib.pyplot as plt
         amplitude = plt.imread("./tests/data/Cryptomeria_japonica-0128.tif")
         phase = plt.imread("./tests/data/Bombus_terrestris-0128.tif")
@@ -118,8 +137,8 @@ class TestPtychoRecon(unittest.TestCase):
                 self.original,
             ] = pickle.load(file)
 
-    def test_sim(self):
-        """Check consistency of ptycho.simulate."""
+    def test_consistent_simulate(self):
+        """Check ptycho.simulate for consistency."""
         data = tike.ptycho.simulate(
             data_shape=self.data_shape,
             probe=self.probe,
@@ -129,8 +148,8 @@ class TestPtychoRecon(unittest.TestCase):
             )
         np.testing.assert_allclose(data, self.data, rtol=1e-3)
 
-    def test_grad(self):
-        """Check consistency of ptycho.grad."""
+    def test_consistent_grad(self):
+        """Check ptycho.grad for consistency."""
         new_psi = tike.ptycho.reconstruct(
             data=self.data,
             probe=self.probe,
