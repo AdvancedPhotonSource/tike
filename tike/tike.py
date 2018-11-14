@@ -145,11 +145,4 @@ def admm(
         line_integrals = tike.tomo.forward(obj=x, theta=theta) * voxelsize
         hobj = np.exp(1j * wavenumber(energy) * line_integrals)
         lamda = lamda + rho * (psi - hobj)
-        # # Update residuals.
-        # r = 1 / M * np.sqrt(np.sum(np.square(np.abs(psi - hobj)),
-        #                            axis=(-1, -2)))
-        # s = rho * np.sqrt(np.sum(np.square(np.abs(x1 - x0)),
-        #                          axis=(-1, -2)))
-        # if r < epsilon_prime and s < epsilon_dual:
-        #     pass
     return x
