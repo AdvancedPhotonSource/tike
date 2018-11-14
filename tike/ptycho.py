@@ -94,33 +94,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _ptycho_interface(
-        data,
-        probe, v, h,
-        psi, psi_corner, **kwargs
-):
-    """Define an interface that all functions in this module match.
-
-    This function also sets default values for functions in this module.
-    """
-    if data is None:
-        raise ValueError()
-    if probe is None:
-        raise ValueError()
-    if v is None:
-        raise ValueError()
-    if h is None:
-        raise ValueError()
-    if psi is None:
-        raise ValueError()
-    psi_corner = (0, 0) if psi_corner is None else psi_corner
-    assert len(data) == v.size == h.size, \
-        "The size of v, h must be the same as the number of data."
-    return (data,
-            probe, v, h,
-            psi, psi_corner)
-
-
 def locate_pad(pshape, ushape):
     """Return the min and max indices of the range u in range p."""
     xmin = (pshape - ushape) // 2
@@ -410,8 +383,8 @@ def simulate(
 
 def reconstruct(
         data,
-        probe=None, v=None, h=None,
-        psi=None, psi_corner=None,
+        probe, v, h,
+        psi, psi_corner=(0, 0),
         algorithm=None, num_iter=0, **kwargs
 ):
     """Reconstruct the `psi` and `probe` using the given `algorithm`.
@@ -435,10 +408,8 @@ def reconstruct(
         The updated obect transmission function at each angle.
 
     """
-    data, probe, v, h, psi, psi_corner = \
-        _ptycho_interface(data,
-                          probe, v, h,
-                          psi, psi_corner, **kwargs)
+    assert len(data) == v.size == h.size, \
+        "The size of v, h must be the same as the number of data."
     # Send data to c function
     logger.info("{} on {:,d} - {:,d} by {:,d} grids for {:,d} "
                 "iterations".format(algorithm,
