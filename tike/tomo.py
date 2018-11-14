@@ -131,7 +131,7 @@ def reconstruct(
                 :cite:`gordon1970algebraic`.
             * sirt : Simultaneous Iterative Reconstruction Technique.
 
-    niter : int
+    num_iter : int
         The number of iterations to perform
 
     Returns

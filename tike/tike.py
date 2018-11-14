@@ -89,7 +89,7 @@ def admm(
         obj=None, voxelsize=1.0,
         data=None,
         probe=None, theta=None, h=None, v=None, energy=None,
-        niter=1, rho=0.5, gamma=0.25,
+        num_iter=1, rho=0.5, gamma=0.25,
         **kwargs
 ):
     """Solve using the Alternating Direction Method of Multipliers (ADMM).
@@ -110,7 +110,7 @@ def admm(
         The energy of the probe
     algorithms : (2, ) string
         The names of the pytchography and tomography reconstruction algorithms.
-    niter : int
+    num_iter : int
         The number of ADMM interations.
     kwargs :
         Any keyword arguments for the pytchography and tomography
@@ -123,7 +123,7 @@ def admm(
     psi = np.ones([T, Z, Y], dtype=obj.dtype)
     hobj = np.ones_like(psi)
     lamda = np.zeros_like(psi)
-    for i in range(niter):
+    for i in range(num_iter):
         # Ptychography.
         for view in range(len(psi)):
             psi[view] = tike.ptycho.reconstruct(data=data[view],
@@ -131,7 +131,7 @@ def admm(
                                                 v=v[view], h=h[view],
                                                 psi=psi[view],
                                                 algorithm='grad',
-                                                niter=1, rho=rho, gamma=gamma,
+                                                rho=rho, gamma=gamma,
                                                 reg=hobj[view],
                                                 lamda=lamda[view], **kwargs)
         # Tomography.

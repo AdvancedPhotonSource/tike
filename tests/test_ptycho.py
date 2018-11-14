@@ -157,7 +157,7 @@ class TestPtychoRecon(unittest.TestCase):
             h=self.h,
             psi=np.ones_like(self.original),
             algorithm='grad',
-            niter=10,
+            num_iter=10,
             rho=0.5,
             gamma=0.25
             )
