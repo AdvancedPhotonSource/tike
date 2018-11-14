@@ -112,51 +112,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _tomo_interface(
-        obj, obj_corner,
-        probe, theta, v, h,
-        **kwargs
-):
-    """Define an interface all functions in this module match.
-
-    This function also sets default values for functions in this module.
-    """
-    if obj is None:
-        raise ValueError()  # An inital guess is required
-    # The default origin is at the center of the object
-    if obj_corner is None:
-        obj_corner = - np.array(obj.shape) / 2  # (z, x, y)
-    obj_corner = utils.as_float32(obj_corner)
-    # Assume a full field geometry
-    probe = np.ones([obj.shape[0], obj.shape[2]]) if probe is None else probe
-    if theta is None:
-        raise ValueError()  # Angle definitions are required
-    theta = utils.as_float32(theta)
-    v = np.full(theta.shape, obj_corner[0]) if v is None else v
-    v = utils.as_float32(v)
-    h = np.full(theta.shape, obj_corner[2]) if h is None else h
-    h = utils.as_float32(h)
-    assert theta.size == v.size == h.size, \
-        "The size of theta, v, h must be the same as the number of probes."
-    # Generate a grid of offset vectors
-    V, H = probe.shape
-    gv = (np.arange(V) + 0.5)
-    gh = (np.arange(H) + 0.5)
-    dv, dh = np.meshgrid(gv, gh, indexing='ij')
-    # Duplicate the trajectory by size of probe
-    M = theta.size
-    th1 = np.repeat(theta, V*H).reshape(M, V, H)
-    v1 = (np.repeat(v, V*H).reshape(M, V, H) + dv)
-    h1 = (np.repeat(h, V*H).reshape(M, V, H) + dh)
-    assert th1.shape == v1.shape == h1.shape
-    return (obj, obj_corner, probe, th1, v1, h1)
-
-
 def reconstruct(
-        obj=None,
-        probe=None, theta=None, v=None, h=None,
-        line_integrals=None,
-        algorithm=None, niter=0, **kwargs
+        obj,
+        theta,
+        line_integrals,
+        **kwargs
 ):
     """Reconstruct the `obj` using the given `algorithm`.
 
@@ -182,15 +142,13 @@ def reconstruct(
     """
     Lr = tomopy.recon(tomo=line_integrals.real,
                       theta=theta,
-                      algorithm=algorithm,
                       init_recon=obj.real,
-                      num_iter=niter, **kwargs,
+                      **kwargs,
                       )
     Li = tomopy.recon(tomo=line_integrals.imag,
                       theta=theta,
-                      algorithm=algorithm,
                       init_recon=obj.imag,
-                      num_iter=niter, **kwargs,
+                      **kwargs,
                       )
     recon = np.empty(Lr.shape, dtype=complex)
     recon.real = Lr
@@ -199,8 +157,8 @@ def reconstruct(
 
 
 def forward(
-        obj=None, obj_corner=None,
-        probe=None, theta=None, v=None, h=None,
+        obj=None,
+        theta=None,
         **kwargs
 ):
     """Compute line integrals over an obj; i.e. simulate data acquisition."""
