@@ -233,14 +233,14 @@ def combine_grids(
                         dtype=grids.dtype)
     # Add each of the grids to the appropriate place on the summed_grids
     nprobes = h.size
-    grids = grids.view(float).reshape(*grids.shape, 2)
-    combined = combined.view(float).reshape(*combined.shape, 2)
+    grids = grids.view(np.float32).reshape(*grids.shape, 2)
+    combined = combined.view(np.float32).reshape(*combined.shape, 2)
     for N in range(nprobes):
         combined[V[N]:V1[N], H[N]:H1[N],
                  ...] += sni.shift(grids[N],
                                    [vshift[N], hshift[N], 0],
                                    order=1)
-    combined = combined.view(complex)
+    combined = combined.view(np.complex64)
     return combined[1:-1, 1:-1, 0]
 
 
@@ -283,14 +283,14 @@ def uncombine_grids(
     grids = np.empty(grids_shape, dtype=combined.dtype)
     # Retrive the updated values of each of the grids
     nprobes = h.size
-    grids = grids.view(float).reshape(*grids.shape, 2)
-    combined = combined.view(float).reshape(*combined.shape, 2)
+    grids = grids.view(np.float32).reshape(*grids.shape, 2)
+    combined = combined.view(np.float32).reshape(*combined.shape, 2)
     for N in range(nprobes):
         grids[N] = sni.shift(combined[V[N]:V1[N], H[N]:H1[N], ...],
                              [-vshift[N], -hshift[N], 0],
                              order=1,
                              )[1:-1, 1:-1, ...]
-    return grids.view(complex)[..., 0]
+    return grids.view(np.complex64)[..., 0]
 
 
 def grad(
@@ -320,6 +320,9 @@ def grad(
     if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)
             and np.iscomplexobj(reg)):
         raise TypeError("psi, probe, and reg must be complex.")
+    data = data.astype(np.float32)
+    probe = probe.astype(np.complex64)
+    psi = psi.astype(np.complex64)
     # Compute padding between probe and detector size
     npadv = (data.shape[1] - probe.shape[0]) // 2
     npadh = (data.shape[2] - probe.shape[1]) // 2
@@ -373,6 +376,10 @@ def simulate(
         **kwargs
 ):
     """Propagate the wavefront to the detector."""
+    if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)):
+        raise TypeError("psi and probe must be complex.")
+    probe = probe.astype(np.complex64)
+    psi = psi.astype(np.complex64)
     wavefront = exitwave(probe, v, h,
                          psi, psi_corner=psi_corner)
     npadx = (data_shape[0] - wavefront.shape[-2]) // 2
