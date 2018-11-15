@@ -132,7 +132,7 @@ def admm(
     pkwargs = {
         'algorithm': 'grad',
         'num_iter': 1,
-    } if pwkargs is None else pkwargs
+    } if pkwargs is None else pkwargs
     tkwargs = {
         'algorithm': 'grad',
         'num_iter': 1,
@@ -140,8 +140,8 @@ def admm(
         'reg_par': -1,
     } if tkwargs is None else tkwargs
     comm = MPICommunicator()
-    voxelsize, probe, theta, energy, niter, rho, gamma, V, H = \
-        comm.broadcast(voxelsize, probe, theta, energy, niter, rho, gamma,
+    voxelsize, probe, theta, energy, num_iter, rho, gamma, V, H = \
+        comm.broadcast(voxelsize, probe, theta, energy, num_iter, rho, gamma,
                        0 if obj is None else obj.shape[0],
                        0 if obj is None else obj.shape[2])
     x, data, h, v = comm.scatter(obj, data, h, v)
