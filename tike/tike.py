@@ -203,5 +203,5 @@ def simulate(
         data.append(tike.ptycho.simulate(data_shape=detector_shape,
                                          probe=probe, v=v[view], h=h[view],
                                          psi=psi[view]))
-    data = comm.gather(data, root=0)
+    data = comm.gather(data, root=0, axis=0)
     return data

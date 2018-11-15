@@ -49,19 +49,30 @@ class MPICommunicator(object):
             out.append(self.comm.bcast(arg, root=0))
         return out
 
-    def get_ptycho_slice(self, arg):
-        """Switch to arg slicing for the pytchography problem."""
-        arg = self.comm.allgather(arg)  # Theta, V, H
-        whole = np.concatenate(arg, axis=1)
-        return np.array_split(whole, self.size, axis=0)[self.rank]
+    def get_ptycho_slice(self, tomo_slice):
+        """Switch to slicing for the pytchography problem."""
+        # Break the tomo data along the theta axis
+        t_chunks = np.array_split(tomo_slice, self.size, axis=0)  # Theta, V, H
+        # Each rank takes a turn scattering its tomo v slice to the others
+        p_chunks = list()
+        for i in range(self.size):
+            p_chunks.append(self.comm.scatter(t_chunks, root=i))
+        # Recombine the along vertical axis so each rank now has a theta slice
+        return np.concatenate(p_chunks, axis=1)  # Theta, V, H
 
-    def get_tomo_slice(self, arg):
-        """Switch to arg slicing for the tomography problem."""
-        arg = self.comm.allgather(arg)  # Theta, V, H
-        whole = np.concatenate(arg, axis=0)
-        return np.array_split(whole, self.size, axis=1)[self.rank]
+    def get_tomo_slice(self, ptych_slice):
+        """Switch to slicing for the tomography problem."""
+        # Break the ptych data along the vertical axis
+        p_chunks = np.array_split(ptych_slice, self.size, axis=1)
+        # Each rank takes a turn scattering its ptych theta slice to the others
+        t_chunks = list()
+        for i in range(self.size):
+            t_chunks.append(self.comm.scatter(p_chunks, root=i))
+        # Recombine along the theta axis so each rank now has a vertical slice
+        return np.concatenate(t_chunks, axis=0)  # Theta, V, H
 
     def gather(self, arg, root=0, axis=0):
-        arg = self.comm.allgather(arg)  # Theta, V, H
-        return np.concatenate(arg, axis=axis)
-
+        arg = self.comm.gather(arg, root=root)  # Theta, V, H
+        if self.rank == root:
+            return np.concatenate(arg, axis=axis)
+        return None
