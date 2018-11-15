@@ -341,7 +341,8 @@ def grad(
         # Go far-plane
         farplane = np.fft.fft2(nearplane_pad)
         # Replace the amplitude with the measured amplitude.
-        farplane = (np.sqrt(data) * (farplane.real + 1j * farplane.imag)
+        farplane[farplane == 0] = 1  # no division by zero allowed
+        farplane = (np.sqrt(data) * farplane
                     / np.sqrt(farplane.imag * farplane.imag
                               + farplane.real * farplane.real))
         # Back to near-plane.
