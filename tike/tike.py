@@ -124,7 +124,7 @@ def admm(
     pkwargs = {
         'algorithm': 'grad',
         'num_iter': 1,
-    } if pwkargs is None else pkwargs
+    } if pkwargs is None else pkwargs
     tkwargs = {
         'algorithm': 'grad',
         'num_iter': 1,
