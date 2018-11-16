@@ -11,7 +11,7 @@ import pickle
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = []
+__all__ = ['MPICommunicator']
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
