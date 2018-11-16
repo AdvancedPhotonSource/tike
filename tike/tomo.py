@@ -163,8 +163,14 @@ def forward(
         **kwargs
 ):
     """Compute line integrals over an obj; i.e. simulate data acquisition."""
-    Lr = project(obj=obj.real, theta=theta,)
-    Li = project(obj=obj.imag, theta=theta,)
+    # Lr = project(obj=obj.real, theta=theta,)
+    # Li = project(obj=obj.imag, theta=theta,)
+    Lr = tomopy.project(obj=obj.real, theta=theta,
+                        center=None, emission=True, pad=False,
+                        sinogram_order=False, ncore=1, nchunk=1)
+    Li = tomopy.project(obj=obj.imag, theta=theta,
+                        center=None, emission=True, pad=False,
+                        sinogram_order=False, ncore=1, nchunk=1)
     line_integrals = np.empty(Lr.shape, dtype=np.complex64)
     line_integrals.real = Lr
     line_integrals.imag = Li
