@@ -44,6 +44,8 @@ class MPICommunicator(object):
 
     def broadcast(self, *args):
         """Synchronize parameters that are the same for all processses."""
+        if len(args) == 1:
+            return self.comm.bcast(args[0], root=0)
         out = list()
         for arg in args:
             out.append(self.comm.bcast(arg, root=0))
