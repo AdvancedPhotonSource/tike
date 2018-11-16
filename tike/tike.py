@@ -92,6 +92,7 @@ def admm(
         data=None,
         probe=None, theta=None, h=None, v=None, energy=None,
         num_iter=1, rho=0.5, gamma=0.25, pkwargs=None, tkwargs=None,
+        comm=None,
         **kwargs
 ):
     """Solve using the Alternating Direction Method of Multipliers (ADMM).
@@ -123,35 +124,35 @@ def admm(
         reconstruction algorithms.
 
     """
+    comm = MPICommunicator() if comm is None else comm
     # Supress logging in the ptycho and tomo modules
     plog = logging.getLogger('tike.ptycho')
     tlog = logging.getLogger('tike.tomo')
     log_levels = [plog.level, tlog.level]
     plog.setLevel(logging.WARNING)
     tlog.setLevel(logging.WARNING)
+    # Ptychography setup
+    psi = np.ones([
+        len(data),  # The number of views.
+        np.sum(comm.allgather(obj.shape[0])),  # The height of psi.
+        obj.shape[2],  # The width of psi.
+    ], dtype=np.complex64)
+    logger.debug("psi shape is {}".format(psi.shape))
+    hobj = np.ones_like(psi)
+    lamda = np.zeros_like(psi)
     pkwargs = {
         'algorithm': 'grad',
         'num_iter': 1,
     } if pkwargs is None else pkwargs
+    # Tomography setup
+    x = obj
     tkwargs = {
         'algorithm': 'grad',
         'num_iter': 1,
         'ncore': 1,
         'reg_par': -1,
     } if tkwargs is None else tkwargs
-    comm = MPICommunicator()
-    voxelsize, probe, theta, energy, num_iter, rho, gamma, V, H = \
-        comm.broadcast(voxelsize, probe, theta, energy, num_iter, rho, gamma,
-                       0 if obj is None else obj.shape[0],
-                       0 if obj is None else obj.shape[2])
-    x, data, h, v = comm.scatter(obj, data, h, v)
-    psi = np.ones([
-        len(data),  # The number of views.
-        V,  # The height of psi.
-        H,  # The width of psi.
-    ], dtype=x.dtype)
-    lamda = np.zeros_like(psi)
-    hobj = np.ones_like(psi)
+    # Start ADMM
     for i in range(num_iter):
         logger.info("ADMM iteration {}".format(i))
         # Ptychography
@@ -187,12 +188,10 @@ def simulate(
     obj, voxelsize,
     probe, theta, v, h, energy,
     detector_shape,
+    comm=None
 ):
     """Simulate data acquisition from an object, probe, and positions."""
-    comm = MPICommunicator()
-    theta, probe, voxelsize, detector_shape, energy = \
-        comm.broadcast(theta, probe, voxelsize, detector_shape, energy)
-    v, h, obj, = comm.scatter(v, h, obj)
+    comm = MPICommunicator() if comm is None else comm
     # Tomography simulation
     line_integrals = tike.tomo.forward(obj=obj, theta=theta) * voxelsize
     psi = np.exp(1j * wavenumber(energy) * line_integrals)
@@ -203,5 +202,4 @@ def simulate(
         data.append(tike.ptycho.simulate(data_shape=detector_shape,
                                          probe=probe, v=v[view], h=h[view],
                                          psi=psi[view]))
-    data = comm.gather(data, root=0, axis=0)
     return data

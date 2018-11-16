@@ -6,6 +6,7 @@ from __future__ import (absolute_import, division, print_function,
 import logging
 import numpy as np
 from mpi4py import MPI
+import pickle
 
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
@@ -89,3 +90,40 @@ class MPICommunicator(object):
     def allgather(self, arg, axis=0):
         return self.comm.allgather(arg)
 
+    def load(self, filename):
+        """Load all of the variables from a pickle."""
+        # Initally set all variables to None
+        (
+            obj, voxelsize,
+            probe, energy,
+            theta, v, h,
+            detector_shape,
+        ) = [None] * 8
+        # Load the data on one rank
+        if self.rank == 0:
+            with open(filename, 'rb') as file:
+                (
+                    obj, voxelsize,
+                    probe, energy,
+                    theta, v, h,
+                    detector_shape,
+                ) = pickle.load(file)
+        # Distribute the variables appropriately to each rank
+        (
+            voxelsize,
+            probe, energy,
+            theta,
+            detector_shape,
+        ) = self.broadcast(
+            voxelsize,
+            probe, energy,
+            theta,
+            detector_shape,
+        )
+        obj, v, h, = self.scatter(obj, v, h)
+        return (
+            obj, voxelsize,
+            probe, energy,
+            theta, v, h,
+            detector_shape,
+        )
