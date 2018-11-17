@@ -1,6 +1,6 @@
 package:
   name: tike
-  version: 0.4.1
+  version: alpha
 
 source:
   path: .
@@ -27,11 +27,11 @@ requirements:
     - mpi4py
     - numpy
     - openmp
+    - 'pillow>5.2'  # [win]
     - python={{ python }}
     - scipy
     - setuptools
     - six
-    - 'pillow>5.2'  # [win]
     - 'tomopy>=1.2'
 
 test:
