@@ -23,13 +23,16 @@ requirements:
     - setuptools_scm
   run:
     - futures  # [py2k]
-    - numpy
     - matplotlib
+    - mpi4py
+    - numpy
     - openmp
     - python={{ python }}
+    - scipy
+    - setuptools
     - six
     - 'pillow>5.2'  # [win]
-    - tomopy
+    - 'tomopy>=1.2'
 
 test:
   requires:
