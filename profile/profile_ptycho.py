@@ -4,18 +4,18 @@
 """Benchmark ptychography reconstruction."""
 
 import os
+import logging
+import lzma
+import pickle
+from pyinstrument import Profiler
+import unittest
 # These environmental variables must be set before numpy is imported anywhere.
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
-import logging
-import lzma
-import numpy as np
-import pickle
-from pyinstrument import Profiler
-import tike
-import unittest
+import numpy as np  # noqa
+import tike  # noqa
 
 
 class BenchmarkPtycho(unittest.TestCase):
