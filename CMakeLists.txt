@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.0)
+project(tike)
+include_directories("include/libtike")
+file(GLOB SOURCE_FILES "${PROJECT_SOURCE_DIR}/tike/libtike/*.c")
+list(FILTER SOURCE_FILES EXCLUDE REGEX "raytrace*")
+add_library(tike SHARED ${SOURCE_FILES})
+set_property(TARGET tike PROPERTY C_STANDARD 11)
+install(TARGETS tike LIBRARY DESTINATION tike)
