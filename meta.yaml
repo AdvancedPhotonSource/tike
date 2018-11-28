@@ -12,10 +12,8 @@ build:
 
 requirements:
   build:
-    - {{ compiler('c') }}  # [not win]
+    - {{ compiler('c') }}
   host:
-    - Make  # [win]
-    - MinGW  # [win]
     - pip
     - python={{ python }}
     - scikit-build
