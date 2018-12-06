@@ -140,19 +140,19 @@ def reconstruct(
         The updated obj grid.
 
     """
-    Lr = tomopy.recon(tomo=line_integrals.real,
+    lr = tomopy.recon(tomo=line_integrals.real,
                       theta=theta,
                       init_recon=obj.real,
                       **kwargs,
                       )
-    Li = tomopy.recon(tomo=line_integrals.imag,
+    li = tomopy.recon(tomo=line_integrals.imag,
                       theta=theta,
                       init_recon=obj.imag,
                       **kwargs,
                       )
-    recon = np.empty(Lr.shape, dtype=complex)
-    recon.real = Lr
-    recon.imag = Li
+    recon = np.empty(lr.shape, dtype=complex)
+    recon.real = lr
+    recon.imag = li
     return recon
 
 
@@ -161,10 +161,10 @@ def forward(
         theta=None,
         **kwargs
 ):
-    """Compute line integrals over an obj; i.e. simulate data acquisition."""
-    Lr = tomopy.project(obj=obj.real, theta=theta, pad=False)
-    Li = tomopy.project(obj=obj.imag, theta=theta, pad=False)
-    line_integrals = np.empty(Lr.shape, dtype=complex)
-    line_integrals.real = Lr
-    line_integrals.imag = Li
+    """Compute line integrals over an obj."""
+    lr = tomopy.project(obj=obj.real, theta=theta, pad=False)
+    li = tomopy.project(obj=obj.imag, theta=theta, pad=False)
+    line_integrals = np.empty(lr.shape, dtype=complex)
+    line_integrals.real = lr
+    line_integrals.imag = li
     return line_integrals
