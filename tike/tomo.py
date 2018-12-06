@@ -124,15 +124,6 @@ def reconstruct(
     ----------
     obj : (Z, X, Y, P) :py:class:`numpy.array` float
         The initial guess for the reconstruction.
-    algorithm : string
-        The name of one of the following algorithms to use for reconstructing:
-
-            * art : Algebraic Reconstruction Technique
-                :cite:`gordon1970algebraic`.
-            * sirt : Simultaneous Iterative Reconstruction Technique.
-
-    num_iter : int
-        The number of iterations to perform
 
     Returns
     -------
