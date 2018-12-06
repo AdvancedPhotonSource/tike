@@ -410,7 +410,7 @@ def reconstruct(
         data,
         probe=None, v=None, h=None,
         psi=None, psi_corner=None,
-        algorithm=None, num_iter=0, **kwargs
+        algorithm=None, num_iter=1, **kwargs
 ):
     """Reconstruct the `psi` and `probe` using the given `algorithm`.
 
