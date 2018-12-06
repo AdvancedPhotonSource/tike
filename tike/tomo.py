@@ -148,8 +148,8 @@ def reconstruct(
 
 
 def forward(
-        obj=None,
-        theta=None,
+        obj,
+        theta,
         **kwargs
 ):
     """Compute line integrals over an obj."""
