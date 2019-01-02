@@ -157,9 +157,10 @@ class TestPtychoRecon(unittest.TestCase):
             h=self.h,
             psi=np.ones_like(self.original),
             algorithm='grad',
-            niter=10,
+            num_iter=10,
             rho=0.5,
-            gamma=0.25
+            gamma=0.25,
+            reg=1+0j
             )
         recon_file = './tests/data/ptycho_grad.pickle.lzma'
         try:

@@ -89,7 +89,7 @@ def admm(
         obj=None, voxelsize=1.0,
         data=None,
         probe=None, theta=None, h=None, v=None, energy=None,
-        niter=1, rho=0.5, gamma=0.25,
+        num_iter=1, rho=0.5, gamma=0.25, pkwargs=None, tkwargs=None,
         **kwargs
 ):
     """Solve using the Alternating Direction Method of Multipliers (ADMM).
@@ -110,46 +110,50 @@ def admm(
         The energy of the probe
     algorithms : (2, ) string
         The names of the pytchography and tomography reconstruction algorithms.
-    niter : int
+    num_iter : int
         The number of ADMM interations.
+    pkwargs : dict
+        Arguments to pass to the tike.ptycho.reconstruct.
+    tkwargs : dict
+        Arguments to pass to the tike.tomo.reconstruct.
     kwargs :
         Any keyword arguments for the pytchography and tomography
         reconstruction algorithms.
 
     """
+    pkwargs = {
+        'algorithm': 'grad',
+        'num_iter': 1,
+    } if pkwargs is None else pkwargs
+    tkwargs = {
+        'algorithm': 'grad',
+        'num_iter': 1,
+        'reg_par': -1,
+    } if tkwargs is None else tkwargs
     Z, X, Y = obj.shape[0:3]
     T = theta.size
     x = obj
     psi = np.ones([T, Z, Y], dtype=obj.dtype)
     hobj = np.ones_like(psi)
     lamda = np.zeros_like(psi)
-    for i in range(niter):
+    for i in range(num_iter):
         # Ptychography.
         for view in range(len(psi)):
+            reg = hobj[view] - lamda[view] / rho
             psi[view] = tike.ptycho.reconstruct(data=data[view],
                                                 probe=probe,
                                                 v=v[view], h=h[view],
                                                 psi=psi[view],
-                                                algorithm='grad',
-                                                niter=1, rho=rho, gamma=gamma,
-                                                reg=hobj[view],
-                                                lamda=lamda[view], **kwargs)
+                                                rho=rho, gamma=gamma, reg=reg,
+                                                **pkwargs)
         # Tomography.
         phi = -1j / wavenumber(energy) * np.log(psi + lamda / rho) / voxelsize
         x = tike.tomo.reconstruct(obj=x,
                                   theta=theta,
                                   line_integrals=phi,
-                                  algorithm='grad', reg_par=-1,
-                                  niter=1, **kwargs)
+                                  **tkwargs)
         # Lambda update.
         line_integrals = tike.tomo.forward(obj=x, theta=theta) * voxelsize
         hobj = np.exp(1j * wavenumber(energy) * line_integrals)
         lamda = lamda + rho * (psi - hobj)
-        # # Update residuals.
-        # r = 1 / M * np.sqrt(np.sum(np.square(np.abs(psi - hobj)),
-        #                            axis=(-1, -2)))
-        # s = rho * np.sqrt(np.sum(np.square(np.abs(x1 - x0)),
-        #                          axis=(-1, -2)))
-        # if r < epsilon_prime and s < epsilon_dual:
-        #     pass
     return x

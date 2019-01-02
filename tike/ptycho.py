@@ -324,7 +324,7 @@ def grad(
         data,
         probe, v, h,
         psi, psi_corner,
-        reg=1+0j, niter=1, rho=0, gamma=0.25, lamda=0j, epsilon=1e-8,
+        reg=0j, num_iter=1, rho=0, gamma=0.25, epsilon=1e-8,
         **kwargs
 ):
     """Use gradient descent to estimate `psi`.
@@ -332,13 +332,11 @@ def grad(
     Parameters
     ----------
     reg : (T, V, H, P) :py:class:`numpy.array` complex
-        The regularizer for psi.
+        The regularizer for psi. (h - lamda / rho)
     rho : float
         The positive penalty parameter. It should be less than 1.
     gamma : float
         The ptychography gradient descent step size.
-    lamda : float
-        The dual variable. TODO:@Selin Create better description
     epsilon : float
         Primal residual absolute termination criterion.
         TODO:@Selin Create better description
@@ -354,7 +352,7 @@ def grad(
     # TODO: Update the probe too
     probe_inverse = np.conj(probe) / np.max(np.square(np.abs(np.conj(probe))))
     wavefront_shape = [h.size, probe.shape[0], probe.shape[1]]
-    for i in range(niter):
+    for i in range(num_iter):
         # combine all wavefronts into one array
         wavefronts = uncombine_grids(grids_shape=wavefront_shape, v=v, h=h,
                                      combined=psi, combined_corner=psi_corner)
@@ -380,7 +378,7 @@ def grad(
                                 combined_corner=psi_corner)
         # Update psi
         psi = ((1 - gamma * rho) * psi
-               + gamma * (reg * rho - lamda)  # refactored to remove division
+               + gamma * rho * reg  # refactored to reduce inputs
                + (gamma * 0.5) * upd_psi)
     return psi
 
@@ -412,7 +410,7 @@ def reconstruct(
         data,
         probe=None, v=None, h=None,
         psi=None, psi_corner=None,
-        algorithm=None, niter=1, **kwargs
+        algorithm=None, num_iter=1, **kwargs
 ):
     """Reconstruct the `psi` and `probe` using the given `algorithm`.
 
@@ -442,7 +440,7 @@ def reconstruct(
     # Send data to c function
     logger.info("{} on {:,d} - {:,d} by {:,d} grids for {:,d} "
                 "iterations".format(algorithm,
-                                    len(data), *data.shape[1:], niter))
+                                    len(data), *data.shape[1:], num_iter))
     # Add new algorithms here
     # TODO: The size of this function may be reduced further if all recon clibs
     #   have a standard interface. Perhaps pass unique params to a generic
@@ -451,7 +449,8 @@ def reconstruct(
         new_psi = grad(data=data,
                        probe=probe, v=v, h=h,
                        psi=psi, psi_corner=psi_corner,
-                       niter=niter, **kwargs
+                       num_iter=num_iter,
+                       **kwargs
                        )
     else:
         raise ValueError("The {} algorithm is not an available.".format(

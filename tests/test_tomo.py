@@ -49,12 +49,83 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
+import lzma
 import numpy as np
-from tike.tomo import *
+import os
+import pickle
+import tike.tomo
+import unittest
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
+
+
+class TestPtychoRecon(unittest.TestCase):
+    """Test various ptychography reconstruction methods for consistency."""
+
+    def create_dataset(self, dataset_file):
+        """Create a dataset for testing this module.
+
+        Only called with setUp detects that `dataset_file` has been deleted.
+        """
+        import matplotlib.pyplot as plt
+        # Create object
+        delta = plt.imread("./tests/data/Cryptomeria_japonica-0128.tif")
+        beta = plt.imread("./tests/data/Bombus_terrestris-0128.tif")
+        original = np.empty(delta.shape, dtype=np.complex64)
+        original.real = delta / 2550
+        original.imag = beta / 2550
+        self.original = np.tile(original, (1, 1, 1))
+        # Define views
+        self.theta = np.linspace(0, np.pi, 201, endpoint=False)
+        # Simulate data
+        self.data = tike.tomo.forward(obj=self.original, theta=self.theta)
+        setup_data = [
+            self.data.astype(np.complex64),
+            self.theta.astype(np.float32),
+            self.original.astype(np.complex64),
+            ]
+        with lzma.open(dataset_file, 'wb') as file:
+            pickle.dump(setup_data, file)
+
+    def setUp(self):
+        """Load a dataset for reconstruction."""
+        dataset_file = './tests/data/tomo_setup.pickle.lzma'
+        if not os.path.isfile(dataset_file):
+            self.create_dataset(dataset_file)
+        with lzma.open(dataset_file, 'rb') as file:
+            [
+                self.data,
+                self.theta,
+                self.original,
+            ] = pickle.load(file)
+
+    def test_consistent_simulate(self):
+        """Check tomo.forward for consistency."""
+        data = tike.tomo.forward(obj=self.original, theta=self.theta)
+        np.testing.assert_allclose(data, self.data, rtol=1e-3)
+
+    def test_consistent_grad(self):
+        """Check tomo.grad for consistency."""
+        recon = np.zeros(self.original.shape, dtype=np.complex64)
+        recon = tike.tomo.reconstruct(
+            obj=recon,
+            theta=self.theta,
+            line_integrals=self.data,
+            algorithm='grad',
+            reg_par=-1,
+            num_iter=10,
+        )
+        recon_file = './tests/data/tomo_grad.pickle.lzma'
+        try:
+            with lzma.open(recon_file, 'rb') as file:
+                standard = pickle.load(file)
+        except FileNotFoundError as e:
+            with lzma.open(recon_file, 'wb') as file:
+                pickle.dump(recon.astype(np.complex64), file)
+            raise e
+        np.testing.assert_allclose(recon, standard, rtol=1e-3)
 
 
 # def test_forward_project_hv_quadrants1():

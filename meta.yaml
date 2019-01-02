@@ -1,6 +1,6 @@
 package:
   name: tike
-  version: 0.4.1
+  version: alpha
 
 source:
   path: .
@@ -26,10 +26,10 @@ requirements:
     - numpy
     - matplotlib
     - openmp
+    - 'pillow>5.2'  # [win]
     - python={{ python }}
     - six
-    - 'pillow>5.2'  # [win]
-    - tomopy
+    - 'tomopy>=1.2'
 
 test:
   requires:
