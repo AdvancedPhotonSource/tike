@@ -157,13 +157,12 @@ def admm(
         logger.info("ADMM iteration {}".format(i))
         # Ptychography
         for view in range(len(psi)):
+            reg = hobj[view] - lamda[view] / rho
             psi[view] = tike.ptycho.reconstruct(data=data[view],
                                                 probe=probe,
                                                 v=v[view], h=h[view],
                                                 psi=psi[view],
-                                                rho=rho, gamma=gamma,
-                                                reg=hobj[view],
-                                                lamda=lamda[view],
+                                                rho=rho, gamma=gamma, reg=reg,
                                                 **pkwargs)
         # Tomography.
         phi = -1j / wavenumber(energy) * np.log(psi + lamda / rho) / voxelsize

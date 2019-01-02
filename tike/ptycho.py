@@ -297,7 +297,7 @@ def grad(
         data,
         probe, v, h,
         psi, psi_corner,
-        reg=1+0j, num_iter=1, rho=0, gamma=0.25, lamda=0j, epsilon=1e-8,
+        reg=0j, num_iter=1, rho=0, gamma=0.25, epsilon=1e-8,
         **kwargs
 ):
     """Use gradient descent to estimate `psi`.
@@ -305,13 +305,11 @@ def grad(
     Parameters
     ----------
     reg : (T, V, H, P) :py:class:`numpy.array` complex
-        The regularizer for psi.
+        The regularizer for psi. (h - lamda / rho)
     rho : float
         The positive penalty parameter. It should be less than 1.
     gamma : float
         The ptychography gradient descent step size.
-    lamda : float
-        The dual variable. TODO:@Selin Create better description
     epsilon : float
         Primal residual absolute termination criterion.
         TODO:@Selin Create better description
@@ -357,7 +355,7 @@ def grad(
                                 combined_corner=psi_corner)
         # Update psi
         psi = ((1 - gamma * rho) * psi
-               + gamma * (reg * rho - lamda)  # refactored to remove division
+               + gamma * rho * reg  # refactored to reduce inputs
                + (gamma * 0.5) * upd_psi)
     return psi
 
@@ -393,7 +391,7 @@ def reconstruct(
         data,
         probe, v, h,
         psi, psi_corner=(0, 0),
-        algorithm=None, num_iter=0, **kwargs
+        algorithm=None, num_iter=1, **kwargs
 ):
     """Reconstruct the `psi` and `probe` using the given `algorithm`.
 

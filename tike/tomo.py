@@ -125,15 +125,6 @@ def reconstruct(
     ----------
     obj : (Z, X, Y, P) :py:class:`numpy.array` float
         The initial guess for the reconstruction.
-    algorithm : string
-        The name of one of the following algorithms to use for reconstructing:
-
-            * art : Algebraic Reconstruction Technique
-                :cite:`gordon1970algebraic`.
-            * sirt : Simultaneous Iterative Reconstruction Technique.
-
-    num_iter : int
-        The number of iterations to perform
 
     Returns
     -------
@@ -141,39 +132,37 @@ def reconstruct(
         The updated obj grid.
 
     """
-    Lr = tomopy.recon(tomo=line_integrals.real,
+    lr = tomopy.recon(tomo=line_integrals.real,
                       theta=theta,
                       init_recon=obj.real,
                       **kwargs,
                       )
-    Li = tomopy.recon(tomo=line_integrals.imag,
+    li = tomopy.recon(tomo=line_integrals.imag,
                       theta=theta,
                       init_recon=obj.imag,
                       **kwargs,
                       )
-    recon = np.empty(Lr.shape, dtype=complex)
-    recon.real = Lr
-    recon.imag = Li
+    recon = np.empty(lr.shape, dtype=complex)
+    recon.real = lr
+    recon.imag = li
     return recon
 
 
 def forward(
-        obj=None,
-        theta=None,
+        obj,
+        theta,
         **kwargs
 ):
-    """Compute line integrals over an obj; i.e. simulate data acquisition."""
-    # Lr = project(obj=obj.real, theta=theta,)
-    # Li = project(obj=obj.imag, theta=theta,)
-    Lr = tomopy.project(obj=obj.real, theta=theta,
+    """Compute line integrals over an obj."""
+    lr = tomopy.project(obj=obj.real, theta=theta,
                         center=None, emission=True, pad=False,
                         sinogram_order=False, ncore=1, nchunk=1)
-    Li = tomopy.project(obj=obj.imag, theta=theta,
+    li = tomopy.project(obj=obj.imag, theta=theta,
                         center=None, emission=True, pad=False,
                         sinogram_order=False, ncore=1, nchunk=1)
-    line_integrals = np.empty(Lr.shape, dtype=np.complex64)
-    line_integrals.real = Lr
-    line_integrals.imag = Li
+    line_integrals = np.empty(lr.shape, dtype=np.complex64)
+    line_integrals.real = lr
+    line_integrals.imag = li
     return line_integrals
 
 
