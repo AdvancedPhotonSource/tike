@@ -205,7 +205,7 @@ def combine_grids(
 
     Parameters
     ----------
-    grids : (N, V, H) :py:class:`numpy.array`
+    grids : (N, V, H) :py:class:`numpy.array` complex64
         The values on the grids
     v, h : (M, ) :py:class:`numpy.array` float [m]
         The coordinates of the minimum corner of the M grids
@@ -217,10 +217,11 @@ def combine_grids(
 
     Return
     ------
-    combined : (T, V, H) :py:class:`numpy.array`
+    combined : (T, V, H) :py:class:`numpy.array` complex64
         The combined grid
 
     """
+    grids = grids.astype(np.complex64, casting='same_kind', copy=False)
     m_shape, v_shape, h_shape = grids.shape
     vshift, V, V1 = shift_coords(v, v_shape,
                                  combined_corner[-2], combined_shape[-2])
@@ -261,17 +262,18 @@ def uncombine_grids(
     v, h : (M, ) :py:class:`numpy.array` float [m]
         The real coordinates of the minimum corner of the M grids.
 
-    combined : (V, H) :py:class:`numpy.array`
+    combined : (V, H) :py:class:`numpy.array` complex64
         The combined grids.
     combined_corner : (2, ) float [m]
         The real coordinates of the minimum corner of the combined grids
 
     Return
     ------
-    grids : (M, V, H) :py:class:`numpy.array`
+    grids : (M, V, H) :py:class:`numpy.array` complex64
         The decombined grids
 
     """
+    combined = combined.astype(np.complex64, casting='same_kind', copy=False)
     v_shape, h_shape = grids_shape[-2:]
     vshift, V, V1 = shift_coords(v, v_shape,
                                  combined_corner[-2], combined.shape[-2])
