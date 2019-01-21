@@ -42,7 +42,7 @@ test:
   source_files:
     - tests/*
   commands:
-    - nosetests -vvv
+    - nosetests -v
 
 app:
     own_environment: True
