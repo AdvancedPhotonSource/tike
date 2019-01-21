@@ -40,9 +40,9 @@ test:
   imports:
     - tike
   source_files:
-    - test*
+    - tests/*
   commands:
-    - nosetests
+    - nosetests -vvv
 
 app:
     own_environment: True
