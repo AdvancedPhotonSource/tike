@@ -4,7 +4,7 @@ from skbuild import setup
 
 setup(
     name='tike',
-    packages=['tike'],
+    packages=['tike', 'libtike'],
     package_dir={'': 'src'},
     setup_requires=['setuptools_scm'],
     use_scm_version=True,
