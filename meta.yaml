@@ -8,7 +8,10 @@ source:
 build:
   number: 0
   script:
-    - "{{ PYTHON }} -m pip install . --no-deps --ignore-installed --no-cache-dir -vvv"
+    - "set CMAKE_GENERATOR=Ninja"
+    - "set CC=cl"  # [win]
+    - "{{ PYTHON }} -m pip install . --no-deps --ignore-installed
+      --no-cache-dir --no-binary :all: -vvv"
 
 requirements:
   build:
@@ -17,14 +20,11 @@ requirements:
     - pip
     - python={{ python }}
     - scikit-build
-    - setuptools
     - setuptools_scm
   run:
-    - futures  # [py2k]
     - numpy
     - matplotlib
     - openmp
-    - 'pillow>5.2'  # [win]
     - python={{ python }}
     - six
     - 'tomopy>=1.2'
