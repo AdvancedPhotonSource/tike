@@ -1,4 +1,4 @@
 include README.rst
 include LICENSE
-exclude tike/libtike.*
+graft include
 global-exclude *.py[co]

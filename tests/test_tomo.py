@@ -60,6 +60,8 @@ __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
+testdir = os.path.dirname(__file__)
+
 
 class TestPtychoRecon(unittest.TestCase):
     """Test various ptychography reconstruction methods for consistency."""
@@ -71,8 +73,12 @@ class TestPtychoRecon(unittest.TestCase):
         """
         import matplotlib.pyplot as plt
         # Create object
-        delta = plt.imread("./tests/data/Cryptomeria_japonica-0128.tif")
-        beta = plt.imread("./tests/data/Bombus_terrestris-0128.tif")
+        delta = plt.imread(
+            os.path.join(testdir, "data/Cryptomeria_japonica-0128.tif")
+        )
+        beta = plt.imread(
+            os.path.join(testdir, "data/Bombus_terrestris-0128.tif")
+        )
         original = np.empty(delta.shape, dtype=np.complex64)
         original.real = delta / 2550
         original.imag = beta / 2550
@@ -91,7 +97,7 @@ class TestPtychoRecon(unittest.TestCase):
 
     def setUp(self):
         """Load a dataset for reconstruction."""
-        dataset_file = './tests/data/tomo_setup.pickle.lzma'
+        dataset_file = os.path.join(testdir, 'data/tomo_setup.pickle.lzma')
         if not os.path.isfile(dataset_file):
             self.create_dataset(dataset_file)
         with lzma.open(dataset_file, 'rb') as file:
@@ -117,7 +123,7 @@ class TestPtychoRecon(unittest.TestCase):
             reg_par=-1,
             num_iter=10,
         )
-        recon_file = './tests/data/tomo_grad.pickle.lzma'
+        recon_file = os.path.join(testdir, 'data/tomo_grad.pickle.lzma')
         try:
             with lzma.open(recon_file, 'rb') as file:
                 standard = pickle.load(file)

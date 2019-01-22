@@ -60,13 +60,15 @@ __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
+testdir = os.path.dirname(__file__)
+
 
 class TestPtychoUtils(unittest.TestCase):
     """Test various utility functions for correctness."""
 
     def test_gaussian(self):
         """Check ptycho.gaussian for correctness."""
-        fname = './tests/data/ptycho_gaussian.pickle.lzma'
+        fname = os.path.join(testdir, 'data/ptycho_gaussian.pickle.lzma')
         weights = tike.ptycho.gaussian(15, rin=0.8, rout=1.0)
         if os.path.isfile(fname):
             with lzma.open(fname, 'rb') as file:
@@ -86,8 +88,12 @@ class TestPtychoRecon(unittest.TestCase):
         Only called with setUp detects that `dataset_file` has been deleted.
         """
         import matplotlib.pyplot as plt
-        amplitude = plt.imread("./tests/data/Cryptomeria_japonica-0128.tif")
-        phase = plt.imread("./tests/data/Bombus_terrestris-0128.tif")
+        amplitude = plt.imread(
+            os.path.join(testdir, "data/Cryptomeria_japonica-0128.tif")
+        )
+        phase = plt.imread(
+            os.path.join(testdir, "data/Bombus_terrestris-0128.tif")
+        )
         self.original = amplitude / 255 * np.exp(1j * phase / 255 * np.pi)
 
         pw = 15  # probe width
@@ -124,7 +130,7 @@ class TestPtychoRecon(unittest.TestCase):
 
     def setUp(self):
         """Load a dataset for reconstruction."""
-        dataset_file = './tests/data/ptycho_setup.pickle.lzma'
+        dataset_file = os.path.join(testdir, 'data/ptycho_setup.pickle.lzma')
         if not os.path.isfile(dataset_file):
             self.create_dataset(dataset_file)
         with lzma.open(dataset_file, 'rb') as file:
@@ -162,7 +168,7 @@ class TestPtychoRecon(unittest.TestCase):
             gamma=0.25,
             reg=1+0j
             )
-        recon_file = './tests/data/ptycho_grad.pickle.lzma'
+        recon_file = os.path.join(testdir, 'data/ptycho_grad.pickle.lzma')
         try:
             with lzma.open(recon_file, 'rb') as file:
                 standard = pickle.load(file)
