@@ -11,6 +11,7 @@ build:
     - "set CMAKE_GENERATOR=Ninja"  # [win]
     - "export CMAKE_GENERATOR=Ninja"  # [not win]
     - "set CC=cl"  # [win]
+    - "export CC=clang"  # [osx]
     - "{{ PYTHON }} -m pip install . --no-deps --ignore-installed
       --no-cache-dir --no-binary :all: -vvv"
 
