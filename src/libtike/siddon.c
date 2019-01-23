@@ -80,7 +80,7 @@ get_pixel_indexes_and_lengths(
             quadrant = calc_quadrant(theta_p);
             sin_p = sinf(theta_p);
             cos_p = cosf(theta_p);
-            ri = abs(oxmin)+abs(oymin)+ox+oy;
+            ri = fabsf(oxmin)+fabsf(oymin)+ox+oy;
             hi = h[ray]+1e-6;
             calc_coords(
                 ox, oy, ri, hi, sin_p, cos_p, gridx, gridy, coordx, coordy);
