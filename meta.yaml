@@ -34,10 +34,11 @@ requirements:
 test:
   requires:
     - nose
+    - coverage
   imports:
     - tike
   source_files:
-    - test*
+    - tests/*
   commands:
     - nosetests
 
