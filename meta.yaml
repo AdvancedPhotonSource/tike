@@ -40,7 +40,7 @@ test:
   source_files:
     - tests/*
   commands:
-    - nosetests
+    - nosetests --config=setup.cfg
 
 app:
     own_environment: True
