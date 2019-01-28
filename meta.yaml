@@ -8,26 +8,26 @@ source:
 build:
   number: 0
   script:
-    - "{{ PYTHON }} build.py"
-    - "{{ PYTHON }} -m pip install . --no-deps --ignore-installed --no-cache-dir -vvv"
+    - "set CMAKE_GENERATOR=Ninja"  # [win]
+    - "export CMAKE_GENERATOR=Ninja"  # [not win]
+    - "set CC=cl"  # [win]
+    - "export CC=clang"  # [osx]
+    - "{{ PYTHON }} -m pip install . --no-deps --ignore-installed
+      --no-cache-dir --no-binary :all: -vvv"
 
 requirements:
   build:
-    - {{ compiler('c') }}  # [not win]
+    - {{ compiler('c') }}
   host:
-    - Make  # [win]
-    - MinGW  # [win]
     - pip
     - python={{ python }}
-    - setuptools
+    - scikit-build
     - setuptools_scm
   run:
-    - futures  # [py2k]
     - matplotlib
     - mpi4py
     - numpy
     - openmp
-    - 'pillow>5.2'  # [win]
     - python={{ python }}
     - scipy
     - setuptools
@@ -37,12 +37,13 @@ requirements:
 test:
   requires:
     - nose
+    - coverage
   imports:
     - tike
   source_files:
     - tests/*
   commands:
-    - nosetests -v
+    - nosetests --config=setup.cfg
 
 app:
     own_environment: True

@@ -53,7 +53,7 @@ import sys
 import os.path
 import logging
 
-__author__ = "Doga Gursoy"
+__author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = ['LIBTIKE']
@@ -71,7 +71,7 @@ def c_shared_lib(lib_name):
         ext = '.dll'
         load_dll = ctypes.windll.LoadLibrary
     base_path = os.path.abspath(os.path.dirname(__file__))
-    sharedlib = os.path.join(base_path, 'sharedlibs', '%s%s' % (lib_name, ext))
+    sharedlib = os.path.join(base_path, '%s%s' % (lib_name, ext))
     if os.path.exists(sharedlib):
         return load_dll(sharedlib)
     # cannot find shared lib:

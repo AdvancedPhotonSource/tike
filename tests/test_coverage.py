@@ -49,6 +49,7 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 from tike.coverage import *
@@ -60,6 +61,8 @@ __docformat__ = 'restructuredtext en'
 
 pgrid = np.ones((1, 1))
 psize = (1, 1)
+
+testdir = os.path.dirname(__file__)
 
 
 def test_coverage_hv_quadrants1_crop():
@@ -321,7 +324,7 @@ def test_theta_coverage():
     cov_map = coverage(region, region_corner, region_size,
                        probe_grid, probe_size, theta, v, h, dwell)[..., 0]
     # np.save('tests/theta_coverage.npy', cov_map)
-    truth = np.load('tests/theta_coverage.npy')
+    truth = np.load(os.path.join(testdir, 'theta_coverage.npy'))
     # show_coverage(cov_map)
     print("Computed map\n{}\n".format(cov_map))
     print("True map\n{}\n".format(truth))
