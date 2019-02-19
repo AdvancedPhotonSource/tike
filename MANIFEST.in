@@ -1,4 +1,5 @@
 include README.rst
 include LICENSE
 graft include
+prune _skbuild
 global-exclude *.py[co]
