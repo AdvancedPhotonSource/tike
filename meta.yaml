@@ -24,7 +24,7 @@ requirements:
     - scikit-build
     - setuptools_scm
   run:
-    - numpy
+    - 'numpy<1.16.1'
     - matplotlib
     - openmp
     - python={{ python }}
