@@ -26,8 +26,12 @@ requirements:
   run:
     - 'numpy<1.16.1'
     - matplotlib
+    - mpi4py
+    - numpy
     - openmp
     - python={{ python }}
+    - scipy
+    - setuptools
     - six
     - 'tomopy>=1.2'
 

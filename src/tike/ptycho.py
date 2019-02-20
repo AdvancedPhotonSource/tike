@@ -94,33 +94,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _ptycho_interface(
-        data,
-        probe, v, h,
-        psi, psi_corner, **kwargs
-):
-    """Define an interface that all functions in this module match.
-
-    This function also sets default values for functions in this module.
-    """
-    if data is None:
-        raise ValueError()
-    if probe is None:
-        raise ValueError()
-    if v is None:
-        raise ValueError()
-    if h is None:
-        raise ValueError()
-    if psi is None:
-        raise ValueError()
-    psi_corner = (0, 0) if psi_corner is None else psi_corner
-    assert len(data) == v.size == h.size, \
-        "The size of v, h must be the same as the number of data."
-    return (data,
-            probe, v, h,
-            psi, psi_corner)
-
-
 def locate_pad(pshape, ushape):
     """Return the min and max indices of the range u in range p."""
     xmin = (pshape - ushape) // 2
@@ -232,7 +205,7 @@ def combine_grids(
 
     Parameters
     ----------
-    grids : (N, V, H) :py:class:`numpy.array`
+    grids : (N, V, H) :py:class:`numpy.array` complex64
         The values on the grids
     v, h : (M, ) :py:class:`numpy.array` float [m]
         The coordinates of the minimum corner of the M grids
@@ -244,10 +217,11 @@ def combine_grids(
 
     Return
     ------
-    combined : (T, V, H) :py:class:`numpy.array`
+    combined : (T, V, H) :py:class:`numpy.array` complex64
         The combined grid
 
     """
+    grids = grids.astype(np.complex64, casting='same_kind', copy=False)
     m_shape, v_shape, h_shape = grids.shape
     vshift, V, V1 = shift_coords(v, v_shape,
                                  combined_corner[-2], combined_shape[-2])
@@ -260,14 +234,14 @@ def combine_grids(
                         dtype=grids.dtype)
     # Add each of the grids to the appropriate place on the summed_grids
     nprobes = h.size
-    grids = grids.view(float).reshape(*grids.shape, 2)
-    combined = combined.view(float).reshape(*combined.shape, 2)
+    grids = grids.view(np.float32).reshape(*grids.shape, 2)
+    combined = combined.view(np.float32).reshape(*combined.shape, 2)
     for N in range(nprobes):
         combined[V[N]:V1[N], H[N]:H1[N],
                  ...] += sni.shift(grids[N],
                                    [vshift[N], hshift[N], 0],
                                    order=1)
-    combined = combined.view(complex)
+    combined = combined.view(np.complex64)
     return combined[1:-1, 1:-1, 0]
 
 
@@ -288,17 +262,18 @@ def uncombine_grids(
     v, h : (M, ) :py:class:`numpy.array` float [m]
         The real coordinates of the minimum corner of the M grids.
 
-    combined : (V, H) :py:class:`numpy.array`
+    combined : (V, H) :py:class:`numpy.array` complex64
         The combined grids.
     combined_corner : (2, ) float [m]
         The real coordinates of the minimum corner of the combined grids
 
     Return
     ------
-    grids : (M, V, H) :py:class:`numpy.array`
+    grids : (M, V, H) :py:class:`numpy.array` complex64
         The decombined grids
 
     """
+    combined = combined.astype(np.complex64, casting='same_kind', copy=False)
     v_shape, h_shape = grids_shape[-2:]
     vshift, V, V1 = shift_coords(v, v_shape,
                                  combined_corner[-2], combined.shape[-2])
@@ -310,14 +285,14 @@ def uncombine_grids(
     grids = np.empty(grids_shape, dtype=combined.dtype)
     # Retrive the updated values of each of the grids
     nprobes = h.size
-    grids = grids.view(float).reshape(*grids.shape, 2)
-    combined = combined.view(float).reshape(*combined.shape, 2)
+    grids = grids.view(np.float32).reshape(*grids.shape, 2)
+    combined = combined.view(np.float32).reshape(*combined.shape, 2)
     for N in range(nprobes):
         grids[N] = sni.shift(combined[V[N]:V1[N], H[N]:H1[N], ...],
                              [-vshift[N], -hshift[N], 0],
                              order=1,
                              )[1:-1, 1:-1, ...]
-    return grids.view(complex)[..., 0]
+    return grids.view(np.complex64)[..., 0]
 
 
 def grad(
@@ -345,6 +320,9 @@ def grad(
     if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)
             and np.iscomplexobj(reg)):
         raise TypeError("psi, probe, and reg must be complex.")
+    data = data.astype(np.float32)
+    probe = probe.astype(np.complex64)
+    psi = psi.astype(np.complex64)
     # Compute padding between probe and detector size
     npadv = (data.shape[1] - probe.shape[0]) // 2
     npadh = (data.shape[2] - probe.shape[1]) // 2
@@ -399,6 +377,10 @@ def simulate(
         **kwargs
 ):
     """Propagate the wavefront to the detector."""
+    if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)):
+        raise TypeError("psi and probe must be complex.")
+    probe = probe.astype(np.complex64)
+    psi = psi.astype(np.complex64)
     wavefront = exitwave(probe, v, h,
                          psi, psi_corner=psi_corner)
     npadx = (data_shape[0] - wavefront.shape[-2]) // 2
@@ -409,8 +391,8 @@ def simulate(
 
 def reconstruct(
         data,
-        probe=None, v=None, h=None,
-        psi=None, psi_corner=None,
+        probe, v, h,
+        psi, psi_corner=(0, 0),
         algorithm=None, num_iter=1, **kwargs
 ):
     """Reconstruct the `psi` and `probe` using the given `algorithm`.
@@ -434,10 +416,8 @@ def reconstruct(
         The updated obect transmission function at each angle.
 
     """
-    data, probe, v, h, psi, psi_corner = \
-        _ptycho_interface(data,
-                          probe, v, h,
-                          psi, psi_corner, **kwargs)
+    assert len(data) == v.size == h.size, \
+        "The size of v, h must be the same as the number of data."
     # Send data to c function
     logger.info("{} on {:,d} - {:,d} by {:,d} grids for {:,d} "
                 "iterations".format(algorithm,

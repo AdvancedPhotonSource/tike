@@ -95,6 +95,7 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import tomopy
+import tomopy.util.extern as extern
 import numpy as np
 from . import utils
 from libtike import LIBTIKE
@@ -153,9 +154,63 @@ def forward(
         **kwargs
 ):
     """Compute line integrals over an obj."""
-    lr = tomopy.project(obj=obj.real, theta=theta, pad=False)
-    li = tomopy.project(obj=obj.imag, theta=theta, pad=False)
-    line_integrals = np.empty(lr.shape, dtype=complex)
+    lr = tomopy.project(obj=obj.real, theta=theta,
+                        center=None, emission=True, pad=False,
+                        sinogram_order=False, ncore=1, nchunk=1)
+    li = tomopy.project(obj=obj.imag, theta=theta,
+                        center=None, emission=True, pad=False,
+                        sinogram_order=False, ncore=1, nchunk=1)
+    line_integrals = np.empty(lr.shape, dtype=np.complex64)
     line_integrals.real = lr
     line_integrals.imag = li
     return line_integrals
+
+
+def project(
+        obj,
+        theta,
+        center=None,
+        sinogram_order=False,
+        ):
+    """
+    Project x-rays through a given 3D object.
+
+    Parameters
+    ----------
+    obj : ndarray
+        Voxelized 3D object.
+    theta : array
+        Projection angles in radian.
+    center: array, optional
+        Location of rotation axis.
+    sinogram_order: bool, optional
+        Determines whether output data is a stack of sinograms
+        (True, y-axis first axis) or a stack of radiographs
+        (False, theta first axis).
+
+    """
+    oy, ox, oz = obj.shape
+    dt = theta.size
+    dy = oy
+    dx = ox
+    shape = (dy, dt, dx)
+    center = get_center(shape, center)
+    tomo = np.zeros(shape, dtype=np.float32)
+    extern.c_project(
+        utils.as_float32(obj),
+        utils.as_float32(center),
+        utils.as_float32(tomo),
+        utils.as_float32(theta),
+        )
+    if not sinogram_order:
+        # rotate to radiograph order
+        tomo = np.swapaxes(tomo, 0, 1)  # doesn't copy data
+    return tomo
+
+
+def get_center(shape, center):
+    if center is None:
+        center = np.ones(shape[0], dtype='float32') * (shape[2] / 2.)
+    elif np.array(center).size == 1:
+        center = np.ones(shape[0], dtype='float32') * center
+    return center

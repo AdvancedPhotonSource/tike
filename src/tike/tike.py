@@ -56,11 +56,13 @@ import logging
 import tike.tomo
 import tike.ptycho
 from tike.constants import *
+from tike.communicator import MPICommunicator
 
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = ['admm',
+           'simulate',
            ]
 
 
@@ -90,6 +92,7 @@ def admm(
         data=None,
         probe=None, theta=None, h=None, v=None, energy=None,
         num_iter=1, rho=0.5, gamma=0.25, pkwargs=None, tkwargs=None,
+        comm=None,
         **kwargs
 ):
     """Solve using the Alternating Direction Method of Multipliers (ADMM).
@@ -121,23 +124,38 @@ def admm(
         reconstruction algorithms.
 
     """
+    comm = MPICommunicator() if comm is None else comm
+    # Supress logging in the ptycho and tomo modules
+    plog = logging.getLogger('tike.ptycho')
+    tlog = logging.getLogger('tike.tomo')
+    log_levels = [plog.level, tlog.level]
+    plog.setLevel(logging.WARNING)
+    tlog.setLevel(logging.WARNING)
+    # Ptychography setup
+    psi = np.ones([
+        len(data),  # The number of views.
+        np.sum(comm.allgather(obj.shape[0])),  # The height of psi.
+        obj.shape[2],  # The width of psi.
+    ], dtype=np.complex64)
+    logger.debug("psi shape is {}".format(psi.shape))
+    hobj = np.ones_like(psi)
+    lamda = np.zeros_like(psi)
     pkwargs = {
         'algorithm': 'grad',
         'num_iter': 1,
     } if pkwargs is None else pkwargs
+    # Tomography setup
+    x = obj
     tkwargs = {
         'algorithm': 'grad',
         'num_iter': 1,
+        'ncore': 1,
         'reg_par': -1,
     } if tkwargs is None else tkwargs
-    Z, X, Y = obj.shape[0:3]
-    T = theta.size
-    x = obj
-    psi = np.ones([T, Z, Y], dtype=obj.dtype)
-    hobj = np.ones_like(psi)
-    lamda = np.zeros_like(psi)
+    # Start ADMM
     for i in range(num_iter):
-        # Ptychography.
+        logger.info("ADMM iteration {}".format(i))
+        # Ptychography
         for view in range(len(psi)):
             reg = hobj[view] - lamda[view] / rho
             psi[view] = tike.ptycho.reconstruct(data=data[view],
@@ -148,6 +166,8 @@ def admm(
                                                 **pkwargs)
         # Tomography.
         phi = -1j / wavenumber(energy) * np.log(psi + lamda / rho) / voxelsize
+        # Tomography
+        phi = comm.get_tomo_slice(phi)
         x = tike.tomo.reconstruct(obj=x,
                                   theta=theta,
                                   line_integrals=phi,
@@ -155,5 +175,30 @@ def admm(
         # Lambda update.
         line_integrals = tike.tomo.forward(obj=x, theta=theta) * voxelsize
         hobj = np.exp(1j * wavenumber(energy) * line_integrals)
+        hobj = comm.get_ptycho_slice(hobj)
         lamda = lamda + rho * (psi - hobj)
+    # Restore logging in the tomo and ptycho modules
+    logging.getLogger('tike.ptycho').setLevel(log_levels[0])
+    logging.getLogger('tike.tomo').setLevel(log_levels[1])
     return x
+
+
+def simulate(
+    obj, voxelsize,
+    probe, theta, v, h, energy,
+    detector_shape,
+    comm=None
+):
+    """Simulate data acquisition from an object, probe, and positions."""
+    comm = MPICommunicator() if comm is None else comm
+    # Tomography simulation
+    line_integrals = tike.tomo.forward(obj=obj, theta=theta) * voxelsize
+    psi = np.exp(1j * wavenumber(energy) * line_integrals)
+    psi = comm.get_ptycho_slice(psi)
+    # Ptychography simulation
+    data = list()
+    for view in range(len(psi)):
+        data.append(tike.ptycho.simulate(data_shape=detector_shape,
+                                         probe=probe, v=v[view], h=h[view],
+                                         psi=psi[view]))
+    return data

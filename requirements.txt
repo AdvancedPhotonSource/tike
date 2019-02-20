@@ -1,7 +1,7 @@
-numpy
 matplotlib
-openmp
-python
+mpi4py
+numpy
 scipy
+setuptools
 six
-"tomopy>=1.2"
+tomopy>=1.2

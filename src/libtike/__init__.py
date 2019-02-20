@@ -75,8 +75,7 @@ def c_shared_lib(lib_name):
     if os.path.exists(sharedlib):
         return load_dll(sharedlib)
     # cannot find shared lib:
-    logger.warning('OSError: The following shared lib is missing!\n{}'.format(
-                   sharedlib))
+    logger.debug('The following shared lib is missing:\n{}'.format(sharedlib))
 
 
 # Import C shared library called libtike
