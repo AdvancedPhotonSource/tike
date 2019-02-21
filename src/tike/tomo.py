@@ -98,7 +98,7 @@ import tomopy
 import tomopy.util.extern as extern
 import numpy as np
 from . import utils
-from libtike import LIBTIKE
+from tike.libtikepy import LIBTIKE
 import logging
 
 __author__ = "Doga Gursoy, Daniel Ching"

@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from skbuild import setup
+import setuptools
 
 setup(
     name='tike',
-    packages=['tike', 'libtike'],
+    packages=setuptools.find_packages('src'),
     package_dir={'': 'src'},
     setup_requires=['setuptools_scm'],
     use_scm_version=True,

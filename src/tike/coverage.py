@@ -53,7 +53,7 @@ from __future__ import (absolute_import, division, print_function,
 
 import numpy as np
 from . import utils
-from libtike import LIBTIKE
+from tike.libtikepy import LIBTIKE
 import logging
 import ctypes
 
