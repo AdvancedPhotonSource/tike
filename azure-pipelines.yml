@@ -31,7 +31,7 @@ jobs:
       updateConda: True # Optional
   - bash: pycodestyle --count -v .
     displayName: Run python code linter
-  - bash: pydocstyle --match='(?!utils).*\.py' --count -v tike/
+  - bash: pydocstyle --match='(?!utils).*\.py' --count -v src/tike/
     displayName: Run python docstring linter
   - bash: conda build . --no-anaconda-upload -c conda-forge
     displayName: Conda build
