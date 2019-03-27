@@ -45,7 +45,6 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         #
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
-
 """Define functions for modifying trajectories."""
 
 from __future__ import (absolute_import, division, print_function,
@@ -54,9 +53,10 @@ from __future__ import (absolute_import, division, print_function,
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = ['discrete_trajectory',
-           'coded_exposure',
-           ]
+__all__ = [
+    'discrete_trajectory',
+    'coded_exposure',
+]
 
 import logging
 import numpy as np
@@ -80,9 +80,9 @@ def euclidian_dist(theta, v, h, r=0.5):
     dr = np.diff(theta) * r
     # Compute the horizontal and vertical components of displacement
     dv = np.diff(v)
-    dh = np.abs(np.diff(h)) + np.abs(dr*np.cos(theta))
+    dh = np.abs(np.diff(h)) + np.abs(dr * np.cos(theta))
     # Combine displacement components, ignoring component along beam
-    return np.sqrt(dv*dv + dh*dh)
+    return np.sqrt(dv * dv + dh * dh)
 
 
 def euclidian_dist_approx(theta, v, h, r=0.75):
@@ -137,11 +137,8 @@ def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep, tkwargs=None):
     """
     tkwargs = dict() if tkwargs is None else tkwargs
     dist_func = euclidian_dist_approx
-    all_theta, all_v, all_h, all_times = discrete_helper(trajectory,
-                                                         tmin, tmax,
-                                                         xstep, tstep,
-                                                         dist_func,
-                                                         tkwargs=tkwargs)
+    all_theta, all_v, all_h, all_times = discrete_helper(
+        trajectory, tmin, tmax, xstep, tstep, dist_func, tkwargs=tkwargs)
     all_theta = np.concatenate(all_theta)
     all_v = np.concatenate(all_v)
     all_h = np.concatenate(all_h)
@@ -196,10 +193,9 @@ def discrete_helper(
         elif rhi == len_keepit or keepit[rhi]:
             # print("replace: {}, {} with {} tstep".format(rlo, rhi, tstep/2))
             # concatenate the newly calculated region
-            itheta, ih, iv, itimes = discrete_helper(trajectory,
-                                                     times[rlo], times[rhi],
-                                                     xstep, tstep/2,
-                                                     dist_func, tkwargs)
+            itheta, ih, iv, itimes = discrete_helper(
+                trajectory, times[rlo], times[rhi], xstep, tstep / 2, dist_func,
+                tkwargs)
             all_theta += itheta
             all_v += iv
             all_h += ih
@@ -244,11 +240,11 @@ def coded_exposure(theta, v, h, time, dwell, c_time, c_dwell):
     # Implementation uses the assumption that both the measurement times
     # and coded times are monotonically increasing in order to generate the
     # intersection faster than a binary search tree
-    assert(monotonic(time))
-    assert(monotonic(c_time))
+    assert (monotonic(time))
+    assert (monotonic(c_time))
     # Check if any of the codes overlap with measurements
-    if not has_overlap(time[0], dwell[-1] + time[-1] - time[0],
-                       c_time[0], c_dwell[-1] + c_time[-1] - c_time[0]):
+    if not has_overlap(time[0], dwell[-1] + time[-1] - time[0], c_time[0],
+                       c_dwell[-1] + c_time[-1] - c_time[0]):
         raise ValueError("Codes don't overlap measurements.")
         return list(), list(), list(), list(), list(), list()
 
@@ -263,14 +259,14 @@ def coded_exposure(theta, v, h, time, dwell, c_time, c_dwell):
         logger.debug("{}: Measurement {}".format(_fname, measurement))
         for code in range(start, c_time.size):
             logger.debug("{}: Checking code {}".format(_fname, code))
-            if has_overlap(time[measurement], dwell[measurement],
-                           c_time[code], c_dwell[code]):
+            if has_overlap(time[measurement], dwell[measurement], c_time[code],
+                           c_dwell[code]):
                 # Record the intersection
                 t1, d1 = get_overlap(time[measurement], dwell[measurement],
                                      c_time[code], c_dwell[code])
                 if d1 > 0:
-                    logger.debug("{}: Overlap found: {}, {}".format(_fname,
-                                                                    t1, d1))
+                    logger.debug("{}: Overlap found: {}, {}".format(
+                        _fname, t1, d1))
                     codes.append(code)
                     positions.append(measurement)
                     times.append(t1)

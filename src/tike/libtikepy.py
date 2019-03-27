@@ -45,7 +45,6 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         #
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
-
 """Find and load the shared c dynamically linked libraries."""
 
 __author__ = "Daniel Ching"

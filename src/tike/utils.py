@@ -45,7 +45,6 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         #
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
-
 """Define functions for casting python-type data to c-type data.
 
 These functions are used where python interfaces with the c back end.
@@ -54,25 +53,26 @@ These functions are used where python interfaces with the c back end.
 __author__ = "Doga Gursoy"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = ['as_ndarray',
-           'as_dtype',
-           'as_float32',
-           'as_int32',
-           'as_uint8',
-           'as_uint16',
-           'as_c_float_p',
-           'as_c_int',
-           'as_c_int_p',
-           'as_c_float',
-           'as_c_char_p',
-           'as_c_void_p',
-           'as_c_bool']
+__all__ = [
+    'as_ndarray',
+    'as_dtype',
+    'as_float32',
+    'as_int32',
+    'as_uint8',
+    'as_uint16',
+    'as_c_float_p',
+    'as_c_int',
+    'as_c_int_p',
+    'as_c_float',
+    'as_c_char_p',
+    'as_c_void_p',
+    'as_c_bool',
+]
 
 import ctypes
 import logging
 import numpy as np
 import six
-
 
 logger = logging.getLogger(__name__)
 

@@ -45,7 +45,6 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         #
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
-
 """Solve the phase-retrieval problem.
 
 Coordinate Systems
@@ -81,9 +80,10 @@ from __future__ import (absolute_import, division, print_function,
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = ["reconstruct",
-           "simulate",
-           ]
+__all__ = [
+    "reconstruct",
+    "simulate",
+]
 
 import logging
 import numpy as np
@@ -122,7 +122,7 @@ def gaussian(size, rin=0.8, rout=1.0):
 
     """
     r, c = np.mgrid[:size, :size] + 0.5
-    rs = np.sqrt((r - size/2)**2 + (c - size/2)**2)
+    rs = np.sqrt((r - size / 2)**2 + (c - size / 2)**2)
     rmax = np.sqrt(2) * 0.5 * rout * rs.max() + 1.0
     rmin = np.sqrt(2) * 0.5 * rin * rs.max()
     img = np.zeros((size, size), dtype='float32')
@@ -153,9 +153,11 @@ def fast_pad(unpadded_grid, npadv, npadh):
         padded_shape[-2] += 2 * npadv
         padded_shape[-1] += 2 * npadh
         padded_grid = np.zeros(padded_shape, dtype=unpadded_grid.dtype)
-        padded_grid[...,
-                    npadv:padded_shape[-2] - npadv,
-                    npadh:padded_shape[-1] - npadh] = unpadded_grid
+        padded_grid[
+            ...,
+            npadv:padded_shape[-2] - npadv,
+            npadh:padded_shape[-1] - npadh,
+        ] = unpadded_grid  # yapf: disable
         return padded_grid
     return unpadded_grid
 
@@ -187,7 +189,7 @@ def shift_coords(r_min, r_shape, combined_min, combined_shape):
     r_hi = (r_lo + (r_shape + 2)).astype(int)
     if np.any(r_lo < 0) or np.any(r_hi > combined_min + combined_shape + 2):
         raise ValueError("Index {} or {} is off the grid!".format(
-                         np.min(r_lo), np.max(r_hi)))
+            np.min(r_lo), np.max(r_hi)))
     # Find the remainder shift less than 1
     r_shift -= r_shift.astype(int)
     return r_shift, r_lo, r_hi
@@ -222,10 +224,10 @@ def combine_grids(
     """
     grids = grids.astype(np.complex64, casting='same_kind', copy=False)
     m_shape, v_shape, h_shape = grids.shape
-    vshift, V, V1 = shift_coords(v, v_shape,
-                                 combined_corner[-2], combined_shape[-2])
-    hshift, H, H1 = shift_coords(h, h_shape,
-                                 combined_corner[-1], combined_shape[-1])
+    vshift, V, V1 = shift_coords(v, v_shape, combined_corner[-2],
+                                 combined_shape[-2])
+    hshift, H, H1 = shift_coords(h, h_shape, combined_corner[-1],
+                                 combined_shape[-1])
     # Create a summed_grids large enough to hold all of the grids
     # plus some padding to cancel out the padding added for shifting
     grids = fast_pad(grids, 1, 1)
@@ -236,10 +238,8 @@ def combine_grids(
     grids = grids.view(np.float32).reshape(*grids.shape, 2)
     combined = combined.view(np.float32).reshape(*combined.shape, 2)
     for N in range(nprobes):
-        combined[V[N]:V1[N], H[N]:H1[N],
-                 ...] += sni.shift(grids[N],
-                                   [vshift[N], hshift[N], 0],
-                                   order=1)
+        combined[V[N]:V1[N], H[N]:H1[N], ...] += sni.shift(
+            grids[N], [vshift[N], hshift[N], 0], order=1)
     combined = combined.view(np.complex64)
     return combined[1:-1, 1:-1, 0]
 
@@ -274,10 +274,10 @@ def uncombine_grids(
     """
     combined = combined.astype(np.complex64, casting='same_kind', copy=False)
     v_shape, h_shape = grids_shape[-2:]
-    vshift, V, V1 = shift_coords(v, v_shape,
-                                 combined_corner[-2], combined.shape[-2])
-    hshift, H, H1 = shift_coords(h, h_shape,
-                                 combined_corner[-1], combined.shape[-1])
+    vshift, V, V1 = shift_coords(v, v_shape, combined_corner[-2],
+                                 combined.shape[-2])
+    hshift, H, H1 = shift_coords(h, h_shape, combined_corner[-1],
+                                 combined.shape[-1])
     # Create a grids large enough to hold all of the grids
     # plus some padding to cancel out the padding added for shifting
     combined = fast_pad(combined, 1, 1)
@@ -287,10 +287,11 @@ def uncombine_grids(
     grids = grids.view(np.float32).reshape(*grids.shape, 2)
     combined = combined.view(np.float32).reshape(*combined.shape, 2)
     for N in range(nprobes):
-        grids[N] = sni.shift(combined[V[N]:V1[N], H[N]:H1[N], ...],
-                             [-vshift[N], -hshift[N], 0],
-                             order=1,
-                             )[1:-1, 1:-1, ...]
+        grids[N] = sni.shift(
+            combined[V[N]:V1[N], H[N]:H1[N], ...],
+            [-vshift[N], -hshift[N], 0],
+            order=1,
+        )[1:-1, 1:-1, ...]
     return grids.view(np.complex64)[..., 0]
 
 
@@ -331,8 +332,12 @@ def grad(
     wavefront_shape = [h.size, probe.shape[0], probe.shape[1]]
     for i in range(num_iter):
         # combine all wavefronts into one array
-        wavefronts = uncombine_grids(grids_shape=wavefront_shape, v=v, h=h,
-                                     combined=psi, combined_corner=psi_corner)
+        wavefronts = uncombine_grids(
+            grids_shape=wavefront_shape,
+            v=v,
+            h=h,
+            combined=psi,
+            combined_corner=psi_corner)
         # Compute near-plane wavefront
         nearplane = probe * wavefronts
         # Pad before FFT
@@ -341,22 +346,25 @@ def grad(
         farplane = np.fft.fft2(nearplane_pad)
         # Replace the amplitude with the measured amplitude.
         farplane[farplane == 0] = 1  # no division by zero allowed
-        farplane = (np.sqrt(data) * farplane
-                    / np.sqrt(farplane.imag * farplane.imag
-                              + farplane.real * farplane.real))
+        farplane = (np.sqrt(data) * farplane / np.sqrt(
+            farplane.imag * farplane.imag + farplane.real * farplane.real))
         # Back to near-plane.
         new_nearplane = np.fft.ifft2(farplane)[...,
-                                               npadv:npadv+probe.shape[0],
-                                               npadh:npadh+probe.shape[1]]
+                                               npadv:npadv + probe.shape[0],
+                                               npadh:npadh +
+                                               probe.shape[1]]  # yapf: disable
         # Update measurement patch.
         upd_m = probe_inverse * (new_nearplane - nearplane)
         # Combine measurement with other updates
-        upd_psi = combine_grids(grids=upd_m, v=v, h=h,
-                                combined_shape=psi.shape,
-                                combined_corner=psi_corner)
+        upd_psi = combine_grids(
+            grids=upd_m,
+            v=v,
+            h=h,
+            combined_shape=psi.shape,
+            combined_corner=psi_corner)
         # Update psi
-        psi = ((1 - gamma * rho) * psi
-               + gamma * rho * reg  # refactored to reduce inputs
+        psi = ((1 - gamma * rho) * psi +
+               gamma * rho * reg  # refactored to reduce inputs
                + (gamma * 0.5) * upd_psi)
     return psi
 
@@ -364,8 +372,12 @@ def grad(
 def exitwave(probe, v, h, psi, psi_corner=None):
     """Compute the wavefront from probe function and stack of `psi`."""
     wave_shape = [h.size, probe.shape[0], probe.shape[1]]
-    wave = uncombine_grids(grids_shape=wave_shape, v=v, h=h,
-                           combined=psi, combined_corner=psi_corner)
+    wave = uncombine_grids(
+        grids_shape=wave_shape,
+        v=v,
+        h=h,
+        combined=psi,
+        combined_corner=psi_corner)
     return probe * wave
 
 
@@ -380,8 +392,7 @@ def simulate(
         raise TypeError("psi and probe must be complex.")
     probe = probe.astype(np.complex64)
     psi = psi.astype(np.complex64)
-    wavefront = exitwave(probe, v, h,
-                         psi, psi_corner=psi_corner)
+    wavefront = exitwave(probe, v, h, psi, psi_corner=psi_corner)
     npadx = (data_shape[0] - wavefront.shape[-2]) // 2
     npady = (data_shape[1] - wavefront.shape[-1]) // 2
     padded_wave = fast_pad(wavefront, npadx, npady)
@@ -419,8 +430,8 @@ def reconstruct(
         "The size of v, h must be the same as the number of data."
     # Send data to c function
     logger.info("{} on {:,d} - {:,d} by {:,d} grids for {:,d} "
-                "iterations".format(algorithm,
-                                    len(data), *data.shape[1:], num_iter))
+                "iterations".format(algorithm, len(data), *data.shape[1:],
+                                    num_iter))
     # Add new algorithms here
     # TODO: The size of this function may be reduced further if all recon clibs
     #   have a standard interface. Perhaps pass unique params to a generic
@@ -430,9 +441,8 @@ def reconstruct(
                        probe=probe, v=v, h=h,
                        psi=psi, psi_corner=psi_corner,
                        num_iter=num_iter,
-                       **kwargs
-                       )
+                       **kwargs)  # yapf: disable
     else:
-        raise ValueError("The {} algorithm is not an available.".format(
-            algorithm))
+        raise ValueError(
+            "The {} algorithm is not an available.".format(algorithm))
     return new_psi

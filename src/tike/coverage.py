@@ -45,7 +45,6 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         #
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
-
 """Determine the coverage of a scanning trajectory."""
 
 from __future__ import (absolute_import, division, print_function,
@@ -150,7 +149,8 @@ def coverage(
         utils.as_c_float_p(v1),
         utils.as_c_float_p(weights),
         utils.as_c_int(th1.size),
-        utils.as_c_float_p(object_grid))
+        utils.as_c_float_p(object_grid),
+    )
     return object_grid
 
 
@@ -164,10 +164,10 @@ def line_offsets(probe_grid, probe_size):
 
     """
     # Generate a grid of offset vectors
-    gv = (np.linspace(0, probe_size[0], probe_grid.shape[0], endpoint=False)
-          + probe_size[0] / probe_grid.shape[0] / 2)
-    gh = (np.linspace(0, probe_size[1], probe_grid.shape[1], endpoint=False)
-          + probe_size[1] / probe_grid.shape[1] / 2)
+    gv = (np.linspace(0, probe_size[0], probe_grid.shape[0], endpoint=False) +
+          probe_size[0] / probe_grid.shape[0] / 2)
+    gh = (np.linspace(0, probe_size[1], probe_grid.shape[1], endpoint=False) +
+          probe_size[1] / probe_grid.shape[1] / 2)
     dv, dh = np.meshgrid(gv, gh, indexing='ij')
     # Remove zero values
     nonzeros = probe_grid != 0

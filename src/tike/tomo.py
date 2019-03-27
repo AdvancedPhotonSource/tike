@@ -45,7 +45,6 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         #
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
-
 """Define functions for solving the tomography problem.
 
 Coordinate Systems
@@ -97,9 +96,10 @@ from __future__ import (absolute_import, division, print_function,
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = ["reconstruct",
-           "forward",
-           ]
+__all__ = [
+    "reconstruct",
+    "forward",
+]
 
 import numpy as np
 import tomopy
@@ -132,16 +132,18 @@ def reconstruct(
         The updated obj grid.
 
     """
-    lr = tomopy.recon(tomo=line_integrals.real,
-                      theta=theta,
-                      init_recon=obj.real,
-                      **kwargs,
-                      )
-    li = tomopy.recon(tomo=line_integrals.imag,
-                      theta=theta,
-                      init_recon=obj.imag,
-                      **kwargs,
-                      )
+    lr = tomopy.recon(
+        tomo=line_integrals.real,
+        theta=theta,
+        init_recon=obj.real,
+        **kwargs,
+    )
+    li = tomopy.recon(
+        tomo=line_integrals.imag,
+        theta=theta,
+        init_recon=obj.imag,
+        **kwargs,
+    )
     recon = np.empty(lr.shape, dtype=complex)
     recon.real = lr
     recon.imag = li
@@ -154,12 +156,24 @@ def forward(
         **kwargs
 ):  # yapf: disable
     """Compute line integrals over an obj."""
-    lr = tomopy.project(obj=obj.real, theta=theta,
-                        center=None, emission=True, pad=False,
-                        sinogram_order=False, ncore=1, nchunk=1)
-    li = tomopy.project(obj=obj.imag, theta=theta,
-                        center=None, emission=True, pad=False,
-                        sinogram_order=False, ncore=1, nchunk=1)
+    lr = tomopy.project(
+        obj=obj.real,
+        theta=theta,
+        center=None,
+        emission=True,
+        pad=False,
+        sinogram_order=False,
+        ncore=1,
+        nchunk=1)
+    li = tomopy.project(
+        obj=obj.imag,
+        theta=theta,
+        center=None,
+        emission=True,
+        pad=False,
+        sinogram_order=False,
+        ncore=1,
+        nchunk=1)
     line_integrals = np.empty(lr.shape, dtype=np.complex64)
     line_integrals.real = lr
     line_integrals.imag = li
@@ -201,7 +215,7 @@ def project(
         utils.as_float32(center),
         utils.as_float32(tomo),
         utils.as_float32(theta),
-        )
+    )
     if not sinogram_order:
         # rotate to radiograph order
         tomo = np.swapaxes(tomo, 0, 1)  # doesn't copy data
