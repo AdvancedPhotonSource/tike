@@ -60,7 +60,7 @@ import ctypes
 import logging
 import numpy as np
 
-from . import utils
+from tike import utils
 from tike.libtikepy import LIBTIKE
 
 logging.basicConfig(level=logging.INFO)

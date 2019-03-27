@@ -106,7 +106,7 @@ import tomopy
 import tomopy.util.extern as extern
 
 import logging
-from . import utils
+from tike import utils
 from tike.libtikepy import LIBTIKE
 
 logging.basicConfig(level=logging.INFO)
