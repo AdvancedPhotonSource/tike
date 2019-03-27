@@ -78,4 +78,4 @@ def c_shared_lib(lib_name):
 
 
 # Import C shared library called libtike
-LIBTIKE = c_shared_lib('libtike')
+LIBTIKE = c_shared_lib('_libtike')

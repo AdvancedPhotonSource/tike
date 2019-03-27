@@ -61,7 +61,7 @@ import logging
 import numpy as np
 
 from tike import utils
-from tike.libtikepy import LIBTIKE
+from tike.libtike import LIBTIKE
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

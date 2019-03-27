@@ -107,7 +107,6 @@ import tomopy.util.extern as extern
 
 import logging
 from tike import utils
-from tike.libtikepy import LIBTIKE
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
