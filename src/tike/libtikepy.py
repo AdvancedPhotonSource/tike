@@ -48,15 +48,15 @@
 
 """Find and load the shared c dynamically linked libraries."""
 
-import ctypes
-import sys
-import os.path
-import logging
-
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = ['LIBTIKE']
+
+import ctypes
+import logging
+import os.path
+import sys
 
 logger = logging.getLogger(__name__)
 

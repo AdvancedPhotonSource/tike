@@ -51,13 +51,6 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import numpy as np
-import logging
-import tike.tomo
-import tike.ptycho
-from tike.constants import *
-from tike.communicator import MPICommunicator
-
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
@@ -65,6 +58,14 @@ __all__ = ['admm',
            'simulate',
            ]
 
+import logging
+
+import numpy as np
+
+from tike.communicator import MPICommunicator
+from tike.constants import *
+import tike.ptycho
+import tike.tomo
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -75,7 +76,7 @@ def _combined_interface(
         data,
         probe, theta, v, h,
         **kwargs
-):
+):  # yapf:disable
     """Define an interface that all functions in this module match."""
     assert np.all(obj_size > 0), "Detector dimensions must be > 0."
     assert np.all(probe_size > 0), "Probe dimensions must be > 0."
@@ -94,7 +95,7 @@ def admm(
         num_iter=1, rho=0.5, gamma=0.25, pkwargs=None, tkwargs=None,
         comm=None,
         **kwargs
-):
+):  # yapf:disable
     """Solve using the Alternating Direction Method of Multipliers (ADMM).
 
     Parameters
@@ -184,11 +185,11 @@ def admm(
 
 
 def simulate(
-    obj, voxelsize,
-    probe, theta, v, h, energy,
-    detector_shape,
-    comm=None
-):
+        obj, voxelsize,
+        probe, theta, v, h, energy,
+        detector_shape,
+        comm=None
+):  # yapf:disable
     """Simulate data acquisition from an object, probe, and positions."""
     comm = MPICommunicator() if comm is None else comm
     # Tomography simulation

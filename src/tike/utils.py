@@ -51,12 +51,6 @@
 These functions are used where python interfaces with the c back end.
 """
 
-import ctypes
-import numpy as np
-import six
-import logging
-
-
 __author__ = "Doga Gursoy"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
@@ -73,6 +67,11 @@ __all__ = ['as_ndarray',
            'as_c_char_p',
            'as_c_void_p',
            'as_c_bool']
+
+import ctypes
+import logging
+import numpy as np
+import six
 
 
 logger = logging.getLogger(__name__)

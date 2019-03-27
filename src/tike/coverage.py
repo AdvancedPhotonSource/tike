@@ -51,17 +51,18 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import numpy as np
-from . import utils
-from tike.libtikepy import LIBTIKE
-import logging
-import ctypes
-
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = "restructuredtext en"
 __all__ = ["coverage"]
 
+import ctypes
+
+import logging
+import numpy as np
+
+from . import utils
+from tike.libtikepy import LIBTIKE
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -71,7 +72,7 @@ def coverage(
         object_grid, object_corner, object_size,
         probe_grid, probe_size, theta, v, h,
         dwell=None, **kwargs
-):
+):  # yapf: disable
     """Return a coverage map using this probe.
 
     The intersection between each line and each pixel is approximated by

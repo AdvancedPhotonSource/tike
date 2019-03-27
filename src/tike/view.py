@@ -51,12 +51,6 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import matplotlib.pyplot as plt
-from matplotlib import ticker
-import numpy as np
-import logging
-
-
 __author__ = "Doga Gursoy"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
@@ -66,6 +60,12 @@ __all__ = ['plot_complex',
            'plot_footprint',
            'plot_trajectories',
            'plot_sino_coverage']
+
+import logging
+
+from matplotlib import ticker
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 logger = logging.getLogger(__name__)
@@ -156,8 +156,10 @@ def plot_footprint(theta, v, h):
     plt.xlabel("h")
 
 
-def plot_sino_coverage(theta, v, h, dwell=None, bins=[16, 8, 4],
-                       probe_grid=[[1]], probe_size=(0, 0)):
+def plot_sino_coverage(
+        theta, v, h, dwell=None, bins=[16, 8, 4],
+        probe_grid=[[1]], probe_size=(0, 0)
+):  # yapf: disable
     """Plot projections of minimum coverage in the sinogram space."""
     # Wrap theta into [0, pi)
     theta = theta % (np.pi)

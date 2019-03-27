@@ -51,9 +51,6 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import numpy as np
-import logging
-
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
@@ -61,6 +58,8 @@ __all__ = ['discrete_trajectory',
            'coded_exposure',
            ]
 
+import logging
+import numpy as np
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -165,7 +164,7 @@ def discrete_trajectory(trajectory, tmin, tmax, xstep, tstep, tkwargs=None):
 def discrete_helper(
         trajectory, tmin, tmax, xstep, tstep, dist_func,
         tkwargs=None
-):
+):  # yapf: disable
     """Do a recursive sampling of the trajectory."""
     tkwargs = dict() if tkwargs is None else tkwargs
     all_theta, all_v = list(), list()

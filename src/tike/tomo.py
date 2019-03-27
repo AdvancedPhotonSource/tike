@@ -94,13 +94,6 @@ kwargs
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import tomopy
-import tomopy.util.extern as extern
-import numpy as np
-from . import utils
-from tike.libtikepy import LIBTIKE
-import logging
-
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
@@ -108,6 +101,13 @@ __all__ = ["reconstruct",
            "forward",
            ]
 
+import numpy as np
+import tomopy
+import tomopy.util.extern as extern
+
+import logging
+from . import utils
+from tike.libtikepy import LIBTIKE
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -118,7 +118,7 @@ def reconstruct(
         theta,
         line_integrals,
         **kwargs
-):
+):  # yapf: disable
     """Reconstruct the `obj` using the given `algorithm`.
 
     Parameters
@@ -152,7 +152,7 @@ def forward(
         obj,
         theta,
         **kwargs
-):
+):  # yapf: disable
     """Compute line integrals over an obj."""
     lr = tomopy.project(obj=obj.real, theta=theta,
                         center=None, emission=True, pad=False,
@@ -171,7 +171,7 @@ def project(
         theta,
         center=None,
         sinogram_order=False,
-        ):
+):  # yapf: disable
     """
     Project x-rays through a given 3D object.
 

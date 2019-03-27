@@ -78,10 +78,6 @@ kwargs
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import numpy as np
-import logging
-import scipy.ndimage.interpolation as sni
-
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
@@ -89,6 +85,9 @@ __all__ = ["reconstruct",
            "simulate",
            ]
 
+import logging
+import numpy as np
+import scipy.ndimage.interpolation as sni
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -197,7 +196,7 @@ def shift_coords(r_min, r_shape, combined_min, combined_shape):
 def combine_grids(
         grids, v, h,
         combined_shape, combined_corner
-):
+):  # yapf: disable
     """Combine grids by summation.
 
     Multiple grids are interpolated onto a single combined grid using
@@ -248,7 +247,7 @@ def combine_grids(
 def uncombine_grids(
         grids_shape, v, h,
         combined, combined_corner
-):
+):  # yapf: disable
     """Extract a series of grids from a single grid.
 
     The grids are interpolated onto the combined grid using bilinear
@@ -301,7 +300,7 @@ def grad(
         psi, psi_corner,
         reg=0j, num_iter=1, rho=0, gamma=0.25, epsilon=1e-8,
         **kwargs
-):
+):  # yapf: disable
     """Use gradient descent to estimate `psi`.
 
     Parameters
@@ -375,7 +374,7 @@ def simulate(
         probe, v, h,
         psi, psi_corner=(0, 0),
         **kwargs
-):
+):  # yapf: disable
     """Propagate the wavefront to the detector."""
     if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)):
         raise TypeError("psi and probe must be complex.")
@@ -394,7 +393,7 @@ def reconstruct(
         probe, v, h,
         psi, psi_corner=(0, 0),
         algorithm=None, num_iter=1, **kwargs
-):
+):  # yapf: disable
     """Reconstruct the `psi` and `probe` using the given `algorithm`.
 
     Parameters

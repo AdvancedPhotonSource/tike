@@ -55,9 +55,6 @@ parameters.
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import numpy as np
-import logging
-
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
@@ -78,6 +75,8 @@ __all__ = ['scantimes',
            'distance',
            'billiard']
 
+import logging
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
