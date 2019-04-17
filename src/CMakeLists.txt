@@ -10,7 +10,7 @@ endforeach(file)
 
 add_library(tike SHARED ${SOURCE_FILES})
 
-set_target_properties(tike PROPERTIES PREFIX "lib" C_STANDARD 11)
+set_target_properties(tike PROPERTIES PREFIX "_lib" C_STANDARD 11)
 
 if(WIN32)
   install(TARGETS tike RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/src/tike)

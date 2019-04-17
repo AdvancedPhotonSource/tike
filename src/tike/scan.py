@@ -45,7 +45,6 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         #
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
-
 """Define building blocks of scanning trajectories and related functions.
 
 Each trajectory returns position as a function of time and some other
@@ -55,29 +54,30 @@ parameters.
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import numpy as np
-import logging
-
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = ['scantimes',
-           'sinusoid',
-           'triangle',
-           'triangle_fs',
-           'sawtooth',
-           'square',
-           'staircase',
-           'lissajous',
-           'raster',
-           'spiral',
-           'diagonal',
-           'scan3',
-           'avgspeed',
-           'lengths',
-           'distance',
-           'billiard']
+__all__ = [
+    'scantimes',
+    'sinusoid',
+    'triangle',
+    'triangle_fs',
+    'sawtooth',
+    'square',
+    'staircase',
+    'lissajous',
+    'raster',
+    'spiral',
+    'diagonal',
+    'scan3',
+    'avgspeed',
+    'lengths',
+    'distance',
+    'billiard',
+]
 
+import logging
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ def _periodic_function_interface(t, A=0.5, f=60, p=0):
 
 def f2w(f):
     """Return the angular frequency [rad] from the given frequency."""
-    return 2*np.pi*f
+    return 2 * np.pi * f
 
 
 def period(f):
@@ -116,7 +116,7 @@ def period(f):
 
 def scantimes(t0, t1, f=60):
     """Return times in the range [t0, t1) at the given frequency (f)."""
-    return np.linspace(t0, t1, (t1-t0)*f, endpoint=False)
+    return np.linspace(t0, t1, (t1 - t0) * f, endpoint=False)
 
 
 def sinusoid(A, f, p, t):
@@ -135,7 +135,7 @@ def sinusoid(A, f, p, t):
 
     """
     w = f2w(f)
-    return A * np.sin(w*t - p)
+    return A * np.sin(w * t - p)
 
 
 def triangle(A, f, p, t):
@@ -154,7 +154,7 @@ def triangle(A, f, p, t):
 
     """
     w = f2w(f)
-    return A * 2 / np.pi * np.arcsin(np.sin(w*t - p))
+    return A * 2 / np.pi * np.arcsin(np.sin(w * t - p))
 
 
 def triangle_fs(A, f, p, t, N=8):
@@ -164,8 +164,8 @@ def triangle_fs(A, f, p, t, N=8):
     """
     w = f2w(f)
     x = np.sin(w * t - p)
-    for n in range(3, 2*N, 2):
-        x += (-1)**((n-1) / 2) / (n * n) * np.sin(n * (w * t - p))
+    for n in range(3, 2 * N, 2):
+        x += (-1)**((n - 1) / 2) / (n * n) * np.sin(n * (w * t - p))
 
     return A * 8 / np.pi / np.pi * x
 
@@ -185,7 +185,7 @@ def sawtooth(A, f, p, t):
         The phase shift of the function
 
     """
-    ts = t*f - p/(2*np.pi)
+    ts = t * f - p / (2 * np.pi)
     q = np.floor(ts + 0.5)
     return A * (2 * (ts - q))
 
@@ -205,8 +205,8 @@ def square(A, f, p, t):
         The phase shift of the function
 
     """
-    ts = t - p/(2*np.pi)/f
-    return A * (np.power(-1, np.floor(2*f*ts)))
+    ts = t - p / (2 * np.pi) / f
+    return A * (np.power(-1, np.floor(2 * f * ts)))
 
 
 def staircase(A, f, p, t):
@@ -224,7 +224,7 @@ def staircase(A, f, p, t):
         The phase shift of the function
 
     """
-    ts = t*f - p/(2*np.pi)
+    ts = t * f - p / (2 * np.pi)
     return A * np.floor(ts)
 
 
@@ -281,7 +281,7 @@ def raster(A, B, f, x0, y0, t):
         Starting positions of the raster
 
     """
-    x = 0.5 * (triangle(A, 0.5*f, 0.5*np.pi, t) + A) + x0
+    x = 0.5 * (triangle(A, 0.5 * f, 0.5 * np.pi, t) + A) + x0
     y = staircase(B, f, 0, t) + y0
     return x, y
 
@@ -333,15 +333,15 @@ def diagonal(A, B, fx, fy, px, py, t):
         The phase shifts of the x and y components of the function
 
     """
-    x = triangle(A, fx, px+np.pi/2, t)
-    y = triangle(B, fy, py+np.pi/2, t)
+    x = triangle(A, fx, px + np.pi / 2, t)
+    y = triangle(B, fy, py + np.pi / 2, t)
     return x, y
 
 
 def scan3(A, B, fx, fy, fz, px, py, time, hz):
     """Return a 3D combination of lissajous and sawtooth trajectories."""
     x, y, t = lissajous(A, B, fx, fy, px, py, time, hz)
-    z = sawtooth(np.pi, 0.5*fz, 0.5*np.pi, t, hz)
+    z = sawtooth(np.pi, 0.5 * fz, 0.5 * np.pi, t, hz)
     return z, x, y, t
 
 
@@ -359,7 +359,7 @@ def lengths(x, y=None, z=None):
     a = np.diff(x)
     b = np.diff(y)
     c = np.diff(z)
-    return np.sqrt(a*a + b*b + c*c)
+    return np.sqrt(a * a + b * b + c * c)
 
 
 def distance(x, y=None, z=None):

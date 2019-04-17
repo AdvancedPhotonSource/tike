@@ -45,26 +45,25 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         #
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
-
 """Define universal constants and physical relation functions."""
 
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import numpy as np
-
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = "restructuredtext en"
 __all__ = [
-           "PLANCK_CONSTANT",
-           "SPEED_OF_LIGHT",
-           "wavelength",
-           "wavenumber",
-           "complex_amplitude",
-           "complex_intensity",
-           "complex_phase",
-           ]
+    "PLANCK_CONSTANT",
+    "SPEED_OF_LIGHT",
+    "wavelength",
+    "wavenumber",
+    "complex_amplitude",
+    "complex_intensity",
+    "complex_phase",
+]
+
+import numpy as np
 
 PLANCK_CONSTANT = 6.58211928e-19  # [keV*s]
 SPEED_OF_LIGHT = 299792458e+2  # [cm/s]

@@ -45,26 +45,27 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         #
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
-
 """Define the highest level functions for solving ptycho-tomography problem."""
 
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import numpy as np
-import logging
-import tike.tomo
-import tike.ptycho
-from tike.constants import *
-from tike.communicator import MPICommunicator
-
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = ['admm',
-           'simulate',
-           ]
+__all__ = [
+    'admm',
+    'simulate',
+]
 
+import logging
+
+import numpy as np
+
+from tike.communicator import MPICommunicator
+from tike.constants import *
+import tike.ptycho
+import tike.tomo
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -75,7 +76,7 @@ def _combined_interface(
         data,
         probe, theta, v, h,
         **kwargs
-):
+):  # yapf:disable
     """Define an interface that all functions in this module match."""
     assert np.all(obj_size > 0), "Detector dimensions must be > 0."
     assert np.all(probe_size > 0), "Probe dimensions must be > 0."
@@ -94,7 +95,7 @@ def admm(
         num_iter=1, rho=0.5, gamma=0.25, pkwargs=None, tkwargs=None,
         comm=None,
         **kwargs
-):
+):  # yapf:disable
     """Solve using the Alternating Direction Method of Multipliers (ADMM).
 
     Parameters
@@ -132,11 +133,13 @@ def admm(
     plog.setLevel(logging.WARNING)
     tlog.setLevel(logging.WARNING)
     # Ptychography setup
-    psi = np.ones([
-        len(data),  # The number of views.
-        np.sum(comm.allgather(obj.shape[0])),  # The height of psi.
-        obj.shape[2],  # The width of psi.
-    ], dtype=np.complex64)
+    psi = np.ones(
+        [
+            len(data),  # The number of views.
+            np.sum(comm.allgather(obj.shape[0])),  # The height of psi.
+            obj.shape[2],  # The width of psi.
+        ],
+        dtype=np.complex64)
     logger.debug("psi shape is {}".format(psi.shape))
     hobj = np.ones_like(psi)
     lamda = np.zeros_like(psi)
@@ -163,15 +166,13 @@ def admm(
                                                 v=v[view], h=h[view],
                                                 psi=psi[view],
                                                 rho=rho, gamma=gamma, reg=reg,
-                                                **pkwargs)
+                                                **pkwargs)  # yapf: disable
         # Tomography.
         phi = -1j / wavenumber(energy) * np.log(psi + lamda / rho) / voxelsize
         # Tomography
         phi = comm.get_tomo_slice(phi)
-        x = tike.tomo.reconstruct(obj=x,
-                                  theta=theta,
-                                  line_integrals=phi,
-                                  **tkwargs)
+        x = tike.tomo.reconstruct(
+            obj=x, theta=theta, line_integrals=phi, **tkwargs)
         # Lambda update.
         line_integrals = tike.tomo.forward(obj=x, theta=theta) * voxelsize
         hobj = np.exp(1j * wavenumber(energy) * line_integrals)
@@ -184,11 +185,11 @@ def admm(
 
 
 def simulate(
-    obj, voxelsize,
-    probe, theta, v, h, energy,
-    detector_shape,
-    comm=None
-):
+        obj, voxelsize,
+        probe, theta, v, h, energy,
+        detector_shape,
+        comm=None
+):  # yapf:disable
     """Simulate data acquisition from an object, probe, and positions."""
     comm = MPICommunicator() if comm is None else comm
     # Tomography simulation
@@ -198,7 +199,11 @@ def simulate(
     # Ptychography simulation
     data = list()
     for view in range(len(psi)):
-        data.append(tike.ptycho.simulate(data_shape=detector_shape,
-                                         probe=probe, v=v[view], h=h[view],
-                                         psi=psi[view]))
+        data.append(
+            tike.ptycho.simulate(
+                data_shape=detector_shape,
+                probe=probe,
+                v=v[view],
+                h=h[view],
+                psi=psi[view]))
     return data

@@ -3,15 +3,16 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import logging
-import numpy as np
-from mpi4py import MPI
-import pickle
-
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = ['MPICommunicator']
+
+import logging
+import pickle
+
+from mpi4py import MPI
+import numpy as np
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -100,7 +101,7 @@ class MPICommunicator(object):
             probe, energy,
             theta, v, h,
             detector_shape,
-        ) = [None] * 8
+        ) = [None] * 8  # yapf: disable
         # Load the data on one rank
         if self.rank == 0:
             with open(filename, 'rb') as file:
@@ -109,7 +110,7 @@ class MPICommunicator(object):
                     probe, energy,
                     theta, v, h,
                     detector_shape,
-                ) = pickle.load(file)
+                ) = pickle.load(file)  # yapf: disable
         # Distribute the variables appropriately to each rank
         (
             voxelsize,
@@ -121,11 +122,11 @@ class MPICommunicator(object):
             probe, energy,
             theta,
             detector_shape,
-        )
+        )  # yapf: disable
         obj, v, h, = self.scatter(obj, v, h)
         return (
             obj, voxelsize,
             probe, energy,
             theta, v, h,
             detector_shape,
-        )
+        )  # yapf: disable

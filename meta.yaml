@@ -24,7 +24,7 @@ requirements:
     - scikit-build
     - setuptools_scm
   run:
-    - 'numpy<1.16.1'
+    - numpy
     - matplotlib
     - mpi4py
     - numpy

@@ -45,7 +45,6 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         #
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
-
 """Import all submodules in the `tike` namespace.
 
 This file tells import which submodules exist in the `tike` namespace and what
@@ -56,6 +55,8 @@ API.
 
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
+
+import logging
 from pkg_resources import get_distribution, DistributionNotFound
 
 from tike.communicator import *
@@ -66,7 +67,6 @@ from tike.tike import *
 from tike.tomo import *
 from tike.trajectory import *
 from tike.view import *
-import logging
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 

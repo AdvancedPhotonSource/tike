@@ -45,18 +45,17 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         #
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
-
 """Find and load the shared c dynamically linked libraries."""
-
-import ctypes
-import sys
-import os.path
-import logging
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = ['LIBTIKE']
+
+import ctypes
+import logging
+import os.path
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -79,4 +78,4 @@ def c_shared_lib(lib_name):
 
 
 # Import C shared library called libtike
-LIBTIKE = c_shared_lib('libtike')
+LIBTIKE = c_shared_lib('_libtike')
