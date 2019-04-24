@@ -325,12 +325,11 @@ def grad(
     psi = psi.astype(np.complex64)
     # Compute weights for updates from each illumination
     update_weights = combine_grids(
-            grids=np.tile(np.abs(probe)[np.newaxis, ...], [len(data), 1, 1]),
-            v=v,
-            h=h,
-            combined_shape=psi.shape,
-            combined_corner=psi_corner
-    )
+        grids=np.tile(np.abs(probe)[np.newaxis, ...], [len(data), 1, 1]),
+        v=v, h=h,
+        combined_shape=psi.shape,
+        combined_corner=psi_corner,
+    )  # yapf: disable
     update_weights[update_weights == 0] = 1
     detector_shape = data.shape[1:]
     for i in range(num_iter):
@@ -338,16 +337,16 @@ def grad(
             detector_shape,
             probe=probe, v=v, h=h,
             psi=psi, psi_corner=psi_corner,
-        )
+        )  # yapf: disable
         # Updates for each illumination patch
         grad = _backward(
             farplane - data / np.conjugate(farplane),
             probe=probe, v=v, h=h,
             psi_shape=psi.shape, psi_corner=psi_corner,
             weights=update_weights,
-        )
+        )  # yapf: disable
         # grad -= rho * (reg - psi + lamda / rho)
-        psi = psi -grad
+        psi = psi - grad
     return psi
 
 
@@ -370,11 +369,11 @@ def _backward(
                                        npadh:npadh +
                                        probe.shape[1]]  # yapf: disable
     return combine_grids(
-            grids=nearplane * np.abs(probe),
-            v=v,
-            h=h,
-            combined_shape=psi_shape,
-            combined_corner=psi_corner
+        grids=nearplane * np.abs(probe),
+        v=v,
+        h=h,
+        combined_shape=psi_shape,
+        combined_corner=psi_corner,
     ) / weights
 
 
@@ -386,7 +385,8 @@ def _exitwave(probe, v, h, psi, psi_corner=None):
         v=v,
         h=h,
         combined=psi,
-        combined_corner=psi_corner)
+        combined_corner=psi_corner,
+    )
     return probe * wave
 
 
@@ -418,7 +418,8 @@ def simulate(
 
     Return real-valued intensities measured by the detector.
     """
-    return np.square(np.abs(_forward(data_shape, probe, v, h, psi, psi_corner, **kwargs)))
+    return np.square(
+        np.abs(_forward(data_shape, probe, v, h, psi, psi_corner, **kwargs)))
 
 
 def reconstruct(
