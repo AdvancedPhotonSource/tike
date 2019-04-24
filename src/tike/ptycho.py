@@ -323,54 +323,59 @@ def grad(
     data = data.astype(np.float32)
     probe = probe.astype(np.complex64)
     psi = psi.astype(np.complex64)
-    # Compute padding between probe and detector size
-    npadv = (data.shape[1] - probe.shape[0]) // 2
-    npadh = (data.shape[2] - probe.shape[1]) // 2
-    # Compute probe inverse
-    # TODO: Update the probe too
-    probe_inverse = np.conj(probe) / np.max(np.square(np.abs(np.conj(probe))))
-    wavefront_shape = [h.size, probe.shape[0], probe.shape[1]]
-    for i in range(num_iter):
-        # combine all wavefronts into one array
-        wavefronts = uncombine_grids(
-            grids_shape=wavefront_shape,
-            v=v,
-            h=h,
-            combined=psi,
-            combined_corner=psi_corner)
-        # Compute near-plane wavefront
-        nearplane = probe * wavefronts
-        # Pad before FFT
-        nearplane_pad = fast_pad(nearplane, npadv, npadh)
-        # Go far-plane
-        farplane = np.fft.fft2(nearplane_pad)
-        # Replace the amplitude with the measured amplitude.
-        farplane[farplane == 0] = 1  # no division by zero allowed
-        farplane = (np.sqrt(data) * farplane / np.sqrt(
-            farplane.imag * farplane.imag + farplane.real * farplane.real))
-        # Back to near-plane.
-        new_nearplane = np.fft.ifft2(farplane)[...,
-                                               npadv:npadv + probe.shape[0],
-                                               npadh:npadh +
-                                               probe.shape[1]]  # yapf: disable
-        # Update measurement patch.
-        upd_m = probe_inverse * (new_nearplane - nearplane)
-        # Combine measurement with other updates
-        upd_psi = combine_grids(
-            grids=upd_m,
+    # Compute weights for updates from each illumination
+    update_weights = combine_grids(
+            grids=np.ones([len(data), *probe.shape], dtype=np.float32) * probe.real,
             v=v,
             h=h,
             combined_shape=psi.shape,
-            combined_corner=psi_corner)
-        # Update psi
-        psi = ((1 - gamma * rho) * psi +
-               gamma * rho * reg  # refactored to reduce inputs
-               + (gamma * 0.5) * upd_psi)
+            combined_corner=psi_corner
+    )
+    update_weights[update_weights == 0] = 1
+    detector_shape = data.shape[1:]
+    for i in range(num_iter):
+        farplane = _forward(
+            detector_shape,
+            probe=probe, v=v, h=h,
+            psi=psi, psi_corner=psi_corner,
+        )
+        # Updates for each illumination patch
+        grad = _backward(
+            farplane - data / np.conjugate(farplane),
+            probe=probe, v=v, h=h,
+            psi_shape=psi.shape, psi_corner=psi_corner,
+            weights=update_weights,
+        )
+        # grad -= rho * (reg - psi + lamda / rho)
+        psi = psi -grad
     return psi
 
 
+def _backward(
+        farplane,
+        probe, v, h,
+        psi_shape, psi_corner=(0, 0),
+        weights=1,
+):  # yapf: disable
+    """Compute the nearplane complex wavefronts from the farfield and probe."""
+    npadv = (farplane.shape[1] - probe.shape[0]) // 2
+    npadh = (farplane.shape[2] - probe.shape[1]) // 2
+    nearplane = np.fft.ifft2(farplane)[...,
+                                       npadv:npadv + probe.shape[0],
+                                       npadh:npadh +
+                                       probe.shape[1]]  # yapf: disable
+    return combine_grids(
+            grids=nearplane * np.abs(probe),
+            v=v,
+            h=h,
+            combined_shape=psi_shape,
+            combined_corner=psi_corner
+    ) / weights
+
+
+
 def exitwave(probe, v, h, psi, psi_corner=None):
-    """Compute the wavefront from probe function and stack of `psi`."""
+    """Combine the probe with the nearplane complex wavefront."""
     wave_shape = [h.size, probe.shape[0], probe.shape[1]]
     wave = uncombine_grids(
         grids_shape=wave_shape,
@@ -381,13 +386,13 @@ def exitwave(probe, v, h, psi, psi_corner=None):
     return probe * wave
 
 
-def simulate(
+def _forward(
         data_shape,
         probe, v, h,
         psi, psi_corner=(0, 0),
         **kwargs
 ):  # yapf: disable
-    """Propagate the wavefront to the detector."""
+    """Compute the farplane complex wavefront."""
     if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)):
         raise TypeError("psi and probe must be complex.")
     probe = probe.astype(np.complex64)
@@ -396,7 +401,20 @@ def simulate(
     npadx = (data_shape[0] - wavefront.shape[-2]) // 2
     npady = (data_shape[1] - wavefront.shape[-1]) // 2
     padded_wave = fast_pad(wavefront, npadx, npady)
-    return np.square(np.abs(np.fft.fft2(padded_wave)))
+    return np.fft.fft2(padded_wave)
+
+
+def simulate(
+        data_shape,
+        probe, v, h,
+        psi, psi_corner=(0, 0),
+        **kwargs
+):  # yapf: disable
+    """Propagate the wavefront to the detector.
+
+    Return real-valued intensities measured by the detector.
+    """
+    return np.square(np.abs(_forward(data_shape, probe, v, h, psi, psi_corner, **kwargs)))
 
 
 def reconstruct(
