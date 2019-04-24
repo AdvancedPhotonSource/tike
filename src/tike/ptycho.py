@@ -325,7 +325,7 @@ def grad(
     psi = psi.astype(np.complex64)
     # Compute weights for updates from each illumination
     update_weights = combine_grids(
-            grids=np.ones([len(data), *probe.shape], dtype=np.float32) * probe.real,
+            grids=np.tile(np.abs(probe)[np.newaxis, ...], [len(data), 1, 1]),
             v=v,
             h=h,
             combined_shape=psi.shape,
