@@ -357,7 +357,12 @@ def _backward(
         psi_shape, psi_corner=(0, 0),
         weights=1,
 ):  # yapf: disable
-    """Compute the nearplane complex wavefronts from the farfield and probe."""
+    """Compute the nearplane complex wavefronts from the farfield and probe.
+
+    The inverse ptychography operator. Computes the inverse Fourier transform
+    of a series of farplane measurements, the combines these illuminations
+    into a single psi using a weighted average.
+    """
     npadv = (farplane.shape[1] - probe.shape[0]) // 2
     npadh = (farplane.shape[2] - probe.shape[1]) // 2
     nearplane = np.fft.ifft2(farplane)[...,
@@ -373,8 +378,7 @@ def _backward(
     ) / weights
 
 
-
-def exitwave(probe, v, h, psi, psi_corner=None):
+def _exitwave(probe, v, h, psi, psi_corner=None):
     """Combine the probe with the nearplane complex wavefront."""
     wave_shape = [h.size, probe.shape[0], probe.shape[1]]
     wave = uncombine_grids(
@@ -387,7 +391,7 @@ def exitwave(probe, v, h, psi, psi_corner=None):
 
 
 def _forward(
-        data_shape,
+        detector_shape,
         probe, v, h,
         psi, psi_corner=(0, 0),
         **kwargs
@@ -397,9 +401,9 @@ def _forward(
         raise TypeError("psi and probe must be complex.")
     probe = probe.astype(np.complex64)
     psi = psi.astype(np.complex64)
-    wavefront = exitwave(probe, v, h, psi, psi_corner=psi_corner)
-    npadx = (data_shape[0] - wavefront.shape[-2]) // 2
-    npady = (data_shape[1] - wavefront.shape[-1]) // 2
+    wavefront = _exitwave(probe, v, h, psi, psi_corner=psi_corner)
+    npadx = (detector_shape[0] - wavefront.shape[-2]) // 2
+    npady = (detector_shape[1] - wavefront.shape[-1]) // 2
     padded_wave = fast_pad(wavefront, npadx, npady)
     return np.fft.fft2(padded_wave)
 
