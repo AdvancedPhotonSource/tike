@@ -64,8 +64,8 @@ data : (M, V, H) :py:class:`numpy.array` float
     direction) and `V` pixels tall (the vertical direction).
 probe : (V, H) :py:class:`numpy.array` complex
     The single illumination function of the `M` probes.
-psi : (T, V, H) :py:class:`numpy.array` complex
-    The object transmission function for each of the `T` views.
+psi : (V, H) :py:class:`numpy.array` complex
+    The object transmission function (for the current view).
 foo_corner : (2, ) float [p]
     The min corner (v, h) of `foo` in the global coordinate system. `foo`
     could be `data`, `psi`, etc.
@@ -306,7 +306,7 @@ def grad(
 
     Parameters
     ----------
-    reg : (T, V, H, P) :py:class:`numpy.array` complex
+    reg : (V, H, P) :py:class:`numpy.array` complex
         The regularizer for psi. (h - lamda / rho)
     rho : float
         The positive penalty parameter. It should be less than 1.
