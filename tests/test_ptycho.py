@@ -101,8 +101,8 @@ class TestPtychoRecon(unittest.TestCase):
         self.probe = weights * np.exp(1j * weights * 0.2)
 
         self.v, self.h = np.meshgrid(
-            np.linspace(0, amplitude.shape[0]-pw, 13, endpoint=False),
-            np.linspace(0, amplitude.shape[0]-pw, 13, endpoint=False),
+            np.linspace(0, amplitude.shape[0]-pw, 13, endpoint=True),
+            np.linspace(0, amplitude.shape[0]-pw, 13, endpoint=True),
             indexing='ij'
             )
 
@@ -169,6 +169,30 @@ class TestPtychoRecon(unittest.TestCase):
             reg=1+0j
             )
         recon_file = os.path.join(testdir, 'data/ptycho_grad.pickle.lzma')
+        try:
+            with lzma.open(recon_file, 'rb') as file:
+                standard = pickle.load(file)
+        except FileNotFoundError as e:
+            with lzma.open(recon_file, 'wb') as file:
+                pickle.dump(new_psi, file)
+            raise e
+        np.testing.assert_allclose(new_psi, standard, rtol=1e-3)
+
+    def test_consistent_cgrad(self):
+        """Check ptycho.cgrad for consistency."""
+        new_psi = tike.ptycho.reconstruct(
+            data=self.data,
+            probe=self.probe,
+            v=self.v,
+            h=self.h,
+            psi=np.ones_like(self.original),
+            algorithm='cgrad',
+            num_iter=10,
+            rho=0.5,
+            gamma=0.25,
+            reg=1+0j
+            )
+        recon_file = os.path.join(testdir, 'data/ptycho_cgrad.pickle.lzma')
         try:
             with lzma.open(recon_file, 'rb') as file:
                 standard = pickle.load(file)
