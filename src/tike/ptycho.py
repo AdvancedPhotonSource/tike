@@ -299,7 +299,7 @@ def grad(
         data,
         probe, v, h,
         psi, psi_corner,
-        reg=0j, num_iter=1, rho=0, gamma=0.25, epsilon=1e-8,
+        reg=0j, num_iter=1, rho=0, gamma=0.25,
         **kwargs
 ):  # yapf: disable
     """Use gradient descent to estimate `psi`.
@@ -312,9 +312,6 @@ def grad(
         The positive penalty parameter. It should be less than 1.
     gamma : float
         The ptychography gradient descent step size.
-    epsilon : float
-        Primal residual absolute termination criterion.
-        TODO:@Selin Create better description
     """
     if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)
             and np.iscomplexobj(reg)):
@@ -405,6 +402,7 @@ def cgrad(
     )  # yapf: disable
     update_weights[update_weights == 0] = 1
     detector_shape = data.shape[1:]
+
     # Define the function that we are minimizing
     def maximum_a_posteriori_probability(psi):
         """Return the probability that psi is correct given the data."""
@@ -415,6 +413,7 @@ def cgrad(
         )  # yapf: disable
         return np.sum(
             np.square(np.abs(simdata)) - 2 * data * np.log(np.abs(simdata)))
+
     for i in range(num_iter):
         # Compute the gradient at the current location
         farplane = _forward(
@@ -538,18 +537,17 @@ def reconstruct(
     ----------
     probe : (V, H, P) :py:class:`numpy.array` float
         The initial guess for the illumnination function of each measurement.
-    psi : (T, V, H, P) :py:class:`numpy.array` float
+    psi : (V, H, P) :py:class:`numpy.array` float
         The inital guess of the object transmission function at each angle.
     algorithm : string
         The name of one of the following algorithms to use for reconstructing:
 
             * grad : gradient descent
+            * cgrad : conjugate gradient descent
 
     Returns
     -------
-    new_probe : (M, V, H, P) :py:class:`numpy.array` float
-        The updated illumination function of each measurement.
-    new_psi : (T, V, H, P) :py:class:`numpy.array` float
+    new_psi : (V, H, P) :py:class:`numpy.array` float
         The updated obect transmission function at each angle.
 
     """
@@ -563,13 +561,13 @@ def reconstruct(
     # TODO: The size of this function may be reduced further if all recon clibs
     #   have a standard interface. Perhaps pass unique params to a generic
     #   struct or array.
-    if algorithm is "grad":
+    if algorithm == "grad":
         new_psi = grad(data=data,
                        probe=probe, v=v, h=h,
                        psi=psi, psi_corner=psi_corner,
                        num_iter=num_iter,
                        **kwargs)  # yapf: disable
-    elif algorithm is "cgrad":
+    elif algorithm == "cgrad":
         new_psi = cgrad(data=data,
                        probe=probe, v=v, h=h,
                        psi=psi, psi_corner=psi_corner,
