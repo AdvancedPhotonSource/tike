@@ -307,7 +307,7 @@ def grad(
     Parameters
     ----------
     reg : (V, H, P) :py:class:`numpy.array` complex
-        The regularizer for psi. (h - lamda / rho)
+        The regularizer for psi. (h + lamda / rho)
     rho : float
         The positive penalty parameter. It should be less than 1.
     gamma : float
@@ -342,8 +342,9 @@ def grad(
             psi_shape=psi.shape, psi_corner=psi_corner,
             weights=update_weights,
         )  # yapf: disable
-        # grad -= rho * (reg - psi + lamda / rho)
-        psi = psi - grad
+        grad -= rho * (reg - psi)
+        # Update the guess for psi
+        psi = psi - gamma * grad
     return psi
 
 
@@ -375,16 +376,20 @@ def cgrad(
         data,
         probe, v, h,
         psi, psi_corner,
-        reg=0j, num_iter=1, gamma=0.25, eta=None,
+        reg=0j, num_iter=1, rho=0, gamma=0.25, eta=None,
         **kwargs
 ):  # yapf: disable
     """Use conjugate gradient to estimate `psi`.
 
     Parameters
     ----------
+    reg : (V, H, P) :py:class:`numpy.array` complex
+        The regularizer for psi. (h + lamda / rho)
+    rho : float
+        The positive penalty parameter. It should be less than 1.
     gamma : float
         The ptychography gradient descent step size.
-    eta : () :py:class:`numpy.array` complex
+    eta : (V, H) :py:class:`numpy.array` complex
         The search direction.
     """
     if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)
@@ -429,7 +434,7 @@ def cgrad(
             psi_shape=psi.shape, psi_corner=psi_corner,
             weights=update_weights,
         )  # yapf: disable
-        # grad -= rho * (reg - psi + lamda / rho)
+        grad -= rho * (reg - psi)
         # Update the search direction, eta.
         # eta and grad are the same shape as psi
         if eta is None:
