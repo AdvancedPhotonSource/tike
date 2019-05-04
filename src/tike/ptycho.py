@@ -319,14 +319,14 @@ def grad(
     data = data.astype(np.float32)
     probe = probe.astype(np.complex64)
     psi = psi.astype(np.complex64)
-    # Compute weights for updates from each illumination
-    update_weights = combine_grids(
-        grids=np.tile(np.abs(probe)[np.newaxis, ...], [len(data), 1, 1]),
+    # Combine the illumination from all positions
+    combined_probe = combine_grids(
+        grids=np.tile(probe[np.newaxis, ...], [len(data), 1, 1]),
         v=v, h=h,
         combined_shape=psi.shape,
         combined_corner=psi_corner,
     )  # yapf: disable
-    update_weights[update_weights == 0] = 1
+    combined_probe[combined_probe == 0] = 1
     detector_shape = data.shape[1:]
     for i in range(num_iter):
         farplane = _forward(
@@ -340,7 +340,7 @@ def grad(
             farplane - data / np.conjugate(farplane),
             probe=probe, v=v, h=h,
             psi_shape=psi.shape, psi_corner=psi_corner,
-            weights=update_weights,
+            combined_probe=combined_probe,
         )  # yapf: disable
         grad -= rho * (reg - psi)
         # Update the guess for psi
@@ -398,14 +398,14 @@ def cgrad(
     data = data.astype(np.float32)
     probe = probe.astype(np.complex64)
     psi = psi.astype(np.complex64)
-    # Compute weights for updates from each illumination
-    update_weights = combine_grids(
+    # Combine the illumination from all positions
+    combined_probe = combine_grids(
         grids=np.tile(np.abs(probe)[np.newaxis, ...], [len(data), 1, 1]),
         v=v, h=h,
         combined_shape=psi.shape,
         combined_corner=psi_corner,
     )  # yapf: disable
-    update_weights[update_weights == 0] = 1
+    combined_probe[combined_probe == 0] = 1
     detector_shape = data.shape[1:]
 
     # Define the function that we are minimizing
@@ -432,7 +432,7 @@ def cgrad(
             farplane - data / np.conjugate(farplane),
             probe=probe, v=v, h=h,
             psi_shape=psi.shape, psi_corner=psi_corner,
-            weights=update_weights,
+            combined_probe=combined_probe,
         )  # yapf: disable
         grad -= rho * (reg - psi)
         # Update the search direction, eta.
@@ -462,7 +462,7 @@ def _backward(
         farplane,
         probe, v, h,
         psi_shape, psi_corner=(0, 0),
-        weights=1,
+        combined_probe=1,
 ):  # yapf: disable
     """Compute the nearplane complex wavefronts from the farfield and probe.
 
@@ -477,12 +477,12 @@ def _backward(
                                        npadh:npadh +
                                        probe.shape[1]]  # yapf: disable
     return combine_grids(
-        grids=nearplane * np.abs(probe),
+        grids=nearplane,
         v=v,
         h=h,
         combined_shape=psi_shape,
         combined_corner=psi_corner,
-    ) / weights
+    ) / combined_probe
 
 
 def _exitwave(probe, v, h, psi, psi_corner=None):
