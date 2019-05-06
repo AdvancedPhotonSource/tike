@@ -74,6 +74,7 @@ __all__ = [
     'lengths',
     'distance',
     'billiard',
+    'hexagonal',
 ]
 
 import logging
@@ -102,6 +103,26 @@ def _periodic_function_interface(t, A=0.5, f=60, p=0):
 
     """
     raise NotImplementedError()
+
+
+def hexagonal(t, D, f, row):
+    """Hexagonal gridded step scan of circles with diameter, D.
+
+    #discontinuous #2d
+
+    Parameteters
+    ------------
+    D : float
+    f : float
+        How often to we move to the next circle.
+    row : int
+        The number of positions in each row
+    """
+    h = 0.5 * np.sqrt(3) * D
+    x1 = staircase(A=h, f=f / row, p=0, t=t)
+    x2 = (np.mod(staircase(A=D, f=f, p=0, t=t), row * D) + square(
+        A=D * 0.25, f=f / row * 0.5, p=np.pi, t=t) + D * 0.25)
+    return x1, x2
 
 
 def f2w(f):

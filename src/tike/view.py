@@ -80,11 +80,6 @@ def plot_complex(Z):
     plt.subplot(1, 2, 2)
     plt.imshow(Z.imag)
     cb1 = plt.colorbar(orientation='horizontal')
-    tick_locator = ticker.MaxNLocator(nbins=5)
-    cb0.locator = tick_locator
-    cb0.update_ticks()
-    cb1.locator = tick_locator
-    cb1.update_ticks()
     plt.show()
 
 
@@ -97,11 +92,6 @@ def plot_phase(Z):
     plt.subplot(1, 2, 2)
     plt.imshow(np.angle(Z))
     cb1 = plt.colorbar(orientation='horizontal')
-    tick_locator = ticker.MaxNLocator(nbins=5)
-    cb0.locator = tick_locator
-    cb0.update_ticks()
-    cb1.locator = tick_locator
-    cb1.update_ticks()
     plt.show()
     print(np.min(Z), np.max(Z))
 
