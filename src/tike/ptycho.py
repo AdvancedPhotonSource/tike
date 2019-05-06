@@ -207,19 +207,19 @@ def combine_grids(
     Parameters
     ----------
     grids : (N, V, H) :py:class:`numpy.array` complex64
-        The values on the grids
+        The values on the grids.
     v, h : (M, ) :py:class:`numpy.array` float [m]
-        The coordinates of the minimum corner of the M grids
+        The coordinates of the minimum corner of the M grids.
     combined_shape : (2, ) int
         The last two are numbers of the tuple are the number of indices along
         the h and v directions of the combined grid.
     combined_corner : (2, ) float [m]
-        The coordinates of the minimum corner of the combined grids
+        The coordinates of the minimum corner of the combined grids.
 
     Return
     ------
     combined : (T, V, H) :py:class:`numpy.array` complex64
-        The combined grid
+        The combined grid.
 
     """
     grids = grids.astype(np.complex64, casting='same_kind', copy=False)
@@ -269,7 +269,7 @@ def uncombine_grids(
     Return
     ------
     grids : (M, V, H) :py:class:`numpy.array` complex64
-        The decombined grids
+        The decombined grids.
 
     """
     combined = combined.astype(np.complex64, casting='same_kind', copy=False)
@@ -312,6 +312,7 @@ def grad(
         The positive penalty parameter. It should be less than 1.
     gamma : float
         The ptychography gradient descent step size.
+
     """
     if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)
             and np.iscomplexobj(reg)):
@@ -361,13 +362,15 @@ def line_search(f, x, d, step_length=1, step_shrink=0.5):
         The current position.
     d : vector
         The search direction.
+
     """
     assert step_shrink < 1
     assert step_shrink > 0
     m = 0.5  # Some tuning parameter for termination
     # Decrease the step length while the step moves us away from the minimum
     while f(x + step_length * d) > f(x) + step_shrink * m:
-        if step_length < 1e-32: return step_length
+        if step_length < 1e-32:
+            return step_length
         step_length *= step_shrink
     return step_length
 
@@ -391,6 +394,7 @@ def cgrad(
         The ptychography gradient descent step size.
     eta : (V, H) :py:class:`numpy.array` complex
         The search direction.
+
     """
     if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)
             and np.iscomplexobj(reg)):
@@ -574,10 +578,10 @@ def reconstruct(
                        **kwargs)  # yapf: disable
     elif algorithm == "cgrad":
         new_psi = cgrad(data=data,
-                       probe=probe, v=v, h=h,
-                       psi=psi, psi_corner=psi_corner,
-                       num_iter=num_iter,
-                       **kwargs)  # yapf: disable
+                        probe=probe, v=v, h=h,
+                        psi=psi, psi_corner=psi_corner,
+                        num_iter=num_iter,
+                        **kwargs)  # yapf: disable
     else:
         raise ValueError(
             "The {} algorithm is not an available.".format(algorithm))
