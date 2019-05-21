@@ -61,6 +61,7 @@ __all__ = [
     "complex_amplitude",
     "complex_intensity",
     "complex_phase",
+    "sum_square_norm",
 ]
 
 import numpy as np
@@ -92,3 +93,10 @@ def complex_intensity(probe_grid):
 def complex_phase(probe_grid):
     """Phase of the complex probe wave."""
     return np.angle(probe_grid)
+
+
+def sum_square_norm(x, N=1):
+    """Return x normalized such that the sum of squares of x equals N."""
+    x1 = np.sqrt(np.square(x) / np.sum(np.square(x)) * N)
+    np.testing.assert_almost_equal(np.sum(np.square(np.abs(x1))), N, decimal=3)
+    return x1
