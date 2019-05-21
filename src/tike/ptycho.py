@@ -420,7 +420,7 @@ def cgrad(
             probe=probe, v=v, h=h,
             psi=psi, psi_corner=psi_corner,
         )  # yapf: disable
-        return np.sum(
+        return np.nansum(
             np.square(np.abs(simdata)) - 2 * data * np.log(np.abs(simdata)))
 
     for i in range(num_iter):
@@ -431,9 +431,11 @@ def cgrad(
             psi=psi, psi_corner=psi_corner,
         )  # yapf: disable
         # Updates for each illumination patch
+        denominator = np.conjugate(farplane)
+        denominator[denominator == 0] = 1
         grad = _backward(
             # FIXME: Divide by zero occurs when probe is all zeros?
-            farplane - data / np.conjugate(farplane),
+            farplane - data / denominator,
             probe=probe, v=v, h=h,
             psi_shape=psi.shape, psi_corner=psi_corner,
             combined_probe=combined_probe,
@@ -444,7 +446,7 @@ def cgrad(
         if eta is None:
             eta = -grad
         else:
-            denominator = np.sum(np.conjugate(grad - grad0) * eta)
+            denominator = np.nansum(np.conjugate(grad - grad0) * eta)
             if denominator != 0:
                 # Use previous eta if previous (grad - grad0) is zero
                 eta = -grad + eta * np.square(
