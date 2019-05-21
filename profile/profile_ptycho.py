@@ -61,6 +61,27 @@ class BenchmarkPtycho(unittest.TestCase):
         print('\n')
         print(self.profiler.output_text(unicode=True, color=True))
 
+    def test_cgrad(self):
+        """Use pyinstrument to benchmark ptycho.grad on one core."""
+        logging.disable(logging.WARNING)
+        new_psi = np.ones_like(self.original)
+        self.profiler.start()
+        for i in range(50):
+            new_psi = tike.ptycho.reconstruct(
+                data=self.data,
+                probe=self.probe,
+                v=self.v,
+                h=self.h,
+                psi=new_psi,
+                algorithm='cgrad',
+                num_iter=1,
+                rho=0,
+                gamma=0.5
+                )
+        self.profiler.stop()
+        print('\n')
+        print(self.profiler.output_text(unicode=True, color=True))
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
