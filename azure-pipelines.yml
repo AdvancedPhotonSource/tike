@@ -14,26 +14,33 @@ jobs:
     vmImage: 'Ubuntu 16.04'
   strategy:
     matrix:
-      # Python27:
-      #   python.version: '2.7'
       Python36:
         python.version: '3.6'
+      Python37:
+        python.version: '3.7'
     maxParallel: 4
   steps:
-  - task: CondaEnvironment@1
-    inputs:
-      packageSpecs: >
-        python=$(python.version)
-        conda-build
-        conda-verify
-        pycodestyle
-        pydocstyle
-      updateConda: True # Optional
-  - bash: pycodestyle --count -v .
+  - bash: echo "##vso[task.prependpath]$CONDA/bin"
+    displayName: Add conda to PATH
+  - bash: >
+      conda create --yes --quiet --name tike
+      python=$(python.version)
+      conda-build
+      conda-verify
+      pycodestyle
+      pydocstyle
+    displayName: Create Anaconda environment
+  - bash: |
+      conda activate tike
+      pycodestyle --count -v .
     displayName: Run python code linter
-  - bash: pydocstyle --match='(?!utils).*\.py' --count -v src/tike/
+  - bash: |
+      conda activate tike
+      pydocstyle --match='(?!utils).*\.py' --count -v src/tike/
     displayName: Run python docstring linter
-  - bash: conda build . --no-anaconda-upload -c conda-forge
+  - bash: |
+      conda activate tike
+      conda build . --no-anaconda-upload -c conda-forge
     displayName: Conda build
 
 - job: macOS
@@ -41,17 +48,26 @@ jobs:
     vmImage: 'xcode9-macos10.13'
   strategy:
     matrix:
-      # Python27:
-      #   python.version: '2.7'
       Python36:
         python.version: '3.6'
     maxParallel: 4
   steps:
-  - task: CondaEnvironment@1
-    inputs:
-      packageSpecs: 'python=$(python.version) conda-build conda-verify'
-      updateConda: True # Optional
-  - bash: conda build . --no-anaconda-upload -c conda-forge
+  - bash: echo "##vso[task.prependpath]$CONDA/bin"
+    displayName: Add conda to PATH
+# On Hosted macOS, the agent user doesn't have ownership of Miniconda's
+# installation directory. We need to take ownership if we want to update
+# conda or install packages globally
+  # - bash: sudo chown -R $USER $CONDA
+  #     displayName: Take ownership of conda installation
+  - bash: >
+      conda create --yes --quiet --name tike
+      python=$(python.version)
+      conda-build
+      conda-verify
+    displayName: Create Anaconda environment
+  - bash: |
+      conda activate tike
+      conda build . --no-anaconda-upload -c conda-forge
     displayName: Conda build
 
 - job: Windows
@@ -63,12 +79,15 @@ jobs:
         python.version: '3.6'
     maxParallel: 4
   steps:
-  - task: CondaEnvironment@1
-    inputs:
-      packageSpecs: 'python=$(python.version) conda-build conda-verify'
-      updateConda: True # Optional
-      installOptions: '-c conda-forge'
-  - bash: conda config --add channels conda-forge
-    displayName: Set main channel to conda-forge
-  - bash: conda build . --no-anaconda-upload -c conda-forge
+  - powershell: Write-Host "##vso[task.prependpath]$env:CONDA\Scripts"
+    displayName: Add conda to PATH
+  - bash: >
+      conda create --yes --quiet --name tike
+      python=$(python.version)
+      conda-build
+      conda-verify
+    displayName: Create Anaconda environment
+  - bash: |
+      conda activate tike
+      conda build . --no-anaconda-upload -c conda-forge
     displayName: Conda build
