@@ -44,7 +44,7 @@ jobs:
     displayName: Run python docstring linter
   - bash: |
       source activate $(package_name)
-      conda build . --no-anaconda-upload -c conda-forge -c defaults
+      conda build . --no-anaconda-upload -c conda-forge
     displayName: Conda build
 
 - job: macOS
@@ -66,7 +66,7 @@ jobs:
     displayName: Create Anaconda environment
   - bash: |
       source activate $(package_name)
-      conda build . --no-anaconda-upload -c conda-forge -c defaults
+      conda build . --no-anaconda-upload -c conda-forge
     displayName: Conda build
 
 - job: Windows
@@ -88,5 +88,5 @@ jobs:
     displayName: Create Anaconda environment
   - script: |
       call activate $(package_name)
-      conda build . --no-anaconda-upload -c conda-forge -c defaults
+      conda build . --no-anaconda-upload -c conda-forge -c anaconda
     displayName: Conda build
