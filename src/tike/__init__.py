@@ -60,7 +60,6 @@ import logging
 from pkg_resources import get_distribution, DistributionNotFound
 
 from tike.communicator import *
-from tike.coverage import *
 from tike.ptycho import *
 from tike.scan import *
 from tike.tike import *

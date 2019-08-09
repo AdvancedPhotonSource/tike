@@ -1,15 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from skbuild import setup
 import setuptools
 
-setup(
+setuptools.setup(
     name='tike',
     packages=setuptools.find_packages('src'),
     package_dir={'': 'src'},
     setup_requires=['setuptools_scm'],
     use_scm_version=True,
-    cmake_languages=('C'),
     include_package_data=True,
     zip_safe=False,
     author='Doga Gursoy',

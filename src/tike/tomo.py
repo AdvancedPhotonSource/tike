@@ -106,7 +106,6 @@ import tomopy
 import tomopy.util.extern as extern
 
 import logging
-from tike import utils
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -202,23 +201,7 @@ def project(
         (False, theta first axis).
 
     """
-    oy, ox, oz = obj.shape
-    dt = theta.size
-    dy = oy
-    dx = ox
-    shape = (dy, dt, dx)
-    center = get_center(shape, center)
-    tomo = np.zeros(shape, dtype=np.float32)
-    extern.c_project(
-        utils.as_float32(obj),
-        utils.as_float32(center),
-        utils.as_float32(tomo),
-        utils.as_float32(theta),
-    )
-    if not sinogram_order:
-        # rotate to radiograph order
-        tomo = np.swapaxes(tomo, 0, 1)  # doesn't copy data
-    return tomo
+    raise NotImplementedError()
 
 
 def get_center(shape, center):
