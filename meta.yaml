@@ -12,12 +12,9 @@ build:
       --no-cache-dir --no-binary :all: -vvv"
 
 requirements:
-  build:
-    - {{ compiler('c') }}
   host:
     - pip
     - python={{ python }}
-    - scikit-build
     - setuptools_scm
   run:
     - numpy
