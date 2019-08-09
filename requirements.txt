@@ -3,5 +3,6 @@ mpi4py
 numpy
 scipy
 setuptools
+setuptools_scm
 six
 tomopy>=1.2

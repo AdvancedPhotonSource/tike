@@ -64,8 +64,8 @@ data : (M, V, H) :py:class:`numpy.array` float
     direction) and `V` pixels tall (the vertical direction).
 probe : (V, H) :py:class:`numpy.array` complex
     The single illumination function of the `M` probes.
-psi : (T, V, H) :py:class:`numpy.array` complex
-    The object transmission function for each of the `T` views.
+psi : (V, H) :py:class:`numpy.array` complex
+    The object transmission function (for the current view).
 foo_corner : (2, ) float [p]
     The min corner (v, h) of `foo` in the global coordinate system. `foo`
     could be `data`, `psi`, etc.
@@ -207,19 +207,19 @@ def combine_grids(
     Parameters
     ----------
     grids : (N, V, H) :py:class:`numpy.array` complex64
-        The values on the grids
+        The values on the grids.
     v, h : (M, ) :py:class:`numpy.array` float [m]
-        The coordinates of the minimum corner of the M grids
+        The coordinates of the minimum corner of the M grids.
     combined_shape : (2, ) int
         The last two are numbers of the tuple are the number of indices along
         the h and v directions of the combined grid.
     combined_corner : (2, ) float [m]
-        The coordinates of the minimum corner of the combined grids
+        The coordinates of the minimum corner of the combined grids.
 
     Return
     ------
     combined : (T, V, H) :py:class:`numpy.array` complex64
-        The combined grid
+        The combined grid.
 
     """
     grids = grids.astype(np.complex64, casting='same_kind', copy=False)
@@ -269,7 +269,7 @@ def uncombine_grids(
     Return
     ------
     grids : (M, V, H) :py:class:`numpy.array` complex64
-        The decombined grids
+        The decombined grids.
 
     """
     combined = combined.astype(np.complex64, casting='same_kind', copy=False)
@@ -299,22 +299,19 @@ def grad(
         data,
         probe, v, h,
         psi, psi_corner,
-        reg=0j, num_iter=1, rho=0, gamma=0.25, epsilon=1e-8,
+        reg=0j, num_iter=1, rho=0, gamma=0.25,
         **kwargs
 ):  # yapf: disable
     """Use gradient descent to estimate `psi`.
 
     Parameters
     ----------
-    reg : (T, V, H, P) :py:class:`numpy.array` complex
-        The regularizer for psi. (h - lamda / rho)
+    reg : (V, H, P) :py:class:`numpy.array` complex
+        The regularizer for psi. (h + lamda / rho)
     rho : float
         The positive penalty parameter. It should be less than 1.
     gamma : float
         The ptychography gradient descent step size.
-    epsilon : float
-        Primal residual absolute termination criterion.
-        TODO:@Selin Create better description
 
     """
     if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)
@@ -323,62 +320,206 @@ def grad(
     data = data.astype(np.float32)
     probe = probe.astype(np.complex64)
     psi = psi.astype(np.complex64)
-    # Compute padding between probe and detector size
-    npadv = (data.shape[1] - probe.shape[0]) // 2
-    npadh = (data.shape[2] - probe.shape[1]) // 2
-    # Compute probe inverse
-    # TODO: Update the probe too
-    probe_inverse = np.conj(probe) / np.max(np.square(np.abs(np.conj(probe))))
-    wavefront_shape = [h.size, probe.shape[0], probe.shape[1]]
+    # Combine the illumination from all positions
+    combined_probe = combine_grids(
+        grids=np.tile(probe[np.newaxis, ...], [len(data), 1, 1]),
+        v=v, h=h,
+        combined_shape=psi.shape,
+        combined_corner=psi_corner,
+    )  # yapf: disable
+    combined_probe[combined_probe == 0] = 1
+    detector_shape = data.shape[1:]
     for i in range(num_iter):
-        # combine all wavefronts into one array
-        wavefronts = uncombine_grids(
-            grids_shape=wavefront_shape,
-            v=v,
-            h=h,
-            combined=psi,
-            combined_corner=psi_corner)
-        # Compute near-plane wavefront
-        nearplane = probe * wavefronts
-        # Pad before FFT
-        nearplane_pad = fast_pad(nearplane, npadv, npadh)
-        # Go far-plane
-        farplane = np.fft.fft2(nearplane_pad)
-        # Replace the amplitude with the measured amplitude.
-        farplane[farplane == 0] = 1  # no division by zero allowed
-        farplane = (np.sqrt(data) * farplane / np.sqrt(
-            farplane.imag * farplane.imag + farplane.real * farplane.real))
-        # Back to near-plane.
-        new_nearplane = np.fft.ifft2(farplane)[...,
-                                               npadv:npadv + probe.shape[0],
-                                               npadh:npadh +
-                                               probe.shape[1]]  # yapf: disable
-        # Update measurement patch.
-        upd_m = probe_inverse * (new_nearplane - nearplane)
-        # Combine measurement with other updates
-        upd_psi = combine_grids(
-            grids=upd_m,
-            v=v,
-            h=h,
-            combined_shape=psi.shape,
-            combined_corner=psi_corner)
-        # Update psi
-        psi = ((1 - gamma * rho) * psi +
-               gamma * rho * reg  # refactored to reduce inputs
-               + (gamma * 0.5) * upd_psi)
+        farplane = _forward(
+            detector_shape,
+            probe=probe, v=v, h=h,
+            psi=psi, psi_corner=psi_corner,
+        )  # yapf: disable
+        # Updates for each illumination patch
+        grad = _backward(
+            # FIXME: Divide by zero occurs when probe is all zeros?
+            farplane - data / np.conjugate(farplane),
+            probe=probe, v=v, h=h,
+            psi_shape=psi.shape, psi_corner=psi_corner,
+            combined_probe=combined_probe,
+        )  # yapf: disable
+        grad -= rho * (reg - psi)
+        # Update the guess for psi
+        psi = psi - gamma * grad
     return psi
 
 
-def exitwave(probe, v, h, psi, psi_corner=None):
-    """Compute the wavefront from probe function and stack of `psi`."""
+def line_search(f, x, d, step_length=1, step_shrink=0.5):
+    """Return a new step_length using a backtracking line search.
+
+    https://en.wikipedia.org/wiki/Backtracking_line_search
+
+    Parameters
+    ----------
+    f : function(x)
+        The function being optimized.
+    x : vector
+        The current position.
+    d : vector
+        The search direction.
+
+    """
+    assert step_shrink < 1
+    assert step_shrink > 0
+    m = 0.5  # Some tuning parameter for termination
+    # Decrease the step length while the step moves us away from the minimum
+    while f(x + step_length * d) > f(x) + step_shrink * m:
+        if step_length < 1e-32:
+            return step_length
+        step_length *= step_shrink
+    return step_length
+
+
+def cgrad(
+        data,
+        probe, v, h,
+        psi, psi_corner,
+        reg=0j, num_iter=1, rho=0, gamma=0.25, eta=None,
+        **kwargs
+):  # yapf: disable
+    """Use conjugate gradient to estimate `psi`.
+
+    Parameters
+    ----------
+    reg : (V, H, P) :py:class:`numpy.array` complex
+        The regularizer for psi. (h + lamda / rho)
+    rho : float
+        The positive penalty parameter. It should be less than 1.
+    gamma : float
+        The ptychography gradient descent step size.
+    eta : (V, H) :py:class:`numpy.array` complex
+        The search direction.
+
+    """
+    if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)
+            and np.iscomplexobj(reg)):
+        raise TypeError("psi, probe, and reg must be complex.")
+    data = data.astype(np.float32)
+    probe = probe.astype(np.complex64)
+    psi = psi.astype(np.complex64)
+    # Combine the illumination from all positions
+    combined_probe = combine_grids(
+        grids=np.tile(np.abs(probe)[np.newaxis, ...], [len(data), 1, 1]),
+        v=v, h=h,
+        combined_shape=psi.shape,
+        combined_corner=psi_corner,
+    )  # yapf: disable
+    combined_probe[combined_probe == 0] = 1
+    detector_shape = data.shape[1:]
+
+    # Define the function that we are minimizing
+    def maximum_a_posteriori_probability(psi):
+        """Return the probability that psi is correct given the data."""
+        simdata = _forward(
+            detector_shape,
+            probe=probe, v=v, h=h,
+            psi=psi, psi_corner=psi_corner,
+        )  # yapf: disable
+        return np.nansum(
+            np.square(np.abs(simdata)) - 2 * data * np.log(np.abs(simdata)))
+
+    for i in range(num_iter):
+        # Compute the gradient at the current location
+        farplane = _forward(
+            detector_shape,
+            probe=probe, v=v, h=h,
+            psi=psi, psi_corner=psi_corner,
+        )  # yapf: disable
+        # Updates for each illumination patch
+        denominator = np.conjugate(farplane)
+        denominator[denominator == 0] = 1
+        grad = _backward(
+            # FIXME: Divide by zero occurs when probe is all zeros?
+            farplane - data / denominator,
+            probe=probe, v=v, h=h,
+            psi_shape=psi.shape, psi_corner=psi_corner,
+            combined_probe=combined_probe,
+        )  # yapf: disable
+        grad -= rho * (reg - psi)
+        # Update the search direction, eta.
+        # eta and grad are the same shape as psi
+        if eta is None:
+            eta = -grad
+        else:
+            denominator = np.nansum(np.conjugate(grad - grad0) * eta)
+            if denominator != 0:
+                # Use previous eta if previous (grad - grad0) is zero
+                eta = -grad + eta * np.square(
+                    np.linalg.norm(grad)) / denominator
+        # Update the step length, gamma
+        gamma = line_search(
+            f=maximum_a_posteriori_probability,
+            x=psi,
+            d=eta,
+            step_length=gamma,
+        )
+        # Update the guess for psi
+        psi = psi + gamma * eta
+        grad0 = grad
+    return psi
+
+
+def _backward(
+        farplane,
+        probe, v, h,
+        psi_shape, psi_corner=(0, 0),
+        combined_probe=1,
+):  # yapf: disable
+    """Compute the nearplane complex wavefronts from the farfield and probe.
+
+    The inverse ptychography operator. Computes the inverse Fourier transform
+    of a series of farplane measurements, the combines these illuminations
+    into a single psi using a weighted average.
+    """
+    npadv = (farplane.shape[1] - probe.shape[0]) // 2
+    npadh = (farplane.shape[2] - probe.shape[1]) // 2
+    nearplane = np.fft.ifft2(farplane)[...,
+                                       npadv:npadv + probe.shape[0],
+                                       npadh:npadh +
+                                       probe.shape[1]]  # yapf: disable
+    return combine_grids(
+        grids=nearplane,
+        v=v,
+        h=h,
+        combined_shape=psi_shape,
+        combined_corner=psi_corner,
+    ) / combined_probe
+
+
+def _exitwave(probe, v, h, psi, psi_corner=None):
+    """Combine the probe with the nearplane complex wavefront."""
     wave_shape = [h.size, probe.shape[0], probe.shape[1]]
     wave = uncombine_grids(
         grids_shape=wave_shape,
         v=v,
         h=h,
         combined=psi,
-        combined_corner=psi_corner)
+        combined_corner=psi_corner,
+    )
     return probe * wave
+
+
+def _forward(
+        detector_shape,
+        probe, v, h,
+        psi, psi_corner=(0, 0),
+        **kwargs
+):  # yapf: disable
+    """Compute the farplane complex wavefront."""
+    if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)):
+        raise TypeError("psi and probe must be complex.")
+    probe = probe.astype(np.complex64)
+    psi = psi.astype(np.complex64)
+    wavefront = _exitwave(probe, v, h, psi, psi_corner=psi_corner)
+    npadx = (detector_shape[0] - wavefront.shape[-2]) // 2
+    npady = (detector_shape[1] - wavefront.shape[-1]) // 2
+    padded_wave = fast_pad(wavefront, npadx, npady)
+    return np.fft.fft2(padded_wave)
 
 
 def simulate(
@@ -387,16 +528,12 @@ def simulate(
         psi, psi_corner=(0, 0),
         **kwargs
 ):  # yapf: disable
-    """Propagate the wavefront to the detector."""
-    if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)):
-        raise TypeError("psi and probe must be complex.")
-    probe = probe.astype(np.complex64)
-    psi = psi.astype(np.complex64)
-    wavefront = exitwave(probe, v, h, psi, psi_corner=psi_corner)
-    npadx = (data_shape[0] - wavefront.shape[-2]) // 2
-    npady = (data_shape[1] - wavefront.shape[-1]) // 2
-    padded_wave = fast_pad(wavefront, npadx, npady)
-    return np.square(np.abs(np.fft.fft2(padded_wave)))
+    """Propagate the wavefront to the detector.
+
+    Return real-valued intensities measured by the detector.
+    """
+    return np.square(
+        np.abs(_forward(data_shape, probe, v, h, psi, psi_corner, **kwargs)))
 
 
 def reconstruct(
@@ -411,18 +548,17 @@ def reconstruct(
     ----------
     probe : (V, H, P) :py:class:`numpy.array` float
         The initial guess for the illumnination function of each measurement.
-    psi : (T, V, H, P) :py:class:`numpy.array` float
+    psi : (V, H, P) :py:class:`numpy.array` float
         The inital guess of the object transmission function at each angle.
     algorithm : string
         The name of one of the following algorithms to use for reconstructing:
 
             * grad : gradient descent
+            * cgrad : conjugate gradient descent
 
     Returns
     -------
-    new_probe : (M, V, H, P) :py:class:`numpy.array` float
-        The updated illumination function of each measurement.
-    new_psi : (T, V, H, P) :py:class:`numpy.array` float
+    new_psi : (V, H, P) :py:class:`numpy.array` float
         The updated obect transmission function at each angle.
 
     """
@@ -436,12 +572,18 @@ def reconstruct(
     # TODO: The size of this function may be reduced further if all recon clibs
     #   have a standard interface. Perhaps pass unique params to a generic
     #   struct or array.
-    if algorithm is "grad":
+    if algorithm == "grad":
         new_psi = grad(data=data,
                        probe=probe, v=v, h=h,
                        psi=psi, psi_corner=psi_corner,
                        num_iter=num_iter,
                        **kwargs)  # yapf: disable
+    elif algorithm == "cgrad":
+        new_psi = cgrad(data=data,
+                        probe=probe, v=v, h=h,
+                        psi=psi, psi_corner=psi_corner,
+                        num_iter=num_iter,
+                        **kwargs)  # yapf: disable
     else:
         raise ValueError(
             "The {} algorithm is not an available.".format(algorithm))

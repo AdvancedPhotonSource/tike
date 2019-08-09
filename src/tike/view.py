@@ -71,26 +71,34 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-def plot_complex(Z):
-    """Plot real and imaginary parts of a 2D image size by side."""
+def plot_complex(Z, rmin=None, rmax=None, imin=None, imax=None):
+    """Plot real and imaginary parts of a 2D image size by side.
+
+    Takes parameters rmin, rmax, imin, imax to scale the ranges of the real
+    and imaginary plots.
+    """
     plt.figure(dpi=128)
     plt.subplot(1, 2, 1)
-    plt.imshow(Z.real)
+    plt.imshow(Z.real, vmin=rmin, vmax=rmax)
     cb0 = plt.colorbar(orientation='horizontal')
     plt.subplot(1, 2, 2)
-    plt.imshow(Z.imag)
+    plt.imshow(Z.imag, vmin=imin, vmax=imax)
     cb1 = plt.colorbar(orientation='horizontal')
     plt.show()
 
 
-def plot_phase(Z):
-    """Plot the amplitude and phase of a 2D image side by side."""
+def plot_phase(Z, amin=None, amax=None):
+    """Plot the amplitude and phase of a 2D image side by side.
+
+    Takes parameters amin, amax to scale the range of the amplitude. The phase
+    is scaled to the range -pi to pi.
+    """
     plt.figure(dpi=128)
     plt.subplot(1, 2, 1)
-    plt.imshow(np.abs(Z))
+    plt.imshow(np.abs(Z), vmin=amin, vmax=amax)
     cb0 = plt.colorbar(orientation='horizontal')
     plt.subplot(1, 2, 2)
-    plt.imshow(np.angle(Z))
+    plt.imshow(np.angle(Z), vmin=-np.pi, vmax=np.pi, cmap=plt.cm.twilight)
     cb1 = plt.colorbar(orientation='horizontal')
     plt.show()
     print(np.min(Z), np.max(Z))

@@ -160,7 +160,7 @@ def admm(
         logger.info("ADMM iteration {}".format(i))
         # Ptychography
         for view in range(len(psi)):
-            reg = hobj[view] - lamda[view] / rho
+            reg = hobj[view] + lamda[view] / rho
             psi[view] = tike.ptycho.reconstruct(data=data[view],
                                                 probe=probe,
                                                 v=v[view], h=h[view],
@@ -177,7 +177,7 @@ def admm(
         line_integrals = tike.tomo.forward(obj=x, theta=theta) * voxelsize
         hobj = np.exp(1j * wavenumber(energy) * line_integrals)
         hobj = comm.get_ptycho_slice(hobj)
-        lamda = lamda + rho * (psi - hobj)
+        lamda = lamda + rho * (hobj - psi)
     # Restore logging in the tomo and ptycho modules
     logging.getLogger('tike.ptycho').setLevel(log_levels[0])
     logging.getLogger('tike.tomo').setLevel(log_levels[1])

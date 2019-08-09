@@ -110,13 +110,14 @@ def hexagonal(t, D, f, row):
 
     #discontinuous #2d
 
-    Parameteters
-    ------------
+    Parameters
+    ----------
     D : float
     f : float
         How often to we move to the next circle.
     row : int
         The number of positions in each row
+
     """
     h = 0.5 * np.sqrt(3) * D
     x1 = staircase(A=h, f=f / row, p=0, t=t)
