@@ -31,15 +31,15 @@ jobs:
       pydocstyle
     displayName: Create Anaconda environment
   - bash: |
-      conda activate tike
+      source activate tike
       pycodestyle --count -v .
     displayName: Run python code linter
   - bash: |
-      conda activate tike
+      source activate tike
       pydocstyle --match='(?!utils).*\.py' --count -v src/tike/
     displayName: Run python docstring linter
   - bash: |
-      conda activate tike
+      source activate tike
       conda build . --no-anaconda-upload -c conda-forge
     displayName: Conda build
 
@@ -66,7 +66,7 @@ jobs:
       conda-verify
     displayName: Create Anaconda environment
   - bash: |
-      conda activate tike
+      source activate tike
       conda build . --no-anaconda-upload -c conda-forge
     displayName: Conda build
 
@@ -81,13 +81,13 @@ jobs:
   steps:
   - powershell: Write-Host "##vso[task.prependpath]$env:CONDA\Scripts"
     displayName: Add conda to PATH
-  - bash: >
+  - script: >
       conda create --yes --quiet --name tike
       python=$(python.version)
       conda-build
       conda-verify
     displayName: Create Anaconda environment
-  - bash: |
-      conda activate tike
+  - script: |
+      call activate tike
       conda build . --no-anaconda-upload -c conda-forge
     displayName: Conda build
