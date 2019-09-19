@@ -63,6 +63,7 @@ __all__ = [
 ]
 
 import logging
+import warnings
 
 from matplotlib import ticker
 import matplotlib.pyplot as plt
@@ -93,12 +94,18 @@ def plot_phase(Z, amin=None, amax=None):
     Takes parameters amin, amax to scale the range of the amplitude. The phase
     is scaled to the range -pi to pi.
     """
+    amplitude, phase = np.abs(Z), np.angle(Z)
+    if np.any(amplitude == 0):
+        warnings.warn(
+            "This phase plot will be incorrect because "
+            "the phase of a zero-amplitude complex number is undefined. "
+            "Adding a small constant to the amplitude may help.")
     plt.figure(dpi=128)
     plt.subplot(1, 2, 1)
-    plt.imshow(np.abs(Z), vmin=amin, vmax=amax)
+    plt.imshow(amplitude, vmin=amin, vmax=amax)
     cb0 = plt.colorbar(orientation='horizontal')
     plt.subplot(1, 2, 2)
-    plt.imshow(np.angle(Z), vmin=-np.pi, vmax=np.pi, cmap=plt.cm.twilight)
+    plt.imshow(phase, vmin=-np.pi, vmax=np.pi, cmap=plt.cm.twilight)
     cb1 = plt.colorbar(orientation='horizontal')
     plt.show()
     print(np.min(Z), np.max(Z))
