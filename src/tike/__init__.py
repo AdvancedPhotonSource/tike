@@ -45,13 +45,11 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         #
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
-"""Import all submodules in the `tike` namespace.
+"""Tike is a toolbox for ptycho-tomographic reconstruction of 3D objects.
 
-This file tells import which submodules exist in the `tike` namespace and what
-functions to import when someone calls `import tike`. Note that `tike.externs`
-and `tike.utils` are not imported here because they are not part of the public
-API.
-"""
+The aim of Tike is to provide fast, accurate, and modular implementations of a
+wide variety of reconstruction algorithms in an easy to maintain package.
+""""
 
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
