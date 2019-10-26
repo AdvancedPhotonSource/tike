@@ -152,6 +152,7 @@ class TestPtychoRecon(unittest.TestCase):
             h=self.h,
             psi=self.original
             )
+        np.testing.assert_array_equal(data.shape[1:], self.data_shape)
         np.testing.assert_allclose(data, self.data, rtol=1e-3)
 
     def test_consistent_grad(self):
@@ -176,6 +177,7 @@ class TestPtychoRecon(unittest.TestCase):
             with lzma.open(recon_file, 'wb') as file:
                 pickle.dump(new_psi, file)
             raise e
+        np.testing.assert_array_equal(new_psi.shape, self.original.shape)
         np.testing.assert_allclose(new_psi, standard, rtol=1e-3)
 
     def test_consistent_cgrad(self):
@@ -200,4 +202,5 @@ class TestPtychoRecon(unittest.TestCase):
             with lzma.open(recon_file, 'wb') as file:
                 pickle.dump(new_psi, file)
             raise e
+        np.testing.assert_array_equal(new_psi.shape, self.original.shape)
         np.testing.assert_allclose(new_psi, standard, rtol=1e-3)
