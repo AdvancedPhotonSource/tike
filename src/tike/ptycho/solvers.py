@@ -1,7 +1,10 @@
+"""This module provides Solver implementations for a variety of algorithms."""
+
 import numpy as np
 
 from tike.ptycho import PtychoBackend
-from tike.ptycho.shift import *
+# TODO: This module should not need to import from _shift
+from tike.ptycho._core._shift import _combine_grids, _uncombine_grids
 
 __all__ = [
     "available_solvers",
@@ -39,7 +42,7 @@ class GradientDescentPtychoSolver(PtychoBackend):
         probe = probe.astype(np.complex64)
         psi = psi.astype(np.complex64)
         # Combine the illumination from all positions
-        combined_probe = combine_grids(
+        combined_probe =_combine_grids(
             grids=np.tile(probe[np.newaxis, ...], [len(data), 1, 1]),
             v=v, h=h,
             combined_shape=psi.shape,
@@ -85,6 +88,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
         References
         ----------
         https://en.wikipedia.org/wiki/Backtracking_line_search
+
         """
         assert step_shrink < 1
         assert step_shrink > 0
@@ -125,7 +129,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
         probe = probe.astype(np.complex64)
         psi = psi.astype(np.complex64)
         # Combine the illumination from all positions
-        combined_probe = combine_grids(
+        combined_probe =_combine_grids(
             grids=np.tile(np.abs(probe)[np.newaxis, ...], [len(data), 1, 1]),
             v=v, h=h,
             combined_shape=psi.shape,

@@ -1,7 +1,7 @@
 """This module provides ptychography solvers.
 
 The ptychography solvers are generic and can use any backend that provides an
-interface that matches `tike.templates.PtychoCore`.
+interface that matches `PtychoCore`.
 
 The reference implementation uses NumPy's FFT library. Select a non-default
 backend by setting the TIKE_PTYCHO_BACKEND environment variable.
@@ -15,6 +15,7 @@ if "TIKE_PTYCHO_BACKEND" in os.environ:
     # from something import something as PtychoBackend
     raise ImportError("Cannot set custom backend yet.")
 else:
-    from tike.ptycho.numpy import PtychoNumPyFFT as PtychoBackend
+    from tike.ptycho._core.numpy import PtychoNumPyFFT as PtychoBackend
 
 from tike.ptycho.ptycho import *
+from tike.ptycho.solvers import *

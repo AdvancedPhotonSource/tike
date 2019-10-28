@@ -3,12 +3,7 @@
 import numpy as np
 import scipy.ndimage.interpolation as sni
 
-__all__ = [
-    'combine_grids',
-    'uncombine_grids',
-]
-
-def combine_grids(
+def _combine_grids(
         grids, v, h,
         combined_shape, combined_corner
 ):  # yapf: disable
@@ -37,13 +32,13 @@ def combine_grids(
     """
     grids = grids.astype(np.complex64, casting='same_kind', copy=False)
     m_shape, v_shape, h_shape = grids.shape
-    vshift, V, V1 = shift_coords(v, v_shape, combined_corner[-2],
-                                 combined_shape[-2])
-    hshift, H, H1 = shift_coords(h, h_shape, combined_corner[-1],
-                                 combined_shape[-1])
+    vshift, V, V1 = _shift_coords(v, v_shape, combined_corner[-2],
+                                  combined_shape[-2])
+    hshift, H, H1 = _shift_coords(h, h_shape, combined_corner[-1],
+                                  combined_shape[-1])
     # Create a summed_grids large enough to hold all of the grids
     # plus some padding to cancel out the padding added for shifting
-    grids = fast_pad(grids, 1, 1)
+    grids = _fast_pad(grids, 1, 1)
     combined = np.zeros([combined_shape[-2] + 2, combined_shape[-1] + 2],
                         dtype=grids.dtype)
     # Add each of the grids to the appropriate place on the summed_grids
@@ -57,7 +52,7 @@ def combine_grids(
     return combined[1:-1, 1:-1, 0]
 
 
-def uncombine_grids(
+def _uncombine_grids(
         grids_shape, v, h,
         combined, combined_corner
 ):  # yapf: disable
@@ -87,13 +82,13 @@ def uncombine_grids(
     """
     combined = combined.astype(np.complex64, casting='same_kind', copy=False)
     v_shape, h_shape = grids_shape[-2:]
-    vshift, V, V1 = shift_coords(v, v_shape, combined_corner[-2],
-                                 combined.shape[-2])
-    hshift, H, H1 = shift_coords(h, h_shape, combined_corner[-1],
-                                 combined.shape[-1])
+    vshift, V, V1 = _shift_coords(v, v_shape, combined_corner[-2],
+                                  combined.shape[-2])
+    hshift, H, H1 = _shift_coords(h, h_shape, combined_corner[-1],
+                                  combined.shape[-1])
     # Create a grids large enough to hold all of the grids
     # plus some padding to cancel out the padding added for shifting
-    combined = fast_pad(combined, 1, 1)
+    combined = _fast_pad(combined, 1, 1)
     grids = np.empty(grids_shape, dtype=combined.dtype)
     # Retrive the updated values of each of the grids
     nprobes = h.size
@@ -108,7 +103,7 @@ def uncombine_grids(
     return grids.view(np.complex64)[..., 0]
 
 
-def fast_pad(unpadded_grid, npadv, npadh):
+def _fast_pad(unpadded_grid, npadv, npadh):
     """Pad symmetrically with zeros along the last two dimensions.
 
     The `unpadded_grid` keeps its own data type. The padded_shape is the same
@@ -137,7 +132,7 @@ def fast_pad(unpadded_grid, npadv, npadh):
     return unpadded_grid
 
 
-def shift_coords(r_min, r_shape, combined_min, combined_shape):
+def _shift_coords(r_min, r_shape, combined_min, combined_shape):
     """Find the positions of some 1D ranges in a new 1D coordinate system.
 
     Pad the new range coordinates with one on each side.

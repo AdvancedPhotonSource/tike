@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from tike.templates import PtychoCore
-from tike.ptycho.shift import *
+from .core import PtychoCore
+from ._shift import _combine_grids, _uncombine_grids
 
 
 class PtychoNumPyFFT(PtychoCore):
@@ -15,7 +15,7 @@ class PtychoNumPyFFT(PtychoCore):
         probe = probe.astype(np.complex64)
         psi = psi.astype(np.complex64)
         # Grab all of the patches where the probe and psi interact
-        wave = uncombine_grids(
+        wave = _uncombine_grids(
             grids_shape=(h.size, probe.shape[0], probe.shape[1]),
             v=v,
             h=h,
@@ -47,7 +47,7 @@ class PtychoNumPyFFT(PtychoCore):
         """
         nearplane = np.fft.ifft2(
             farplane)[:, :self.probe_shape, :self.probe_shape]
-        return combine_grids(
+        return _combine_grids(
             grids=nearplane,
             v=v,
             h=h,
