@@ -20,7 +20,7 @@ class GradientDescentPtychoSolver(PtychoBackend):
             data,
             probe, v, h,
             psi, psi_corner,
-            reg=0j, num_iter=1, rho=0, gamma=0.25,
+            reg=0j, num_iter=1, rho=0, gamma_psi=0.25,
             **kwargs
     ):  # yapf: disable
         """Use gradient descent to estimate `psi`.
@@ -31,7 +31,7 @@ class GradientDescentPtychoSolver(PtychoBackend):
             The regularizer for psi. (h + lamda / rho)
         rho : float
             The positive penalty parameter. It should be less than 1.
-        gamma : float
+        gamma_psi : float
             The ptychography gradient descent step size.
 
         """
@@ -41,31 +41,22 @@ class GradientDescentPtychoSolver(PtychoBackend):
         data = data.astype(np.float32)
         probe = probe.astype(np.complex64)
         psi = psi.astype(np.complex64)
-        # Combine the illumination from all positions
-        combined_probe =_combine_grids(
-            grids=np.tile(probe[np.newaxis, ...], [len(data), 1, 1]),
-            v=v, h=h,
-            combined_shape=psi.shape,
-            combined_corner=psi_corner,
-        )  # yapf: disable
-        combined_probe[combined_probe == 0] = 1
-        detector_shape = data.shape[1:]
         for i in range(num_iter):
             farplane = self.fwd(
                 probe=probe, v=v, h=h,
                 psi=psi, psi_corner=psi_corner,
             )  # yapf: disable
             # Updates for each illumination patch
-            grad = self.adj(
+            grad_psi = self.adj(
                 # FIXME: Divide by zero occurs when probe is all zeros?
-                farplane=farplane - data / np.conjugate(farplane),
+                farplane * (1 - data / (np.square(np.abs(farplane)) + 1e-32)),
                 probe=probe, v=v, h=h,
                 psi_shape=psi.shape, psi_corner=psi_corner,
-                combined_probe=combined_probe,
             )  # yapf: disable
-            grad -= rho * (reg - psi)
+            grad_psi /= cp.max(cp.abs(prb))**2
+            grad_psi -= rho * (reg - psi)
             # Update the guess for psi
-            psi = psi - gamma * grad
+            psi = psi - gamma_psi * grad_psi
         return psi
 
 
@@ -101,12 +92,11 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
             step_length *= step_shrink
         return step_length
 
-
     def run(self,
             data,
             probe, v, h,
             psi, psi_corner,
-            reg=0j, num_iter=1, rho=0, gamma=0.25, eta=None,
+            reg=0j, num_iter=1, rho=0, gamma_psi=0.25, dir_psi=None,
             **kwargs
     ):  # yapf: disable
         """Use conjugate gradient to estimate `psi`.
@@ -117,9 +107,9 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
             The regularizer for psi. (h + lamda / rho)
         rho : float
             The positive penalty parameter. It should be less than 1.
-        gamma : float
+        gamma_psi : float
             The ptychography gradient descent step size.
-        eta : (V, H) :py:class:`numpy.array` complex
+        dir_psi : (V, H) :py:class:`numpy.array` complex
             The search direction.
 
         """
@@ -129,26 +119,16 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
         data = data.astype(np.float32)
         probe = probe.astype(np.complex64)
         psi = psi.astype(np.complex64)
-        # Combine the illumination from all positions
-        combined_probe =_combine_grids(
-            grids=np.tile(np.abs(probe)[np.newaxis, ...], [len(data), 1, 1]),
-            v=v, h=h,
-            combined_shape=psi.shape,
-            combined_corner=psi_corner,
-        )  # yapf: disable
-        combined_probe[combined_probe == 0] = 1
-        detector_shape = data.shape[1:]
 
         # Define the function that we are minimizing
-        def maximum_a_posteriori_probability(psi):
+        def maximum_a_posteriori_probability(simdata):
             """Return the probability that psi is correct given the data."""
-            simdata = self.fwd(
-                probe=probe, v=v, h=h,
-                psi=psi, psi_corner=psi_corner,
-            )  # yapf: disable
             return np.nansum(
                 np.square(np.abs(simdata)) - 2 * data * np.log(np.abs(simdata)))
 
+        print("# congujate gradient parameters\n"
+              "iteration, step size object, step size probe, function min"
+             )  # csv column headers
         for i in range(num_iter):
             # Compute the gradient at the current location
             farplane = self.fwd(
@@ -156,36 +136,46 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
                 psi=psi, psi_corner=psi_corner,
             )  # yapf: disable
             # Updates for each illumination patch
-            denominator = np.conjugate(farplane)
-            denominator[denominator == 0] = 1
-            grad = self.adj(
-                # FIXME: Divide by zero occurs when probe is all zeros?
-                farplane - data / denominator,
+            grad_psi = self.adj(
+                farplane * (1 - data / (np.square(np.abs(farplane)) + 1e-32)),
                 probe=probe, v=v, h=h,
                 psi_shape=psi.shape, psi_corner=psi_corner,
-                combined_probe=combined_probe,
             )  # yapf: disable
-            grad -= rho * (reg - psi)
-            # Update the search direction, eta.
-            # eta and grad are the same shape as psi
-            if eta is None:
-                eta = -grad
+            # FIXME: Divide by zero occurs when probe is all zeros?
+            grad_psi /= cp.max(cp.abs(prb))**2
+            grad_psi -= rho * (reg - psi)
+            # Update the search direction, dir_psi.
+            # dir_psi and grad_psi are the same shape as psi
+            if dir_psi is None:
+                dir_psi = -grad_psi
             else:
-                denominator = np.nansum(np.conjugate(grad - grad0) * eta)
-                if denominator != 0:
-                    # Use previous eta if previous (grad - grad0) is zero
-                    eta = -grad + eta * np.square(
-                        np.linalg.norm(grad)) / denominator
-            # Update the step length, gamma
-            gamma = self.line_search(
+                dir_psi = (
+                    -grad_psi
+                    + dir_psi * np.square(np.linalg.norm(grad_psi))
+                    / (cp.sum(cp.conj(dir_psi) * (gradpsi - gradpsi0)) + 1e-32)
+                )  # yapf: disable
+            grad_psi0 = grad_psi
+            # Update the step length, gamma_psi
+            gamma_psi = self.line_search(
                 f=maximum_a_posteriori_probability,
-                x=psi,
-                d=eta,
-                step_length=gamma,
-            )
+                x=farplane,
+                d=self.fwd(
+                    probe=probe, v=v, h=h,
+                    psi=dir_psi, psi_corner=psi_corner,
+                ),
+            )  # yapf: disable
             # Update the guess for psi
-            psi = psi + gamma * eta
-            grad0 = grad
+            psi = psi + gamma_psi * dir_psi
+
+            gamma_prb = 0
+
+            # check convergence
+            if (np.mod(i, 8) == 0):
+                print("%4d, %.3e, %.3e, %.7e" % (
+                    i, gamma_psi, gamma_prb,
+                    maximum_a_posteriori_probability(farplane),
+                ))  # yapf: disable
+
         return psi
 
 
