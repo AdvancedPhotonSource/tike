@@ -90,13 +90,14 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
         https://en.wikipedia.org/wiki/Backtracking_line_search
 
         """
-        assert step_shrink < 1
-        assert step_shrink > 0
+        assert step_shrink > 0 and step_shrink < 1
         m = 0.5  # Some tuning parameter for termination
-        # Decrease the step length while the step moves us away from the minimum
-        while f(x + step_length * d) > f(x) + step_shrink * m:
+        fx = f(x)  # Save the result of f(x) instead of computing it many times
+        # Decrease the step length while the step increases the cost function
+        while f(x + step_length * d) > fx + step_shrink * m:
             if step_length < 1e-32:
-                return step_length
+                warnings.warn("Line search failed for conjugate gradient.")
+                return 0
             step_length *= step_shrink
         return step_length
 
