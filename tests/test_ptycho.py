@@ -50,11 +50,14 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import lzma
-import numpy as np
 import os
 import pickle
-import tike.ptycho
 import unittest
+
+import numpy as np
+
+import tike.ptycho
+from tike.ptycho import PtychoBackend
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
@@ -143,6 +146,43 @@ class TestPtychoRecon(unittest.TestCase):
                 self.original,
             ] = pickle.load(file)
 
+    def test_adjoint_operators(self):
+        """Check that the adjoint operator is correct."""
+        # Class gpu solver
+        with PtychoBackend(
+                nscan=self.v.size,
+                probe_shape=self.probe.shape[0],
+                detector_shape=self.data_shape[0],
+                nz=self.original.shape[0],
+                n=self.original.shape[1],
+        ) as slv:
+            t1 = slv.fwd(
+                psi=self.original,
+                v=self.v, h=self.h, probe=self.probe
+            )
+            t2 = slv.adj(
+                farplane=t1,
+                v=self.v, h=self.h, probe=self.probe,
+                psi_shape=self.original.shape
+            )
+            # t3 = slv.adj_prb(
+            #     farplane=t1,
+            #     v=self.v, h=self.h,
+            #     psi=self.original,
+            # )
+            a = np.sum(self.original * np.conj(t2))
+            b = np.sum(t1 * np.conj(t1))
+            # c = np.sum(prb0 * np.conj(t3))
+            print()
+            print('<FQP,     FQP> = {:.6f}{:+.6f}j'.format(a.real, a.imag))
+            print('<P  , Q*F*FQP> = {:.6f}{:+.6f}j'.format(b.real, b.imag))
+            # print('<Q  , P*F*FPQ> = {:.6f}{:+.6f}j'.format(c.real, c.imag))
+            # print('<FQP,FQP> - <P,Q*F*FQP> = ', a-b)
+            # print('<FQP,FQP> - <Q,P*F*FPQ> = ', a-c)
+            # Test whether Adjoint fixed probe operator is correct
+            np.testing.assert_allclose(a, b)
+            # np.testing.assert_allclose(a, c)
+
     def test_consistent_simulate(self):
         """Check ptycho.simulate for consistency."""
         data = tike.ptycho.simulate(
@@ -204,3 +244,6 @@ class TestPtychoRecon(unittest.TestCase):
             raise e
         np.testing.assert_array_equal(new_psi.shape, self.original.shape)
         np.testing.assert_allclose(new_psi, standard, rtol=1e-3)
+
+if __name__ == '__main__':
+  unittest.main()
