@@ -15,7 +15,7 @@ os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 import numpy as np  # noqa
-import tike  # noqa
+import tike.ptycho  # noqa
 
 
 class BenchmarkPtycho(unittest.TestCase):
