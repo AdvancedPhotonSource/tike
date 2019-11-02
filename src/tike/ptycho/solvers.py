@@ -8,57 +8,8 @@ from tike.ptycho._core._shift import _combine_grids, _uncombine_grids
 
 __all__ = [
     "available_solvers",
-    "GradientDescentPtychoSolver",
     "ConjugateGradientPtychoSolver",
 ]
-
-
-class GradientDescentPtychoSolver(PtychoBackend):
-    """Solve the ptychography problem using gradient descent."""
-
-    def run(self,
-            data,
-            probe, v, h,
-            psi,
-            reg=0j, num_iter=1, rho=0, gamma_psi=0.25,
-            **kwargs
-    ):  # yapf: disable
-        """Use gradient descent to estimate `psi`.
-
-        Parameters
-        ----------
-        reg : (V, H, P) :py:class:`numpy.array` complex
-            The regularizer for psi. (h + lamda / rho)
-        rho : float
-            The positive penalty parameter. It should be less than 1.
-        gamma_psi : float
-            The ptychography gradient descent step size.
-
-        """
-        if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)
-                and np.iscomplexobj(reg)):
-            raise TypeError("psi, probe, and reg must be complex.")
-        data = data.astype(np.float32)
-        probe = probe.astype(np.complex64)
-        psi = psi.astype(np.complex64)
-        for i in range(num_iter):
-            farplane = self.fwd(
-                probe=probe, v=v, h=h,
-                psi=psi,
-            )  # yapf: disable
-            # Updates for each illumination patch
-            grad_psi = self.adj(
-                # FIXME: Divide by zero occurs when probe is all zeros?
-                farplane * (1 - data / (np.square(np.abs(farplane)) + 1e-32)),
-                probe=probe, v=v, h=h,
-                psi_shape=psi.shape,
-            )  # yapf: disable
-            grad_psi /= np.max(np.abs(probe))**2
-            grad_psi -= rho * (reg - psi)
-            # Update the guess for psi
-            psi = psi - gamma_psi * grad_psi
-        return psi
-
 
 class ConjugateGradientPtychoSolver(PtychoBackend):
     """Solve the ptychography problem using gradient descent."""
@@ -82,7 +33,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
 
         """
         assert step_shrink > 0 and step_shrink < 1
-        m = 0.5  # Some tuning parameter for termination
+        m = 0  # Some tuning parameter for termination
         fx = f(x)  # Save the result of f(x) instead of computing it many times
         # Decrease the step length while the step increases the cost function
         while f(x + step_length * d) > fx + step_shrink * m:
@@ -123,7 +74,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
         # Define the function that we are minimizing
         def maximum_a_posteriori_probability(simdata):
             """Return the probability that psi is correct given the data."""
-            return np.nansum(
+            return np.sum(
                 np.square(np.abs(simdata)) - 2 * data * np.log(np.abs(simdata)))
 
         print("# congujate gradient parameters\n"
@@ -181,6 +132,5 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
 
 # TODO: Add new algorithms here
 available_solvers = {
-    "grad": GradientDescentPtychoSolver,
     "cgrad": ConjugateGradientPtychoSolver,
 }

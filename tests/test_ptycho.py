@@ -195,31 +195,6 @@ class TestPtychoRecon(unittest.TestCase):
         np.testing.assert_array_equal(data.shape[1:], self.data_shape)
         np.testing.assert_allclose(data, self.data, rtol=1e-3)
 
-    def test_consistent_grad(self):
-        """Check ptycho.grad for consistency."""
-        new_psi = tike.ptycho.reconstruct(
-            data=self.data,
-            probe=self.probe,
-            v=self.v,
-            h=self.h,
-            psi=np.ones_like(self.original),
-            algorithm='grad',
-            num_iter=10,
-            rho=0.5,
-            gamma=0.25,
-            reg=1+0j
-            )
-        recon_file = os.path.join(testdir, 'data/ptycho_grad.pickle.lzma')
-        try:
-            with lzma.open(recon_file, 'rb') as file:
-                standard = pickle.load(file)
-        except FileNotFoundError as e:
-            with lzma.open(recon_file, 'wb') as file:
-                pickle.dump(new_psi, file)
-            raise e
-        np.testing.assert_array_equal(new_psi.shape, self.original.shape)
-        np.testing.assert_allclose(new_psi, standard, rtol=1e-3)
-
     def test_consistent_cgrad(self):
         """Check ptycho.cgrad for consistency."""
         new_psi = tike.ptycho.reconstruct(

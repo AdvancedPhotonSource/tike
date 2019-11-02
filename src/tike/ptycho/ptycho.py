@@ -166,7 +166,6 @@ def reconstruct(
         The inital guess of the object transmission function at each angle.
     algorithm : string
         The name of one of the following algorithms to use for reconstructing:
-            * grad : gradient descent
             * cgrad : conjugate gradient descent
 
     Returns
