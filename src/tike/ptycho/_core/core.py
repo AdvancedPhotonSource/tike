@@ -30,7 +30,7 @@ class PtychoCore(object):
         The pixel width and height of the (square) probe illumination.
     detector_shape : int
         The pixel width and height of the (square) detector grid.
-    n, nz : int
+    nz, n : int
         The pixel width and height of the reconstructed grid.
     ntheta : int
         The number of angular partitions of the data.
@@ -44,10 +44,11 @@ class PtychoCore(object):
         The complex wavefront modulation of the object.
     probe : (ntheta, probe_shape, probe_shape, ) complex64
         The complex illumination function.
-    data, farplane : (ntheta, nscan, detector_shape, detector_shape, ) complex64
-        The measured data on the detector. `data` is the square of the absolute
-        value of `farplane`. i.e. `data` is the intensity of the `farplane`.
-    v, h : (ntheta, nscan, ) float32
+    farplane : (ntheta, nscan, detector_shape, detector_shape, ) complex64
+        The square root of data on the detector. i.e. data is the square of
+        the absolute value of `farplane`. `data` is the intensity of
+        the `farplane`.
+    v, h : (ntheta, nscan, 2) float32
         Coordinates of the minimum corner of the probe grid for each
         measurement in the coordinate system of psi.
 
@@ -59,8 +60,8 @@ class PtychoCore(object):
         self.probe_shape = probe_shape
         self.detector_shape = detector_shape
         self.ntheta = ntheta
-        self.n = n
         self.nz = nz
+        self.n = n
         self.ptheta = ptheta
 
     def __enter__(self):
@@ -78,14 +79,23 @@ class PtychoCore(object):
         """Implement a specific ptychography solving algorithm."""
         raise NotImplementedError("Cannot run a base class.")
 
-    def fwd(self, psi, data, scan, prb):
-        """Compute the farplane complex wavefront (FQ)."""
+    def fwd(self, psi, farplane, scan, prb):
+        """Perform the forward ptychography transform (FQ).
+
+        See help(PtychoCore) for more information.
+        """
         raise NotImplementedError("Cannot run a base class.")
 
-    def adj(self, psi, data, scan, prb):
-        """Compute the nearplane complex wavefronts (Q*F*)."""
+    def adj(self, psi, farplane, scan, prb):
+        """Perform the fixed probe adjoint ptychography transform (Q*F*).
+
+        See help(PtychoCore) for more information.
+        """
         raise NotImplementedError("Cannot run a base class.")
 
-    def adj_probe(self, psi, data, scan, prb):
-        """Compute the probe (Q*F*)."""
+    def adj_probe(self, psi, farplane, scan, prb):
+        """Perform the fixed object adjoint ptychography transform (O*F*).
+
+        See help(PtychoCore) for more information.
+        """
         raise NotImplementedError("Cannot run a base class.")
