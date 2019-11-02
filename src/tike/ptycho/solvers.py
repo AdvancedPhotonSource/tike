@@ -53,7 +53,7 @@ class GradientDescentPtychoSolver(PtychoBackend):
                 probe=probe, v=v, h=h,
                 psi_shape=psi.shape, psi_corner=psi_corner,
             )  # yapf: disable
-            grad_psi /= cp.max(cp.abs(prb))**2
+            grad_psi /= np.max(np.abs(probe))**2
             grad_psi -= rho * (reg - psi)
             # Update the guess for psi
             psi = psi - gamma_psi * grad_psi
@@ -142,7 +142,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
                 psi_shape=psi.shape, psi_corner=psi_corner,
             )  # yapf: disable
             # FIXME: Divide by zero occurs when probe is all zeros?
-            grad_psi /= cp.max(cp.abs(prb))**2
+            grad_psi /= np.max(np.abs(probe))**2
             grad_psi -= rho * (reg - psi)
             # Update the search direction, dir_psi.
             # dir_psi and grad_psi are the same shape as psi
@@ -152,7 +152,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
                 dir_psi = (
                     -grad_psi
                     + dir_psi * np.square(np.linalg.norm(grad_psi))
-                    / (cp.sum(cp.conj(dir_psi) * (gradpsi - gradpsi0)) + 1e-32)
+                    / (np.sum(np.conj(dir_psi) * (grad_psi - grad_psi0)) + 1e-32)
                 )  # yapf: disable
             grad_psi0 = grad_psi
             # Update the step length, gamma_psi

@@ -28,6 +28,7 @@ class PtychoNumPyFFT(PtychoCore):
         return np.fft.fft2(
             wavefront,
             s=(self.detector_shape, self.detector_shape),
+            norm='ortho',
             # consider adding norm='ortho' here for numpy >= 1.10
         )
 
@@ -46,9 +47,10 @@ class PtychoNumPyFFT(PtychoCore):
         into a single psi using a weighted average.
         """
         nearplane = np.fft.ifft2(
-            farplane)[:, :self.probe_shape, :self.probe_shape]
+            farplane, norm='ortho',
+        )[:, :self.probe_shape, :self.probe_shape]
         return _combine_grids(
-            grids=nearplane,
+            grids=nearplane * np.conj(probe),
             v=v,
             h=h,
             combined_shape=psi_shape,
