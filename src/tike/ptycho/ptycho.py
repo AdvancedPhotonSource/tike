@@ -132,7 +132,7 @@ def gaussian(size, rin=0.8, rout=1.0):
 def simulate(
         data_shape,
         probe, v, h,
-        psi, psi_corner=(0, 0),
+        psi,
         **kwargs
 ):  # yapf: disable
     """Propagate the wavefront to the detector.
@@ -147,13 +147,13 @@ def simulate(
             n=1,
     ) as solver:
         return np.square(
-            np.abs(solver.fwd(probe, v, h, psi, psi_corner, **kwargs)))
+            np.abs(solver.fwd(probe, v, h, psi, **kwargs)))
 
 
 def reconstruct(
         data,
         probe, v, h,
-        psi, psi_corner=(0, 0),
+        psi,
         algorithm=None, num_iter=1, **kwargs
 ):  # yapf: disable
     """Reconstruct the `psi` and `probe` using the given `algorithm`.
@@ -188,7 +188,7 @@ def reconstruct(
         new_psi = solver.run(
             data=data,
             probe=probe, v=v, h=h,
-            psi=psi, psi_corner=psi_corner,
+            psi=psi,
             num_iter=num_iter,
             **kwargs
         )  # yapf: disable

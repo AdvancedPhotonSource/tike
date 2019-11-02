@@ -19,7 +19,7 @@ class GradientDescentPtychoSolver(PtychoBackend):
     def run(self,
             data,
             probe, v, h,
-            psi, psi_corner,
+            psi,
             reg=0j, num_iter=1, rho=0, gamma_psi=0.25,
             **kwargs
     ):  # yapf: disable
@@ -44,14 +44,14 @@ class GradientDescentPtychoSolver(PtychoBackend):
         for i in range(num_iter):
             farplane = self.fwd(
                 probe=probe, v=v, h=h,
-                psi=psi, psi_corner=psi_corner,
+                psi=psi,
             )  # yapf: disable
             # Updates for each illumination patch
             grad_psi = self.adj(
                 # FIXME: Divide by zero occurs when probe is all zeros?
                 farplane * (1 - data / (np.square(np.abs(farplane)) + 1e-32)),
                 probe=probe, v=v, h=h,
-                psi_shape=psi.shape, psi_corner=psi_corner,
+                psi_shape=psi.shape,
             )  # yapf: disable
             grad_psi /= np.max(np.abs(probe))**2
             grad_psi -= rho * (reg - psi)
@@ -95,7 +95,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
     def run(self,
             data,
             probe, v, h,
-            psi, psi_corner,
+            psi,
             reg=0j, num_iter=1, rho=0, gamma_psi=0.25, dir_psi=None,
             **kwargs
     ):  # yapf: disable
@@ -133,13 +133,13 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
             # Compute the gradient at the current location
             farplane = self.fwd(
                 probe=probe, v=v, h=h,
-                psi=psi, psi_corner=psi_corner,
+                psi=psi,
             )  # yapf: disable
             # Updates for each illumination patch
             grad_psi = self.adj(
                 farplane * (1 - data / (np.square(np.abs(farplane)) + 1e-32)),
                 probe=probe, v=v, h=h,
-                psi_shape=psi.shape, psi_corner=psi_corner,
+                psi_shape=psi.shape,
             )  # yapf: disable
             # FIXME: Divide by zero occurs when probe is all zeros?
             grad_psi /= np.max(np.abs(probe))**2
@@ -161,7 +161,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
                 x=farplane,
                 d=self.fwd(
                     probe=probe, v=v, h=h,
-                    psi=dir_psi, psi_corner=psi_corner,
+                    psi=dir_psi,
                 ),
             )  # yapf: disable
             # Update the guess for psi

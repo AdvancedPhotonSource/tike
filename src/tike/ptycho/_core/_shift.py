@@ -5,7 +5,7 @@ import scipy.ndimage.interpolation as sni
 
 def _combine_grids(
         grids, v, h,
-        combined_shape, combined_corner
+        combined_shape, combined_corner=(0, 0),
 ):  # yapf: disable
     """Combine grids by summation.
 
@@ -54,7 +54,7 @@ def _combine_grids(
 
 def _uncombine_grids(
         grids_shape, v, h,
-        combined, combined_corner
+        combined, combined_corner=(0, 0),
 ):  # yapf: disable
     """Extract a series of grids from a single grid.
 

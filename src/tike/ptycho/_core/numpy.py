@@ -9,7 +9,7 @@ from ._shift import _combine_grids, _uncombine_grids
 class PtychoNumPyFFT(PtychoCore):
     """Implement the ptychography operators using the NumPy FFT library."""
 
-    def fwd(self, probe, v, h, psi, psi_corner=(0, 0)):
+    def fwd(self, probe, v, h, psi):
         if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)):
             raise TypeError("psi and probe must be complex.")
         probe = probe.astype(np.complex64)
@@ -20,7 +20,6 @@ class PtychoNumPyFFT(PtychoCore):
             v=v,
             h=h,
             combined=psi,
-            combined_corner=psi_corner,
         )
         # Multiply the probe and patches of psi
         wavefront = probe * wave
@@ -35,8 +34,7 @@ class PtychoNumPyFFT(PtychoCore):
     def adj(self,
             farplane,
             probe, v, h,
-            psi_shape, psi_corner=(0, 0),
-            combined_probe=1,
+            psi_shape,
     ):  # yapf: disable
         """Compute the nearplane complex wavefronts from the farfield and probe.
 
@@ -54,5 +52,4 @@ class PtychoNumPyFFT(PtychoCore):
             v=v,
             h=h,
             combined_shape=psi_shape,
-            combined_corner=psi_corner,
-        ) / combined_probe
+        )
