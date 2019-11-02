@@ -182,9 +182,12 @@ def reconstruct(
                 "iterations".format(algorithm, len(data), *data.shape[1:],
                                     num_iter))
     if algorithm in available_solvers:
-        solver = available_solvers[algorithm](v.size, probe.shape[0],
-                                              data.shape[1], 1, psi.shape[0],
-                                              psi.shape[1], 1)
+        solver = available_solvers[algorithm](
+            nscan=v.size,
+            probe_shape=probe.shape[0],
+            detector_shape=data.shape[1],
+            nz=psi.shape[0], n=psi.shape[1],
+        )
         new_psi = solver.run(
             data=data,
             probe=probe, v=v, h=h,
