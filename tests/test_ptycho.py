@@ -165,23 +165,23 @@ class TestPtychoRecon(unittest.TestCase):
                 v=self.v, h=self.h, probe=self.probe,
                 psi_shape=self.original.shape
             )
-            # t3 = slv.adj_prb(
-            #     farplane=t1,
-            #     v=self.v, h=self.h,
-            #     psi=self.original,
-            # )
+            t3 = slv.adj_probe(
+                farplane=t1,
+                v=self.v, h=self.h,
+                psi=self.original,
+            )
             a = np.sum(self.original * np.conj(t2))
             b = np.sum(t1 * np.conj(t1))
-            # c = np.sum(prb0 * np.conj(t3))
+            c = np.sum(self.probe * np.conj(t3))
             print()
             print('<FQP,     FQP> = {:.6f}{:+.6f}j'.format(a.real, a.imag))
             print('<P  , Q*F*FQP> = {:.6f}{:+.6f}j'.format(b.real, b.imag))
-            # print('<Q  , P*F*FPQ> = {:.6f}{:+.6f}j'.format(c.real, c.imag))
+            print('<Q  , P*F*FPQ> = {:.6f}{:+.6f}j'.format(c.real, c.imag))
             # print('<FQP,FQP> - <P,Q*F*FQP> = ', a-b)
             # print('<FQP,FQP> - <Q,P*F*FPQ> = ', a-c)
             # Test whether Adjoint fixed probe operator is correct
             np.testing.assert_allclose(a, b)
-            # np.testing.assert_allclose(a, c)
+            np.testing.assert_allclose(a, c)
 
     def test_consistent_simulate(self):
         """Check ptycho.simulate for consistency."""

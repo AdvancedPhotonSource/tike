@@ -31,19 +31,7 @@ class PtychoNumPyFFT(PtychoCore):
             # consider adding norm='ortho' here for numpy >= 1.10
         )
 
-    def adj(self,
-            farplane,
-            probe, v, h,
-            psi_shape,
-    ):  # yapf: disable
-        """Compute the nearplane complex wavefronts from the farfield and probe.
-
-        Adjoint ptychography transform (Q*F*).
-
-        The inverse ptychography operator. Computes the inverse Fourier transform
-        of a series of farplane measurements, the combines these illuminations
-        into a single psi using a weighted average.
-        """
+    def adj(self, farplane, probe, v, h, psi_shape):
         nearplane = np.fft.ifft2(
             farplane, norm='ortho',
         )[:, :self.probe_shape, :self.probe_shape]
@@ -51,5 +39,17 @@ class PtychoNumPyFFT(PtychoCore):
             grids=nearplane * np.conj(probe),
             v=v,
             h=h,
-            combined_shape=psi_shape,
+            combined_shape=(self.nz, self.n),
         )
+
+    def adj_probe(self, farplane, v, h, psi):
+        psi_patches = _uncombine_grids(
+            grids_shape=(h.size, self.probe_shape, self.probe_shape),
+            v=v,
+            h=h,
+            combined=psi,
+        )
+        nearplane = np.fft.ifft2(
+            farplane, norm='ortho',
+        )[:, :self.probe_shape, :self.probe_shape]
+        return np.sum(nearplane * np.conj(psi_patches), axis=0)
