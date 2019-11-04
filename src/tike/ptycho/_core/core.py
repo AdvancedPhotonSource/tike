@@ -40,29 +40,28 @@ class PtychoCore(object):
 
     Parameters
     ----------
-    psi : (ntheta, nz, n, ) complex64
+    psi : (ntheta, nz, n) complex64
         The complex wavefront modulation of the object.
-    probe : (ntheta, probe_shape, probe_shape, ) complex64
+    probe : (ntheta, probe_shape, probe_shape) complex64
         The complex illumination function.
-    farplane : (ntheta, nscan, detector_shape, detector_shape, ) complex64
-        The square root of data on the detector. i.e. data is the square of
-        the absolute value of `farplane`. `data` is the intensity of
-        the `farplane`.
-    v, h : (ntheta, nscan, 2) float32
+    data, farplane : (ntheta, nscan, detector_shape, detector_shape) complex64
+        data is the square of the absolute value of `farplane`. `data` is the
+        intensity of the `farplane`.
+    scan : (ntheta, nscan, 2) float32
         Coordinates of the minimum corner of the probe grid for each
-        measurement in the coordinate system of psi.
+        measurement in the coordinate system of psi. Vertical coordinates
+        first, horizontal coordinates second.
 
     """
 
-    def __init__(self, nscan, probe_shape, detector_shape, nz, n, ntheta=1, ptheta=1): # yapf: disable
+    def __init__(self, detector_shape, probe_shape, nscan, nz, n, ntheta=1):
         """Please see help(PtychoCore) for more info."""
         self.nscan = nscan
         self.probe_shape = probe_shape
         self.detector_shape = detector_shape
-        self.ntheta = ntheta
         self.nz = nz
         self.n = n
-        self.ptheta = ptheta
+        self.ntheta = ntheta
 
     def __enter__(self):
         """Return self at start of a with-block."""
@@ -75,25 +74,28 @@ class PtychoCore(object):
         """
         pass
 
-    def run(self, data, probe, v, h, psi, **kwargs):
-        """Implement a specific ptychography solving algorithm."""
+    def run(self, data, probe, scan, psi, **kwargs):
+        """Implement a specific ptychography solving algorithm.
+
+        See help(PtychoCore) for more information.
+        """
         raise NotImplementedError("Cannot run a base class.")
 
-    def fwd(self, psi, farplane, scan, prb):
+    def fwd(self, farplane, probe, scan, psi, **kwargs):
         """Perform the forward ptychography transform (FQ).
 
         See help(PtychoCore) for more information.
         """
         raise NotImplementedError("Cannot run a base class.")
 
-    def adj(self, psi, farplane, scan, prb):
+    def adj(self, farplane, probe, scan, psi, **kwargs):
         """Perform the fixed probe adjoint ptychography transform (Q*F*).
 
         See help(PtychoCore) for more information.
         """
         raise NotImplementedError("Cannot run a base class.")
 
-    def adj_probe(self, psi, farplane, scan, prb):
+    def adj_probe(self, farplane, probe, scan, psi, **kwargs):
         """Perform the fixed object adjoint ptychography transform (O*F*).
 
         See help(PtychoCore) for more information.
