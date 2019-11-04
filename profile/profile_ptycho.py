@@ -28,9 +28,7 @@ class BenchmarkPtycho(unittest.TestCase):
         with lzma.open(dataset_file, 'rb') as file:
             [
                 self.data,
-                self.data_shape,
-                self.v,
-                self.h,
+                self.scan,
                 self.probe,
                 self.original,
             ] = pickle.load(file)
@@ -49,8 +47,7 @@ class BenchmarkPtycho(unittest.TestCase):
             new_psi = tike.ptycho.reconstruct(
                 data=self.data,
                 probe=self.probe,
-                v=self.v,
-                h=self.h,
+                scan=self.scan,
                 psi=new_psi,
                 algorithm='cgrad',
                 num_iter=1,

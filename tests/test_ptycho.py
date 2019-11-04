@@ -97,33 +97,34 @@ class TestPtychoRecon(unittest.TestCase):
         phase = plt.imread(
             os.path.join(testdir, "data/Bombus_terrestris-0128.tif")
         )
-        self.original = amplitude / 255 * np.exp(1j * phase / 255 * np.pi)
+        original = amplitude / 255 * np.exp(1j * phase / 255 * np.pi)
+        self.original = np.expand_dims(original, axis=0)
 
         pw = 15  # probe width
         weights = tike.ptycho.gaussian(pw, rin=0.8, rout=1.0)
-        self.probe = weights * np.exp(1j * weights * 0.2)
+        probe = weights * np.exp(1j * weights * 0.2)
+        self.probe = np.expand_dims(probe, axis=0)
 
-        self.v, self.h = np.meshgrid(
+        v, h = np.meshgrid(
             np.linspace(0, amplitude.shape[0]-pw, 13, endpoint=True),
             np.linspace(0, amplitude.shape[0]-pw, 13, endpoint=True),
             indexing='ij'
             )
-
-        self.data_shape = np.ones(2, dtype=int) * pw * 2
+        scan = np.stack((np.ravel(v), np.ravel(h)), axis=1)
+        self.scan = np.expand_dims(scan, axis=0)
 
         self.data = tike.ptycho.simulate(
-            data_shape=self.data_shape,
+            detector_shape=pw * 2,
             probe=self.probe,
-            v=self.v,
-            h=self.h,
+            scan=self.scan,
             psi=self.original
             )
 
+        assert self.data.shape == (1, 13 * 13, pw * 2, pw * 2)
+
         setup_data = [
             self.data,
-            self.data_shape,
-            self.v,
-            self.h,
+            self.scan,
             self.probe,
             self.original,
             ]
@@ -139,9 +140,7 @@ class TestPtychoRecon(unittest.TestCase):
         with lzma.open(dataset_file, 'rb') as file:
             [
                 self.data,
-                self.data_shape,
-                self.v,
-                self.h,
+                self.scan,
                 self.probe,
                 self.original,
             ] = pickle.load(file)
@@ -150,24 +149,28 @@ class TestPtychoRecon(unittest.TestCase):
         """Check that the adjoint operator is correct."""
         # Class gpu solver
         with PtychoBackend(
-                nscan=self.v.size,
-                probe_shape=self.probe.shape[0],
-                detector_shape=self.data_shape[0],
-                nz=self.original.shape[0],
-                n=self.original.shape[1],
+                nscan=self.scan.shape[-2],
+                probe_shape=self.probe.shape[-1],
+                detector_shape=self.data.shape[-1],
+                nz=self.original.shape[-2],
+                n=self.original.shape[-1],
         ) as slv:
             t1 = slv.fwd(
+                farplane=None,
+                probe=self.probe,
+                scan=self.scan,
                 psi=self.original,
-                v=self.v, h=self.h, probe=self.probe
             )
             t2 = slv.adj(
                 farplane=t1,
-                v=self.v, h=self.h, probe=self.probe,
-                psi_shape=self.original.shape
+                probe=self.probe,
+                scan=self.scan,
+                psi=None,
             )
             t3 = slv.adj_probe(
                 farplane=t1,
-                v=self.v, h=self.h,
+                probe=None,
+                scan=self.scan,
                 psi=self.original,
             )
             a = np.sum(self.original * np.conj(t2))
@@ -186,13 +189,12 @@ class TestPtychoRecon(unittest.TestCase):
     def test_consistent_simulate(self):
         """Check ptycho.simulate for consistency."""
         data = tike.ptycho.simulate(
-            data_shape=self.data_shape,
+            detector_shape=self.data.shape[-1],
             probe=self.probe,
-            v=self.v,
-            h=self.h,
-            psi=self.original
+            scan=self.scan,
+            psi=self.original,
             )
-        np.testing.assert_array_equal(data.shape[1:], self.data_shape)
+        np.testing.assert_array_equal(data.shape, self.data.shape)
         np.testing.assert_allclose(data, self.data, rtol=1e-3)
 
     def test_consistent_cgrad(self):
@@ -200,8 +202,7 @@ class TestPtychoRecon(unittest.TestCase):
         new_psi = tike.ptycho.reconstruct(
             data=self.data,
             probe=self.probe,
-            v=self.v,
-            h=self.h,
+            scan=self.scan,
             psi=np.ones_like(self.original),
             algorithm='cgrad',
             num_iter=10,
@@ -218,7 +219,7 @@ class TestPtychoRecon(unittest.TestCase):
                 pickle.dump(new_psi, file)
             raise e
         np.testing.assert_array_equal(new_psi.shape, self.original.shape)
-        np.testing.assert_allclose(new_psi, standard, rtol=1e-3)
+        np.testing.assert_allclose(new_psi, standard)
 
 if __name__ == '__main__':
   unittest.main()

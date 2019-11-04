@@ -130,8 +130,8 @@ def gaussian(size, rin=0.8, rout=1.0):
 
 
 def simulate(
-        data_shape,
-        probe, v, h,
+        detector_shape,
+        probe, scan,
         psi,
         **kwargs
 ):  # yapf: disable
@@ -139,20 +139,22 @@ def simulate(
 
     Return real-valued intensities measured by the detector.
     """
+    assert scan.shape[0] == psi.shape[0]
     with PtychoBackend(
-            nscan=v.size,
-            probe_shape=probe.shape[0],
-            detector_shape=data_shape[0],
+            nscan=scan.shape[-2],
+            probe_shape=probe.shape[-1],
+            detector_shape=detector_shape,
             nz=1,
             n=1,
+            ntheta=scan.shape[0],
     ) as solver:
         return np.square(
-            np.abs(solver.fwd(probe, v, h, psi, **kwargs)))
+            np.abs(solver.fwd(probe=probe, scan=scan, psi=psi, farplane=None, **kwargs)))
 
 
 def reconstruct(
         data,
-        probe, v, h,
+        probe, scan,
         psi,
         algorithm=None, num_iter=1, **kwargs
 ):  # yapf: disable
@@ -174,22 +176,21 @@ def reconstruct(
         The updated obect transmission function at each angle.
 
     """
-    assert len(data) == v.size == h.size, \
-        "The size of v, h must be the same as the number of data."
     # Send data to c function
     logger.info("{} on {:,d} - {:,d} by {:,d} grids for {:,d} "
                 "iterations".format(algorithm, len(data), *data.shape[1:],
                                     num_iter))
     if algorithm in available_solvers:
         solver = available_solvers[algorithm](
-            nscan=v.size,
-            probe_shape=probe.shape[0],
-            detector_shape=data.shape[1],
-            nz=psi.shape[0], n=psi.shape[1],
+            nscan=scan.shape[-2],
+            probe_shape=probe.shape[-1],
+            detector_shape=data.shape[-1],
+            nz=psi.shape[-2], n=psi.shape[-1],
+            ntheta=scan.shape[0],
         )
         new_psi = solver.run(
             data=data,
-            probe=probe, v=v, h=h,
+            probe=probe, scan=scan,
             psi=psi,
             num_iter=num_iter,
             **kwargs

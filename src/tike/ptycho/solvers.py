@@ -43,10 +43,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
             step_length *= step_shrink
         return step_length
 
-    def run(self,
-            data,
-            probe, v, h,
-            psi,
+    def run(self, data, probe, scan, psi,
             reg=0j, num_iter=1, rho=0, gamma_psi=0.25, dir_psi=None,
             **kwargs
     ):  # yapf: disable
@@ -83,14 +80,16 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
         for i in range(num_iter):
             # Compute the gradient at the current location
             farplane = self.fwd(
-                probe=probe, v=v, h=h,
+                farplane=None,
+                probe=probe, scan=scan,
                 psi=psi,
             )  # yapf: disable
             # Updates for each illumination patch
             grad_psi = self.adj(
                 farplane * (1 - data / (np.square(np.abs(farplane)) + 1e-32)),
-                probe=probe, v=v, h=h,
+                probe=probe, scan=scan,
                 psi_shape=psi.shape,
+                psi=None,
             )  # yapf: disable
             # FIXME: Divide by zero occurs when probe is all zeros?
             grad_psi /= np.max(np.abs(probe))**2
@@ -111,8 +110,9 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
                 f=maximum_a_posteriori_probability,
                 x=farplane,
                 d=self.fwd(
-                    probe=probe, v=v, h=h,
+                    probe=probe, scan=scan,
                     psi=dir_psi,
+                    farplane=None,
                 ),
             )  # yapf: disable
             # Update the guess for psi
