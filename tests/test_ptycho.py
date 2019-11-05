@@ -199,7 +199,7 @@ class TestPtychoRecon(unittest.TestCase):
 
     def test_consistent_cgrad(self):
         """Check ptycho.cgrad for consistency."""
-        new_psi = tike.ptycho.reconstruct(
+        result = tike.ptycho.reconstruct(
             data=self.data,
             probe=self.probe,
             scan=self.scan,
@@ -210,6 +210,7 @@ class TestPtychoRecon(unittest.TestCase):
             gamma=0.25,
             reg=1+0j
             )
+        new_psi = result['psi']
         recon_file = os.path.join(testdir, 'data/ptycho_cgrad.pickle.lzma')
         try:
             with lzma.open(recon_file, 'rb') as file:

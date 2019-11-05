@@ -45,8 +45,8 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
         return step_length
 
     def run(self, data, probe, scan, psi,
-            reg=0j, num_iter=1, rho=0, gamma_psi=0.25, dir_psi=None,
-            model='poisson',
+            reg=0j, num_iter=1, rho=0, dir_psi=None,
+            model='poisson', recover_probe=False, dir_probe=None,
             **kwargs
     ):  # yapf: disable
         """Use conjugate gradient to estimate `psi`.
@@ -113,7 +113,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
             # FIXME: Divide by zero occurs when probe is all zeros?
             grad_psi /= xp.max(xp.abs(probe))**2
             grad_psi -= rho * (reg - psi)
-            # Update the search direction, dir_psi.
+            # Update the search direction, dir_psi, using Dai-Yuan direction.
             # dir_psi and grad_psi are the same shape as psi
             if dir_psi is None:
                 dir_psi = -grad_psi
@@ -121,7 +121,8 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
                 dir_psi = (
                     -grad_psi
                     + dir_psi * xp.square(xp.linalg.norm(grad_psi))
-                    / (xp.sum(xp.conj(dir_psi) * (grad_psi - grad_psi0)) + 1e-32)
+                    / (xp.sum(xp.conj(dir_psi) * (grad_psi - grad_psi0))
+                       + 1e-32)
                 )  # yapf: disable
             grad_psi0 = grad_psi
             # Update the step length, gamma_psi
@@ -137,16 +138,62 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
             # Update the guess for psi
             psi = psi + gamma_psi * dir_psi
 
-            gamma_prb = 0
+            if not recover_probe:
+                if (i + 1) % 8 == 0:
+                    print("%4d, %.3e, 0, %.7e" % (
+                        (i + 1), gamma_psi,
+                        maximum_a_posteriori_probability(farplane),
+                    ))  # yapf: disable
+                continue
+
+            farplane = self.fwd(
+                farplane=None,
+                probe=probe, scan=scan,
+                psi=psi,
+            )  # yapf: disable
+            # Updates for each probe
+            grad_probe = self.adj_probe(
+                farplane=data_diff(farplane),
+                probe=None, scan=scan,
+                psi=psi,
+            )  # yapf: disable
+            grad_probe /= xp.square(xp.max(xp.abs(psi)))
+            grad_probe /= self.nscan
+            # Update the search direction, dir_probe, using Dai-Yuan direction.
+            if dir_probe is None:
+                dir_probe = -grad_probe
+            else:
+                dir_probe = (
+                    -grad_probe
+                    + dir_probe * xp.square(xp.linalg.norm(grad_probe))
+                    / (xp.sum(xp.conj(dir_probe) * (grad_probe - grad_probe0))
+                       + 1e-32)
+                )  # yapf: disable
+            grad_probe0 = grad_probe
+            # Update the step length, gamma_probe
+            gamma_probe = self.line_search(
+                f=maximum_a_posteriori_probability,
+                x=farplane,
+                d=self.fwd(
+                    probe=dir_probe, scan=scan,
+                    psi=psi,
+                    farplane=None,
+                ),
+            )  # yapf: disable
+            # Update the guess for the probes
+            probe = probe + gamma_probe * dir_probe
 
             # check convergence
-            if (i % 8) == 0:
+            if (i + 1) % 8 == 0:
                 print("%4d, %.3e, %.3e, %.7e" % (
-                    i, gamma_psi, gamma_prb,
+                    (i + 1), gamma_psi, gamma_probe,
                     maximum_a_posteriori_probability(farplane),
                 ))  # yapf: disable
 
-        return psi
+        return {
+            'psi': psi,
+            'probe': probe,
+        }
 
 
 # TODO: Add new algorithms here
