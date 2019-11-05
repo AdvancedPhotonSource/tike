@@ -1,6 +1,6 @@
 """This module provides Solver implementations for a variety of algorithms."""
 
-import numpy as np
+import numpy as xp
 
 from tike.ptycho import PtychoBackend
 # TODO: This module should not need to import from _shift
@@ -10,6 +10,7 @@ __all__ = [
     "available_solvers",
     "ConjugateGradientPtychoSolver",
 ]
+
 
 class ConjugateGradientPtychoSolver(PtychoBackend):
     """Solve the ptychography problem using gradient descent."""
@@ -45,6 +46,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
 
     def run(self, data, probe, scan, psi,
             reg=0j, num_iter=1, rho=0, gamma_psi=0.25, dir_psi=None,
+            model='poisson',
             **kwargs
     ):  # yapf: disable
         """Use conjugate gradient to estimate `psi`.
@@ -61,18 +63,36 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
             The search direction.
 
         """
-        if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)
-                and np.iscomplexobj(reg)):
+        if not (xp.iscomplexobj(psi) and xp.iscomplexobj(probe)
+                and xp.iscomplexobj(reg)):
             raise TypeError("psi, probe, and reg must be complex.")
-        data = data.astype(np.float32)
-        probe = probe.astype(np.complex64)
-        psi = psi.astype(np.complex64)
+        data = data.astype(xp.float32)
+        probe = probe.astype(xp.complex64)
+        psi = psi.astype(xp.complex64)
 
-        # Define the function that we are minimizing
-        def maximum_a_posteriori_probability(simdata):
-            """Return the probability that psi is correct given the data."""
-            return np.sum(
-                np.square(np.abs(simdata)) - 2 * data * np.log(np.abs(simdata)))
+        if model is 'poisson':
+
+            def maximum_a_posteriori_probability(farplane):
+                return xp.sum(
+                    xp.square(xp.abs(farplane))
+                    - 2 * data * xp.log(xp.abs(farplane) + 1e-32))
+
+            def data_diff(farplane):
+                return farplane * (
+                    1 - data / (xp.square(xp.abs(farplane)) + 1e-32))
+
+        elif model is 'gaussian':
+
+            def maximum_a_posteriori_probability(farplane):
+                return xp.square(
+                    xp.linalg.norm(xp.abs(farplane) - xp.sqrt(data)))
+
+            def data_diff(farplane):
+                return (farplane
+                        - xp.sqrt(data) * xp.exp(1j * xp.angle(farplane)))
+
+        else:
+            raise ValueError("model must be 'gaussian' or 'poisson.'")
 
         print("# congujate gradient parameters\n"
               "iteration, step size object, step size probe, function min"
@@ -86,13 +106,12 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
             )  # yapf: disable
             # Updates for each illumination patch
             grad_psi = self.adj(
-                farplane * (1 - data / (np.square(np.abs(farplane)) + 1e-32)),
+                farplane=data_diff(farplane),
                 probe=probe, scan=scan,
-                psi_shape=psi.shape,
                 psi=None,
             )  # yapf: disable
             # FIXME: Divide by zero occurs when probe is all zeros?
-            grad_psi /= np.max(np.abs(probe))**2
+            grad_psi /= xp.max(xp.abs(probe))**2
             grad_psi -= rho * (reg - psi)
             # Update the search direction, dir_psi.
             # dir_psi and grad_psi are the same shape as psi
@@ -101,8 +120,8 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
             else:
                 dir_psi = (
                     -grad_psi
-                    + dir_psi * np.square(np.linalg.norm(grad_psi))
-                    / (np.sum(np.conj(dir_psi) * (grad_psi - grad_psi0)) + 1e-32)
+                    + dir_psi * xp.square(xp.linalg.norm(grad_psi))
+                    / (xp.sum(xp.conj(dir_psi) * (grad_psi - grad_psi0)) + 1e-32)
                 )  # yapf: disable
             grad_psi0 = grad_psi
             # Update the step length, gamma_psi
@@ -121,7 +140,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
             gamma_prb = 0
 
             # check convergence
-            if (np.mod(i, 8) == 0):
+            if (i % 8) == 0:
                 print("%4d, %.3e, %.3e, %.7e" % (
                     i, gamma_psi, gamma_prb,
                     maximum_a_posteriori_probability(farplane),
