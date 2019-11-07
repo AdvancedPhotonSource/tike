@@ -1,10 +1,6 @@
 """This module provides Solver implementations for a variety of algorithms."""
 
-import numpy as xp
-
 from tike.ptycho import PtychoBackend
-# TODO: This module should not need to import from _shift
-from tike.ptycho._core._shift import _combine_grids, _uncombine_grids
 
 __all__ = [
     "available_solvers",
@@ -63,6 +59,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
             The search direction.
 
         """
+        xp = self.array_module
         if not (xp.iscomplexobj(psi) and xp.iscomplexobj(probe)
                 and xp.iscomplexobj(reg)):
             raise TypeError("psi, probe, and reg must be complex.")

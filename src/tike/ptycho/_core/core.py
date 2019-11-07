@@ -54,6 +54,8 @@ class PtychoCore(object):
 
     """
 
+    array_module = None
+
     def __init__(self, detector_shape, probe_shape, nscan, nz, n, ntheta=1):
         """Please see help(PtychoCore) for more info."""
         self.nscan = nscan
