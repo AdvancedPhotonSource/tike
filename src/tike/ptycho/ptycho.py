@@ -149,7 +149,7 @@ def simulate(
             ntheta=scan.shape[0],
     ) as solver:
         return np.square(
-            np.abs(solver.fwd(probe=probe, scan=scan, psi=psi, farplane=None, **kwargs)))
+            np.abs(solver.fwd(probe=probe, scan=scan, psi=psi, **kwargs)))
 
 
 def reconstruct(

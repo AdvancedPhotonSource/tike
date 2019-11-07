@@ -83,21 +83,21 @@ class PtychoCore(object):
         """
         raise NotImplementedError("Cannot run a base class.")
 
-    def fwd(self, farplane, probe, scan, psi, **kwargs):
+    def fwd(self, probe, scan, psi, **kwargs):
         """Perform the forward ptychography transform (FQ).
 
         See help(PtychoCore) for more information.
         """
         raise NotImplementedError("Cannot run a base class.")
 
-    def adj(self, farplane, probe, scan, psi, **kwargs):
+    def adj(self, farplane, probe, scan, **kwargs):
         """Perform the fixed probe adjoint ptychography transform (Q*F*).
 
         See help(PtychoCore) for more information.
         """
         raise NotImplementedError("Cannot run a base class.")
 
-    def adj_probe(self, farplane, probe, scan, psi, **kwargs):
+    def adj_probe(self, farplane, scan, psi, **kwargs):
         """Perform the fixed object adjoint ptychography transform (O*F*).
 
         See help(PtychoCore) for more information.

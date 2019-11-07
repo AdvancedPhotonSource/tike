@@ -58,6 +58,7 @@ import numpy as np
 
 import tike.ptycho
 from tike.ptycho import PtychoBackend
+xp = PtychoBackend.array_module
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
@@ -123,10 +124,10 @@ class TestPtychoRecon(unittest.TestCase):
         assert self.data.shape == (1, 13 * 13, pw * 2, pw * 2)
 
         setup_data = [
-            self.data,
-            self.scan,
-            self.probe,
-            self.original,
+            self.data.astype('float32'),
+            self.scan.astype('float32'),
+            self.probe.astype('complex64'),
+            self.original.astype('complex64'),
             ]
 
         with lzma.open(dataset_file, 'wb') as file:
@@ -143,7 +144,7 @@ class TestPtychoRecon(unittest.TestCase):
                 self.scan,
                 self.probe,
                 self.original,
-            ] = pickle.load(file)
+            ] = [xp.array(x) for x in pickle.load(file)]
 
     def test_adjoint_operators(self):
         """Check that the adjoint operator is correct."""
@@ -154,9 +155,9 @@ class TestPtychoRecon(unittest.TestCase):
                 detector_shape=self.data.shape[-1],
                 nz=self.original.shape[-2],
                 n=self.original.shape[-1],
+                ntheta=1,
         ) as slv:
             t1 = slv.fwd(
-                farplane=None,
                 probe=self.probe,
                 scan=self.scan,
                 psi=self.original,
@@ -165,26 +166,24 @@ class TestPtychoRecon(unittest.TestCase):
                 farplane=t1,
                 probe=self.probe,
                 scan=self.scan,
-                psi=None,
             )
             t3 = slv.adj_probe(
                 farplane=t1,
-                probe=None,
                 scan=self.scan,
                 psi=self.original,
             )
-            a = np.sum(self.original * np.conj(t2))
-            b = np.sum(t1 * np.conj(t1))
-            c = np.sum(self.probe * np.conj(t3))
+            a = xp.sum(self.original * xp.conj(t2))
+            b = xp.sum(t1 * xp.conj(t1))
+            c = xp.sum(self.probe * xp.conj(t3))
             print()
-            print('<FQP,     FQP> = {:.6f}{:+.6f}j'.format(a.real, a.imag))
-            print('<P  , Q*F*FQP> = {:.6f}{:+.6f}j'.format(b.real, b.imag))
-            print('<Q  , P*F*FPQ> = {:.6f}{:+.6f}j'.format(c.real, c.imag))
+            print('<FQP,     FQP> = {:.6f}{:+.6f}j'.format(a.real.item(), a.imag.item()))
+            print('<P  , Q*F*FQP> = {:.6f}{:+.6f}j'.format(b.real.item(), b.imag.item()))
+            print('<Q  , P*F*FPQ> = {:.6f}{:+.6f}j'.format(c.real.item(), c.imag.item()))
             # print('<FQP,FQP> - <P,Q*F*FQP> = ', a-b)
             # print('<FQP,FQP> - <Q,P*F*FPQ> = ', a-c)
             # Test whether Adjoint fixed probe operator is correct
-            np.testing.assert_allclose(a, b)
-            np.testing.assert_allclose(a, c)
+            xp.testing.assert_allclose(a, b)
+            xp.testing.assert_allclose(a, c)
 
     def test_consistent_simulate(self):
         """Check ptycho.simulate for consistency."""
@@ -194,8 +193,8 @@ class TestPtychoRecon(unittest.TestCase):
             scan=self.scan,
             psi=self.original,
             )
-        np.testing.assert_array_equal(data.shape, self.data.shape)
-        np.testing.assert_allclose(data, self.data, rtol=1e-3)
+        xp.testing.assert_array_equal(data.shape, self.data.shape)
+        xp.testing.assert_allclose(data, self.data, rtol=1e-3)
 
     def test_consistent_cgrad(self):
         """Check ptycho.cgrad for consistency."""
@@ -203,7 +202,7 @@ class TestPtychoRecon(unittest.TestCase):
             data=self.data,
             probe=self.probe,
             scan=self.scan,
-            psi=np.ones_like(self.original),
+            psi=xp.ones_like(self.original),
             algorithm='cgrad',
             num_iter=10,
             rho=0.5,
@@ -219,8 +218,8 @@ class TestPtychoRecon(unittest.TestCase):
             with lzma.open(recon_file, 'wb') as file:
                 pickle.dump(new_psi, file)
             raise e
-        np.testing.assert_array_equal(new_psi.shape, self.original.shape)
-        np.testing.assert_allclose(new_psi, standard)
+        xp.testing.assert_array_equal(new_psi.shape, self.original.shape)
+        xp.testing.assert_allclose(new_psi, standard)
 
 if __name__ == '__main__':
   unittest.main()

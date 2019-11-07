@@ -97,7 +97,6 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
         for i in range(num_iter):
             # Compute the gradient at the current location
             farplane = self.fwd(
-                farplane=None,
                 probe=probe, scan=scan,
                 psi=psi,
             )  # yapf: disable
@@ -105,7 +104,6 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
             grad_psi = self.adj(
                 farplane=data_diff(farplane),
                 probe=probe, scan=scan,
-                psi=None,
             )  # yapf: disable
             # FIXME: Divide by zero occurs when probe is all zeros?
             grad_psi /= xp.max(xp.abs(probe))**2
@@ -129,7 +127,6 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
                 d=self.fwd(
                     probe=probe, scan=scan,
                     psi=dir_psi,
-                    farplane=None,
                 ),
             )  # yapf: disable
             # Update the guess for psi
@@ -144,14 +141,13 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
                 continue
 
             farplane = self.fwd(
-                farplane=None,
                 probe=probe, scan=scan,
                 psi=psi,
             )  # yapf: disable
             # Updates for each probe
             grad_probe = self.adj_probe(
                 farplane=data_diff(farplane),
-                probe=None, scan=scan,
+                scan=scan,
                 psi=psi,
             )  # yapf: disable
             grad_probe /= xp.square(xp.max(xp.abs(psi)))
@@ -174,7 +170,6 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
                 d=self.fwd(
                     probe=dir_probe, scan=scan,
                     psi=psi,
-                    farplane=None,
                 ),
             )  # yapf: disable
             # Update the guess for the probes

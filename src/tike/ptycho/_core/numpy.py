@@ -11,7 +11,7 @@ class PtychoNumPyFFT(PtychoCore):
 
     array_module = np
 
-    def fwd(self, farplane, probe, scan, psi, **kwargs):
+    def fwd(self, probe, scan, psi, **kwargs):
         if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)):
             raise TypeError("psi and probe must be complex.")
         probe = probe.astype(np.complex64)
@@ -38,7 +38,7 @@ class PtychoNumPyFFT(PtychoCore):
                                   self.detector_shape)
         return farplane
 
-    def adj(self, farplane, probe, scan, psi, **kwargs):
+    def adj(self, farplane, probe, scan, **kwargs):
         nearplane = np.fft.ifft2(
             farplane, norm='ortho',
         )[..., :self.probe_shape, :self.probe_shape]
@@ -53,7 +53,7 @@ class PtychoNumPyFFT(PtychoCore):
         assert psi.shape == (self.ntheta, self.nz, self.n)
         return psi
 
-    def adj_probe(self, farplane, probe, scan, psi, **kwargs):
+    def adj_probe(self, farplane, scan, psi, **kwargs):
         psi_patches = np.empty(
             (self.ntheta, self.nscan, self.probe_shape, self.probe_shape),
             dtype=np.complex64)
