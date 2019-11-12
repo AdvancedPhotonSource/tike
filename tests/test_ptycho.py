@@ -99,12 +99,12 @@ class TestPtychoRecon(unittest.TestCase):
             os.path.join(testdir, "data/Bombus_terrestris-0128.tif")
         )
         original = amplitude / 255 * np.exp(1j * phase / 255 * np.pi)
-        self.original = np.expand_dims(original, axis=0)
+        self.original = np.expand_dims(original, axis=0).astype('complex64')
 
         pw = 15  # probe width
         weights = tike.ptycho.gaussian(pw, rin=0.8, rout=1.0)
         probe = weights * np.exp(1j * weights * 0.2)
-        self.probe = np.expand_dims(probe, axis=0)
+        self.probe = np.expand_dims(probe, axis=0).astype('complex64')
 
         v, h = np.meshgrid(
             np.linspace(0, amplitude.shape[0]-pw, 13, endpoint=True),
@@ -112,7 +112,7 @@ class TestPtychoRecon(unittest.TestCase):
             indexing='ij'
             )
         scan = np.stack((np.ravel(v), np.ravel(h)), axis=1)
-        self.scan = np.expand_dims(scan, axis=0)
+        self.scan = np.expand_dims(scan, axis=0).astype('float32')
 
         self.data = tike.ptycho.simulate(
             detector_shape=pw * 2,
@@ -122,12 +122,13 @@ class TestPtychoRecon(unittest.TestCase):
             )
 
         assert self.data.shape == (1, 13 * 13, pw * 2, pw * 2)
+        assert self.data.dtype == 'float32', self.data.dtype
 
         setup_data = [
-            self.data.astype('float32'),
-            self.scan.astype('float32'),
-            self.probe.astype('complex64'),
-            self.original.astype('complex64'),
+            self.data,
+            self.scan,
+            self.probe,
+            self.original,
             ]
 
         with lzma.open(dataset_file, 'wb') as file:
@@ -193,6 +194,7 @@ class TestPtychoRecon(unittest.TestCase):
             scan=self.scan,
             psi=self.original,
             )
+        assert data.dtype == 'float32', data.dtype
         xp.testing.assert_array_equal(data.shape, self.data.shape)
         xp.testing.assert_allclose(data, self.data, rtol=1e-3)
 

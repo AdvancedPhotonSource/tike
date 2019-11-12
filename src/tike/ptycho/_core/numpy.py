@@ -35,7 +35,7 @@ class PtychoNumPyFFT(PtychoCore):
             wavefront,
             s=(self.detector_shape, self.detector_shape),
             norm='ortho',
-        )
+        ).astype(np.complex64)
         assert farplane.shape == (self.ntheta, self.nscan, self.detector_shape,
                                   self.detector_shape)
         return farplane
