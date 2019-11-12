@@ -17,12 +17,14 @@ class PtychoNumPyFFT(PtychoCore):
         probe = probe.astype(np.complex64)
         psi = psi.astype(np.complex64)
         # Grab all of the patches where the probe and psi interact
-        wavefront = np.empty(
-            (self.ntheta, self.nscan, self.probe_shape, self.probe_shape),
+        wavefront = np.zeros(
+            (self.ntheta, self.nscan, self.detector_shape, self.detector_shape),
             dtype=np.complex64)
+        pad = (self.detector_shape - self.probe_shape) // 2
+        end = self.probe_shape + pad
         for i in range(self.ntheta):
             # Multiply the probe and patches of psi
-            wavefront[i] = _uncombine_grids(
+            wavefront[i, :, pad:end, pad:end] = _uncombine_grids(
                 grids_shape=(self.nscan, self.probe_shape, self.probe_shape),
                 v=np.ravel(scan[i, :, 0]),
                 h=np.ravel(scan[i, :, 1]),
@@ -39,13 +41,15 @@ class PtychoNumPyFFT(PtychoCore):
         return farplane
 
     def adj(self, farplane, probe, scan, **kwargs):
+        pad = (self.detector_shape - self.probe_shape) // 2
+        end = self.probe_shape + pad
         nearplane = np.fft.ifft2(
             farplane, norm='ortho',
-        )[..., :self.probe_shape, :self.probe_shape]
+        )[:, :, pad:end, pad:end]
         psi = np.empty((self.ntheta, self.nz, self.n), dtype=np.complex64)
         for i in range(self.ntheta):
             psi[i] = _combine_grids(
-                grids=nearplane[i] * np.conj(probe[i]),
+                grids=nearplane[i, :, :, :] * np.conj(probe[i]),
                 v=np.ravel(scan[i, :, 0]),
                 h=np.ravel(scan[i, :, 1]),
                 combined_shape=(self.nz, self.n),
@@ -64,10 +68,11 @@ class PtychoNumPyFFT(PtychoCore):
                 h=np.ravel(scan[i, :, 1]),
                 combined=psi[i],
             )
+        pad = (self.detector_shape - self.probe_shape) // 2
+        end = self.probe_shape + pad
         nearplane = np.fft.ifft2(
-            farplane,
-            norm='ortho',
-        )[..., :self.probe_shape, :self.probe_shape]
+            farplane, norm='ortho',
+        )[..., pad:end, pad:end]
         probe = np.sum(nearplane * np.conj(psi_patches), axis=1)
         assert probe.shape == (self.ntheta, self.probe_shape, self.probe_shape)
         return probe
