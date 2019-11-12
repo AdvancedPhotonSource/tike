@@ -10,6 +10,7 @@ class PtychoNumPyFFT(PtychoCore):
     """Implement the ptychography operators using the NumPy FFT library."""
 
     array_module = np
+    asnumpy = np.asarray
 
     def fwd(self, probe, scan, psi, **kwargs):
         if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)):

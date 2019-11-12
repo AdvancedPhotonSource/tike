@@ -139,18 +139,24 @@ def simulate(
 
     Return real-valued intensities measured by the detector.
     """
-    assert scan.shape[0] == psi.shape[0]
+    xp = PtychoBackend.array_module
     with PtychoBackend(
-            nscan=scan.shape[-2],
-            probe_shape=probe.shape[-1],
-            detector_shape=detector_shape,
-            nz=1,
-            n=1,
-            ntheta=scan.shape[0],
+        nscan=scan.shape[-2],
+        probe_shape=probe.shape[-1],
+        detector_shape=detector_shape,
+        nz=psi.shape[-2],
+        n=psi.shape[-1],
+        ntheta=scan.shape[0],
     ) as solver:
-        return np.square(
-            np.abs(solver.fwd(probe=probe, scan=scan, psi=psi, **kwargs)))
-
+        data = xp.square(xp.abs(
+            solver.fwd(
+                probe=xp.array(probe),
+                scan=xp.array(scan),
+                psi=xp.array(psi),
+                **kwargs
+            )
+        ))
+    return PtychoBackend.asnumpy(data)
 
 def reconstruct(
         data,
@@ -176,9 +182,9 @@ def reconstruct(
         The updated obect transmission function at each angle.
 
     """
-    # Send data to c function
+    xp = PtychoBackend.array_module
     logger.info("{} on {:,d} - {:,d} by {:,d} grids for {:,d} "
-                "iterations".format(algorithm, len(data), *data.shape[1:],
+                "iterations".format(algorithm, *data.shape[1:],
                                     num_iter))
     if algorithm in available_solvers:
         solver = available_solvers[algorithm](
@@ -188,14 +194,17 @@ def reconstruct(
             nz=psi.shape[-2], n=psi.shape[-1],
             ntheta=scan.shape[0],
         )
-        new_psi = solver.run(
-            data=data,
-            probe=probe, scan=scan,
-            psi=psi,
+        result = solver.run(
+            data=xp.array(data),
+            probe=xp.array(probe), scan=xp.array(scan),
+            psi=xp.array(psi),
             num_iter=num_iter,
             **kwargs
         )  # yapf: disable
+        return {
+            'psi': PtychoBackend.asnumpy(result['psi']),
+            'probe': PtychoBackend.asnumpy(result['probe']),
+        }
     else:
         raise ValueError(
             "The {} algorithm is not an available.".format(algorithm))
-    return new_psi

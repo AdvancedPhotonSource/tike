@@ -57,8 +57,6 @@ import unittest
 import numpy as np
 
 import tike.ptycho
-from tike.ptycho import PtychoBackend
-xp = PtychoBackend.array_module
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
@@ -145,11 +143,15 @@ class TestPtychoRecon(unittest.TestCase):
                 self.scan,
                 self.probe,
                 self.original,
-            ] = [xp.array(x) for x in pickle.load(file)]
+            ] = pickle.load(file)
 
     def test_adjoint_operators(self):
         """Check that the adjoint operator is correct."""
-        # Class gpu solver
+        from tike.ptycho import PtychoBackend
+        xp = PtychoBackend.array_module
+        probe = xp.array(self.probe)
+        scan = xp.array(self.scan)
+        original = xp.array(self.original)
         with PtychoBackend(
                 nscan=self.scan.shape[-2],
                 probe_shape=self.probe.shape[-1],
@@ -159,23 +161,23 @@ class TestPtychoRecon(unittest.TestCase):
                 ntheta=1,
         ) as slv:
             t1 = slv.fwd(
-                probe=self.probe,
-                scan=self.scan,
-                psi=self.original,
+                probe=probe,
+                scan=scan,
+                psi=original,
             )
             t2 = slv.adj(
                 farplane=t1,
-                probe=self.probe,
-                scan=self.scan,
+                probe=probe,
+                scan=scan,
             )
             t3 = slv.adj_probe(
                 farplane=t1,
-                scan=self.scan,
-                psi=self.original,
+                scan=scan,
+                psi=original,
             )
-            a = xp.sum(self.original * xp.conj(t2))
+            a = xp.sum(original * xp.conj(t2))
             b = xp.sum(t1 * xp.conj(t1))
-            c = xp.sum(self.probe * xp.conj(t3))
+            c = xp.sum(probe * xp.conj(t3))
             print()
             print('<FQP,     FQP> = {:.6f}{:+.6f}j'.format(a.real.item(), a.imag.item()))
             print('<P  , Q*F*FQP> = {:.6f}{:+.6f}j'.format(b.real.item(), b.imag.item()))
@@ -195,8 +197,9 @@ class TestPtychoRecon(unittest.TestCase):
             psi=self.original,
             )
         assert data.dtype == 'float32', data.dtype
-        xp.testing.assert_array_equal(data.shape, self.data.shape)
-        xp.testing.assert_allclose(data, self.data, rtol=1e-3)
+        assert self.data.dtype == 'float32', self.data.dtype
+        np.testing.assert_array_equal(data.shape, self.data.shape)
+        np.testing.assert_allclose(np.sqrt(data), np.sqrt(self.data), atol=1e-6)
 
     def test_consistent_cgrad(self):
         """Check ptycho.cgrad for consistency."""
@@ -204,24 +207,23 @@ class TestPtychoRecon(unittest.TestCase):
             data=self.data,
             probe=self.probe,
             scan=self.scan,
-            psi=xp.ones_like(self.original),
+            psi=np.ones_like(self.original),
             algorithm='cgrad',
             num_iter=10,
             rho=0.5,
             gamma=0.25,
             reg=1+0j
             )
-        new_psi = result['psi']
         recon_file = os.path.join(testdir, 'data/ptycho_cgrad.pickle.lzma')
-        try:
+        if os.path.isfile(recon_file):
             with lzma.open(recon_file, 'rb') as file:
                 standard = pickle.load(file)
-        except FileNotFoundError as e:
+        else:
             with lzma.open(recon_file, 'wb') as file:
-                pickle.dump(new_psi, file)
-            raise e
-        xp.testing.assert_array_equal(new_psi.shape, self.original.shape)
-        xp.testing.assert_allclose(new_psi, standard)
+                pickle.dump(result['psi'], file)
+            raise FileNotFoundError("ptycho.cgrad standard not initialized.")
+        np.testing.assert_array_equal(result['psi'].shape, self.original.shape)
+        np.testing.assert_allclose(result['psi'], standard, atol=1e-6)
 
 if __name__ == '__main__':
   unittest.main()
