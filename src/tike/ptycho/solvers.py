@@ -70,9 +70,8 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
         if model is 'poisson':
 
             def maximum_a_posteriori_probability(farplane):
-                return xp.sum(
-                    xp.square(xp.abs(farplane))
-                    - 2 * data * xp.log(xp.abs(farplane) + 1e-32))
+                simdata = xp.square(xp.abs(farplane))
+                return xp.sum(simdata - data * xp.log(simdata + 1e-32))
 
             def data_diff(farplane):
                 return farplane * (
