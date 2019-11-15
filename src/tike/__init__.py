@@ -57,14 +57,6 @@ from __future__ import (absolute_import, division, print_function,
 import logging
 from pkg_resources import get_distribution, DistributionNotFound
 
-# from tike.communicator import *
-# from tike.ptycho import *
-# from tike.scan import *
-# from tike.tike import *
-# from tike.tomo import *
-# from tike.trajectory import *
-# from tike.view import *
-
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 try:
