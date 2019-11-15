@@ -67,7 +67,6 @@ from tike.constants import *
 import tike.ptycho
 import tike.tomo
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

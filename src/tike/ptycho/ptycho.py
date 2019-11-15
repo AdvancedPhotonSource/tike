@@ -92,7 +92,6 @@ import numpy as np
 from tike.ptycho import PtychoBackend
 from tike.ptycho.solvers import available_solvers
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
