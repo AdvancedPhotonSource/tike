@@ -3,6 +3,7 @@
 import numpy as np
 import scipy.ndimage.interpolation as sni
 
+
 def _combine_grids(
         grids, v, h,
         combined_shape, combined_corner=(0, 0),

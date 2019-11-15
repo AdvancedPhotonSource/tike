@@ -44,7 +44,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
             reg=0j, num_iter=1, rho=0, dir_psi=None,
             model='poisson', recover_probe=False, dir_probe=None,
             **kwargs
-    ):  # yapf: disable
+        ):  # yapf: disable
         """Use conjugate gradient to estimate `psi`.
 
         Parameters
@@ -92,7 +92,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
 
         print("# congujate gradient parameters\n"
               "iteration, step size object, step size probe, function min"
-             )  # csv column headers
+              )  # csv column headers
         for i in range(num_iter):
             # Compute the gradient at the current location
             farplane = self.fwd(

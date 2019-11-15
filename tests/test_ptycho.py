@@ -91,11 +91,9 @@ class TestPtychoRecon(unittest.TestCase):
         """
         import matplotlib.pyplot as plt
         amplitude = plt.imread(
-            os.path.join(testdir, "data/Cryptomeria_japonica-0128.tif")
-        )
+            os.path.join(testdir, "data/Cryptomeria_japonica-0128.tif"))
         phase = plt.imread(
-            os.path.join(testdir, "data/Bombus_terrestris-0128.tif")
-        )
+            os.path.join(testdir, "data/Bombus_terrestris-0128.tif"))
         original = amplitude / 255 * np.exp(1j * phase / 255 * np.pi)
         self.original = np.expand_dims(original, axis=0).astype('complex64')
 
@@ -127,7 +125,7 @@ class TestPtychoRecon(unittest.TestCase):
             self.scan,
             self.probe,
             self.original,
-            ]
+        ]
 
         with lzma.open(dataset_file, 'wb') as file:
             pickle.dump(setup_data, file)
@@ -179,11 +177,12 @@ class TestPtychoRecon(unittest.TestCase):
             b = xp.sum(t1 * xp.conj(t1))
             c = xp.sum(probe * xp.conj(t3))
             print()
-            print('<FQP,     FQP> = {:.6f}{:+.6f}j'.format(a.real.item(), a.imag.item()))
-            print('<P  , Q*F*FQP> = {:.6f}{:+.6f}j'.format(b.real.item(), b.imag.item()))
-            print('<Q  , P*F*FPQ> = {:.6f}{:+.6f}j'.format(c.real.item(), c.imag.item()))
-            # print('<FQP,FQP> - <P,Q*F*FQP> = ', a-b)
-            # print('<FQP,FQP> - <Q,P*F*FPQ> = ', a-c)
+            print('<FQP,     FQP> = {:.6f}{:+.6f}j'.format(
+                a.real.item(), a.imag.item()))
+            print('<P  , Q*F*FQP> = {:.6f}{:+.6f}j'.format(
+                b.real.item(), b.imag.item()))
+            print('<Q  , P*F*FPQ> = {:.6f}{:+.6f}j'.format(
+                c.real.item(), c.imag.item()))
             # Test whether Adjoint fixed probe operator is correct
             xp.testing.assert_allclose(a, b)
             xp.testing.assert_allclose(a, c)
@@ -195,7 +194,7 @@ class TestPtychoRecon(unittest.TestCase):
             probe=self.probe,
             scan=self.scan,
             psi=self.original,
-            )
+        )
         assert data.dtype == 'float32', data.dtype
         assert self.data.dtype == 'float32', self.data.dtype
         np.testing.assert_array_equal(data.shape, self.data.shape)
@@ -225,5 +224,6 @@ class TestPtychoRecon(unittest.TestCase):
         np.testing.assert_array_equal(result['psi'].shape, self.original.shape)
         np.testing.assert_allclose(result['psi'], standard, atol=1e-6)
 
+
 if __name__ == '__main__':
-  unittest.main()
+    unittest.main()

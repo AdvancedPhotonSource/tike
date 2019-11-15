@@ -27,5 +27,5 @@ if "TIKE_PTYCHO_BACKEND" in os.environ:
 else:
     from tike.ptycho._core.numpy import PtychoNumPyFFT as PtychoBackend
 
-from tike.ptycho.ptycho import *
-from tike.ptycho.solvers import *
+from tike.ptycho.ptycho import *  # noqa
+from tike.ptycho.solvers import *  # noqa
