@@ -7,12 +7,12 @@ from ._shift import _combine_grids, _uncombine_grids
 
 
 class PtychoNumPyFFT(PtychoCore):
-    """Implement the ptychography operators using the NumPy FFT library."""
+    """Implement `tike.ptycho.core.PtychoCore` using the NumPy FFT library."""
 
     array_module = np
     asnumpy = np.asarray
 
-    def fwd(self, probe, scan, psi, **kwargs):
+    def fwd(self, probe, scan, psi, **kwargs):  # noqa: D102
         if not (np.iscomplexobj(psi) and np.iscomplexobj(probe)):
             raise TypeError("psi and probe must be complex.")
         probe = probe.astype(np.complex64)
@@ -41,7 +41,7 @@ class PtychoNumPyFFT(PtychoCore):
                                   self.detector_shape)
         return farplane
 
-    def adj(self, farplane, probe, scan, **kwargs):
+    def adj(self, farplane, probe, scan, **kwargs):  # noqa: D102
         pad = (self.detector_shape - self.probe_shape) // 2
         end = self.probe_shape + pad
         nearplane = np.fft.ifft2(
@@ -58,7 +58,7 @@ class PtychoNumPyFFT(PtychoCore):
         assert psi.shape == (self.ntheta, self.nz, self.n)
         return psi
 
-    def adj_probe(self, farplane, scan, psi, **kwargs):
+    def adj_probe(self, farplane, scan, psi, **kwargs):  # noqa: D102
         psi_patches = np.empty(
             (self.ntheta, self.nscan, self.probe_shape, self.probe_shape),
             dtype=np.complex64)
