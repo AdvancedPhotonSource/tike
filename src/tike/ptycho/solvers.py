@@ -40,11 +40,12 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
             step_length *= step_shrink
         return step_length
 
-    def run(self, data, probe, scan, psi,
-            reg=0j, num_iter=1, rho=0, dir_psi=None,
-            model='poisson', recover_probe=False, dir_probe=None,
-            **kwargs
-        ):  # yapf: disable
+    def run(
+        self, data, probe, scan, psi,
+        reg=0j, num_iter=1, rho=0, dir_psi=None,
+        model='poisson', recover_probe=False, dir_probe=None,
+        **kwargs
+    ):  # yapf: disable
         """Use conjugate gradient to estimate `psi`.
 
         Parameters
