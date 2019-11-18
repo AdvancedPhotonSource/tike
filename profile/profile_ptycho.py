@@ -15,7 +15,7 @@ os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 import numpy as np  # noqa
-import tike  # noqa
+import tike.ptycho  # noqa
 
 
 class BenchmarkPtycho(unittest.TestCase):
@@ -28,9 +28,7 @@ class BenchmarkPtycho(unittest.TestCase):
         with lzma.open(dataset_file, 'rb') as file:
             [
                 self.data,
-                self.data_shape,
-                self.v,
-                self.h,
+                self.scan,
                 self.probe,
                 self.original,
             ] = pickle.load(file)
@@ -40,39 +38,19 @@ class BenchmarkPtycho(unittest.TestCase):
         """Never run this test."""
         pass
 
-    def test_grad(self):
-        """Use pyinstrument to benchmark ptycho.grad on one core."""
-        logging.disable(logging.WARNING)
-        new_psi = np.ones_like(self.original)
-        self.profiler.start()
-        for i in range(50):
-            new_psi = tike.ptycho.reconstruct(
-                data=self.data,
-                probe=self.probe,
-                v=self.v,
-                h=self.h,
-                psi=new_psi,
-                algorithm='grad',
-                num_iter=1,
-                rho=0,
-                gamma=0.5
-                )
-        self.profiler.stop()
-        print('\n')
-        print(self.profiler.output_text(unicode=True, color=True))
-
     def test_cgrad(self):
         """Use pyinstrument to benchmark ptycho.grad on one core."""
         logging.disable(logging.WARNING)
-        new_psi = np.ones_like(self.original)
+        result = {
+            'psi': np.ones_like(self.original),
+            'probe': self.probe,
+        }
         self.profiler.start()
         for i in range(50):
-            new_psi = tike.ptycho.reconstruct(
+            result = tike.ptycho.reconstruct(
+                **result,
                 data=self.data,
-                probe=self.probe,
-                v=self.v,
-                h=self.h,
-                psi=new_psi,
+                scan=self.scan,
                 algorithm='cgrad',
                 num_iter=1,
                 rho=0,

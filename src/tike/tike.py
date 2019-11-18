@@ -67,7 +67,6 @@ from tike.constants import *
 import tike.ptycho
 import tike.tomo
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -79,8 +78,8 @@ def _combined_interface(
 ):  # yapf:disable
     """Define an interface that all functions in this module match."""
     assert np.all(obj_size > 0), "Detector dimensions must be > 0."
-    assert np.all(probe_size > 0), "Probe dimensions must be > 0."
-    assert np.all(detector_size > 0), "Detector dimensions must be > 0."
+    assert np.all(probe_shape > 0), "Probe dimensions must be > 0."
+    assert np.all(detector_shape > 0), "Detector dimensions must be > 0."
     assert theta.size == h.size == v.size == \
         detector_grid.shape[0] == probe_grid.shape[0], \
         "The size of theta, h, v must be the same as the number of probes."

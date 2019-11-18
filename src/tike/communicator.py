@@ -14,7 +14,6 @@ import pickle
 from mpi4py import MPI
 import numpy as np
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

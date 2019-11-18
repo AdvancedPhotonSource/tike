@@ -163,7 +163,7 @@ def plot_footprint(theta, v, h):
 
 def plot_sino_coverage(
         theta, v, h, dwell=None, bins=[16, 8, 4],
-        probe_grid=[[1]], probe_size=(0, 0)
+        probe_grid=[[1]], probe_shape=(0, 0)
 ):  # yapf: disable
     """Plot projections of minimum coverage in the sinogram space."""
     # Wrap theta into [0, pi)
@@ -175,10 +175,10 @@ def plot_sino_coverage(
     probe_grid = np.asarray(probe_grid)
     # Create one ray for each pixel in the probe grid
     dv, dh = np.meshgrid(
-        np.linspace(0, probe_size[0], probe_grid.shape[0],
-                    endpoint=False) + probe_size[0] / probe_grid.shape[0] / 2,
-        np.linspace(0, probe_size[1], probe_grid.shape[1], endpoint=False) +
-        probe_size[1] / probe_grid.shape[1] / 2,
+        np.linspace(0, probe_shape[0], probe_grid.shape[0],
+                    endpoint=False) + probe_shape[0] / probe_grid.shape[0] / 2,
+        np.linspace(0, probe_shape[1], probe_grid.shape[1], endpoint=False) +
+        probe_shape[1] / probe_grid.shape[1] / 2,
     )
 
     dv = dv.flatten()

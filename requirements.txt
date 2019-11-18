@@ -1,6 +1,6 @@
 matplotlib
 mpi4py
-numpy
+numpy>=1.10
 scipy
 setuptools
 setuptools_scm

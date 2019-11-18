@@ -50,11 +50,13 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import lzma
-import numpy as np
 import os
 import pickle
-import tike.ptycho
 import unittest
+
+import numpy as np
+
+import tike.ptycho
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
@@ -89,41 +91,41 @@ class TestPtychoRecon(unittest.TestCase):
         """
         import matplotlib.pyplot as plt
         amplitude = plt.imread(
-            os.path.join(testdir, "data/Cryptomeria_japonica-0128.tif")
-        )
+            os.path.join(testdir, "data/Cryptomeria_japonica-0128.tif"))
         phase = plt.imread(
-            os.path.join(testdir, "data/Bombus_terrestris-0128.tif")
-        )
-        self.original = amplitude / 255 * np.exp(1j * phase / 255 * np.pi)
+            os.path.join(testdir, "data/Bombus_terrestris-0128.tif"))
+        original = amplitude / 255 * np.exp(1j * phase / 255 * np.pi)
+        self.original = np.expand_dims(original, axis=0).astype('complex64')
 
         pw = 15  # probe width
         weights = tike.ptycho.gaussian(pw, rin=0.8, rout=1.0)
-        self.probe = weights * np.exp(1j * weights * 0.2)
+        probe = weights * np.exp(1j * weights * 0.2)
+        self.probe = np.expand_dims(probe, axis=0).astype('complex64')
 
-        self.v, self.h = np.meshgrid(
+        v, h = np.meshgrid(
             np.linspace(0, amplitude.shape[0]-pw, 13, endpoint=True),
             np.linspace(0, amplitude.shape[0]-pw, 13, endpoint=True),
             indexing='ij'
             )
-
-        self.data_shape = np.ones(2, dtype=int) * pw * 2
+        scan = np.stack((np.ravel(v), np.ravel(h)), axis=1)
+        self.scan = np.expand_dims(scan, axis=0).astype('float32')
 
         self.data = tike.ptycho.simulate(
-            data_shape=self.data_shape,
+            detector_shape=pw * 2,
             probe=self.probe,
-            v=self.v,
-            h=self.h,
+            scan=self.scan,
             psi=self.original
             )
 
+        assert self.data.shape == (1, 13 * 13, pw * 2, pw * 2)
+        assert self.data.dtype == 'float32', self.data.dtype
+
         setup_data = [
             self.data,
-            self.data_shape,
-            self.v,
-            self.h,
+            self.scan,
             self.probe,
             self.original,
-            ]
+        ]
 
         with lzma.open(dataset_file, 'wb') as file:
             pickle.dump(setup_data, file)
@@ -136,55 +138,74 @@ class TestPtychoRecon(unittest.TestCase):
         with lzma.open(dataset_file, 'rb') as file:
             [
                 self.data,
-                self.data_shape,
-                self.v,
-                self.h,
+                self.scan,
                 self.probe,
                 self.original,
             ] = pickle.load(file)
 
+    def test_adjoint_operators(self):
+        """Check that the adjoint operator is correct."""
+        from tike.ptycho import PtychoBackend
+        xp = PtychoBackend.array_module
+        probe = xp.array(self.probe)
+        scan = xp.array(self.scan)
+        original = xp.array(self.original)
+        with PtychoBackend(
+                nscan=self.scan.shape[-2],
+                probe_shape=self.probe.shape[-1],
+                detector_shape=self.data.shape[-1],
+                nz=self.original.shape[-2],
+                n=self.original.shape[-1],
+                ntheta=1,
+        ) as slv:
+            t1 = slv.fwd(
+                probe=probe,
+                scan=scan,
+                psi=original,
+            )
+            t2 = slv.adj(
+                farplane=t1,
+                probe=probe,
+                scan=scan,
+            )
+            t3 = slv.adj_probe(
+                farplane=t1,
+                scan=scan,
+                psi=original,
+            )
+            a = xp.sum(original * xp.conj(t2))
+            b = xp.sum(t1 * xp.conj(t1))
+            c = xp.sum(probe * xp.conj(t3))
+            print()
+            print('<FQP,     FQP> = {:.6f}{:+.6f}j'.format(
+                a.real.item(), a.imag.item()))
+            print('<P  , Q*F*FQP> = {:.6f}{:+.6f}j'.format(
+                b.real.item(), b.imag.item()))
+            print('<Q  , P*F*FPQ> = {:.6f}{:+.6f}j'.format(
+                c.real.item(), c.imag.item()))
+            # Test whether Adjoint fixed probe operator is correct
+            xp.testing.assert_allclose(a, b)
+            xp.testing.assert_allclose(a, c)
+
     def test_consistent_simulate(self):
         """Check ptycho.simulate for consistency."""
         data = tike.ptycho.simulate(
-            data_shape=self.data_shape,
+            detector_shape=self.data.shape[-1],
             probe=self.probe,
-            v=self.v,
-            h=self.h,
-            psi=self.original
-            )
-        np.testing.assert_allclose(data, self.data, rtol=1e-3)
-
-    def test_consistent_grad(self):
-        """Check ptycho.grad for consistency."""
-        new_psi = tike.ptycho.reconstruct(
-            data=self.data,
-            probe=self.probe,
-            v=self.v,
-            h=self.h,
-            psi=np.ones_like(self.original),
-            algorithm='grad',
-            num_iter=10,
-            rho=0.5,
-            gamma=0.25,
-            reg=1+0j
-            )
-        recon_file = os.path.join(testdir, 'data/ptycho_grad.pickle.lzma')
-        try:
-            with lzma.open(recon_file, 'rb') as file:
-                standard = pickle.load(file)
-        except FileNotFoundError as e:
-            with lzma.open(recon_file, 'wb') as file:
-                pickle.dump(new_psi, file)
-            raise e
-        np.testing.assert_allclose(new_psi, standard, rtol=1e-3)
+            scan=self.scan,
+            psi=self.original,
+        )
+        assert data.dtype == 'float32', data.dtype
+        assert self.data.dtype == 'float32', self.data.dtype
+        np.testing.assert_array_equal(data.shape, self.data.shape)
+        np.testing.assert_allclose(np.sqrt(data), np.sqrt(self.data), atol=1e-6)
 
     def test_consistent_cgrad(self):
         """Check ptycho.cgrad for consistency."""
-        new_psi = tike.ptycho.reconstruct(
+        result = tike.ptycho.reconstruct(
             data=self.data,
             probe=self.probe,
-            v=self.v,
-            h=self.h,
+            scan=self.scan,
             psi=np.ones_like(self.original),
             algorithm='cgrad',
             num_iter=10,
@@ -193,11 +214,16 @@ class TestPtychoRecon(unittest.TestCase):
             reg=1+0j
             )
         recon_file = os.path.join(testdir, 'data/ptycho_cgrad.pickle.lzma')
-        try:
+        if os.path.isfile(recon_file):
             with lzma.open(recon_file, 'rb') as file:
                 standard = pickle.load(file)
-        except FileNotFoundError as e:
+        else:
             with lzma.open(recon_file, 'wb') as file:
-                pickle.dump(new_psi, file)
-            raise e
-        np.testing.assert_allclose(new_psi, standard, rtol=1e-3)
+                pickle.dump(result['psi'], file)
+            raise FileNotFoundError("ptycho.cgrad standard not initialized.")
+        np.testing.assert_array_equal(result['psi'].shape, self.original.shape)
+        np.testing.assert_allclose(result['psi'], standard, atol=1e-6)
+
+
+if __name__ == '__main__':
+    unittest.main()

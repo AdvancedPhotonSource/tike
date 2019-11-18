@@ -29,5 +29,10 @@ setuptools.setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: C',
         'Topic :: Scientific/Engineering',
-        ]
+        ],
+    entry_points={
+        'tike.PtychoBackend': [
+            'numpyfft = tike.ptycho._core.numpy:PtychoNumPyFFT',
+        ],
+    },
 )
