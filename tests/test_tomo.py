@@ -82,11 +82,11 @@ class TestPtychoRecon(unittest.TestCase):
         original = np.empty(delta.shape, dtype=np.complex64)
         original.real = delta / 2550
         original.imag = beta / 2550
-        self.original = np.tile(original, (1, 1, 1))
+        self.original = np.tile(original, (1, 1, 1)).astype(np.complex64)
         # Define views
-        self.theta = np.linspace(0, np.pi, 201, endpoint=False)
+        self.theta = np.linspace(0, np.pi, 201, endpoint=False).astype(np.float32)
         # Simulate data
-        self.data = tike.tomo.forward(obj=self.original, theta=self.theta)
+        self.data = tike.tomo.simulate(obj=self.original, theta=self.theta)
         setup_data = [
             self.data.astype(np.complex64),
             self.theta.astype(np.float32),
@@ -107,67 +107,51 @@ class TestPtychoRecon(unittest.TestCase):
                 self.original,
             ] = pickle.load(file)
 
+    def test_adjoint(self):
+        """Check that the tomo operators meet adjoint definition."""
+        from tike.tomo import TomoBackend
+        xp = TomoBackend.array_module
+        # data = xp.array(self.data)
+        angles = np.array(self.theta)
+        original = xp.array(self.original)
+        with TomoBackend(
+            angles=angles,
+            ntheta=angles.size,
+            nz=original.shape[0],
+            n=original.shape[1],
+            center=original.shape[1] / 2,
+        ) as slv:
+            data = slv.fwd(original)
+            u1 = slv.adj(data)
+            t1 = np.sum(data * xp.conj(data))
+            t2 = np.sum(original * xp.conj(u1))
+            print()
+            print(f"<> = {t1.real.item():06f}{t1.imag.item():+06f}j\n"
+                  f"<> = {t2.real.item():06f}{t2.imag.item():+06f}j")
+            xp.testing.assert_allclose(t1, t2)
+
     def test_consistent_simulate(self):
         """Check tomo.forward for consistency."""
-        data = tike.tomo.forward(obj=self.original, theta=self.theta)
+        data = tike.tomo.simulate(obj=self.original, theta=self.theta)
         np.testing.assert_allclose(data, self.data, rtol=1e-3)
 
-    def test_consistent_grad(self):
-        """Check tomo.grad for consistency."""
-        recon = np.zeros(self.original.shape, dtype=np.complex64)
-        recon = tike.tomo.reconstruct(
-            obj=recon,
-            theta=self.theta,
-            line_integrals=self.data,
-            algorithm='grad',
-            reg_par=-1,
-            num_iter=10,
-        )
-        recon_file = os.path.join(testdir, 'data/tomo_grad.pickle.lzma')
-        try:
-            with lzma.open(recon_file, 'rb') as file:
-                standard = pickle.load(file)
-        except FileNotFoundError as e:
-            with lzma.open(recon_file, 'wb') as file:
-                pickle.dump(recon.astype(np.complex64), file)
-            raise e
-        np.testing.assert_allclose(recon, standard, rtol=1e-3)
-
-
-# def test_forward_project_hv_quadrants1():
-#     gmin = [0, 0, 0]
-#     obj = np.zeros((2, 3, 2), dtype=complex)
-#     obj[0, 1, 0] = 1
-#     theta, h, v = [0, 0, 0, 0], [0, 1, 0, 1], [0, 0, 1, 1]
-#     pgrid = np.ones((1, 1))
-#     integral = forward(obj, gmin,
-#                        pgrid, theta, v, h)
-#     truth = np.array([1, 0, 0, 0]).reshape(4, 1, 1)
-#     np.testing.assert_equal(truth, integral)
-#
-#
-# def test_forward_project_hv_quadrants2():
-#     gsize = np.array([3, 2, 2])
-#     gmin = -gsize / 2.0
-#     obj = np.zeros((3, 2, 2), dtype=complex)
-#     obj[2, 0, 1] = 1
-#     theta, h, v = [0, 0], [-1, 0], [0.5, 0.5]
-#     pgrid = np.ones((1, 1))
-#     integral = forward(obj, gmin,
-#                        pgrid, theta, v, h)
-#     truth = np.array([0, 1]).reshape(2, 1, 1)
-#     np.testing.assert_equal(truth, integral)
-#
-#
-# def test_forward_project_hv_quadrants4():
-#     gsize = np.array([1, 2, 2])
-#     gmin = -gsize / 2.0
-#     obj = np.zeros((1, 2, 2), dtype=complex)
-#     obj[0, :, 1] = 1
-#     theta, h, v = [0], [-0.5], [-0.5]
-#     pgrid = np.ones((1, 1))
-#     psize = (1, 1)
-#     integral = forward(obj, gmin,
-#                        pgrid, theta, v, h)
-#     truth = np.array([2]).reshape(1, 1, 1)
-#     np.testing.assert_equal(truth, integral)
+    # def test_consistent_grad(self):
+    #     """Check tomo.grad for consistency."""
+    #     recon = np.zeros(self.original.shape, dtype=np.complex64)
+    #     recon = tike.tomo.reconstruct(
+    #         obj=recon,
+    #         theta=self.theta,
+    #         line_integrals=self.data,
+    #         algorithm='grad',
+    #         reg_par=-1,
+    #         num_iter=10,
+    #     )
+    #     recon_file = os.path.join(testdir, 'data/tomo_grad.pickle.lzma')
+    #     try:
+    #         with lzma.open(recon_file, 'rb') as file:
+    #             standard = pickle.load(file)
+    #     except FileNotFoundError as e:
+    #         with lzma.open(recon_file, 'wb') as file:
+    #             pickle.dump(recon.astype(np.complex64), file)
+    #         raise e
+    #     np.testing.assert_allclose(recon, standard, rtol=1e-3)
