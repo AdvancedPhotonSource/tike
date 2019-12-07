@@ -40,7 +40,7 @@ def line_search(f, x, d, step_length=1, step_shrink=0.5):
 class ConjugateGradientTomoSolver(TomoBackend):
     """Solve the ptychography problem using gradient descent."""
 
-    def run(self, tomo, obj, num_iter, **kwargs):
+    def run(self, tomo, obj, theta, num_iter, **kwargs):
         """Use conjugate gradient to estimate `x`.
 
         Parameters
@@ -59,10 +59,10 @@ class ConjugateGradientTomoSolver(TomoBackend):
             return xp.square(xp.linalg.norm(model - tomo))
 
         def get_grad(model):
-            return self.adj(model - tomo) / (self.ntheta * self.n * 0.5)
+            return self.adj(model - tomo, theta) / (self.ntheta * self.n * 0.5)
 
         for i in range(num_iter):
-            model = self.fwd(obj)
+            model = self.fwd(obj, theta)
             grad = get_grad(model)
             if i == 0:
                 dir_ = -grad
@@ -77,7 +77,7 @@ class ConjugateGradientTomoSolver(TomoBackend):
             gamma = line_search(
                 f=cost_function,
                 x=model,
-                d=self.fwd(dir_),
+                d=self.fwd(dir_, theta),
             )
             obj = obj + gamma * dir_
             # check convergence

@@ -107,19 +107,18 @@ def reconstruct(
     logger.info("{} on {:,d} - {:,d} by {:,d} grids for {:,d} "
                 "iterations".format(algorithm, *integrals.shape,
                                     num_iter))
-    angles = np.array(theta)
     original = xp.array(obj)
     if algorithm in available_solvers:
         solver = available_solvers[algorithm](
-            angles=angles,
-            ntheta=angles.size,
-            nz=original.shape[0],
-            n=original.shape[1],
-            center=original.shape[1] / 2,
+            ntheta=theta.size,
+            nz=obj.shape[0],
+            n=obj.shape[1],
+            center=obj.shape[1] / 2,
         )
         result = solver.run(
-            tomo=xp.array(integrals),
-            obj=xp.array(obj),
+            tomo=xp.asarray(integrals),
+            obj=xp.asarray(obj),
+            theta=xp.asarray(theta),
             num_iter=num_iter,
             **kwargs
         )  # yapf: disable
@@ -138,14 +137,15 @@ def simulate(
 ):  # yapf: disable
     """Compute line integrals over an obj."""
     xp = TomoBackend.array_module
-    angles = np.array(theta)
-    original = xp.array(obj)
+    assert obj.ndim == 3
     with TomoBackend(
-        angles=angles,
-        ntheta=angles.size,
-        nz=original.shape[0],
-        n=original.shape[1],
-        center=original.shape[1] / 2,
+        ntheta=theta.size,
+        nz=obj.shape[0],
+        n=obj.shape[1],
+        center=obj.shape[1] / 2,
     ) as slv:
-        integrals = slv.fwd(original)
+        integrals = slv.fwd(
+            obj=xp.asarray(obj),
+            theta=xp.array(theta),
+        )
     return TomoBackend.asnumpy(integrals)
