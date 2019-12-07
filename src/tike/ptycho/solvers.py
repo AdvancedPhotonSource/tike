@@ -36,6 +36,8 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
         data = data.astype(xp.float32)
         probe = probe.astype(xp.complex64)
         psi = psi.astype(xp.complex64)
+        rho = xp.asarray(rho, 'float32')
+        reg = xp.asarray(reg, 'complex64')
 
         if model is 'poisson':
 
