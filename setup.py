@@ -6,7 +6,7 @@ setuptools.setup(
     name='tike',
     packages=setuptools.find_packages('src'),
     package_dir={'': 'src'},
-    setup_requires=['setuptools_scm'],
+    setup_requires=['setuptools_scm', 'setuptools_scm_git_archive'],
     use_scm_version=True,
     include_package_data=True,
     zip_safe=False,
@@ -19,7 +19,6 @@ setuptools.setup(
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
-        'Intended Audience :: Education',
         'Intended Audience :: Science/Research',
         'License :: OSI Approved :: BSD License',
         'Natural Language :: English',
@@ -27,7 +26,6 @@ setuptools.setup(
         'Programming Language :: Python :: 3 :: Only',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
-        'Programming Language :: C',
         'Topic :: Scientific/Engineering',
         ],
     entry_points={
