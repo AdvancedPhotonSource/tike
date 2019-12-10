@@ -43,7 +43,10 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
 
             def maximum_a_posteriori_probability(farplane):
                 simdata = xp.square(xp.abs(farplane))
-                return xp.sum(simdata - data * xp.log(simdata + 1e-32))
+                return(
+                    + xp.sum(simdata - data * xp.log(simdata + 1e-32))
+                    + rho * xp.square(xp.linalg.norm(reg - psi))
+                )
 
             def data_diff(farplane):
                 return farplane * (
@@ -52,8 +55,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
         elif model is 'gaussian':
 
             def maximum_a_posteriori_probability(farplane):
-                return xp.square(
-                    xp.linalg.norm(xp.abs(farplane) - xp.sqrt(data)))
+                return xp.sum(xp.square(xp.abs(farplane) - xp.sqrt(data)))
 
             def data_diff(farplane):
                 return (farplane
@@ -67,7 +69,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
                 farplane=data_diff(farplane),
                 probe=probe, scan=scan,
             )  # yapf: disable
-            grad_psi /= xp.max(xp.abs(probe))**2
+            grad_psi /= xp.max(xp.abs(probe))**2  # this is not in the math
             grad_psi -= rho * (reg - psi)
             return grad_psi
 
