@@ -128,6 +128,10 @@ def admm(
     plog.setLevel(logging.WARNING)
     tlog.setLevel(logging.WARNING)
     # Ptychography setup
+    pkwargs = {
+    'algorithm': 'cgrad',
+    'num_iter': 1,
+    } if pkwargs is None else pkwargs
     psi = np.ones(
         [
             len(data),  # The number of views.
@@ -138,12 +142,7 @@ def admm(
     logger.debug("psi shape is {}".format(psi.shape))
     hobj = np.ones_like(psi)
     lamda = np.zeros_like(psi)
-    pkwargs = {
-        'algorithm': 'cgrad',
-        'num_iter': 1,
-    } if pkwargs is None else pkwargs
     # Tomography setup
-    x = obj
     tkwargs = {
         'algorithm': 'cgrad',
         'num_iter': 1,
@@ -167,17 +166,17 @@ def admm(
         # Tomography
         phi = comm.get_tomo_slice(phi)
         result = tike.tomo.reconstruct(
-            obj=x, theta=theta, integrals=phi, **tkwargs)
-        x = result['obj']
+            obj=obj, theta=theta, integrals=phi, **tkwargs)
+        obj = result['obj']
         # Lambda update.
-        line_integrals = tike.tomo.simulate(obj=x, theta=theta) * voxelsize
+        line_integrals = tike.tomo.simulate(obj=obj, theta=theta) * voxelsize
         hobj = np.exp(1j * wavenumber(energy) * line_integrals)
         hobj = comm.get_ptycho_slice(hobj)
         # lamda = lamda + rho * (hobj - psi)
     # Restore logging in the tomo and ptycho modules
     logging.getLogger('tike.ptycho').setLevel(log_levels[0])
     logging.getLogger('tike.tomo').setLevel(log_levels[1])
-    return x
+    return obj
 
 
 def simulate(
