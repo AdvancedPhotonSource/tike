@@ -43,10 +43,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
 
             def maximum_a_posteriori_probability(farplane):
                 simdata = xp.square(xp.abs(farplane))
-                return(
-                    + xp.sum(simdata - data * xp.log(simdata + 1e-32))
-                    + rho * xp.square(xp.linalg.norm(reg - psi))
-                )
+                return xp.sum(simdata - data * xp.log(simdata + 1e-32))
 
             def data_diff(farplane):
                 return farplane * (
@@ -64,7 +61,15 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
         else:
             raise ValueError("model must be 'gaussian' or 'poisson.'")
 
-        def grad(farplane):
+        def cost_function(psi):
+            farplane = self.fwd(psi=psi, scan=scan, probe=probe)
+            return (
+                + maximum_a_posteriori_probability(farplane)
+                + rho * xp.square(xp.linalg.norm(reg - psi))
+            )
+
+        def grad(psi):
+            farplane = self.fwd(psi=psi, scan=scan, probe=probe)
             grad_psi = self.adj(
                 farplane=data_diff(farplane),
                 probe=probe, scan=scan,
@@ -76,8 +81,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
         psi = conjugate_gradient(
             self.array_module,
             x=psi,
-            fwd=lambda x: self.fwd(psi=x, scan=scan, probe=probe),
-            cost_function=maximum_a_posteriori_probability,
+            cost_function=cost_function,
             grad=grad,
             num_iter=num_iter,
         )

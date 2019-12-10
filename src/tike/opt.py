@@ -39,7 +39,6 @@ def line_search(f, x, d, step_length=1, step_shrink=0.5):
 def conjugate_gradient(
         array_module,
         x,
-        fwd,
         cost_function,
         grad,
         num_iter=1,
@@ -53,11 +52,9 @@ def conjugate_gradient(
         The Python module that will provide array operations.
     x : array_like
         The object to be recovered.
-    fwd : func(x) -> array_like
-        The forward operator.
-    cost_function : func(fwd(x)) -> float
+    cost_function : func(x) -> float
         The function being minimized to recover x.
-    grad : func(fwd(x)) -> array_like
+    grad : func(x) -> array_like
         The gradient of cost_function.
     num_iter : int
         The number of steps to take.
@@ -68,8 +65,7 @@ def conjugate_gradient(
     xp = array_module
 
     for i in range(num_iter):
-        model = fwd(x)
-        grad_ = grad(model)
+        grad_ = grad(x)
         if dir_ is None:
             dir_ = -grad_
         else:
@@ -82,15 +78,15 @@ def conjugate_gradient(
         grad0 = grad_
         gamma = line_search(
             f=cost_function,
-            x=model,
-            d=fwd(dir_),
+            x=x,
+            d=dir_,
         )
         x = x + gamma * dir_
         # check convergence
         if (i + 1) % 8 == 0:
             print("%4d, %.3e, 0, %.7e" % (
                 (i + 1), gamma,
-                cost_function(model),
+                cost_function(x),
             ))  # yapf: disable
 
     return x

@@ -29,16 +29,17 @@ class ConjugateGradientTomoSolver(TomoBackend):
         """
         xp = self.array_module
 
-        def cost_function(model):
+        def cost_function(obj):
+            model = self.fwd(obj=obj, theta=theta)
             return xp.square(xp.linalg.norm(model - tomo))
 
-        def grad(model):
-            return self.adj((model - tomo), theta)
+        def grad(obj):
+            model = self.fwd(obj, theta=theta)
+            return self.adj(model - tomo, theta=theta)
 
         obj = conjugate_gradient(
             self.array_module,
             x=obj,
-            fwd=lambda x: self.fwd(obj=x, theta=theta),
             cost_function=cost_function,
             grad=grad,
             num_iter=num_iter,
