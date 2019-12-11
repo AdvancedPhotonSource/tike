@@ -6,6 +6,8 @@ the future, this module may be replaced by Operator Discretization Library (ODL)
 solvers library.
 """
 
+import warnings
+
 
 def line_search(f, x, d, step_length=1, step_shrink=0.5):
     """Return a new `step_length` using a backtracking line search.
