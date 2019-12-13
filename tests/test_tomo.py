@@ -133,6 +133,26 @@ class TestPtychoRecon(unittest.TestCase):
         data = tike.tomo.simulate(obj=self.original, theta=self.theta)
         np.testing.assert_allclose(data, self.data, rtol=1e-3)
 
+    def test_simple_integrals(self):
+        """Check that the fwd tomo operator sums correctly at 0 and PI/2.
+
+        When we project at angles 0 and PI/2, the foward operator should be the
+        same as taking the sum over the object array along each axis.
+        """
+        theta = np.array([0, np.pi/2, np.pi, -np.pi/2], dtype='float32')
+        size = 11
+        original = np.zeros((1, size, size), dtype='complex64')
+        original[0, size//2, :] += 1
+        original[0, :, size//2] += 1j
+        data = tike.tomo.simulate(original, theta)
+        data1 = np.sum(original, axis=1)
+        data2 = np.sum(original, axis=2)
+
+        np.testing.assert_allclose(data[0], data1, atol=1e-6)
+        np.testing.assert_allclose(data[1], data2, atol=1e-6)
+        np.testing.assert_allclose(data[2], data1, atol=1e-6)
+        np.testing.assert_allclose(data[3], data2, atol=1e-6)
+
     # def test_consistent_grad(self):
     #     """Check tomo.grad for consistency."""
     #     recon = np.zeros(self.original.shape, dtype=np.complex64)
