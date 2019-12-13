@@ -1,6 +1,7 @@
 """This module provides Solver implementations for a variety of algorithms."""
 
 from tike.opt import conjugate_gradient
+import tike.reg as tv
 from tike.tomo import TomoBackend
 
 __all__ = [
@@ -12,7 +13,9 @@ __all__ = [
 class ConjugateGradientTomoSolver(TomoBackend):
     """Solve the ptychography problem using gradient descent."""
 
-    def run(self, tomo, obj, theta, num_iter, K=1, rho=1, tau=0, **kwargs):
+    def run(self, tomo, obj, theta, num_iter,
+            rho=1.0, tau=0.0, reg=0j, K=1 + 0j, **kwargs
+    ):  # yapf: disable
         """Use conjugate gradient to estimate `obj`.
 
         Parameters
@@ -23,19 +26,30 @@ class ConjugateGradientTomoSolver(TomoBackend):
             The object to be recovered.
         num_iter : int
             Number of steps to take.
-        K, rho : complex64
-            Some constants
+        rho, tau : float32
+            Weights for data and variation components of the cost function
+        reg : complex64
+            The regularizer for total variation
 
         """
         xp = self.array_module
+        reg = xp.asarray(reg, dtype='complex64')
+        K = xp.asarray(K, dtype='complex64')
+        K_conj = xp.conj(K, dtype='complex64')
 
         def cost_function(obj):
-            model = self.fwd(obj=obj, theta=theta)
-            return xp.square(xp.linalg.norm(model - tomo))
+            model = K * self.fwd(obj=obj, theta=theta)
+            return (
+                + rho * xp.square(xp.linalg.norm(model - tomo))
+                + tau * xp.square(xp.linalg.norm(tv.fwd(xp, obj) - reg))
+            )
 
         def grad(obj):
-            model = self.fwd(obj, theta=theta)
-            return self.adj(model - tomo, theta=theta)
+            model = K * self.fwd(obj, theta=theta)
+            return (
+                + rho * self.adj(K_conj * (model - tomo), theta=theta)
+                + tau * tv.adj(xp, tv.fwd(xp, obj) - reg)
+            )
 
         obj = conjugate_gradient(
             self.array_module,
