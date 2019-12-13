@@ -13,7 +13,7 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
 
     def run(
         self, data, probe, scan, psi,
-        reg=0j, num_iter=1, rho=0, dir_psi=None,
+        reg=0j, num_iter=1, rho=0.0,
         model='poisson', recover_probe=False, dir_probe=None,
         **kwargs
     ):  # yapf: disable
@@ -25,18 +25,9 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
             The regularizer for psi. (h + lamda / rho)
         rho : float
             The positive penalty parameter. It should be less than 1.
-        dir_psi : (V, H) :py:class:`numpy.array` complex
-            The search direction.
 
         """
         xp = self.array_module
-        if not (xp.iscomplexobj(psi) and xp.iscomplexobj(probe)
-                and xp.iscomplexobj(reg)):
-            raise TypeError("psi, probe, and reg must be complex.")
-        data = data.astype(xp.float32)
-        probe = probe.astype(xp.complex64)
-        psi = psi.astype(xp.complex64)
-        rho = xp.asarray(rho, 'float32')
         reg = xp.asarray(reg, 'complex64')
 
         if model is 'poisson':
