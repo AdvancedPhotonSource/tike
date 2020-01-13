@@ -189,20 +189,20 @@ def reconstruct(
                 "iterations".format(algorithm, *data.shape[1:],
                                     num_iter))
     if algorithm in available_solvers:
-        solver = available_solvers[algorithm](
+        with available_solvers[algorithm](
             nscan=scan.shape[-2],
             probe_shape=probe.shape[-1],
             detector_shape=data.shape[-1],
             nz=psi.shape[-2], n=psi.shape[-1],
             ntheta=scan.shape[0],
-        )
-        result = solver.run(
-            data=xp.asarray(data),
-            probe=xp.asarray(probe), scan=xp.asarray(scan),
-            psi=xp.asarray(psi),
-            num_iter=num_iter,
-            **kwargs
-        )  # yapf: disable
+        ) as solver:
+            result = solver.run(
+                data=xp.asarray(data),
+                probe=xp.asarray(probe), scan=xp.asarray(scan),
+                psi=xp.asarray(psi),
+                num_iter=num_iter,
+                **kwargs
+            )  # yapf: disable
         return {
             'psi': PtychoBackend.asnumpy(result['psi']),
             'probe': PtychoBackend.asnumpy(result['probe']),
