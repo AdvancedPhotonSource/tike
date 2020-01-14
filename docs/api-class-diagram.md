@@ -1,0 +1,102 @@
+```mermaid
+classDiagram
+
+
+class Graph {
+  +List nodes
+  +Communicator comm
+}
+
+class Node{
+  +Updater updater
+}
+
+Graph <|-- ADMM
+Graph <|-- Joint
+Graph <|-- Serial
+
+Graph --* Communicator
+Graph --* Node
+
+Communicator <|-- MPI
+
+<!--  -->
+
+Node --o Updater
+
+class Updater {
+  +__call__()
+  +function method
+  +Operator operator
+}
+
+class Operator {
+  +module array_module
+  +function as_numpy
+  +fwd()
+  +adj()
+}
+
+class ContextManager {
+  - __enter__()
+  - __exit__()
+}
+
+class Ptycho {
+  +int nscan
+  +int probe_shape
+  +int detector_shape
+  +int nz
+  +int n
+  +int ntheta
+  +Propagation propagation
+  +Convolution convolution
+  +fwd(self, probe, scan, psi, **kwargs)
+  +adj(self, farplane, probe, scan, **kwargs)
+  +adj_probe(self, farplane, scan, psi, **kwargs)
+}
+
+class Tomo {
+  +int ntheta
+  +int n
+  +int nz
+  +fwd(self, obj, **kwargs)
+  +adj(self, tomo, **kwargs)
+}
+
+class Convolution {
+  +int nscan
+  +int probe_shape
+  +int nz
+  +int n
+  +int ntheta
+  +fwd()
+  +adj()
+}
+
+class Propagation {
+  +int nwaves
+  +int probe_shape
+  +int detector_shape
+  +fwd()
+  +adj()
+}
+
+Updater <|-- ConjugateGradient
+Updater <|-- Dual
+Updater <|-- EPIE
+Updater <|-- TotalVariation
+
+Updater --* Operator
+
+ContextManager <|-- Operator
+
+Operator <|-- Tomo
+Operator <|-- Ptycho
+Operator <|-- Convolution
+Operator <|-- Propagation
+
+Ptycho --o Convolution
+Ptycho --o Propagation
+
+```
