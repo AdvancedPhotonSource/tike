@@ -62,28 +62,14 @@ Each public function in this module should have the following interface:
 
 Parameters
 ----------
-obj : (Z, X, Y, P) :py:class:`numpy.array` float
+obj : (Z, X, Y, P) :py:class:`numpy.array` float32
     An array of material properties. The first three dimensions `Z, X, Y`
     are spatial dimensions. The fourth dimension, `P`,  holds properties at
     each grid position: refractive indices, attenuation coefficents, etc.
-
-        * (..., 0) : delta, the real phase velocity, the decrement of the
-            refractive index.
-        * (..., 1) : beta, the imaginary amplitude extinction / absorption
-            coefficient.
-
-obj_corner : (3, ) float
-    The min corner (z, x, y) of the `obj`.
-line_integrals : (M, V, H, P) :py:class:`numpy.array` float
+integrals : (M, V, H, P) :py:class:`numpy.array` float32
     Integrals across the `obj` for each of the `probe` rays and
     P parameters.
-probe : (V, H, P) :py:class:`numpy.array` float
-    The initial parameters of the probe to be projected across
-    the `obj`. The grid of each probe is `H` rays wide (the
-    horizontal direction) and `V` rays tall (the vertical direction). The
-    fourth dimension, `P`, holds parameters at each grid position:
-    real and imaginary wave components
-theta, v, h : (M, ) :py:class:`numpy.array` float
+theta, v, h : (M, ) :py:class:`numpy.array` float32
     The min corner (theta, v, h) of the `probe` for each measurement.
 kwargs
     Keyword arguments specific to this function. `**kwargs` should always be
@@ -98,114 +84,68 @@ __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = [
     "reconstruct",
-    "forward",
+    "simulate",
 ]
+import logging
 
 import numpy as np
-import tomopy
-import tomopy.util.extern as extern
 
-import logging
+from tike.tomo import TomoBackend
+from tike.tomo.solvers import available_solvers
 
 logger = logging.getLogger(__name__)
 
 
 def reconstruct(
         obj,
+        integrals,
         theta,
-        line_integrals,
-        **kwargs
+        algorithm=None, num_iter=1, **kwargs
 ):  # yapf: disable
-    """Reconstruct the `obj` using the given `algorithm`.
-
-    Parameters
-    ----------
-    obj : (Z, X, Y, P) :py:class:`numpy.array` float
-        The initial guess for the reconstruction.
-
-    Returns
-    -------
-    obj : (Z, X, Y, P) :py:class:`numpy.array` float
-        The updated obj grid.
-
-    """
-    lr = tomopy.recon(
-        tomo=line_integrals.real,
-        theta=theta,
-        init_recon=obj.real,
-        **kwargs,
-    )
-    li = tomopy.recon(
-        tomo=line_integrals.imag,
-        theta=theta,
-        init_recon=obj.imag,
-        **kwargs,
-    )
-    recon = np.empty(lr.shape, dtype=complex)
-    recon.real = lr
-    recon.imag = li
-    return recon
+    """Reconstruct the `obj` using the given `algorithm`."""
+    xp = TomoBackend.array_module
+    logger.info("{} on {:,d} - {:,d} by {:,d} grids for {:,d} "
+                "iterations".format(algorithm, *integrals.shape,
+                                    num_iter))
+    original = xp.array(obj)
+    if algorithm in available_solvers:
+        solver = available_solvers[algorithm](
+            ntheta=theta.size,
+            nz=obj.shape[0],
+            n=obj.shape[1],
+            center=obj.shape[1] / 2,
+        )
+        result = solver.run(
+            tomo=xp.asarray(integrals),
+            obj=xp.asarray(obj),
+            theta=xp.asarray(theta),
+            num_iter=num_iter,
+            **kwargs
+        )  # yapf: disable
+        return {
+            'obj': TomoBackend.asnumpy(result['obj']),
+        }
+    else:
+        raise ValueError(
+            "The {} algorithm is not an available.".format(algorithm))
 
 
-def forward(
+def simulate(
         obj,
         theta,
         **kwargs
 ):  # yapf: disable
     """Compute line integrals over an obj."""
-    lr = tomopy.project(
-        obj=obj.real,
-        theta=theta,
-        center=None,
-        emission=True,
-        pad=False,
-        sinogram_order=False,
-        ncore=1,
-        nchunk=1)
-    li = tomopy.project(
-        obj=obj.imag,
-        theta=theta,
-        center=None,
-        emission=True,
-        pad=False,
-        sinogram_order=False,
-        ncore=1,
-        nchunk=1)
-    line_integrals = np.empty(lr.shape, dtype=np.complex64)
-    line_integrals.real = lr
-    line_integrals.imag = li
-    return line_integrals
-
-
-def project(
-        obj,
-        theta,
-        center=None,
-        sinogram_order=False,
-):  # yapf: disable
-    """
-    Project x-rays through a given 3D object.
-
-    Parameters
-    ----------
-    obj : ndarray
-        Voxelized 3D object.
-    theta : array
-        Projection angles in radian.
-    center: array, optional
-        Location of rotation axis.
-    sinogram_order: bool, optional
-        Determines whether output data is a stack of sinograms
-        (True, y-axis first axis) or a stack of radiographs
-        (False, theta first axis).
-
-    """
-    raise NotImplementedError()
-
-
-def get_center(shape, center):
-    if center is None:
-        center = np.ones(shape[0], dtype='float32') * (shape[2] / 2.)
-    elif np.array(center).size == 1:
-        center = np.ones(shape[0], dtype='float32') * center
-    return center
+    xp = TomoBackend.array_module
+    assert obj.ndim == 3
+    with TomoBackend(
+        ntheta=theta.size,
+        nz=obj.shape[0],
+        n=obj.shape[1],
+        center=obj.shape[1] / 2,
+    ) as slv:
+        integrals = slv.fwd(
+            obj=xp.asarray(obj),
+            theta=xp.array(theta),
+        )
+    return TomoBackend.asnumpy(integrals)

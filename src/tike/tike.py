@@ -90,10 +90,9 @@ def _combined_interface(
 def admm(
         obj=None, voxelsize=1.0,
         data=None,
-        probe=None, theta=None, h=None, v=None, energy=None,
-        num_iter=1, rho=0.5, gamma=0.25, pkwargs=None, tkwargs=None,
+        probe=None, theta=None, scan=None, energy=None,
+        num_iter=1, rho=0.5, pkwargs=None, tkwargs=None,
         comm=None,
-        **kwargs
 ):  # yapf:disable
     """Solve using the Alternating Direction Method of Multipliers (ADMM).
 
@@ -119,9 +118,6 @@ def admm(
         Arguments to pass to the tike.ptycho.reconstruct.
     tkwargs : dict
         Arguments to pass to the tike.tomo.reconstruct.
-    kwargs :
-        Any keyword arguments for the pytchography and tomography
-        reconstruction algorithms.
 
     """
     comm = MPICommunicator() if comm is None else comm
@@ -132,6 +128,10 @@ def admm(
     plog.setLevel(logging.WARNING)
     tlog.setLevel(logging.WARNING)
     # Ptychography setup
+    pkwargs = {
+    'algorithm': 'cgrad',
+    'num_iter': 1,
+    } if pkwargs is None else pkwargs
     psi = np.ones(
         [
             len(data),  # The number of views.
@@ -142,67 +142,60 @@ def admm(
     logger.debug("psi shape is {}".format(psi.shape))
     hobj = np.ones_like(psi)
     lamda = np.zeros_like(psi)
-    pkwargs = {
-        'algorithm': 'grad',
-        'num_iter': 1,
-    } if pkwargs is None else pkwargs
     # Tomography setup
-    x = obj
     tkwargs = {
-        'algorithm': 'grad',
+        'algorithm': 'cgrad',
         'num_iter': 1,
-        'ncore': 1,
-        'reg_par': -1,
     } if tkwargs is None else tkwargs
     # Start ADMM
     for i in range(num_iter):
         logger.info("ADMM iteration {}".format(i))
         # Ptychography
-        for view in range(len(psi)):
-            reg = hobj[view] + lamda[view] / rho
-            psi[view] = tike.ptycho.reconstruct(data=data[view],
-                                                probe=probe,
-                                                v=v[view], h=h[view],
-                                                psi=psi[view],
-                                                rho=rho, gamma=gamma, reg=reg,
-                                                **pkwargs)  # yapf: disable
+        reg = hobj + lamda / rho
+        result = tike.ptycho.reconstruct(
+            data=data,
+            probe=probe,
+            scan=scan,
+            psi=psi,
+            rho=rho, reg=reg,
+            **pkwargs
+        )  # yapf: disable
+        psi = result['psi']
         # Tomography.
         phi = -1j / wavenumber(energy) * np.log(psi + lamda / rho) / voxelsize
         # Tomography
         phi = comm.get_tomo_slice(phi)
-        x = tike.tomo.reconstruct(
-            obj=x, theta=theta, line_integrals=phi, **tkwargs)
+        result = tike.tomo.reconstruct(
+            obj=obj, theta=theta, integrals=phi, **tkwargs)
+        obj = result['obj']
         # Lambda update.
-        line_integrals = tike.tomo.forward(obj=x, theta=theta) * voxelsize
+        line_integrals = tike.tomo.simulate(obj=obj, theta=theta) * voxelsize
         hobj = np.exp(1j * wavenumber(energy) * line_integrals)
         hobj = comm.get_ptycho_slice(hobj)
-        lamda = lamda + rho * (hobj - psi)
+        # lamda = lamda + rho * (hobj - psi)
     # Restore logging in the tomo and ptycho modules
     logging.getLogger('tike.ptycho').setLevel(log_levels[0])
     logging.getLogger('tike.tomo').setLevel(log_levels[1])
-    return x
+    return obj
 
 
 def simulate(
         obj, voxelsize,
-        probe, theta, v, h, energy,
+        probe, theta, scan, energy,
         detector_shape,
         comm=None
 ):  # yapf:disable
     """Simulate data acquisition from an object, probe, and positions."""
     comm = MPICommunicator() if comm is None else comm
     # Tomography simulation
-    line_integrals = tike.tomo.forward(obj=obj, theta=theta) * voxelsize
+    line_integrals = tike.tomo.simulate(obj=obj, theta=theta) * voxelsize
     psi = np.exp(1j * wavenumber(energy) * line_integrals)
     psi = comm.get_ptycho_slice(psi)
     # Ptychography simulation
-    data = list()
-    for view in range(len(psi)):
-        data.append(
-            tike.ptycho.simulate(
-                data_shape=detector_shape,
-                probe=probe,
-                v=v[view],
-                h=h[view],
-                psi=psi[view]))
+    data = tike.ptycho.simulate(
+        detector_shape=int(detector_shape),
+        probe=probe,
+        scan=scan,
+        psi=psi,
+    )
     return data

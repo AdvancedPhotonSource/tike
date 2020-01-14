@@ -37,20 +37,20 @@ class BenchmarkTomo(unittest.TestCase):
         """Never run this test."""
         pass
 
-    def test_grad(self):
+    def test_cgrad(self):
         """Use pyinstrument to benchmark tomo.grad on one core."""
         logging.disable(logging.WARNING)
-        recon = np.zeros(self.original.shape, dtype=np.complex64)
+        result = {
+            'obj': np.zeros(self.original.shape, dtype=np.complex64)
+        }
         self.profiler.start()
         for i in range(50):
-            recon = tike.tomo.reconstruct(
-                obj=recon,
+            result = tike.tomo.reconstruct(
+                **result,
                 theta=self.theta,
-                line_integrals=self.data,
-                algorithm='grad',
-                reg_par=-1,
+                integrals=self.data,
+                algorithm='cgrad',
                 num_iter=1,
-                ncore=1,
             )
         self.profiler.stop()
         print('\n')
