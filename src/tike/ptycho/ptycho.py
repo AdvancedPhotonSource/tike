@@ -149,15 +149,16 @@ def simulate(
         n=psi.shape[-1],
         ntheta=scan.shape[0],
     ) as solver:
+        xp = solver.array_module
         data = xp.square(xp.abs(
             solver.fwd(
                 probe=xp.asarray(probe),
                 scan=xp.asarray(scan),
                 psi=xp.asarray(psi),
-                **kwargs
+                **kwargs,
             )
         ))
-    return PtychoBackend.asnumpy(data)
+        return solver.asnumpy(data)
 
 
 def reconstruct(
