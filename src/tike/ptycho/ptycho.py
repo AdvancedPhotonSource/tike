@@ -132,6 +132,7 @@ def simulate(
         detector_shape,
         probe, scan,
         psi,
+        nmode=1,
         **kwargs
 ):  # yapf: disable
     """Propagate the wavefront to the detector.

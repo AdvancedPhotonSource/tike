@@ -1,12 +1,17 @@
 """This module provides Solver implementations for a variety of algorithms."""
 
+import logging
+
 from tike.opt import conjugate_gradient
 from tike.ptycho import PtychoBackend
 
 __all__ = [
     "available_solvers",
     "ConjugateGradientPtychoSolver",
+    "GradientDescentLeastSquaresSteps",
 ]
+
+logger = logging.getLogger(__name__)
 
 class ConjugateGradientPtychoSolver(PtychoBackend):
     """Solve the ptychography problem using gradient descent."""
@@ -102,8 +107,249 @@ class ConjugateGradientPtychoSolver(PtychoBackend):
             'probe': probe,
         }
 
+class GradientDescentLeastSquaresSteps(PtychoBackend):
+    """Solve the Ptychography Problem using method from Odstrcil et al (2018).
+
+    References
+    ----------
+    Michal Odstrcil, Andreas Menzel, and Manuel Guizar-Sicaros. Iteraive
+    least-squares solver for generalized maximum-likelihood ptychography. Optics
+    Express. 2018.
+    """
+
+    def cost_poisson(xp, data, intensity):
+        return xp.sum(intensity - data * xp.log(intensity + 1e-32))
+
+    def cost_amplitude(xp, data, intensity):
+        return xp.sum(xp.square(xp.sqrt(data) - xp.sqrt(intensity)))
+
+    def grad_poisson(xp, data, farplane, mode_axis):
+        modulus = xp.abs(farplane)
+        return xp.conj(
+            xp.conj(farplane)
+            * (
+                1
+                - data[:, :, xp.newaxis]
+                / (
+                    modulus
+                    * xp.sum(modulus, axis=mode_axis, keepdims=True)
+                    + 1e-32
+                )
+            )
+        )
+
+    def grad_amplitude(xp, data, farplane, mode_axis):
+        intensity = xp.sum(xp.square(xp.abs(farplane)), axis=mode_axis)
+        return xp.conj(
+            xp.conj(farplane)
+            * (1 - xp.sqrt(data / (intensity + 1e-32)))[:, :, xp.newaxis]
+        )
+
+    cost = {
+        'poisson': cost_poisson,
+        'amplitude': cost_amplitude,
+    }
+
+    grad = {
+        'poisson': grad_poisson,
+        'amplitude': grad_amplitude,
+    }
+
+    def update_phase(self, data, farplane, nmodes=1, model='poisson'):
+        """Solve the farplane phase problem.
+
+        Parameters
+        ----------
+        nmodes : int
+            The number of incoherent farplane waves that hit the detector
+            simultaneously; the number of waves to sum incoherently.
+        """
+        xp = self.array_module
+        farplane = farplane.reshape(
+            (self.ntheta, -1, nmodes, self.detector_shape, self.detector_shape)
+        )
+        mode_axis = 2
+
+        farplane = farplane - 1 * self.grad[model](xp, data, farplane, mode_axis)
+
+        # print cost function for sanity check
+        if logger.isEnabledFor(logging.INFO):
+            intensity = xp.sum(xp.square(xp.abs(farplane)), axis=mode_axis)
+            logger.info(' farplane cost is %+12.5e', self.cost[model](xp, data, intensity))
+
+        return farplane.reshape(
+            (self.ntheta, -1, nmodes, self.detector_shape, self.detector_shape)
+        )
+
+    def update_probe(self, nearplane, probe, scan, psi, nmodes=1):
+        """Solve the nearplane single probe recovery problem."""
+        # name the axes
+        position_axis, mode_axis = 1, 2
+        xp = self.array_module
+
+        probe = probe.reshape(
+            (self.ntheta, -1, nmodes, self.probe_shape, self.probe_shape)
+        )
+        obj_patches = xp.expand_dims(
+            self.diffraction.fwd(psi=psi, scan=scan),
+            axis=mode_axis,
+        )
+        chi = nearplane - obj_patches * probe
+
+        delta_prb = chi * xp.conj(obj_patches)
+
+        delta_prb_hat = (
+            xp.sum(delta_prb, axis=position_axis, keepdims=True)
+            / (
+                xp.sum(
+                    xp.square(xp.abs(obj_patches)),
+                    axis=position_axis,
+                    keepdims=True,
+                )
+                + 1e-32
+            )
+        )
+
+        step_prb = (
+            xp.sum(
+                xp.real(chi * xp.conj(delta_prb * obj_patches)),
+                axis=(-1, -2),
+                keepdims=True,
+            )
+            / (
+                xp.sum(
+                    xp.square(xp.abs(xp.conj(delta_prb * obj_patches))),
+                    axis=(-1, -2),
+                    keepdims=True,
+                )
+                + 1e-32
+            )
+        )
+
+        probe += (
+            xp.sum(
+                step_prb * delta_prb_hat * xp.square(xp.abs(obj_patches)),
+                axis=position_axis,
+                keepdims=True
+            )
+            / (
+                xp.sum(
+                    xp.square(xp.abs(obj_patches)),
+                    axis=position_axis,
+                    keepdims=True,
+                )
+            )
+        )
+
+        if logger.isEnabledFor(logging.INFO):
+            cost = xp.sum(xp.square(xp.abs(nearplane - obj_patches * probe)))
+            logger.info('nearplane cost is %1.5e', cost)
+
+        return probe
+
+    def update_object(self, nearplane, probe, scan, psi, nmodes=1):
+        """Solve the nearplane object recovery problem."""
+        xp = self.array_module
+        mode_axis = 2
+
+        _probe = probe.reshape(
+            (self.ntheta, -1, nmodes, self.probe_shape, self.probe_shape)
+        )
+        _nearplane = nearplane.reshape(
+            (self.ntheta, self.nscan, nmodes, self.probe_shape, self.probe_shape)
+        )
+
+        for i in range(nmodes):
+            nearplane, probe = _nearplane[:, :, i], _probe[:, :, i]
+
+            chi = nearplane - self.diffraction.fwd(psi=psi, scan=scan) * probe
+
+            delta_obj = chi * xp.conj(probe)
+
+            net_flux = self.diffraction.adj(
+                nearplane=xp.zeros_like(nearplane) + xp.square(xp.abs(probe)),
+                scan=scan,
+            ) + 1e-32
+
+            delta_obj_hat = (
+                self.diffraction.adj(delta_obj, scan=scan)
+                / net_flux
+            )
+
+            step_obj = (
+                xp.sum(
+                    xp.real(chi * xp.conj(delta_obj * probe)),
+                    axis=(-1, -2),
+                    keepdims=True,
+                ) / (
+                    xp.sum(
+                        xp.square(xp.abs(delta_obj * probe)),
+                        axis=(-1, -2),
+                        keepdims=True
+                    )
+                    + 1e-32
+                )
+            )
+
+            psi += (
+                delta_obj_hat
+                * self.diffraction.adj(
+                    step_obj * xp.square(xp.abs(probe)),
+                    scan=scan,
+                )
+            ) / net_flux
+
+        if logger.isEnabledFor(logging.INFO):
+            cost = xp.sum(xp.square(xp.abs(
+                _nearplane
+                - _probe * xp.expand_dims(
+                    self.diffraction.fwd(psi=psi, scan=scan),
+                    axis=mode_axis,
+                )
+            )))
+            logger.info('nearplane cost is             %+12.5e', cost)
+
+        return psi
+
+    def run(
+        self, data, probe, scan, psi,
+        model='poisson',
+        num_iter=1, recover_probe=False, recover_obj=True,
+        nmodes=1,
+        **kwargs
+    ):  # yapf: disable
+        """Estimate `psi` and `probe`."""
+        xp = self.array_module
+        mode_axis = 2
+
+        probe = probe.reshape(
+            (self.ntheta, -1, nmodes, self.probe_shape, self.probe_shape),
+        )
+
+        nearplane = xp.expand_dims(
+            self.diffraction.fwd(psi=psi, scan=scan),
+            axis=mode_axis,
+        ) * probe
+
+        for _ in range(num_iter):
+
+            farplane = self.propagation.fwd(nearplane)
+            farplane = self.update_phase(data, farplane, nmodes=nmodes, model=model)
+            nearplane = self.propagation.adj(farplane)
+
+            if recover_obj:
+                psi = self.update_object(nearplane, probe, scan, psi, nmodes=nmodes)
+
+            if recover_probe:
+                probe = self.update_probe(nearplane, probe, scan, psi, nmodes=nmodes)
+
+        return {
+            'psi': psi,
+            'probe': probe,
+        }
 
 # TODO: Add new algorithms here
 available_solvers = {
     "cgrad": ConjugateGradientPtychoSolver,
+    "odstrcil": GradientDescentLeastSquaresSteps,
 }
