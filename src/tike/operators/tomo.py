@@ -2,6 +2,7 @@
 
 from .operator import Operator
 
+
 class Tomo(Operator):
     """A base class for tomography solvers.
 

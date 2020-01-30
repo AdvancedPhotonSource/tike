@@ -4,6 +4,7 @@ from .operator import Operator
 from .propagation import Propagation
 from .convolution import Convolution
 
+
 class Ptycho(Operator):
     """A base class for ptychography solvers.
 

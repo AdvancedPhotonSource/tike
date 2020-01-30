@@ -2,6 +2,7 @@ from abc import ABC
 
 import numpy
 
+
 class Operator(ABC):
     """A base class for Operators.
 

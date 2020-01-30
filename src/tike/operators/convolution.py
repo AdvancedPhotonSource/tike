@@ -1,7 +1,7 @@
-
 import itertools
 
 from .operator import Operator
+
 
 class Convolution(Operator):
     """2D Convolution operator with linear interpolation."""
