@@ -30,7 +30,7 @@ setuptools.setup(
         ],
     entry_points={
         'tike.PtychoBackend': [
-            'numpyfft = tike.ptycho._core.numpy:PtychoNumPyFFT',
+            'numpyfft = tike.operators:Ptycho',
         ],
     },
 )

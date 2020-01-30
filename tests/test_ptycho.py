@@ -146,15 +146,6 @@ class TestPtychoRecon(unittest.TestCase):
     def test_adjoint_operators(self):
         """Check that the adjoint operator is correct."""
         from tike.ptycho import PtychoBackend
-        xp = PtychoBackend.array_module
-        scan = xp.array(self.scan)
-        probe = xp.random.rand(*self.probe.shape, 2).astype('float32') - 0.5
-        original = xp.random.rand(*self.original.shape, 2).astype('float32') - 0.5
-        data = xp.random.rand(*self.data.shape, 2).astype('float32') - 0.5
-        probe = probe.view('complex64')[..., 0]
-        original = original.view('complex64')[..., 0]
-        data = data.view('complex64')[..., 0]
-
         with PtychoBackend(
                 nscan=self.scan.shape[-2],
                 probe_shape=self.probe.shape[-1],
@@ -163,6 +154,15 @@ class TestPtychoRecon(unittest.TestCase):
                 n=self.original.shape[-1],
                 ntheta=1,
         ) as slv:
+            xp = slv.array_module
+            scan = xp.array(self.scan)
+            probe = xp.random.rand(*self.probe.shape, 2).astype('float32') - 0.5
+            original = xp.random.rand(*self.original.shape, 2).astype('float32') - 0.5
+            data = xp.random.rand(*self.data.shape, 2).astype('float32') - 0.5
+            probe = probe.view('complex64')[..., 0]
+            original = original.view('complex64')[..., 0]
+            data = data.view('complex64')[..., 0]
+
             d = slv.fwd(
                 probe=probe,
                 scan=scan,

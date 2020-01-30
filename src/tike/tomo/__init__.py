@@ -25,7 +25,7 @@ if "TIKE_TOMO_BACKEND" in os.environ:
                                                _backend_options)
         )
 else:
-    from tike.tomo._core.numpy import TomoNumPyFFT as TomoBackend
+    from tike.operators import Tomo as TomoBackend
 
 from tike.tomo.tomo import *  # noqa
 from tike.tomo.solvers import *  # noqa

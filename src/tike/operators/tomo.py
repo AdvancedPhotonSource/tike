@@ -1,17 +1,8 @@
-"""This module defines template classes for the solvers.
+"""This module defines a tomography operator based on the NumPy FFT module."""
 
-All of the solvers, tomography and ptychography, rely on core operators
-including forward and adjunct operators. These core operators may have multiple
-implementations based on different backends e.g. CUDA, OpenCL, NumPy. The
-classes in this module prescribe an interface upon which specific solvers are
-based. In this way, multiple solvers (e.g. E-Pi, gradient descent) implemented
-in Python can share the same core operators and can be upgraded to better
-operators in the future.
+from .operator import Operator
 
-"""
-
-
-class TomoCore(object):
+class Tomo(Operator):
     """A base class for tomography solvers.
 
     This class is a context manager which provides the basic operators required

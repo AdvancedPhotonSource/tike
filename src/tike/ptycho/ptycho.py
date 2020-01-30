@@ -138,7 +138,6 @@ def simulate(
 
     Return real-valued intensities measured by the detector.
     """
-    xp = PtychoBackend.array_module
     assert scan.ndim == 3
     assert psi.ndim == 3
     with PtychoBackend(
@@ -148,6 +147,7 @@ def simulate(
         nz=psi.shape[-2],
         n=psi.shape[-1],
         ntheta=scan.shape[0],
+        **kwargs,
     ) as solver:
         xp = solver.array_module
         data = xp.square(xp.abs(
@@ -185,7 +185,6 @@ def reconstruct(
         The updated obect transmission function at each angle.
 
     """
-    xp = PtychoBackend.array_module
     logger.info("{} on {:,d} - {:,d} by {:,d} grids for {:,d} "
                 "iterations".format(algorithm, *data.shape[1:],
                                     num_iter))
@@ -196,18 +195,20 @@ def reconstruct(
             detector_shape=data.shape[-1],
             nz=psi.shape[-2], n=psi.shape[-1],
             ntheta=scan.shape[0],
+            **kwargs,
         ) as solver:
+            xp = solver.array_module
             result = solver.run(
                 data=xp.asarray(data),
                 probe=xp.asarray(probe), scan=xp.asarray(scan),
                 psi=xp.asarray(psi),
                 num_iter=num_iter,
-                **kwargs
+                **kwargs,
             )  # yapf: disable
-        return {
-            'psi': PtychoBackend.asnumpy(result['psi']),
-            'probe': PtychoBackend.asnumpy(result['probe']),
-        }
+            return {
+                'psi': solver.asnumpy(result['psi']),
+                'probe': solver.asnumpy(result['probe']),
+            }
     else:
         raise ValueError(
             "The {} algorithm is not an available.".format(algorithm))
