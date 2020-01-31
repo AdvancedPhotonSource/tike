@@ -53,7 +53,7 @@ class Ptycho(Operator):
         """Please see help(Ptycho) for more info."""
         super(Ptycho, self).__init__(**kwargs)
         self.propagation = Propagation(detector_shape, probe_shape, **kwargs)
-        self.diffraction = Convolution(detector_shape, probe_shape, nscan, nz, n, ntheta=1,
+        self.diffraction = Convolution(detector_shape, probe_shape, nscan, nz, n, ntheta,
                      **kwargs)
         self.nscan = nscan
         self.probe_shape = probe_shape
