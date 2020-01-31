@@ -326,12 +326,12 @@ class GradientDescentLeastSquaresSteps(PtychoBackend):
             (self.ntheta, -1, nmodes, self.probe_shape, self.probe_shape),
         )
 
-        nearplane = xp.expand_dims(
-            self.diffraction.fwd(psi=psi, scan=scan),
-            axis=mode_axis,
-        ) * probe
-
         for _ in range(num_iter):
+
+            nearplane = xp.expand_dims(
+                self.diffraction.fwd(psi=psi, scan=scan),
+                axis=mode_axis,
+            ) * probe
 
             farplane = self.propagation.fwd(nearplane)
             farplane = self.update_phase(data, farplane, nmodes=nmodes)
