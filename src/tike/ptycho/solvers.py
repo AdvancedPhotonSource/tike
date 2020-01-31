@@ -124,15 +124,15 @@ class GradientDescentLeastSquaresSteps(PtychoBackend):
         return xp.sum(xp.square(xp.sqrt(data) - xp.sqrt(intensity)))
 
     def grad_poisson(xp, data, farplane, mode_axis):
-        modulus = xp.abs(farplane)
-        return xp.conj(
-            xp.conj(farplane)
-            * (
+        intensity = xp.square(xp.abs(farplane))
+        return (
+            farplane
+            * xp.conj(
                 1
                 - data[:, :, xp.newaxis]
                 / (
-                    modulus
-                    * xp.sum(modulus, axis=mode_axis, keepdims=True)
+                    intensity
+                    * xp.sum(intensity, axis=mode_axis, keepdims=True)
                     + 1e-32
                 )
             )
@@ -140,22 +140,22 @@ class GradientDescentLeastSquaresSteps(PtychoBackend):
 
     def grad_amplitude(xp, data, farplane, mode_axis):
         intensity = xp.sum(xp.square(xp.abs(farplane)), axis=mode_axis)
-        return xp.conj(
-            xp.conj(farplane)
-            * (1 - xp.sqrt(data / (intensity + 1e-32)))[:, :, xp.newaxis]
+        return (
+            farplane
+            * xp.conj(1 - xp.sqrt(data / (intensity + 1e-32)))[:, :, xp.newaxis]
         )
 
     cost = {
         'poisson': cost_poisson,
-        'amplitude': cost_amplitude,
+        'gaussian': cost_amplitude,
     }
 
     grad = {
         'poisson': grad_poisson,
-        'amplitude': grad_amplitude,
+        'gaussian': grad_amplitude,
     }
 
-    def update_phase(self, data, farplane, nmodes=1, model='poisson'):
+    def update_phase(self, data, farplane, nmodes=1, model='gaussian'):
         """Solve the farplane phase problem.
 
         Parameters
@@ -174,7 +174,7 @@ class GradientDescentLeastSquaresSteps(PtychoBackend):
 
         # print cost function for sanity check
         if logger.isEnabledFor(logging.INFO):
-            intensity = xp.sum(xp.square(xp.abs(farplane)), axis=mode_axis)
+            intensity = xp.sum(xp.square(xp.abs(farplane)), axis=mode_axis, keepdims=False)
             logger.info(' farplane cost is %+12.5e', self.cost[model](xp, data, intensity))
 
         return farplane.reshape(
@@ -334,7 +334,7 @@ class GradientDescentLeastSquaresSteps(PtychoBackend):
         for _ in range(num_iter):
 
             farplane = self.propagation.fwd(nearplane)
-            farplane = self.update_phase(data, farplane, nmodes=nmodes, model=model)
+            farplane = self.update_phase(data, farplane, nmodes=nmodes)
             nearplane = self.propagation.adj(farplane)
 
             if recover_obj:
