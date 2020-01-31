@@ -151,14 +151,16 @@ def simulate(
         **kwargs,
     ) as solver:
         xp = solver.array_module
-        data = xp.square(xp.abs(
-            solver.fwd(
-                probe=xp.asarray(probe),
-                scan=xp.asarray(scan),
-                psi=xp.asarray(psi),
-                **kwargs,
-            )
-        ))
+        data = 0
+        for i in range(nmode):
+            data += xp.square(xp.abs(
+                solver.fwd(
+                    probe=xp.asarray(probe[:, :, i]),
+                    scan=xp.asarray(scan),
+                    psi=xp.asarray(psi),
+                    **kwargs,
+                )
+            ))
         return solver.asnumpy(data)
 
 
