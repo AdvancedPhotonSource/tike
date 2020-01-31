@@ -155,7 +155,7 @@ class GradientDescentLeastSquaresSteps(PtychoBackend):
         'gaussian': grad_amplitude,
     }
 
-    def update_phase(self, data, farplane, nmodes=1, model='gaussian'):
+    def update_phase(self, data, farplane, nmodes=1, num_iter=2, model='gaussian'):
         """Solve the farplane phase problem.
 
         Parameters
@@ -166,20 +166,32 @@ class GradientDescentLeastSquaresSteps(PtychoBackend):
         """
         xp = self.array_module
         farplane = farplane.reshape(
-            (self.ntheta, -1, nmodes, self.detector_shape, self.detector_shape)
-        )
+            (self.ntheta, -1, nmodes, self.detector_shape, self.detector_shape))
         mode_axis = 2
 
-        farplane = farplane - 1 * self.grad[model](xp, data, farplane, mode_axis)
+        def grad(farplane):
+            return self.grad[model](xp, data, farplane, mode_axis)
+
+        def cost_function(farplane):
+            intensity = xp.sum(xp.square(xp.abs(farplane)),
+                               axis=mode_axis,
+                               keepdims=False)
+            return self.cost[model](xp, data, intensity)
+
+        farplane = conjugate_gradient(
+            self.array_module,
+            x=farplane,
+            cost_function=cost_function,
+            grad=grad,
+            num_iter=num_iter,
+        )
 
         # print cost function for sanity check
         if logger.isEnabledFor(logging.INFO):
-            intensity = xp.sum(xp.square(xp.abs(farplane)), axis=mode_axis, keepdims=False)
-            logger.info(' farplane cost is %+12.5e', self.cost[model](xp, data, intensity))
+            logger.info(' farplane cost is %+12.5e', cost_function(farplane))
 
         return farplane.reshape(
-            (self.ntheta, -1, nmodes, self.detector_shape, self.detector_shape)
-        )
+            (self.ntheta, -1, nmodes, self.detector_shape, self.detector_shape))
 
     def update_probe(self, nearplane, probe, scan, psi, nmodes=1):
         """Solve the nearplane single probe recovery problem."""
