@@ -259,7 +259,7 @@ class GradientDescentLeastSquaresSteps(PtychoBackend):
 
         return probe
 
-    def update_object(self, nearplane, probe, scan, psi, nmodes=1):
+    def update_object(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
         """Solve the nearplane object recovery problem."""
         xp = self.array_module
         mode_axis = 2
@@ -274,51 +274,37 @@ class GradientDescentLeastSquaresSteps(PtychoBackend):
         for i in range(nmodes):
             nearplane, probe = _nearplane[:, :, i], _probe[:, :, i]
 
-            chi = nearplane - self.diffraction.fwd(psi=psi, scan=scan) * probe
+            # net_flux = self.diffraction.adj(
+            #     nearplane=xp.zeros_like(nearplane) + xp.square(xp.abs(probe)),
+            #     scan=scan,
+            # ) + 1e-32
 
-            delta_obj = chi * xp.conj(probe)
-
-            net_flux = self.diffraction.adj(
-                nearplane=xp.zeros_like(nearplane) + xp.square(xp.abs(probe)),
-                scan=scan,
-            ) + 1e-32
-
-            delta_obj_hat = (
-                self.diffraction.adj(delta_obj, scan=scan)
-                / net_flux
-            )
-
-            step_obj = (
-                xp.sum(
-                    xp.real(chi * xp.conj(delta_obj * probe)),
-                    axis=(-1, -2),
-                    keepdims=True,
-                ) / (
-                    xp.sum(
-                        xp.square(xp.abs(delta_obj * probe)),
-                        axis=(-1, -2),
-                        keepdims=True
+            def cost_function(psi):
+                return xp.sum(xp.square(xp.abs(
+                    _nearplane
+                    - _probe * xp.expand_dims(
+                        self.diffraction.fwd(psi=psi, scan=scan),
+                        axis=mode_axis,
                     )
-                    + 1e-32
-                )
-            )
+                )))
 
-            psi += (
-                delta_obj_hat
-                * self.diffraction.adj(
-                    step_obj * xp.square(xp.abs(probe)),
+            def grad(psi):
+                return self.diffraction.adj(
+                    xp.conj(-probe)
+                    * (nearplane - probe * self.diffraction.fwd(psi=psi, scan=scan)),
                     scan=scan,
                 )
-            ) / net_flux
+
+            psi = conjugate_gradient(
+                self.array_module,
+                x=psi,
+                cost_function=cost_function,
+                grad=grad,
+                num_iter=num_iter,
+            )
 
         if logger.isEnabledFor(logging.INFO):
-            cost = xp.sum(xp.square(xp.abs(
-                _nearplane
-                - _probe * xp.expand_dims(
-                    self.diffraction.fwd(psi=psi, scan=scan),
-                    axis=mode_axis,
-                )
-            )))
+            cost = cost_function(psi)
             logger.info('nearplane cost is             %+12.5e', cost)
 
         return psi
