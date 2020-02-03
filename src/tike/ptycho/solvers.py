@@ -193,7 +193,7 @@ class GradientDescentLeastSquaresSteps(PtychoBackend):
         return farplane.reshape(
             (self.ntheta, -1, nmodes, self.detector_shape, self.detector_shape))
 
-    def update_probe(self, nearplane, probe, scan, psi, nmodes=1):
+    def update_probe(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
         """Solve the nearplane single probe recovery problem."""
         # name the axes
         position_axis, mode_axis = 1, 2
@@ -202,60 +202,34 @@ class GradientDescentLeastSquaresSteps(PtychoBackend):
         probe = probe.reshape(
             (self.ntheta, -1, nmodes, self.probe_shape, self.probe_shape)
         )
+        nearplane = nearplane.reshape(
+            (self.ntheta, self.nscan, nmodes, self.probe_shape, self.probe_shape)
+        )
         obj_patches = xp.expand_dims(
             self.diffraction.fwd(psi=psi, scan=scan),
             axis=mode_axis,
         )
-        chi = nearplane - obj_patches * probe
 
-        delta_prb = chi * xp.conj(obj_patches)
+        def cost_function(probe):
+            return xp.sum(xp.square(xp.abs(nearplane - probe * obj_patches)))
 
-        delta_prb_hat = (
-            xp.sum(delta_prb, axis=position_axis, keepdims=True)
-            / (
-                xp.sum(
-                    xp.square(xp.abs(obj_patches)),
-                    axis=position_axis,
-                    keepdims=True,
-                )
-                + 1e-32
-            )
-        )
+        def grad(probe):
+            return xp.sum(
+                xp.conj(-obj_patches) * (nearplane - probe * obj_patches),
+                axis=position_axis, keepdims=True,
+            ) / self.nscan
 
-        step_prb = (
-            xp.sum(
-                xp.real(chi * xp.conj(delta_prb * obj_patches)),
-                axis=(-1, -2),
-                keepdims=True,
-            )
-            / (
-                xp.sum(
-                    xp.square(xp.abs(xp.conj(delta_prb * obj_patches))),
-                    axis=(-1, -2),
-                    keepdims=True,
-                )
-                + 1e-32
-            )
-        )
-
-        probe += (
-            xp.sum(
-                step_prb * delta_prb_hat * xp.square(xp.abs(obj_patches)),
-                axis=position_axis,
-                keepdims=True
-            )
-            / (
-                xp.sum(
-                    xp.square(xp.abs(obj_patches)),
-                    axis=position_axis,
-                    keepdims=True,
-                )
-            )
+        probe = conjugate_gradient(
+            self.array_module,
+            x=probe,
+            cost_function=cost_function,
+            grad=grad,
+            num_iter=num_iter,
         )
 
         if logger.isEnabledFor(logging.INFO):
-            cost = xp.sum(xp.square(xp.abs(nearplane - obj_patches * probe)))
-            logger.info('nearplane cost is %1.5e', cost)
+            cost = cost_function(probe)
+            logger.info('nearplane cost is             %+12.5e', cost)
 
         return probe
 
