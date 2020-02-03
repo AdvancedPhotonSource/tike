@@ -126,11 +126,8 @@ class GradientDescentLeastSquaresSteps(PtychoBackend):
     def grad_poisson(xp, data, farplane, mode_axis):
         intensity = xp.square(xp.abs(farplane))
         return (
-            farplane
-            * xp.conj(
-                1
-                - data[:, :, xp.newaxis]
-                / (
+            farplane * xp.conj(
+                1 - data[:, :, xp.newaxis] / (
                     intensity
                     * xp.sum(intensity, axis=mode_axis, keepdims=True)
                     + 1e-32
@@ -155,7 +152,7 @@ class GradientDescentLeastSquaresSteps(PtychoBackend):
         'gaussian': grad_amplitude,
     }
 
-    def update_phase(self, data, farplane, nmodes=1, num_iter=2, model='gaussian'):
+    def update_phase(self, data, farplane, model, nmodes=1, num_iter=1):
         """Solve the farplane phase problem.
 
         Parameters
@@ -285,7 +282,7 @@ class GradientDescentLeastSquaresSteps(PtychoBackend):
 
     def run(
         self, data, probe, scan, psi,
-        model='poisson',
+        model='gaussian',
         num_iter=1, recover_probe=False, recover_obj=True,
         nmodes=1,
         **kwargs
@@ -306,7 +303,7 @@ class GradientDescentLeastSquaresSteps(PtychoBackend):
             ) * probe
 
             farplane = self.propagation.fwd(nearplane)
-            farplane = self.update_phase(data, farplane, nmodes=nmodes)
+            farplane = self.update_phase(data, farplane, model, nmodes=nmodes)
             nearplane = self.propagation.adj(farplane)
 
             if recover_obj:
