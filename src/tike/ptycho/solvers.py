@@ -311,11 +311,56 @@ class GradientDescentLeastSquaresSteps(PtychoBackend):
 
             if recover_probe:
                 probe = self.update_probe(nearplane, probe, scan, psi, nmodes=nmodes)
+                power = xp.mean(xp.sum(xp.square(xp.abs(probe)), axis=(-1, -2)), axis=1)
+                assert power.shape == (ntheta, nmodes)
+                probe = orthogonalize_gs(xp, probe)
+                for order in xp.argsort(-power):
+                    probe[:, :, :] = probe[:, :, order]
 
         return {
             'psi': psi,
             'probe': probe,
         }
+
+def orthogonalize_gs(xp, x):
+    """Gram-schmidt orthogonalization for complex arrays.
+
+    x : (..., nmodes, :, :) array_like
+        The array with modes in the -3 dimension.
+
+    TODO: Possibly a faster implementation would use QR decomposition.
+    """
+
+    def inner(x, y, axis=None):
+        """Return the complex inner product of x and y along axis."""
+        return xp.sum(xp.conj(x) * y, axis=axis, keepdims=True)
+
+    def norm(x, axis=None):
+        """Return the complex vector norm of x along axis."""
+        return xp.sqrt(inner(x, x, axis=axis))
+
+    # Reshape x into a 2D array
+    unflat_shape = x.shape
+    nmodes = unflat_shape[-3]
+    x_ortho = x.reshape(*unflat_shape[:-2], -1)
+
+    for i in range(1, nmodes):
+        u = x_ortho[..., 0:i,   :]
+        v = x_ortho[..., i:i+1, :]
+        projections = u * inner(u, v, axis=-1) / inner(u, u, axis=-1)
+        x_ortho[..., i:i+1, :] -= xp.sum(projections, axis=-2, keepdims=True)
+
+    if __debug__:
+        # Test each pair of vectors for orthogonality
+        for i in range(nmodes):
+            for j in range(i):
+                error = abs(inner(x_ortho[..., i:i+1, :],
+                                  x_ortho[..., j:j+1, :], axis=-1))
+                assert xp.all(error < 1e-5), (
+                    f"Some vectors are not orthogonal!, {error}, {error.shape}"
+                )
+
+    return x_ortho.reshape(unflat_shape)
 
 # TODO: Add new algorithms here
 available_solvers = {
