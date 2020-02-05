@@ -6,13 +6,10 @@ from .operator import Operator
 class Convolution(Operator):
     """2D Convolution operator with linear interpolation."""
 
-    def __init__(self, detector_shape, probe_shape, nscan, nz, n, ntheta=1,
-                 **kwargs):  # noqa: D102
-        """Please see help(Ptycho) for more info."""
+    def __init__(self, probe_shape, nscan, nz, n, ntheta, **kwargs):
         super(Convolution, self).__init__(**kwargs)
         self.nscan = nscan
         self.probe_shape = probe_shape
-        self.detector_shape = detector_shape
         self.nz = nz
         self.n = n
         self.ntheta = ntheta

@@ -5,8 +5,7 @@ from .operator import Operator
 
 class Propagation(Operator):
 
-    def __init__(self, detector_shape, probe_shape, **kwargs):  # noqa: D102
-        """Please see help(Ptycho) for more info."""
+    def __init__(self, detector_shape, probe_shape, **kwargs):
         super(Propagation, self).__init__(**kwargs)
         self.probe_shape = probe_shape
         self.detector_shape = detector_shape
