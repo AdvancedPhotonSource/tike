@@ -141,6 +141,7 @@ def simulate(
     """
     assert scan.ndim == 3
     assert psi.ndim == 3
+    probe = probe.reshape(scan.shape[0], -1, nmode, *probe.shape[-2:])
     with PtychoBackend(
         nscan=scan.shape[-2],
         probe_shape=probe.shape[-1],
