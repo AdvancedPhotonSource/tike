@@ -28,7 +28,7 @@ def combined(
         def grad_psi(psi):
             return operator.grad(data, psi, scan, probe)
 
-        psi = conjugate_gradient(
+        psi, cost = conjugate_gradient(
             operator.array_module,
             x=psi,
             cost_function=cost_psi,
@@ -39,6 +39,7 @@ def combined(
     return {
         'psi': psi,
         'probe': probe,
+        'cost': cost,
     }
 
 def divided(
@@ -104,7 +105,7 @@ def update_phase(self, data, farplane, nmodes=1, num_iter=1):
     def cost_function(farplane):
         return self.propagation.cost(data, farplane, mode_axis)
 
-    farplane = conjugate_gradient(
+    farplane, cost = conjugate_gradient(
         self.array_module,
         x=farplane,
         cost_function=cost_function,
@@ -113,8 +114,7 @@ def update_phase(self, data, farplane, nmodes=1, num_iter=1):
     )
 
     # print cost function for sanity check
-    if logger.isEnabledFor(logging.INFO):
-        logger.info(' farplane cost is %+12.5e', cost_function(farplane))
+    logger.info(' farplane cost is %+12.5e', cost)
 
     return farplane
 
@@ -144,7 +144,7 @@ def update_probe(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
             axis=position_axis, keepdims=True,
         ) / self.nscan
 
-    probe = conjugate_gradient(
+    probe, cost = conjugate_gradient(
         self.array_module,
         x=probe,
         cost_function=cost_function,
@@ -152,9 +152,7 @@ def update_probe(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
         num_iter=num_iter,
     )
 
-    if logger.isEnabledFor(logging.INFO):
-        cost = cost_function(probe)
-        logger.info('nearplane cost is             %+12.5e', cost)
+    logger.info('nearplane cost is             %+12.5e', cost)
 
     return probe
 
@@ -189,7 +187,7 @@ def update_object(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
                 scan=scan,
             )
 
-        psi = conjugate_gradient(
+        psi, cost = conjugate_gradient(
             self.array_module,
             x=psi,
             cost_function=cost_function,
@@ -197,9 +195,7 @@ def update_object(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
             num_iter=num_iter,
         )
 
-    if logger.isEnabledFor(logging.INFO):
-        cost = cost_function(psi)
-        logger.info('nearplane cost is             %+12.5e', cost)
+    logger.info('nearplane cost is             %+12.5e', cost)
 
     return psi
 

@@ -21,6 +21,13 @@ def line_search(f, x, d, step_length=1, step_shrink=0.5):
     d : vector
         The search direction.
 
+    Returns
+    -------
+    step_length : float
+        The optimal step length along d.
+    cost : float
+        The new value of the cost function after stepping along d.
+
     References
     ----------
     https://en.wikipedia.org/wiki/Backtracking_line_search
@@ -30,12 +37,15 @@ def line_search(f, x, d, step_length=1, step_shrink=0.5):
     m = 0  # Some tuning parameter for termination
     fx = f(x)  # Save the result of f(x) instead of computing it many times
     # Decrease the step length while the step increases the cost function
-    while f(x + step_length * d) > fx + step_shrink * m:
+    while True:
+        fxsd = f(x + step_length * d)
+        if fxsd <= fx + step_shrink * m:
+            break
+        step_length *= step_shrink
         if step_length < 1e-32:
             warnings.warn("Line search failed for conjugate gradient.")
-            return 0
-        step_length *= step_shrink
-    return step_length
+            return 0, fx
+    return step_length, fxsd
 
 
 def conjugate_gradient(
@@ -78,7 +88,7 @@ def conjugate_gradient(
                    + 1e-32)
             )  # yapf: disable
         grad0 = grad_
-        gamma = line_search(
+        gamma, cost = line_search(
             f=cost_function,
             x=x,
             d=dir_,
@@ -88,7 +98,7 @@ def conjugate_gradient(
         if (i + 1) % 8 == 0:
             print("%4d, %.3e, 0, %.7e" % (
                 (i + 1), gamma,
-                cost_function(x),
+                cost,
             ))  # yapf: disable
 
-    return x
+    return x, cost
