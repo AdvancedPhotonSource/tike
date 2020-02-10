@@ -90,7 +90,7 @@ import logging
 import numpy as np
 
 from tike.ptycho import PtychoBackend
-from tike.ptycho.solvers import available_solvers
+import tike.ptycho.solvers as solvers
 
 logger = logging.getLogger(__name__)
 
@@ -169,9 +169,13 @@ def reconstruct(
         data,
         probe, scan,
         psi,
-        algorithm=None, num_iter=1, **kwargs
+        algorithm=None, num_iter=1, num_batches=1, **kwargs
 ):  # yapf: disable
     """Reconstruct the `psi` and `probe` using the given `algorithm`.
+
+    Solve the ptychography problem using mini-batch gradient descent.
+    When num_batches equals nscan then this is stochasitc gradient descent
+    When numbatches equals 1, it is batch gradient descrent.
 
     Parameters
     ----------
@@ -192,26 +196,47 @@ def reconstruct(
     logger.info("{} on {:,d} - {:,d} by {:,d} grids for {:,d} "
                 "iterations".format(algorithm, *data.shape[1:],
                                     num_iter))
-    if algorithm in available_solvers:
-        with available_solvers[algorithm](
-            nscan=scan.shape[-2],
+
+    if algorithm in solvers.__all__:
+        # Divide the work into equal batches small enough for available memory.
+        batches = np.arange(scan.shape[-2])
+        if num_batches > 1:  # Don't shuffle a single batch
+            np.random.shuffle(batches)
+        batches = np.split(batches, num_batches)
+
+        # Initialize an operator. TODO: Initialize another operator for odd batches.
+        with PtychoBackend(
+            nscan=len(batches[0]),
             probe_shape=probe.shape[-1],
             detector_shape=data.shape[-1],
-            nz=psi.shape[-2], n=psi.shape[-1],
+            nz=psi.shape[-2],
+            n=psi.shape[-1],
             ntheta=scan.shape[0],
             **kwargs,
-        ) as solver:
-            xp = solver.array_module
-            result = solver.run(
-                data=xp.asarray(data),
-                probe=xp.asarray(probe), scan=xp.asarray(scan),
-                psi=xp.asarray(psi),
-                num_iter=num_iter,
-                **kwargs,
-            )  # yapf: disable
+        ) as operator:
+            xp = operator.array_module
+
+            result = {
+                'psi': xp.asarray(psi),
+                'probe': xp.asarray(probe),
+            }
+
+            for _ in range(num_iter):
+                for batch in batches:
+                    result = getattr(solvers, algorithm)(
+                        operator,
+                        data=xp.asarray(data[:, batch]),
+                        scan=xp.asarray(scan[:, batch]),
+                        num_iter=num_iter,
+                        **result,
+                        **kwargs,
+                    )  # yapf: disable
+
+                # TODO: check for early termination
+
             return {
-                'psi': solver.asnumpy(result['psi']),
-                'probe': solver.asnumpy(result['probe']),
+                'psi': operator.asnumpy(result['psi']),
+                'probe': operator.asnumpy(result['probe']),
             }
     else:
         raise ValueError(
