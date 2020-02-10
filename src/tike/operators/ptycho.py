@@ -48,19 +48,29 @@ class Ptycho(Operator):
 
     """
 
-    def __init__(self, detector_shape, probe_shape, nscan, nz, n, ntheta=1,
+    def __init__(self, detector_shape, probe_shape, nscan, nz, n, ntheta=1, model='gaussian', nmodes=1,
+                propagation=None, diffraction=None,
                  **kwargs):  # noqa: D102
         """Please see help(Ptycho) for more info."""
         super(Ptycho, self).__init__(**kwargs)
-        self.propagation = Propagation(detector_shape, probe_shape, **kwargs)
-        self.diffraction = Convolution(probe_shape, nscan, nz, n, ntheta,
+        if propagation is None:
+            self.propagation = Propagation(ntheta * nscan * nmodes,
+                        detector_shape, probe_shape, model=model, **kwargs)
+        else:
+            self.propagation = propagation
+        if diffraction is None:
+            self.diffraction = Convolution(probe_shape, nscan, nz, n, ntheta,
                      **kwargs)
+        else:
+            self.diffraction = diffraction
         self.nscan = nscan
         self.probe_shape = probe_shape
         self.detector_shape = detector_shape
         self.nz = nz
         self.n = n
         self.ntheta = ntheta
+        self.cost = getattr(self, f'_{model}_cost')
+        self.grad = getattr(self, f'_{model}_grad')
 
     def fwd(self, probe, scan, psi, **kwargs):  # noqa: D102
         probe = probe.reshape(
@@ -88,3 +98,26 @@ class Ptycho(Operator):
         probe = xp.sum(nearplane * xp.conj(psi_patches), axis=1)
         assert probe.shape == (self.ntheta, self.probe_shape, self.probe_shape)
         return probe
+
+    def _poisson_cost(self, data, psi, scan, probe):
+        xp = self.array_module
+        farplane = self.fwd(psi=psi, scan=scan, probe=probe)
+        simdata = xp.square(xp.abs(farplane))
+        return xp.sum(simdata - data * xp.log(simdata + 1e-32))
+
+    def _poisson_grad(self, data, psi, scan, probe):
+        xp = self.array_module
+        farplane = self.fwd(psi=psi, scan=scan, probe=probe)
+        data_diff = farplane * (1 - data / (xp.square(xp.abs(farplane)) + 1e-32))
+        return self.adj(farplane=data_diff, probe=probe, scan=scan)
+
+    def _gaussian_cost(self, data, psi, scan, probe):
+        xp = self.array_module
+        farplane = self.fwd(psi=psi, scan=scan, probe=probe)
+        return xp.sum(xp.square(xp.abs(farplane) - xp.sqrt(data)))
+
+    def _gaussian_grad(self, data,  psi, scan, probe):
+        xp = self.array_module
+        farplane = self.fwd(psi=psi, scan=scan, probe=probe)
+        data_diff = farplane - xp.sqrt(data) * xp.exp(1j * xp.angle(farplane))
+        return self.adj(farplane=data_diff, probe=probe, scan=scan)
