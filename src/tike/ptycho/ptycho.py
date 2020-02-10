@@ -45,35 +45,7 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         #
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
-"""Solve the phase-retrieval problem.
-
-Coordinate Systems
-==================
-`v, h` are the horizontal and vertical directions perpendicular
-to the probe direction where positive directions are to the right and up.
-
-Functions
-=========
-Each function in this module should have the following interface:
-
-Parameters
-----------
-data : (M, V, H) :py:class:`numpy.array` float
-    An array of detector intensities for each of the `M` probes. The
-    grid of each detector is `H` pixels wide (the horizontal
-    direction) and `V` pixels tall (the vertical direction).
-probe : (V, H) :py:class:`numpy.array` complex
-    The single illumination function of the `M` probes.
-psi : (V, H) :py:class:`numpy.array` complex
-    The object transmission function (for the current view).
-foo_corner : (2, ) float [p]
-    The min corner (v, h) of `foo` in the global coordinate system. `foo`
-    could be `data`, `psi`, etc.
-kwargs
-    Keyword arguments specific to this function. `**kwargs` should always be
-    included so that extra parameters are ignored instead of raising an error.
-
-"""
+"""This module provides wrappers for the functions from ptycho.solvers."""
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 

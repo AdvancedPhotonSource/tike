@@ -1,4 +1,4 @@
-"""This module provides Solver implementations for a variety of algorithms."""
+"""This module provides algorithms for solving the ptychography problem."""
 
 import logging
 
@@ -19,7 +19,9 @@ def combined(
     recover_psi=True, recover_probe=True,
     **kwargs,
 ):  # yapf: disable
-    """
+    """Solve the ptychography problem using a combined approach.
+
+    .. seealso:: tike.ptycho.divided
     """
     if recover_psi:
 
@@ -50,13 +52,15 @@ def divided(
     nmodes=1,
     **kwargs
 ):  # yapf: disable
-    """Solve the Ptychography Problem using method from Odstrcil et al (2018).
+    """Solve near- and farfield- ptychography problems separately.
 
     References
     ----------
     Michal Odstrcil, Andreas Menzel, and Manuel Guizar-Sicaros. Iteraive
     least-squares solver for generalized maximum-likelihood ptychography. Optics
     Express. 2018.
+
+    .. seealso:: tike.ptycho.combined
     """
     xp = self.array_module
     mode_axis = 2
