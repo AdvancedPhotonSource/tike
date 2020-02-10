@@ -169,7 +169,7 @@ def reconstruct(
         data,
         probe, scan,
         psi,
-        algorithm=None, num_iter=1, num_batches=1, **kwargs
+        algorithm=None, num_iter=1, num_batches=1, rtol=1e-3, **kwargs
 ):  # yapf: disable
     """Reconstruct the `psi` and `probe` using the given `algorithm`.
 
@@ -193,10 +193,6 @@ def reconstruct(
         The updated obect transmission function at each angle.
 
     """
-    logger.info("{} on {:,d} - {:,d} by {:,d} grids for {:,d} "
-                "iterations".format(algorithm, *data.shape[1:],
-                                    num_iter))
-
     if algorithm in solvers.__all__:
         # Divide the work into equal batches small enough for available memory.
         batches = np.arange(scan.shape[-2])
@@ -206,13 +202,13 @@ def reconstruct(
 
         # Initialize an operator. TODO: Initialize another operator for odd batches.
         with PtychoBackend(
-            nscan=len(batches[0]),
-            probe_shape=probe.shape[-1],
-            detector_shape=data.shape[-1],
-            nz=psi.shape[-2],
-            n=psi.shape[-1],
-            ntheta=scan.shape[0],
-            **kwargs,
+                nscan=len(batches[0]),
+                probe_shape=probe.shape[-1],
+                detector_shape=data.shape[-1],
+                nz=psi.shape[-2],
+                n=psi.shape[-1],
+                ntheta=scan.shape[0],
+                **kwargs,
         ) as operator:
             xp = operator.array_module
 
@@ -221,7 +217,12 @@ def reconstruct(
                 'probe': xp.asarray(probe),
             }
 
-            for _ in range(num_iter):
+            logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
+                        "iterations in {:,d} batches.".format(
+                            algorithm, *data.shape[1:], num_iter, num_batches))
+
+            cost = 0
+            for i in range(num_iter):
                 for batch in batches:
                     result = getattr(solvers, algorithm)(
                         operator,
@@ -233,6 +234,13 @@ def reconstruct(
                     )  # yapf: disable
 
                 # TODO: check for early termination
+                cost1 = result['cost']
+                if i > 0 and abs((cost1 - cost) / cost) < rtol:
+                    logger.info(
+                        "Cost function rtol < %g reached at %d "
+                        "iterations.", rtol, i)
+                    break
+                cost = cost1
 
             return {
                 'psi': operator.asnumpy(result['psi']),

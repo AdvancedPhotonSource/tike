@@ -22,6 +22,7 @@ def combined(
     """
     """
     if recover_psi:
+
         def cost_psi(psi):
             return operator.cost(data, psi, scan, probe)
 
@@ -62,11 +63,9 @@ def divided(
 
     # Ensure that the mode dimension is used
     probe = probe.reshape(
-        (self.ntheta, -1, nmodes, self.probe_shape, self.probe_shape),
-    )
+        (self.ntheta, -1, nmodes, self.probe_shape, self.probe_shape),)
     data = data.reshape(
-        (self.ntheta, self.nscan, self.detector_shape, self.detector_shape)
-    )
+        (self.ntheta, self.nscan, self.detector_shape, self.detector_shape))
 
     nearplane = xp.expand_dims(
         self.diffraction.fwd(psi=psi, scan=scan),
@@ -74,19 +73,20 @@ def divided(
     ) * probe
 
     farplane = self.propagation.fwd(nearplane)
-    farplane = update_phase(self, data, farplane, nmodes=nmodes)
+    farplane, far_cost = update_phase(self, data, farplane,
+                                      nmodes=nmodes, num_iter=2)
     nearplane = self.propagation.adj(farplane)
 
     if recover_psi:
-        psi = update_object(self, nearplane, probe, scan, psi, nmodes=nmodes)
+        psi, near_cost = update_object(self, nearplane, probe, scan, psi,
+                                       nmodes=nmodes, num_iter=2)
 
     if recover_probe:
-        probe = update_probe(self, nearplane, probe, scan, psi, nmodes=nmodes)
+        probe, near_cost = update_probe(self, nearplane, probe, scan, psi,
+                                        nmodes=nmodes, num_iter=2)
 
-    return {
-        'psi': psi,
-        'probe': probe,
-    }
+    return {'psi': psi, 'probe': probe, 'cost': near_cost}
+
 
 def update_phase(self, data, farplane, nmodes=1, num_iter=1):
     """Solve the farplane phase problem.
@@ -114,9 +114,10 @@ def update_phase(self, data, farplane, nmodes=1, num_iter=1):
     )
 
     # print cost function for sanity check
-    logger.info(' farplane cost is %+12.5e', cost)
+    logger.debug(' farplane cost is %+12.5e', cost)
 
-    return farplane
+    return farplane, cost
+
 
 def update_probe(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
     """Solve the nearplane single probe recovery problem."""
@@ -125,11 +126,9 @@ def update_probe(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
     xp = self.array_module
 
     probe = probe.reshape(
-        (self.ntheta, -1, nmodes, self.probe_shape, self.probe_shape)
-    )
+        (self.ntheta, -1, nmodes, self.probe_shape, self.probe_shape))
     nearplane = nearplane.reshape(
-        (self.ntheta, self.nscan, nmodes, self.probe_shape, self.probe_shape)
-    )
+        (self.ntheta, self.nscan, nmodes, self.probe_shape, self.probe_shape))
     obj_patches = xp.expand_dims(
         self.diffraction.fwd(psi=psi, scan=scan),
         axis=mode_axis,
@@ -141,7 +140,8 @@ def update_probe(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
     def grad(probe):
         return xp.sum(
             xp.conj(-obj_patches) * (nearplane - probe * obj_patches),
-            axis=position_axis, keepdims=True,
+            axis=position_axis,
+            keepdims=True,
         ) / self.nscan
 
     probe, cost = conjugate_gradient(
@@ -152,9 +152,10 @@ def update_probe(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
         num_iter=num_iter,
     )
 
-    logger.info('nearplane cost is             %+12.5e', cost)
+    logger.debug('nearplane cost is             %+12.5e', cost)
 
-    return probe
+    return probe, cost
+
 
 def update_object(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
     """Solve the nearplane object recovery problem."""
@@ -162,28 +163,25 @@ def update_object(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
     mode_axis = 2
 
     _probe = probe.reshape(
-        (self.ntheta, -1, nmodes, self.probe_shape, self.probe_shape)
-    )
+        (self.ntheta, -1, nmodes, self.probe_shape, self.probe_shape))
     _nearplane = nearplane.reshape(
-        (self.ntheta, self.nscan, nmodes, self.probe_shape, self.probe_shape)
-    )
+        (self.ntheta, self.nscan, nmodes, self.probe_shape, self.probe_shape))
 
     for i in range(nmodes):
         nearplane, probe = _nearplane[:, :, i], _probe[:, :, i]
 
         def cost_function(psi):
-            return xp.sum(xp.square(xp.abs(
-                _nearplane
-                - _probe * xp.expand_dims(
-                    self.diffraction.fwd(psi=psi, scan=scan),
-                    axis=mode_axis,
-                )
-            )))
+            return xp.sum(
+                xp.square(
+                    xp.abs(_nearplane - _probe * xp.expand_dims(
+                        self.diffraction.fwd(psi=psi, scan=scan),
+                        axis=mode_axis,
+                    ))))
 
         def grad(psi):
             return self.diffraction.adj(
-                xp.conj(-probe)
-                * (nearplane - probe * self.diffraction.fwd(psi=psi, scan=scan)),
+                xp.conj(-probe) *
+                (nearplane - probe * self.diffraction.fwd(psi=psi, scan=scan)),
                 scan=scan,
             )
 
@@ -195,9 +193,10 @@ def update_object(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
             num_iter=num_iter,
         )
 
-    logger.info('nearplane cost is             %+12.5e', cost)
+    logger.debug('nearplane cost is             %+12.5e', cost)
 
-    return psi
+    return psi, cost
+
 
 def orthogonalize_gs(xp, x):
     """Gram-schmidt orthogonalization for complex arrays.
