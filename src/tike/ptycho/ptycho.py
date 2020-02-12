@@ -196,17 +196,18 @@ def reconstruct(
             cost = 0
             for i in range(num_iter):
                 for batch in batches:
+                    result['scan'] = xp.asarray(scan[:, batch])
                     result = getattr(solvers, algorithm)(
                         operator,
                         data=xp.asarray(data[:, batch]),
-                        scan=xp.asarray(scan[:, batch]),
                         num_iter=num_iter,
                         **result,
                         **kwargs,
                     )  # yapf: disable
-
+                    scan[:, batch] = operator.asnumpy(result['scan'])
                 # TODO: check for early termination
                 cost1 = result['cost']
+                print(cost1)
                 if i > 0 and abs((cost1 - cost) / cost) < rtol:
                     logger.info(
                         "Cost function rtol < %g reached at %d "
@@ -217,6 +218,7 @@ def reconstruct(
             return {
                 'psi': operator.asnumpy(result['psi']),
                 'probe': operator.asnumpy(result['probe']),
+                'scan': operator.asnumpy(result['scan']),
             }
     else:
         raise ValueError(
