@@ -141,29 +141,18 @@ def reconstruct(
         data,
         probe, scan,
         psi,
-        algorithm=None, num_iter=1, num_batches=1, rtol=1e-3, **kwargs
+        algorithm, num_iter=1, num_batches=1, rtol=1e-3, **kwargs
 ):  # yapf: disable
     """Reconstruct the `psi` and `probe` using the given `algorithm`.
 
     Solve the ptychography problem using mini-batch gradient descent.
     When num_batches equals nscan then this is stochasitc gradient descent
-    When numbatches equals 1, it is batch gradient descrent.
+    When num_batches equals 1, it is batch gradient descrent.
 
     Parameters
     ----------
-    probe : (V, H, P) :py:class:`numpy.array` float
-        The initial guess for the illumnination function of each measurement.
-    psi : (V, H, P) :py:class:`numpy.array` float
-        The inital guess of the object transmission function at each angle.
     algorithm : string
-        The name of one of the following algorithms to use for reconstructing:
-            * cgrad : conjugate gradient descent
-
-    Returns
-    -------
-    new_psi : (V, H, P) :py:class:`numpy.array` float
-        The updated obect transmission function at each angle.
-
+        The name of one algorithms to use for reconstructing.
     """
     if algorithm in solvers.__all__:
         # Divide the work into equal batches small enough for available memory.
