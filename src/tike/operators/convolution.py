@@ -33,6 +33,13 @@ class Convolution(Operator):
         for view_angle in range(self.ntheta):
             for position in range(self.nscan):
                 rem, ind = xp.modf(scan[view_angle, position])
+                if (
+                    ind[0] < 0 or ind[1] < 0
+                    or psi.shape[-2] <= ind[0] + self.probe_shape
+                    or psi.shape[-1] <= ind[1] + self.probe_shape
+                ):
+                    # skip scans where the probe position overlaps edges
+                    continue
                 w = (1 - rem[0], rem[0])
                 l = (1 - rem[1], rem[1])
                 areas = (w * l for w, l in itertools.product(w, l))
@@ -40,12 +47,11 @@ class Convolution(Operator):
                 y = (int(ind[1]), 1 + int(ind[1]))
                 corners = ((x, y) for x, y in itertools.product(x, y))
                 for weight, (i, j) in zip(areas, corners):
-                    if weight > 0:
-                        nearplane[view_angle, position, ...] += psi[
-                            view_angle,
-                            i:i + self.probe_shape,
-                            j:j + self.probe_shape,
-                        ] * weight
+                    nearplane[view_angle, position, ...] += psi[
+                        view_angle,
+                        i:i + self.probe_shape,
+                        j:j + self.probe_shape,
+                    ] * weight
         return nearplane
 
     def adj(self, nearplane, scan):
@@ -61,6 +67,12 @@ class Convolution(Operator):
         for view_angle in range(self.ntheta):
             for position in range(self.nscan):
                 rem, ind = xp.modf(scan[view_angle, position])
+                if (
+                    ind[0] < 0 or ind[1] < 0
+                    or psi.shape[-2] <= ind[0] + self.probe_shape
+                    or psi.shape[-1] <= ind[1] + self.probe_shape
+                ):
+                    continue
                 w = (1 - rem[0], rem[0])
                 l = (1 - rem[1], rem[1])
                 areas = (w * l for w, l in itertools.product(w, l))
@@ -68,10 +80,9 @@ class Convolution(Operator):
                 y = (int(ind[1]), 1 + int(ind[1]))
                 corners = ((x, y) for x, y in itertools.product(x, y))
                 for weight, (i, j) in zip(areas, corners):
-                    if weight > 0:
-                        psi[
-                            view_angle,
-                            i:i + self.probe_shape,
-                            j:j + self.probe_shape,
-                        ] += weight * nearplane[view_angle, position]
+                    psi[
+                        view_angle,
+                        i:i + self.probe_shape,
+                        j:j + self.probe_shape,
+                    ] += weight * nearplane[view_angle, position]
         return psi
