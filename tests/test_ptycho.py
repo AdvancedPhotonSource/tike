@@ -154,6 +154,7 @@ class TestPtychoRecon(unittest.TestCase):
                 n=self.original.shape[-1],
                 ntheta=1,
         ) as slv:
+            np.random.seed(0)
             xp = slv.array_module
             scan = xp.array(self.scan)
             probe = xp.random.rand(*self.probe.shape, 2).astype('float32') - 0.5
@@ -190,9 +191,9 @@ class TestPtychoRecon(unittest.TestCase):
                 c.real.item(), c.imag.item()))
             # Test whether Adjoint fixed probe operator is correct
             xp.testing.assert_allclose(a.real, b.real, rtol=1e-5)
-            xp.testing.assert_allclose(a.real, b.real, rtol=1e-5)
+            # xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
             xp.testing.assert_allclose(a.real, c.real, rtol=1e-5)
-            xp.testing.assert_allclose(a.real, c.real, rtol=1e-5)
+            # xp.testing.assert_allclose(a.imag, c.imag, rtol=1e-5)
 
     def test_consistent_simulate(self):
         """Check ptycho.simulate for consistency."""
@@ -231,6 +232,83 @@ class TestPtychoRecon(unittest.TestCase):
     #     np.testing.assert_array_equal(result['psi'].shape, self.original.shape)
     #     np.testing.assert_allclose(result['psi'], standard, atol=1e-6)
 
+    def test_adjoint_convolution(self):
+        """Check that the diffraction adjoint operator is correct."""
+        from tike.ptycho import PtychoBackend
+        with PtychoBackend(
+                nscan=self.scan.shape[-2],
+                probe_shape=self.probe.shape[-1],
+                detector_shape=self.data.shape[-1],
+                nz=self.original.shape[-2],
+                n=self.original.shape[-1],
+                ntheta=1,
+        ) as slv:
+            xp = np
+            np.random.seed(0)
+            original = np.random.rand(*self.original.shape) + 1j * np.random.rand(*self.original.shape)
+            data = np.random.rand(1, self.scan.shape[-2], self.probe.shape[-1], self.probe.shape[-1],) + 1j * np.random.rand(1, self.scan.shape[-2], self.probe.shape[-1], self.probe.shape[-1])
+
+            original = original.astype('float32')
+            data = data.astype('float32')
+
+            d = slv.diffraction.fwd(
+                scan=self.scan,
+                psi=original,
+            )
+            o = slv.diffraction.adj(
+                nearplane=data,
+                scan=self.scan,
+            )
+            a = xp.sum(original * xp.conj(o))
+            b = xp.sum(data * xp.conj(d))
+
+            print()
+            print('<Q, P*Q> = {:.6f}{:+.6f}j'.format(
+                a.real.item(), a.imag.item()))
+            print('<N,  QP> = {:.6f}{:+.6f}j'.format(
+                b.real.item(), b.imag.item()))
+            # Test whether Adjoint fixed probe operator is correct
+            xp.testing.assert_allclose(a.real, b.real, rtol=1e-5)
+            xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
+
+    def test_adjoint_propagation(self):
+        """Check that the adjoint operator is correct."""
+        from tike.ptycho import PtychoBackend
+        with PtychoBackend(
+                nscan=self.scan.shape[-2],
+                probe_shape=self.probe.shape[-1],
+                detector_shape=self.data.shape[-1],
+                nz=self.original.shape[-2],
+                n=self.original.shape[-1],
+                ntheta=1,
+        ) as slv:
+            np.random.seed(0)
+            xp = slv.array_module
+
+            nearplane = xp.random.rand(*self.data.shape[:-2], slv.probe_shape, slv.probe_shape, 2).astype('float32') - 0.5
+            nearplane = nearplane.view('complex64')[..., 0]
+            data = xp.random.rand(*self.data.shape, 2).astype('float32') - 0.5
+            data = data.view('complex64')[..., 0]
+
+            f = slv.propagation.fwd(
+                nearplane=nearplane,
+                farplane=data,
+            )
+            n = slv.propagation.adj(
+                nearplane=nearplane,
+                farplane=data,
+            )
+
+            a = xp.sum(nearplane * xp.conj(n))
+            b = xp.sum(data * xp.conj(f))
+            print()
+            print('<N, F*D> = {:.6f}{:+.6f}j'.format(
+                a.real.item(), a.imag.item()))
+            print('<D,  FN> = {:.6f}{:+.6f}j'.format(
+                b.real.item(), b.imag.item()))
+            # Test whether Adjoint fixed probe operator is correct
+            xp.testing.assert_allclose(a.real, b.real, rtol=1e-5)
+            # xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
 
 if __name__ == '__main__':
     unittest.main()
