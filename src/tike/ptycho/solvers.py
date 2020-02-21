@@ -62,7 +62,6 @@ def divided(
 
     .. seealso:: tike.ptycho.combined
     """
-    xp = self.array_module
     mode_axis = 2
 
     # Ensure that the mode dimension is used
@@ -71,7 +70,7 @@ def divided(
     data = data.reshape(
         (self.ntheta, self.nscan, self.detector_shape, self.detector_shape))
 
-    nearplane = xp.expand_dims(
+    nearplane = np.expand_dims(
         self.diffraction.fwd(psi=psi, scan=scan),
         axis=mode_axis,
     ) * probe
@@ -130,23 +129,22 @@ def update_probe(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
     """Solve the nearplane single probe recovery problem."""
     # name the axes
     position_axis, mode_axis = 1, 2
-    xp = self.array_module
 
     probe = probe.reshape(
         (self.ntheta, -1, nmodes, self.probe_shape, self.probe_shape))
     nearplane = nearplane.reshape(
         (self.ntheta, self.nscan, nmodes, self.probe_shape, self.probe_shape))
-    obj_patches = xp.expand_dims(
+    obj_patches = np.expand_dims(
         self.diffraction.fwd(psi=psi, scan=scan),
         axis=mode_axis,
     )
 
     def cost_function(probe):
-        return xp.sum(xp.square(xp.abs(nearplane - probe * obj_patches)))
+        return np.sum(np.square(np.abs(nearplane - probe * obj_patches)))
 
     def grad(probe):
-        return xp.sum(
-            xp.conj(-obj_patches) * (nearplane - probe * obj_patches),
+        return np.sum(
+            np.conj(-obj_patches) * (nearplane - probe * obj_patches),
             axis=position_axis,
             keepdims=True,
         ) / self.nscan
@@ -166,7 +164,6 @@ def update_probe(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
 
 def update_object(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
     """Solve the nearplane object recovery problem."""
-    xp = self.array_module
     mode_axis = 2
 
     _probe = probe.reshape(
@@ -178,16 +175,16 @@ def update_object(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
         nearplane, probe = _nearplane[:, :, i], _probe[:, :, i]
 
         def cost_function(psi):
-            return xp.sum(
-                xp.square(
-                    xp.abs(_nearplane - _probe * xp.expand_dims(
+            return np.sum(
+                np.square(
+                    np.abs(_nearplane - _probe * np.expand_dims(
                         self.diffraction.fwd(psi=psi, scan=scan),
                         axis=mode_axis,
                     ))))
 
         def grad(psi):
             return self.diffraction.adj(
-                xp.conj(-probe) *
+                np.conj(-probe) *
                 (nearplane - probe * self.diffraction.fwd(psi=psi, scan=scan)),
                 scan=scan,
             )
@@ -207,7 +204,6 @@ def update_object(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
 
 def update_positions(self, nearplane0, psi, probe, scan):
     """Update scan positions by comparing previous iteration object patches."""
-    xp = np
     mode_axis=2
     nmodes = 1
 
@@ -232,12 +228,12 @@ def update_positions(self, nearplane0, psi, probe, scan):
         shape = a.shape[:-2]
         a = a.reshape(-1, *a.shape[-2:])
         b = b.reshape(-1, *b.shape[-1:], 1)
-        x = xp.empty((a.shape[0], a.shape[-1]))
-        aT = xp.swapaxes(a, -1, -2)
+        x = np.empty((a.shape[0], a.shape[-1]))
+        aT = np.swapaxes(a, -1, -2)
         x = np.linalg.pinv(aT @ a) @ aT @ b
         return x.reshape(*shape, a.shape[-1])
 
-    nearplane = xp.expand_dims(
+    nearplane = np.expand_dims(
         self.diffraction.fwd(
             psi=psi,
             scan=scan,
@@ -248,23 +244,23 @@ def update_positions(self, nearplane0, psi, probe, scan):
     dn = (nearplane0 - nearplane).view('float32')
     dn = dn.reshape(*dn.shape[:-2], -1)
 
-    ndx = (xp.expand_dims(
+    ndx = (np.expand_dims(
         self.diffraction.fwd(
             psi=psi,
-            scan=scan + xp.array((0, 1), dtype='float32'),
+            scan=scan + np.array((0, 1), dtype='float32'),
         ),
         axis=mode_axis,
     ) * probe - nearplane).view('float32')
 
-    ndy = (xp.expand_dims(
+    ndy = (np.expand_dims(
         self.diffraction.fwd(
             psi=psi,
-            scan=scan + xp.array((1, 0), dtype='float32'),
+            scan=scan + np.array((1, 0), dtype='float32'),
         ),
         axis=mode_axis,
     ) * probe - nearplane).view('float32')
 
-    dxy = xp.stack(
+    dxy = np.stack(
         (
             ndy.reshape(*ndy.shape[:-2], -1),
             ndx.reshape(*ndx.shape[:-2], -1),
@@ -272,10 +268,10 @@ def update_positions(self, nearplane0, psi, probe, scan):
 
     grad = least_squares(a=dxy, b=dn)
 
-    grad = xp.mean(grad, axis=mode_axis)
+    grad = np.mean(grad, axis=mode_axis)
 
     def cost(scan):
-        nearplane = xp.expand_dims(
+        nearplane = np.expand_dims(
             self.diffraction.fwd(
                 psi=psi,
                 scan=scan,
@@ -286,7 +282,7 @@ def update_positions(self, nearplane0, psi, probe, scan):
 
     return scan + grad, -1
 
-def orthogonalize_gs(xp, x):
+def orthogonalize_gs(np, x):
     """Gram-schmidt orthogonalization for complex arrays.
 
     x : (..., nmodes, :, :) array_like
@@ -297,11 +293,11 @@ def orthogonalize_gs(xp, x):
 
     def inner(x, y, axis=None):
         """Return the complex inner product of x and y along axis."""
-        return xp.sum(xp.conj(x) * y, axis=axis, keepdims=True)
+        return np.sum(np.conj(x) * y, axis=axis, keepdims=True)
 
     def norm(x, axis=None):
         """Return the complex vector norm of x along axis."""
-        return xp.sqrt(inner(x, x, axis=axis))
+        return np.sqrt(inner(x, x, axis=axis))
 
     # Reshape x into a 2D array
     unflat_shape = x.shape
@@ -312,7 +308,7 @@ def orthogonalize_gs(xp, x):
         u = x_ortho[..., 0:i,   :]
         v = x_ortho[..., i:i+1, :]
         projections = u * inner(u, v, axis=-1) / inner(u, u, axis=-1)
-        x_ortho[..., i:i+1, :] -= xp.sum(projections, axis=-2, keepdims=True)
+        x_ortho[..., i:i+1, :] -= np.sum(projections, axis=-2, keepdims=True)
 
     if __debug__:
         # Test each pair of vectors for orthogonality
@@ -320,7 +316,7 @@ def orthogonalize_gs(xp, x):
             for j in range(i):
                 error = abs(inner(x_ortho[..., i:i+1, :],
                                   x_ortho[..., j:j+1, :], axis=-1))
-                assert xp.all(error < 1e-5), (
+                assert np.all(error < 1e-5), (
                     f"Some vectors are not orthogonal!, {error}, {error.shape}"
                 )
 

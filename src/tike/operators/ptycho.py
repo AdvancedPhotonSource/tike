@@ -1,5 +1,7 @@
 """This module defines a pytchography operator based on the NumPy FFT module."""
 
+import numpy as np
+
 from .operator import Operator
 from .propagation import Propagation
 from .convolution import Convolution
@@ -82,42 +84,36 @@ class Ptycho(Operator):
         return farplane
 
     def adj(self, farplane, probe, scan, **kwargs):  # noqa: D102
-        xp = self.array_module
         probe = probe.reshape(
             (self.ntheta, -1, self.probe_shape, self.probe_shape))
         nearplane = self.propagation.adj(farplane)
-        psi = self.diffraction.adj(nearplane=nearplane * xp.conj(probe),
+        psi = self.diffraction.adj(nearplane=nearplane * np.conj(probe),
                                    scan=scan)
         assert psi.shape == (self.ntheta, self.nz, self.n)
         return psi
 
     def adj_probe(self, farplane, scan, psi, **kwargs):  # noqa: D102
-        xp = self.array_module
         psi_patches = self.diffraction.fwd(psi=psi, scan=scan)
         nearplane = self.propagation.adj(farplane=farplane)
-        probe = xp.sum(nearplane * xp.conj(psi_patches), axis=1)
+        probe = np.sum(nearplane * np.conj(psi_patches), axis=1)
         assert probe.shape == (self.ntheta, self.probe_shape, self.probe_shape)
         return probe
 
     def _poisson_cost(self, data, psi, scan, probe):
-        xp = self.array_module
         farplane = self.fwd(psi=psi, scan=scan, probe=probe)
-        simdata = xp.square(xp.abs(farplane))
-        return xp.sum(simdata - data * xp.log(simdata + 1e-32))
+        simdata = np.square(np.abs(farplane))
+        return np.sum(simdata - data * np.log(simdata + 1e-32))
 
     def _poisson_grad(self, data, psi, scan, probe):
-        xp = self.array_module
         farplane = self.fwd(psi=psi, scan=scan, probe=probe)
-        data_diff = farplane * (1 - data / (xp.square(xp.abs(farplane)) + 1e-32))
+        data_diff = farplane * (1 - data / (np.square(np.abs(farplane)) + 1e-32))
         return self.adj(farplane=data_diff, probe=probe, scan=scan)
 
     def _gaussian_cost(self, data, psi, scan, probe):
-        xp = self.array_module
         farplane = self.fwd(psi=psi, scan=scan, probe=probe)
-        return xp.sum(xp.square(xp.abs(farplane) - xp.sqrt(data)))
+        return np.sum(np.square(np.abs(farplane) - np.sqrt(data)))
 
     def _gaussian_grad(self, data,  psi, scan, probe):
-        xp = self.array_module
         farplane = self.fwd(psi=psi, scan=scan, probe=probe)
-        data_diff = farplane - xp.sqrt(data) * xp.exp(1j * xp.angle(farplane))
+        data_diff = farplane - np.sqrt(data) * np.enp(1j * np.angle(farplane))
         return self.adj(farplane=data_diff, probe=probe, scan=scan)

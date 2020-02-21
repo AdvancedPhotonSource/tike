@@ -123,14 +123,13 @@ def simulate(
         ntheta=scan.shape[0],
         **kwargs,
     ) as solver:
-        xp = solver.array_module
         data = 0
         for i in range(nmode):
-            data += xp.square(xp.abs(
+            data += np.square(np.abs(
                 solver.fwd(
-                    probe=xp.asarray(probe[:, :, i]),
-                    scan=xp.asarray(scan),
-                    psi=xp.asarray(psi),
+                    probe=probe[:, :, i],
+                    scan=scan,
+                    psi=psi,
                     **kwargs,
                 )
             ))
@@ -160,8 +159,7 @@ def reconstruct(
         if num_batches > 1:  # Don't shuffle a single batch
             np.random.shuffle(batches)
         batches = np.split(batches, num_batches)
-
-        # Initialize an operator. TODO: Initialize another operator for odd batches.
+        # Initialize an operator.
         with PtychoBackend(
                 nscan=len(batches[0]),
                 probe_shape=probe.shape[-1],
@@ -171,12 +169,12 @@ def reconstruct(
                 ntheta=scan.shape[0],
                 **kwargs,
         ) as operator:
-            xp = operator.array_module
 
             result = {
-                'psi': xp.asarray(psi),
-                'probe': xp.asarray(probe),
+                'psi': psi,
+                'probe': probe,
             }
+            scan = scan.copy()
 
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations in {:,d} batches.".format(
@@ -185,30 +183,24 @@ def reconstruct(
             cost = 0
             for i in range(num_iter):
                 for batch in batches:
-                    result['scan'] = xp.asarray(scan[:, batch])
+                    result['scan'] = scan[:, batch]
                     result = getattr(solvers, algorithm)(
                         operator,
-                        data=xp.asarray(data[:, batch]),
+                        data=data[:, batch],
                         num_iter=num_iter,
                         **result,
                         **kwargs,
                     )  # yapf: disable
-                    scan[:, batch] = operator.asnumpy(result['scan'])
-                # TODO: check for early termination
+                    scan[:, batch] = result['scan']
+                # Check for early termination
                 cost1 = result['cost']
-                print(cost1)
                 if i > 0 and abs((cost1 - cost) / cost) < rtol:
                     logger.info(
                         "Cost function rtol < %g reached at %d "
                         "iterations.", rtol, i)
                     break
                 cost = cost1
-
-            return {
-                'psi': operator.asnumpy(result['psi']),
-                'probe': operator.asnumpy(result['probe']),
-                'scan': operator.asnumpy(result['scan']),
-            }
+            return result
     else:
         raise ValueError(
             "The {} algorithm is not an available.".format(algorithm))

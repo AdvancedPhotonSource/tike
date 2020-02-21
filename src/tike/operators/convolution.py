@@ -1,5 +1,7 @@
 import itertools
 
+import numpy as np
+
 from .operator import Operator
 
 
@@ -20,19 +22,18 @@ class Convolution(Operator):
         The patches within the bounds of psi are linearly interpolated, and
         indices outside the bounds of psi are not allowed.
         """
-        xp = self.array_module
         # For interpolating a pixel to a non-integer position on a grid, we need
         # to divide the area of the pixel between the 4 grid spaces that it
         # overlaps. The weights of each of the adjacent spaces is their area of
         # overlap with the pixel. The side lengths of each of the areas is the
         # remainder from the coordinates of the pixel on the grid.
-        nearplane = xp.zeros(
+        nearplane = np.zeros(
             (self.ntheta, self.nscan, self.probe_shape, self.probe_shape),
             dtype=psi.dtype,
         )
         for view_angle in range(self.ntheta):
             for position in range(self.nscan):
-                rem, ind = xp.modf(scan[view_angle, position])
+                rem, ind = np.modf(scan[view_angle, position])
                 if (
                     ind[0] < 0 or ind[1] < 0
                     or psi.shape[-2] <= ind[0] + self.probe_shape
@@ -56,9 +57,8 @@ class Convolution(Operator):
 
     def adj(self, nearplane, scan):
         """Combine probe shaped patches into a psi shaped grid by addition."""
-        xp = self.array_module
         # See diffraction_fwd for description of interpolation algorithm.
-        psi = xp.zeros_like(nearplane, shape=(self.ntheta, self.nz, self.n))
+        psi = np.zeros_like(nearplane, shape=(self.ntheta, self.nz, self.n))
         # If nearplane cannot be reshaped into this shape, then there are not
         # enough scan positions to correctly do this operation.
         nearplane = nearplane.reshape(
@@ -66,7 +66,7 @@ class Convolution(Operator):
         )
         for view_angle in range(self.ntheta):
             for position in range(self.nscan):
-                rem, ind = xp.modf(scan[view_angle, position])
+                rem, ind = np.modf(scan[view_angle, position])
                 if (
                     ind[0] < 0 or ind[1] < 0
                     or psi.shape[-2] <= ind[0] + self.probe_shape
