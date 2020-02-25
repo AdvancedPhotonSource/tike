@@ -174,6 +174,7 @@ def reconstruct(
                 'psi': psi,
                 'probe': probe,
             }
+
             scan = scan.copy()
 
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
@@ -184,11 +185,11 @@ def reconstruct(
             for i in range(num_iter):
                 for batch in batches:
                     result['scan'] = scan[:, batch]
+                    kwargs.update(result)
                     result = getattr(solvers, algorithm)(
                         operator,
                         data=data[:, batch],
                         num_iter=num_iter,
-                        **result,
                         **kwargs,
                     )  # yapf: disable
                     scan[:, batch] = result['scan']
