@@ -48,7 +48,7 @@ def combined(
 def divided(
     self,
     data, probe, scan, psi,
-    recover_psi=True, recover_probe=True, recover_positions=True,
+    recover_psi=True, recover_probe=False, recover_positions=False,
     nmodes=1,
     **kwargs
 ):  # yapf: disable
@@ -157,8 +157,7 @@ def update_probe(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
         num_iter=num_iter,
     )
 
-    logger.debug('nearplane cost is             %+12.5e', cost)
-
+    logger.debug('    probe cost is             %+12.5e', cost)
     return probe, cost
 
 
@@ -197,8 +196,7 @@ def update_object(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
             num_iter=num_iter,
         )
 
-    logger.debug('nearplane cost is             %+12.5e', cost)
-
+    logger.debug('   object cost is             %+12.5e', cost)
     return psi, cost
 
 
@@ -270,7 +268,7 @@ def update_positions(self, nearplane0, psi, probe, scan):
 
     grad = np.mean(grad, axis=mode_axis)
 
-    def cost(scan):
+    def cost_function(scan):
         nearplane = np.expand_dims(
             self.diffraction.fwd(
                 psi=psi,
@@ -280,7 +278,11 @@ def update_positions(self, nearplane0, psi, probe, scan):
         ) * probe
         return np.sum(np.square(np.abs(nearplane - nearplane0)))
 
-    return scan + grad, -1
+    scan = scan + grad
+    cost = cost_function(scan)
+
+    logger.debug(' position cost is             %+12.5e', cost)
+    return scan, cost
 
 def orthogonalize_gs(np, x):
     """Gram-schmidt orthogonalization for complex arrays.
