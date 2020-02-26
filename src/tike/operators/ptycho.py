@@ -115,5 +115,5 @@ class Ptycho(Operator):
 
     def _gaussian_grad(self, data,  psi, scan, probe):
         farplane = self.fwd(psi=psi, scan=scan, probe=probe)
-        data_diff = farplane - np.sqrt(data) * np.enp(1j * np.angle(farplane))
+        data_diff = farplane - np.sqrt(data) * np.exp(1j * np.angle(farplane))
         return self.adj(farplane=data_diff, probe=probe, scan=scan)
