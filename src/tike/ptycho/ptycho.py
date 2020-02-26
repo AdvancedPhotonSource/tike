@@ -201,7 +201,7 @@ def reconstruct(
                         "iterations.", rtol, i)
                     break
                 cost = cost1
-            return result
+        return result
     else:
         raise ValueError(
             "The {} algorithm is not an available.".format(algorithm))

@@ -50,21 +50,17 @@ class Ptycho(Operator):
 
     """
 
-    def __init__(self, detector_shape, probe_shape, nscan, nz, n, ntheta=1, model='gaussian', nmodes=1,
-                propagation=None, diffraction=None,
+    def __init__(self, detector_shape, probe_shape, nscan, nz, n,
+                 ntheta=1, model='gaussian', nmodes=1,
+                 propagation=Propagation, diffraction=Convolution,
                  **kwargs):  # noqa: D102
         """Please see help(Ptycho) for more info."""
         super(Ptycho, self).__init__(**kwargs)
-        if propagation is None:
-            self.propagation = Propagation(ntheta * nscan * nmodes,
-                        detector_shape, probe_shape, model=model, **kwargs)
-        else:
-            self.propagation = propagation
-        if diffraction is None:
-            self.diffraction = Convolution(probe_shape, nscan, nz, n, ntheta,
-                     **kwargs)
-        else:
-            self.diffraction = diffraction
+        self.propagation = propagation(ntheta * nscan * nmodes,
+                                       detector_shape, probe_shape,
+                                       model=model, nmodes=nmodes, **kwargs)
+        self.diffraction = diffraction(probe_shape, nscan, nz, n, ntheta,
+                                       model=model, nmodes=nmodes, **kwargs)
         self.nscan = nscan
         self.probe_shape = probe_shape
         self.detector_shape = detector_shape
@@ -73,6 +69,10 @@ class Ptycho(Operator):
         self.ntheta = ntheta
         self.cost = getattr(self, f'_{model}_cost')
         self.grad = getattr(self, f'_{model}_grad')
+
+    def __exit__(self, type, value, traceback):
+        self.propagation.__exit__(type, value, traceback)
+        self.diffraction.__exit__(type, value, traceback)
 
     def fwd(self, probe, scan, psi, **kwargs):  # noqa: D102
         probe = probe.reshape(
