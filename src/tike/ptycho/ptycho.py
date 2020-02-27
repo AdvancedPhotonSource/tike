@@ -46,8 +46,6 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 """This module provides wrappers for the functions from ptycho.solvers."""
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
 
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."

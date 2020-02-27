@@ -51,9 +51,6 @@ The aim of Tike is to provide fast, accurate, and modular implementations of a
 wide variety of reconstruction algorithms in an easy to maintain package.
 """
 
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
-
 import logging
 from pkg_resources import get_distribution, DistributionNotFound
 
