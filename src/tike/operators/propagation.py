@@ -45,13 +45,13 @@ class Propagation(Operator):
     # COST FUNCTIONS AND GRADIENTS --------------------------------------------
 
     def _gaussian_cost(self, data, farplane, mode_axis):
-        intensity = np.sum(np.square(np.abs(farplane)), axis=mode_axis)
-        return np.sum(np.square(np.sqrt(data) - np.sqrt(intensity)))
+        intensity = np.linalg.norm(farplane, ord=2, axis=mode_axis)
+        return np.linalg.norm((np.sqrt(data) - intensity))
 
     def _gaussian_grad(self, data, farplane, mode_axis):
-        intensity = np.sum(np.square(np.abs(farplane)), axis=mode_axis)
+        intensity = np.linalg.norm(farplane, ord=2, axis=mode_axis)
         return farplane * np.expand_dims(
-            np.conj(1 - np.sqrt(data / (intensity + 1e-32))),
+            np.conj(1 - np.sqrt(data) / (intensity + 1e-32)),
             axis=mode_axis,
         )
 

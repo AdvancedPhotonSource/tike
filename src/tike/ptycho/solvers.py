@@ -140,7 +140,7 @@ def update_probe(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
     )
 
     def cost_function(probe):
-        return np.sum(np.square(np.abs(nearplane - probe * obj_patches)))
+        return np.linalg.norm(nearplane - probe * obj_patches)
 
     def grad(probe):
         return np.sum(
@@ -174,12 +174,12 @@ def update_object(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
         nearplane, probe = _nearplane[:, :, i], _probe[:, :, i]
 
         def cost_function(psi):
-            return np.sum(
-                np.square(
-                    np.abs(_nearplane - _probe * np.expand_dims(
-                        self.diffraction.fwd(psi=psi, scan=scan),
-                        axis=mode_axis,
-                    ))))
+            return np.linalg.norm(
+                _nearplane - _probe * np.expand_dims(
+                    self.diffraction.fwd(psi=psi, scan=scan),
+                    axis=mode_axis,
+                )
+            )
 
         def grad(psi):
             return self.diffraction.adj(
@@ -276,7 +276,7 @@ def update_positions(self, nearplane0, psi, probe, scan):
             ),
             axis=mode_axis,
         ) * probe
-        return np.sum(np.square(np.abs(nearplane - nearplane0)))
+        return np.linalg.norm(nearplane - nearplane0)
 
     scan = scan + grad
     cost = cost_function(scan)
