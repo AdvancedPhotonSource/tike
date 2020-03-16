@@ -138,28 +138,22 @@ def reconstruct(
         data,
         probe, scan,
         psi,
-        algorithm, num_iter=1, num_batches=1, rtol=1e-3, **kwargs
+        algorithm, num_iter=1, rtol=1e-3, **kwargs
 ):  # yapf: disable
     """Reconstruct the `psi` and `probe` using the given `algorithm`.
-
-    Solve the ptychography problem using mini-batch gradient descent.
-    When num_batches equals nscan then this is stochasitc gradient descent
-    When num_batches equals 1, it is batch gradient descrent.
 
     Parameters
     ----------
     algorithm : string
         The name of one algorithms to use for reconstructing.
+    rtol : float
+        Terminate early if the relative decrease of the cost function is
+        less than this amount.
     """
     if algorithm in solvers.__all__:
-        # Divide the work into equal batches small enough for available memory.
-        batches = np.arange(scan.shape[-2])
-        if num_batches > 1:  # Don't shuffle a single batch
-            np.random.shuffle(batches)
-        batches = np.split(batches, num_batches)
         # Initialize an operator.
         with PtychoBackend(
-                nscan=len(batches[0]),
+                nscan=scan.shape[1],
                 probe_shape=probe.shape[-1],
                 detector_shape=data.shape[-1],
                 nz=psi.shape[-2],
@@ -171,34 +165,28 @@ def reconstruct(
             result = {
                 'psi': psi,
                 'probe': probe,
+                'scan': scan,
             }
 
-            scan = scan.copy()
-
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
-                        "iterations in {:,d} batches.".format(
-                            algorithm, *data.shape[1:], num_iter, num_batches))
+                        "iterations.".format(
+                            algorithm, *data.shape[1:], num_iter))
 
             cost = 0
             for i in range(num_iter):
-                for batch in batches:
-                    result['scan'] = scan[:, batch]
-                    kwargs.update(result)
-                    result = getattr(solvers, algorithm)(
-                        operator,
-                        data=data[:, batch],
-                        num_iter=num_iter,
-                        **kwargs,
-                    )  # yapf: disable
-                    scan[:, batch] = result['scan']
+                kwargs.update(result)
+                result = getattr(solvers, algorithm)(
+                    operator,
+                    data=data,
+                    **kwargs,
+                )  # yapf: disable
                 # Check for early termination
-                cost1 = result['cost']
-                if i > 0 and abs((cost1 - cost) / cost) < rtol:
+                if i > 0 and abs((result['cost'] - cost) / cost) < rtol:
                     logger.info(
                         "Cost function rtol < %g reached at %d "
                         "iterations.", rtol, i)
                     break
-                cost = cost1
+                cost = result['cost']
         return result
     else:
         raise ValueError(
