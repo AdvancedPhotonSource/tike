@@ -7,7 +7,8 @@ from .operator import Operator
 
 class Propagation(Operator):
 
-    def __init__(self, nwaves, detector_shape, probe_shape, model='gaussian', **kwargs):
+    def __init__(self, nwaves, detector_shape, probe_shape, model='gaussian',
+                 **kwargs):
         super(Propagation, self).__init__(**kwargs)
         self.nwaves = nwaves
         self.probe_shape = probe_shape

@@ -11,6 +11,7 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
+
 def combined(
     operator,
     data, probe, scan, psi,
@@ -42,6 +43,7 @@ def combined(
         'probe': probe,
         'cost': cost,
     }
+
 
 def divided(
     self,
@@ -200,7 +202,7 @@ def update_object(self, nearplane, probe, scan, psi, nmodes=1, num_iter=1):
 
 def update_positions(self, nearplane0, psi, probe, scan):
     """Update scan positions by comparing previous iteration object patches."""
-    mode_axis=2
+    mode_axis = 2
     nmodes = 1
 
     # Ensure that the mode dimension is used
@@ -281,6 +283,7 @@ def update_positions(self, nearplane0, psi, probe, scan):
 
     logger.debug(' position cost is             %+12.5e', cost)
     return scan, cost
+
 
 def orthogonalize_gs(np, x):
     """Gram-schmidt orthogonalization for complex arrays.

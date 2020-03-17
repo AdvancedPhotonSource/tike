@@ -10,6 +10,7 @@ library.
 import warnings
 import numpy as np
 
+
 def line_search(f, x, d, step_length=1, step_shrink=0.5):
     """Return a new `step_length` using a backtracking line search.
 
@@ -48,6 +49,7 @@ def line_search(f, x, d, step_length=1, step_shrink=0.5):
             return 0, fx
     return step_length, fxsd
 
+
 def direction_dy(grad0, grad1, dir):
     """Return the Dai-Yuan search direction.
 
@@ -67,6 +69,7 @@ def direction_dy(grad0, grad1, dir):
         / (xp.sum(xp.conj(dir) * (grad1 - grad0)) + 1e-32)
     )
     return _dir
+
 
 def conjugate_gradient(
         array_module,
