@@ -1,9 +1,10 @@
-"""Define generic implementations of optimization routines.
+"""This module provides generic implementations of optimization routines.
 
-This optimization library contains implementations of optimization routies such
-as conjusate gradient that can be reused between domain specific modules. In,
-the future, this module may be replaced by Operator Discretization Library (ODL)
-solvers library.
+Generic implementations of optimization algorithm such as conjugate gradient and
+line search that can be reused between domain specific modules. In, the future,
+this module may be replaced by Operator Discretization Library (ODL) solvers
+library.
+
 """
 
 import warnings

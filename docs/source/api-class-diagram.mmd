@@ -1,6 +1,4 @@
-```mermaid
 classDiagram
-
 
 class Graph {
   +List nodes
@@ -19,8 +17,6 @@ Graph --* Communicator
 Graph --* Node
 
 Communicator <|-- MPI
-
-<!--  -->
 
 Node --o Updater
 
@@ -98,5 +94,3 @@ Operator <|-- Propagation
 
 Ptycho --o Convolution
 Ptycho --o Propagation
-
-```

@@ -1,5 +1,3 @@
-"""This module provides algorithms for solving the ptychography problem."""
-
 import logging
 
 import numpy as np
