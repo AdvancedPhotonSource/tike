@@ -17,16 +17,11 @@ requirements:
     - python={{ python }}
     - setuptools_scm
   run:
-    - numpy
-    - matplotlib
+    - matplotlib-base
     - mpi4py
     - numpy
-    - openmp
     - python={{ python }}
-    - scipy
     - setuptools
-    - six
-    - 'tomopy>=1.2'
 
 test:
   requires:
