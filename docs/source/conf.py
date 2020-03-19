@@ -47,6 +47,7 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.viewcode',
               'sphinxcontrib.bibtex',
               'sphinxcontrib.mermaid',
+              'nbsphinx',
               ]
 
 # Napoleon settings.
@@ -62,10 +63,7 @@ napoleon_use_param = False
 napoleon_use_rtype = False
 
 # The suffix(es) of source filenames.
-# You can specify multiple suffix as a list of string:
-#
-# source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+source_suffix = ['.rst', '.md']
 
 # The master toctree document.
 master_doc = 'index'
@@ -96,7 +94,7 @@ language = None
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
-exclude_patterns = ['_build']
+exclude_patterns = ['_build', '**.ipynb_checkpoints']
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
@@ -104,36 +102,25 @@ pygments_style = 'sphinx'
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
 
-
 # -- Options for HTML output ----------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-#
-html_theme = 'default'
+html_theme = 'sphinx_rtd_theme'
 
-# on_rtd is whether we are on readthedocs.org
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-
-if not on_rtd:  # only import and set the theme if we're building docs locally
-    import sphinx_rtd_theme
-    html_theme = 'sphinx_rtd_theme'
-    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
-
-# Theme options are theme-specific and customize the look and feel of a theme
-# further.  For a list of options available for each theme, see the
-# documentation.
-#
 html_theme_options = {
     'navigation_depth': 4,
 }
 
 # -- Options for HTMLHelp output ------------------------------------------
 
-# Output file base name for HTML help builder.
 htmlhelp_basename = project+'doc'
 
+# -- Options for mermaid output ------------------------------------------
+
 mermaid_verbose = True
+
+# -- Options for autodoc output ------------------------------------------
 
 autodoc_mock_imports = [
     'matplotlib',
@@ -142,11 +129,3 @@ autodoc_mock_imports = [
     'numpy',
     'scipy',
 ]
-
-
-class Mock(object):
-    def __init__(self, *args):
-        pass
-
-    def __getattr__(self, name):
-        return Mock

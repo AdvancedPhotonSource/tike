@@ -34,59 +34,59 @@ operators
 opt
 ===
 .. automodule:: tike.opt
-  :inherited-members:
-  :members:
-  :show-inheritance:
-  :undoc-members:
+   :inherited-members:
+   :members:
+   :show-inheritance:
+   :undoc-members:
 
 
 ptycho
 ======
 
 .. automodule:: tike.ptycho
-  :inherited-members:
-  :members:
-  :show-inheritance:
-  :undoc-members:
+   :inherited-members:
+   :members:
+   :show-inheritance:
+   :undoc-members:
 
 .. automodule:: tike.ptycho.ptycho
-  :inherited-members:
-  :members:
-  :show-inheritance:
-  :undoc-members:
+   :inherited-members:
+   :members:
+   :show-inheritance:
+   :undoc-members:
 
 .. automodule:: tike.ptycho.solvers
-  :inherited-members:
-  :members:
-  :show-inheritance:
-  :undoc-members:
+   :inherited-members:
+   :members:
+   :show-inheritance:
+   :undoc-members:
 
 
 tomo
 ====
 .. automodule:: tike.tomo
-  :inherited-members:
-  :members:
-  :show-inheritance:
-  :undoc-members:
+   :inherited-members:
+   :members:
+   :show-inheritance:
+   :undoc-members:
 
 .. automodule:: tike.tomo.tomo
-  :inherited-members:
-  :members:
-  :show-inheritance:
-  :undoc-members:
+   :inherited-members:
+   :members:
+   :show-inheritance:
+   :undoc-members:
 
 .. automodule:: tike.tomo.solvers
-  :inherited-members:
-  :members:
-  :show-inheritance:
-  :undoc-members:
+   :inherited-members:
+   :members:
+   :show-inheritance:
+   :undoc-members:
 
 
 view
 ====
 .. automodule:: tike.view
-  :inherited-members:
-  :members:
-  :show-inheritance:
-  :undoc-members:
+   :inherited-members:
+   :members:
+   :show-inheritance:
+   :undoc-members:
