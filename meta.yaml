@@ -26,14 +26,13 @@ requirements:
 
 test:
   requires:
-    - nose
-    - coverage
+    - pytest
   imports:
     - tike
   source_files:
     - tests/*
   commands:
-    - nosetests --config=setup.cfg
+    - pytest tests/operators/
 
 app:
     own_environment: True

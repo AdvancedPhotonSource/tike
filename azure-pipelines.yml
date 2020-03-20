@@ -32,7 +32,6 @@ jobs:
       conda create --yes --quiet --name $(package_name)
       python=$(python.version)
       conda-build
-      conda-verify
       pydocstyle
     displayName: Create Anaconda environment
   - bash: |
@@ -61,7 +60,6 @@ jobs:
       conda create --yes --quiet --name $(package_name)
       python=$(python.version)
       conda-build
-      conda-verify
     displayName: Create Anaconda environment
   - bash: |
       source activate $(package_name)
@@ -83,7 +81,6 @@ jobs:
       conda create --yes --quiet --name $(package_name)
       python=$(python.version)
       conda-build
-      conda-verify
     displayName: Create Anaconda environment
   - script: |
       call activate $(package_name)
