@@ -19,7 +19,7 @@ requirements:
     - setuptools_scm_git_archive
   run:
     - matplotlib-base
-    - mpi4py
+    - mpi4py  # [not win]
     - numpy
     - python={{ python }}
     - setuptools
@@ -29,6 +29,14 @@ test:
     - pytest
   imports:
     - tike
+    - tike.operators
+    - tike.opt
+    - tike.ptycho
+    - tike.scan
+    - tike.tomo
+    - tike.trajectory
+    - tike.view
+
   source_files:
     - tests/*
   commands:

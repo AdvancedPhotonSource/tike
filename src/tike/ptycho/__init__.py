@@ -53,5 +53,5 @@ if "TIKE_PTYCHO_BACKEND" in os.environ:
 else:
     from tike.operators import Ptycho as PtychoBackend
 
-from tike.ptycho.ptycho import *  # noqa
-from tike.ptycho.solvers import *  # noqa
+from .ptycho import *  # noqa
+from .solvers import *  # noqa
