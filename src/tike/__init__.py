@@ -45,11 +45,7 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         #
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
-"""
-####
-Tike
-####
-Tike is a toolbox for ptycho-tomographic reconstruction of 3D objects.
+"""Tike is a toolbox for ptycho-tomographic reconstruction of 3D objects.
 
 The aim of Tike is to provide fast, accurate, and modular implementations in an
 easy to maintain package.

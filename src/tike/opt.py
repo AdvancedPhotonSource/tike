@@ -1,4 +1,4 @@
-"""This module provides generic implementations of optimization routines.
+"""Generic implementations of optimization routines.
 
 Generic implementations of optimization algorithm such as conjugate gradient and
 line search that can be reused between domain specific modules. In, the future,
@@ -61,6 +61,7 @@ def direction_dy(grad0, grad1, dir):
         The gradient from this step.
     dir : array_like
         The previous search direction.
+
     """
     xp = np
     _dir = (
@@ -92,6 +93,7 @@ def conjugate_gradient(
         The gradient of cost_function.
     num_iter : int
         The number of steps to take.
+
     """
     for i in range(num_iter):
         grad1 = grad(x)

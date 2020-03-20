@@ -6,6 +6,7 @@ from .operator import Operator
 
 
 class Propagation(Operator):
+    """A base class for Fourier-based free-space propagation."""
 
     def __init__(self, nwaves, detector_shape, probe_shape, model='gaussian',
                  **kwargs):

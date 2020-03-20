@@ -1,4 +1,4 @@
-"""This module provides tomography solvers.
+"""Provides tomography solvers.
 
 The reference implementation uses NumPy's FFT library. Select a non-default
 backend by setting the TIKE_TOMO_BACKEND environment variable.

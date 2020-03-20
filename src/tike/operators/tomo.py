@@ -1,4 +1,4 @@
-"""This module defines a tomography operator based on the NumPy FFT module."""
+"""Defines a tomography operator based on the NumPy FFT module."""
 
 from .operator import Operator
 
@@ -30,6 +30,7 @@ class Tomo(Operator):
         The radian angles at which the radon transform is sampled.
     centers : (nz, ) float32
         The center of rotation in `obj` pixels for each slice along z.
+
     """
 
     array_module = None

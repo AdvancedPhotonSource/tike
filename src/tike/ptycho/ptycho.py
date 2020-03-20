@@ -148,6 +148,7 @@ def reconstruct(
     rtol : float
         Terminate early if the relative decrease of the cost function is
         less than this amount.
+
     """
     if algorithm in solvers.__all__:
         # Initialize an operator.

@@ -1,4 +1,4 @@
-"""This module provides Solver implementations for a variety of algorithms."""
+"""Provides Solver implementations for a variety of algorithms."""
 
 from tike.opt import conjugate_gradient
 import tike.reg as tv

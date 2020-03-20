@@ -61,6 +61,7 @@ def divided(
     Express. 2018.
 
     .. seealso:: tike.ptycho.combined
+
     """
     mode_axis = 2
 
@@ -102,6 +103,7 @@ def update_phase(self, data, farplane, nmodes=1, num_iter=1):
     nmodes : int
         The number of incoherent farplane waves that hit the detector
         simultaneously; the number of waves to sum incoherently.
+
     """
     mode_axis = -3
 
@@ -293,7 +295,6 @@ def orthogonalize_gs(np, x):
 
     TODO: Possibly a faster implementation would use QR decomposition.
     """
-
     def inner(x, y, axis=None):
         """Return the complex inner product of x and y along axis."""
         return np.sum(np.conj(x) * y, axis=axis, keepdims=True)

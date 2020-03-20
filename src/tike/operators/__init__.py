@@ -1,4 +1,4 @@
-"""This module defines reference implementations for all operators.
+"""Defines reference implementations for all operators.
 
 All of the solvers, rely on core operators including forward and adjoint
 operators. These core operators may have multiple implementations based on
