@@ -7,6 +7,7 @@ source:
 
 build:
   number: 0
+  noarch: python
   script:
     - "{{ PYTHON }} -m pip install . --no-deps --ignore-installed
       --no-cache-dir --no-binary :all: -vvv"
@@ -15,7 +16,7 @@ requirements:
   host:
     - pip
     - python={{ python }}
-    - setuptools_scm
+    - setuptools_scm_git_archive
   run:
     - matplotlib-base
     - mpi4py
