@@ -88,9 +88,9 @@ class TestPtychoRecon(unittest.TestCase):
         """
         import matplotlib.pyplot as plt
         amplitude = plt.imread(
-            os.path.join(testdir, "data/Cryptomeria_japonica-0128.tif"))
+            os.path.join(testdir, "data/Cryptomeria_japonica-0128.png"))
         phase = plt.imread(
-            os.path.join(testdir, "data/Bombus_terrestris-0128.tif"))
+            os.path.join(testdir, "data/Bombus_terrestris-0128.png"))
         original = amplitude / 255 * np.exp(1j * phase / 255 * np.pi)
         self.original = np.expand_dims(original, axis=0).astype('complex64')
 
