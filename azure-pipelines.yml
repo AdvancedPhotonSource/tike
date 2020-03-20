@@ -22,6 +22,7 @@ jobs:
         python.version: '3.6'
       Python37:
         python.version: '3.7'
+        extra.packages: 'pydocstyle'
       Python38:
         python.version: '3.8'
     maxParallel: 4
@@ -32,12 +33,13 @@ jobs:
       conda create --yes --quiet --name $(package_name)
       python=$(python.version)
       conda-build
-      pydocstyle
+      $(extra.packages)
     displayName: Create Anaconda environment
   - bash: |
       source activate $(package_name)
       pydocstyle --match='(?!utils).*\.py' --count -v src/$(package_name)/
     displayName: Run python docstring linter
+    condition: eq(variables['python.version'], '3.7')
   - bash: |
       source activate $(package_name)
       conda build . --no-anaconda-upload -c conda-forge
