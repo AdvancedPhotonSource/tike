@@ -45,39 +45,6 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         #
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
-"""Define functions for solving the tomography problem.
-
-Coordinate Systems
-==================
-`theta, v, h`. `v, h` are the horizontal vertical directions perpendicular
-to the probe direction where positive directions are to the right and up.
-`theta` is the rotation angle around the vertical reconstruction
-space axis, `z`. `z` is parallel to `v`, and uses the right hand rule to
-determine reconstruction space coordinates `z, x, y`. `theta` is measured
-from the `x` axis, so when `theta = 0`, `h` is parallel to `y`.
-
-Functions
-=========
-Each public function in this module should have the following interface:
-
-Parameters
-----------
-obj : (Z, X, Y, P) :py:class:`numpy.array` float32
-    An array of material properties. The first three dimensions `Z, X, Y`
-    are spatial dimensions. The fourth dimension, `P`,  holds properties at
-    each grid position: refractive indices, attenuation coefficents, etc.
-integrals : (M, V, H, P) :py:class:`numpy.array` float32
-    Integrals across the `obj` for each of the `probe` rays and
-    P parameters.
-theta, v, h : (M, ) :py:class:`numpy.array` float32
-    The min corner (theta, v, h) of the `probe` for each measurement.
-kwargs
-    Keyword arguments specific to this function. `**kwargs` should always be
-    included so that extra parameters are ignored instead of raising an error.
-
-"""
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
 
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."

@@ -46,6 +46,8 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.imgmath',
               'sphinx.ext.viewcode',
               'sphinxcontrib.bibtex',
+              'sphinxcontrib.mermaid',
+              'nbsphinx',
               ]
 
 # Napoleon settings.
@@ -60,14 +62,8 @@ napoleon_use_ivar = False
 napoleon_use_param = False
 napoleon_use_rtype = False
 
-# Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
-
 # The suffix(es) of source filenames.
-# You can specify multiple suffix as a list of string:
-#
-# source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+source_suffix = ['.rst', '.md']
 
 # The master toctree document.
 master_doc = 'index'
@@ -75,7 +71,7 @@ master_doc = 'index'
 # General information about the project.
 Argonne = u'Argonne National Laboratory'
 project = u'Tike'
-copyright = u'2017-2018, ' + Argonne
+copyright = u'2017-2020, ' + Argonne
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -98,7 +94,7 @@ language = None
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
-exclude_patterns = ['_build']
+exclude_patterns = ['_build', '**.ipynb_checkpoints']
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
@@ -106,98 +102,25 @@ pygments_style = 'sphinx'
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
 
-
 # -- Options for HTML output ----------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-#
-html_theme = 'default'
+html_theme = 'sphinx_rtd_theme'
 
-# on_rtd is whether we are on readthedocs.org
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-
-if not on_rtd:  # only import and set the theme if we're building docs locally
-    import sphinx_rtd_theme
-    html_theme = 'sphinx_rtd_theme'
-    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
-
-# Theme options are theme-specific and customize the look and feel of a theme
-# further.  For a list of options available for each theme, see the
-# documentation.
-#
-# html_theme_options = {}
-
-# Add any paths that contain custom static files (such as style sheets) here,
-# relative to this directory. They are copied after the builtin static files,
-# so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
-
+html_theme_options = {
+    'navigation_depth': 4,
+}
 
 # -- Options for HTMLHelp output ------------------------------------------
 
-# Output file base name for HTML help builder.
 htmlhelp_basename = project+'doc'
 
+# -- Options for mermaid output ------------------------------------------
 
-# -- Options for LaTeX output ---------------------------------------------
+mermaid_verbose = True
 
-latex_elements = {
-    # The paper size ('letterpaper' or 'a4paper').
-    #
-    # 'papersize': 'letterpaper',
-
-    # The font size ('10pt', '11pt' or '12pt').
-    #
-    # 'pointsize': '10pt',
-
-    # Additional stuff for the LaTeX preamble.
-    #
-    # 'preamble': '',
-
-    # Latex figure (float) alignment
-    #
-    # 'figure_align': 'htbp',
-}
-
-# Grouping the document tree into LaTeX files. List of tuples
-# (source start file, target name, title,
-#  author, documentclass [howto, manual, or own class]).
-latex_documents = [
-    ('index',
-     project+'.tex',
-     project+u' Documentation',
-     Argonne,
-     'manual'),
-]
-
-
-# -- Options for manual page output ---------------------------------------
-
-# One entry per manual page. List of tuples
-# (source start file, name, description, authors, manual section).
-man_pages = [
-    ('index', project,
-     project+u' Documentation',
-     [Argonne, ],
-     1)
-]
-
-
-# -- Options for Texinfo output -------------------------------------------
-
-# Grouping the document tree into Texinfo files. List of tuples
-# (source start file, target name, title, author,
-#  dir menu entry, description, category)
-texinfo_documents = [
-    ('index',
-     project,
-     project+u' Documentation',
-     Argonne,
-     project,
-     'Tike',
-     'Miscellaneous'),
-]
+# -- Options for autodoc output ------------------------------------------
 
 autodoc_mock_imports = [
     'matplotlib',
@@ -205,18 +128,4 @@ autodoc_mock_imports = [
     'mpi4py',
     'numpy',
     'scipy',
-    'scipy.ndimage.interpolate',
-    'tomopy',
 ]
-
-
-class Mock(object):
-    def __init__(self, *args):
-        pass
-
-    def __getattr__(self, name):
-        return Mock
-
-
-for mod_name in ('tike.utils', 'tike.externs'):
-    sys.modules[mod_name] = Mock()

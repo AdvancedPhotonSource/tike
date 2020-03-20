@@ -1,1 +1,0 @@
-"""Contains local PtychoCore implementation."""

@@ -47,12 +47,16 @@
 # #########################################################################
 """Tike is a toolbox for ptycho-tomographic reconstruction of 3D objects.
 
-The aim of Tike is to provide fast, accurate, and modular implementations of a
-wide variety of reconstruction algorithms in an easy to maintain package.
-"""
+The aim of Tike is to provide fast, accurate, and modular implementations in an
+easy to maintain package.
 
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
+
+*******
+License
+*******
+The software is licensed under the BSD-3 license.
+
+"""
 
 import logging
 from pkg_resources import get_distribution, DistributionNotFound

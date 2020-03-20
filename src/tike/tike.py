@@ -47,9 +47,6 @@
 # #########################################################################
 """Define the highest level functions for solving ptycho-tomography problem."""
 
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
-
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'

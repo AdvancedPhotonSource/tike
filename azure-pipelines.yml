@@ -15,45 +15,41 @@ jobs:
 
 - job: Linux
   pool:
-    vmImage: 'Ubuntu 16.04'
+    vmImage: 'ubuntu-latest'
   strategy:
     matrix:
       Python36:
         python.version: '3.6'
       Python37:
         python.version: '3.7'
+        extra.packages: 'pydocstyle'
+      Python38:
+        python.version: '3.8'
     maxParallel: 4
   steps:
   - bash: echo "##vso[task.prependpath]$CONDA/bin"
     displayName: Add conda to PATH
   - bash: >
-      conda create --yes --quiet --name $(package_name)
-      python=$(python.version)
+      conda install --yes --quiet
       conda-build
-      conda-verify
-      pycodestyle
-      pydocstyle
-    displayName: Create Anaconda environment
+      $(extra.packages)
+    displayName: Install conda-build
   - bash: |
-      source activate $(package_name)
-      pycodestyle --count -v .
-    displayName: Run python code linter
-  - bash: |
-      source activate $(package_name)
       pydocstyle --match='(?!utils).*\.py' --count -v src/$(package_name)/
     displayName: Run python docstring linter
-  - bash: |
-      source activate $(package_name)
+    condition: eq(variables['python.version'], '3.7')
+  - bash: >
       conda build . --no-anaconda-upload -c conda-forge
+      --python $(python.version)
     displayName: Conda build
 
 - job: macOS
   pool:
-    vmImage: 'xcode9-macos10.13'
+    vmImage: 'macOS-latest'
   strategy:
     matrix:
-      Python36:
-        python.version: '3.6'
+      Python37:
+        python.version: '3.7'
     maxParallel: 4
   steps:
   - bash: echo "##vso[task.prependpath]$CONDA/bin"
@@ -61,34 +57,31 @@ jobs:
   - bash: sudo chown -R $USER $CONDA
     displayName: Take ownership of conda installation
   - bash: >
-      conda create --yes --quiet --name $(package_name)
-      python=$(python.version)
+      conda install --yes --quiet
       conda-build
-      conda-verify
-    displayName: Create Anaconda environment
-  - bash: |
-      source activate $(package_name)
+      $(extra.packages)
+    displayName: Install conda-build
+  - bash: >
       conda build . --no-anaconda-upload -c conda-forge
+      --python $(python.version)
     displayName: Conda build
 
 - job: Windows
   pool:
-    vmImage: 'vs2017-win2016'
+    vmImage: 'windows-latest'
   strategy:
     matrix:
-      Python36:
-        python.version: '3.6'
+      Python37:
+        python.version: '3.7'
     maxParallel: 4
   steps:
   - powershell: Write-Host "##vso[task.prependpath]$env:CONDA\Scripts"
     displayName: Add conda to PATH
   - script: >
-      conda create --yes --quiet --name $(package_name)
-      python=$(python.version)
+      conda install --yes --quiet
       conda-build
-      conda-verify
-    displayName: Create Anaconda environment
-  - script: |
-      call activate $(package_name)
-      conda build . --no-anaconda-upload -c conda-forge -c anaconda
+    displayName: Install conda-build
+  - script: >
+      conda build . --no-anaconda-upload -c conda-forge
+      --python $(python.version)
     displayName: Conda build

@@ -45,37 +45,6 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         #
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
-"""Solve the phase-retrieval problem.
-
-Coordinate Systems
-==================
-`v, h` are the horizontal and vertical directions perpendicular
-to the probe direction where positive directions are to the right and up.
-
-Functions
-=========
-Each function in this module should have the following interface:
-
-Parameters
-----------
-data : (M, V, H) :py:class:`numpy.array` float
-    An array of detector intensities for each of the `M` probes. The
-    grid of each detector is `H` pixels wide (the horizontal
-    direction) and `V` pixels tall (the vertical direction).
-probe : (V, H) :py:class:`numpy.array` complex
-    The single illumination function of the `M` probes.
-psi : (V, H) :py:class:`numpy.array` complex
-    The object transmission function (for the current view).
-foo_corner : (2, ) float [p]
-    The min corner (v, h) of `foo` in the global coordinate system. `foo`
-    could be `data`, `psi`, etc.
-kwargs
-    Keyword arguments specific to this function. `**kwargs` should always be
-    included so that extra parameters are ignored instead of raising an error.
-
-"""
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
 
 __author__ = "Doga Gursoy, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
@@ -90,7 +59,7 @@ import logging
 import numpy as np
 
 from tike.ptycho import PtychoBackend
-from tike.ptycho.solvers import available_solvers
+from .solvers import __all__ as _available_solvers
 
 logger = logging.getLogger(__name__)
 
@@ -132,15 +101,16 @@ def simulate(
         detector_shape,
         probe, scan,
         psi,
+        nmode=1,
         **kwargs
 ):  # yapf: disable
     """Propagate the wavefront to the detector.
 
     Return real-valued intensities measured by the detector.
     """
-    xp = PtychoBackend.array_module
     assert scan.ndim == 3
     assert psi.ndim == 3
+    probe = probe.reshape(scan.shape[0], -1, nmode, *probe.shape[-2:])
     with PtychoBackend(
         nscan=scan.shape[-2],
         probe_shape=probe.shape[-1],
@@ -148,65 +118,76 @@ def simulate(
         nz=psi.shape[-2],
         n=psi.shape[-1],
         ntheta=scan.shape[0],
+        **kwargs,
     ) as solver:
-        data = xp.square(xp.abs(
-            solver.fwd(
-                probe=xp.asarray(probe),
-                scan=xp.asarray(scan),
-                psi=xp.asarray(psi),
-                **kwargs
-            )
-        ))
-    return PtychoBackend.asnumpy(data)
+        data = 0
+        for i in range(nmode):
+            data += np.square(np.abs(
+                solver.fwd(
+                    probe=probe[:, :, i],
+                    scan=scan,
+                    psi=psi,
+                    **kwargs,
+                )
+            ))
+        return solver.asnumpy(data)
 
 
 def reconstruct(
         data,
         probe, scan,
         psi,
-        algorithm=None, num_iter=1, **kwargs
+        algorithm, num_iter=1, rtol=1e-3, **kwargs
 ):  # yapf: disable
     """Reconstruct the `psi` and `probe` using the given `algorithm`.
 
     Parameters
     ----------
-    probe : (V, H, P) :py:class:`numpy.array` float
-        The initial guess for the illumnination function of each measurement.
-    psi : (V, H, P) :py:class:`numpy.array` float
-        The inital guess of the object transmission function at each angle.
     algorithm : string
-        The name of one of the following algorithms to use for reconstructing:
-            * cgrad : conjugate gradient descent
-
-    Returns
-    -------
-    new_psi : (V, H, P) :py:class:`numpy.array` float
-        The updated obect transmission function at each angle.
+        The name of one algorithms to use for reconstructing.
+    rtol : float
+        Terminate early if the relative decrease of the cost function is
+        less than this amount.
 
     """
-    xp = PtychoBackend.array_module
-    logger.info("{} on {:,d} - {:,d} by {:,d} grids for {:,d} "
-                "iterations".format(algorithm, *data.shape[1:],
-                                    num_iter))
-    if algorithm in available_solvers:
-        with available_solvers[algorithm](
-            nscan=scan.shape[-2],
-            probe_shape=probe.shape[-1],
-            detector_shape=data.shape[-1],
-            nz=psi.shape[-2], n=psi.shape[-1],
-            ntheta=scan.shape[0],
-        ) as solver:
-            result = solver.run(
-                data=xp.asarray(data),
-                probe=xp.asarray(probe), scan=xp.asarray(scan),
-                psi=xp.asarray(psi),
-                num_iter=num_iter,
-                **kwargs
-            )  # yapf: disable
-        return {
-            'psi': PtychoBackend.asnumpy(result['psi']),
-            'probe': PtychoBackend.asnumpy(result['probe']),
-        }
+    if algorithm in _available_solvers:
+        # Initialize an operator.
+        with PtychoBackend(
+                nscan=scan.shape[1],
+                probe_shape=probe.shape[-1],
+                detector_shape=data.shape[-1],
+                nz=psi.shape[-2],
+                n=psi.shape[-1],
+                ntheta=scan.shape[0],
+                **kwargs,
+        ) as operator:
+
+            result = {
+                'psi': psi,
+                'probe': probe,
+                'scan': scan,
+            }
+
+            logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
+                        "iterations.".format(
+                            algorithm, *data.shape[1:], num_iter))
+
+            cost = 0
+            for i in range(num_iter):
+                kwargs.update(result)
+                result = getattr(solvers, algorithm)(
+                    operator,
+                    data=data,
+                    **kwargs,
+                )  # yapf: disable
+                # Check for early termination
+                if i > 0 and abs((result['cost'] - cost) / cost) < rtol:
+                    logger.info(
+                        "Cost function rtol < %g reached at %d "
+                        "iterations.", rtol, i)
+                    break
+                cost = result['cost']
+        return result
     else:
         raise ValueError(
             "The {} algorithm is not an available.".format(algorithm))

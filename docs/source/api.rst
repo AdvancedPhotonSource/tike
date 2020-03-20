@@ -1,23 +1,92 @@
-=============
-API reference
-=============
+#############
+API Reference
+#############
 
-This section contains the API reference.
+This part of the documentation describes each function, class, and method in
+detail.
 
-.. rubric:: **Tike Modules:**
+***************
+Class structure
+***************
 
-.. toctree::
+The chart below is a `class diagram
+<https://en.wikipedia.org/wiki/Class_diagram>`_. It shows the inheritance and
+composition relationships between the classes. For example, :py:class:`Ptycho`
+is an :py:class:`Operator` which is composed of :py:class:`Convolution` and
+:py:class:`Propagation` (which are also Operators).
 
-   api/tike.coverage
-   api/tike.pytcho
-   api/tike.scan
-   api/tike.tike
-   api/tike.tomo
-   api/tike.trajectory
-   api/tike.view
+.. mermaid:: api-class-diagram.mmd
 
 
-.. automodule:: tike
+*******
+Modules
+*******
+
+operators
+=========
+.. automodule:: tike.operators
+   :inherited-members:
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
+
+
+opt
+===
+.. automodule:: tike.opt
+   :inherited-members:
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+
+ptycho
+======
+
+.. automodule:: tike.ptycho
+   :inherited-members:
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+.. automodule:: tike.ptycho.ptycho
+   :inherited-members:
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+.. automodule:: tike.ptycho.solvers
+   :inherited-members:
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+
+tomo
+====
+.. automodule:: tike.tomo
+   :inherited-members:
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+.. automodule:: tike.tomo.tomo
+   :inherited-members:
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+.. automodule:: tike.tomo.solvers
+   :inherited-members:
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+
+view
+====
+.. automodule:: tike.view
+   :inherited-members:
+   :members:
+   :show-inheritance:
+   :undoc-members:
