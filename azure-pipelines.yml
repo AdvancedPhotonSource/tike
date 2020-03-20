@@ -30,19 +30,17 @@ jobs:
   - bash: echo "##vso[task.prependpath]$CONDA/bin"
     displayName: Add conda to PATH
   - bash: >
-      conda create --yes --quiet --name $(package_name)
-      python=$(python.version)
+      conda install --yes --quiet
       conda-build
       $(extra.packages)
-    displayName: Create Anaconda environment
+    displayName: Install conda-build
   - bash: |
-      source activate $(package_name)
       pydocstyle --match='(?!utils).*\.py' --count -v src/$(package_name)/
     displayName: Run python docstring linter
     condition: eq(variables['python.version'], '3.7')
-  - bash: |
-      source activate $(package_name)
+  - bash: >
       conda build . --no-anaconda-upload -c conda-forge
+      --python $(python.version)
     displayName: Conda build
 
 - job: macOS
@@ -59,13 +57,13 @@ jobs:
   - bash: sudo chown -R $USER $CONDA
     displayName: Take ownership of conda installation
   - bash: >
-      conda create --yes --quiet --name $(package_name)
-      python=$(python.version)
+      conda install --yes --quiet
       conda-build
-    displayName: Create Anaconda environment
-  - bash: |
-      source activate $(package_name)
+      $(extra.packages)
+    displayName: Install conda-build
+  - bash: >
       conda build . --no-anaconda-upload -c conda-forge
+      --python $(python.version)
     displayName: Conda build
 
 - job: Windows
@@ -80,11 +78,10 @@ jobs:
   - powershell: Write-Host "##vso[task.prependpath]$env:CONDA\Scripts"
     displayName: Add conda to PATH
   - script: >
-      conda create --yes --quiet --name $(package_name)
-      python=$(python.version)
+      conda install --yes --quiet
       conda-build
-    displayName: Create Anaconda environment
-  - script: |
-      call activate $(package_name)
+    displayName: Install conda-build
+  - script: >
       conda build . --no-anaconda-upload -c conda-forge
+      --python $(python.version)
     displayName: Conda build
