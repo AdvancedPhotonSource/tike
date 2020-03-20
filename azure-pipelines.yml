@@ -9,7 +9,16 @@ variables:
 
 trigger:
 - master
-- release-*
+
+pr:
+  branches:
+    include:
+    - master
+  paths:
+    exclude:
+    - 'docs/'
+    - '/.*'
+    - '/*.rst'
 
 jobs:
 
