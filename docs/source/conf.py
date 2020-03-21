@@ -46,7 +46,6 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.imgmath',
               'sphinx.ext.viewcode',
               'sphinxcontrib.bibtex',
-              'sphinxcontrib.mermaid',
               'nbsphinx',
               ]
 
@@ -115,10 +114,6 @@ html_theme_options = {
 # -- Options for HTMLHelp output ------------------------------------------
 
 htmlhelp_basename = project+'doc'
-
-# -- Options for mermaid output ------------------------------------------
-
-mermaid_verbose = True
 
 # -- Options for autodoc output ------------------------------------------
 

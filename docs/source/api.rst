@@ -15,7 +15,10 @@ composition relationships between the classes. For example, :py:class:`Ptycho`
 is an :py:class:`Operator` which is composed of :py:class:`Convolution` and
 :py:class:`Propagation` (which are also Operators).
 
-.. mermaid:: api-class-diagram.mmd
+.. The class diagram is manually rendered using mermaidjs and saved as an svg
+   the sphinxcontrib-mermaid package is out of date and doesn't work (21.3.2020)
+
+.. image:: api-class-diagram.svg
 
 
 *******
