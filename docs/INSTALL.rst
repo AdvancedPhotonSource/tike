@@ -16,7 +16,7 @@ Install the package using typical installation methods.
 
 .. code-block:: bash
 
-  $ pip install .
+  pip install .
 
 The `-e` option for `pip install` makes the installation editable; this means
 whenever you import `tike`, any changes that you make to the source code will be
@@ -28,5 +28,5 @@ environment variables using `export` or `set`.
 
 .. code-block:: bash
 
-  export TIKE_PTYCHO_BACKEND=cudafft`
-  export TIKE_TOMO_BACKEND=cudafft`
+  export TIKE_PTYCHO_BACKEND=cudafft
+  export TIKE_TOMO_BACKEND=cudafft
