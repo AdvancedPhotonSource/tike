@@ -5,7 +5,7 @@ import unittest
 
 import numpy as np
 
-from .util import random_complex
+from .util import random_complex, inner_complex
 from tike.operators import Convolution
 
 __author__ = "Daniel Ching"
@@ -50,16 +50,16 @@ class TestConvolution(unittest.TestCase):
                 nearplane=nearplane,
                 scan=scan,
             )
-            a = np.sum(np.conj(o) * original)
-            b = np.sum(np.conj(d) * nearplane)
+            a = inner_complex(original, o)
+            b = inner_complex(d, nearplane)
             print()
-            print('<Q, P*Q> = {:.6f}{:+.6f}j'.format(
+            print('<Q , P*ψ> = {:.6f}{:+.6f}j'.format(
                 a.real.item(), a.imag.item()))
-            print('<N,  QP> = {:.6f}{:+.6f}j'.format(
+            print('<QP,   ψ> = {:.6f}{:+.6f}j'.format(
                 b.real.item(), b.imag.item()))
             # Test whether Adjoint fixed probe operator is correct
             np.testing.assert_allclose(a.real, b.real, rtol=1e-5)
-            # np.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
+            np.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
 
 if __name__ == '__main__':
     unittest.main()

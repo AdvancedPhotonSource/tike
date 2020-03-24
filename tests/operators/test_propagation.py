@@ -5,7 +5,7 @@ import unittest
 
 import numpy as np
 
-from .util import random_complex
+from .util import random_complex, inner_complex
 from tike.operators import Propagation
 
 __author__ = "Daniel Ching"
@@ -46,16 +46,16 @@ class TestPropagation(unittest.TestCase):
                 nearplane=nearplane,
                 farplane=farplane,
             )
-            a = np.sum(np.conj(n) * nearplane)
-            b = np.sum(np.conj(f) * farplane)
+            a = inner_complex(nearplane, n)
+            b = inner_complex(f, farplane)
             print()
-            print('<N, F*D> = {:.6f}{:+.6f}j'.format(
+            print('<ψ , F*Ψ> = {:.6f}{:+.6f}j'.format(
                 a.real.item(), a.imag.item()))
-            print('<D,  FN> = {:.6f}{:+.6f}j'.format(
+            print('<Fψ,   Ψ> = {:.6f}{:+.6f}j'.format(
                 b.real.item(), b.imag.item()))
             # Test whether Adjoint fixed probe operator is correct
             np.testing.assert_allclose(a.real, b.real, rtol=1e-5)
-            # np.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
+            np.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
 
 if __name__ == '__main__':
     unittest.main()
