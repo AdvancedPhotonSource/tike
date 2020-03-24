@@ -31,8 +31,7 @@ class TestPtycho(unittest.TestCase):
         scan = np.random.rand(*self.scan_shape).astype('float32') * 127 - 15
         probe = random_complex(*self.probe_shape)
         original = random_complex(*self.original_shape)
-        farplane = random_complex(self.ntheta, self.nscan,
-                                  *self.detector_shape)
+        farplane = random_complex(self.ntheta, self.nscan, *self.detector_shape)
 
         probe = probe.astype('complex64')
         original = original.astype('complex64')
@@ -76,6 +75,7 @@ class TestPtycho(unittest.TestCase):
             np.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
             np.testing.assert_allclose(a.real, c.real, rtol=1e-5)
             np.testing.assert_allclose(a.imag, c.imag, rtol=1e-5)
+
 
 if __name__ == '__main__':
     unittest.main()
