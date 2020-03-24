@@ -5,7 +5,7 @@ import unittest
 
 import numpy as np
 
-from .util import random_complex
+from .util import random_complex, inner_complex
 from tike.ptycho import PtychoBackend
 
 __author__ = "Daniel Ching"
@@ -16,7 +16,7 @@ __docformat__ = 'restructuredtext en'
 class TestPtycho(unittest.TestCase):
     """Test the ptychography operator."""
 
-    def setUp(self, ntheta=3, pw=15, nscan=53):
+    def setUp(self, ntheta=3, pw=15, nscan=27):
         """Load a dataset for reconstruction."""
         self.nscan = nscan
         self.ntheta = ntheta
@@ -31,8 +31,7 @@ class TestPtycho(unittest.TestCase):
         scan = np.random.rand(*self.scan_shape).astype('float32') * 127 - 15
         probe = random_complex(*self.probe_shape)
         original = random_complex(*self.original_shape)
-        farplane = random_complex(self.ntheta, self.nscan,
-                                  *self.detector_shape)
+        farplane = random_complex(self.ntheta, self.nscan, *self.detector_shape)
 
         probe = probe.astype('complex64')
         original = original.astype('complex64')
@@ -61,21 +60,22 @@ class TestPtycho(unittest.TestCase):
                 scan=scan,
                 psi=original,
             )
-            a = np.sum(np.conj(d) * farplane)
-            b = np.sum(np.conj(p) * probe)
-            c = np.sum(np.conj(o) * original)
+            a = inner_complex(d, farplane)
+            b = inner_complex(probe, p)
+            c = inner_complex(original, o)
             print()
-            print('<FQP,     FQP> = {:.6f}{:+.6f}j'.format(
+            print('<FQP,     Ψ> = {:.6f}{:+.6f}j'.format(
                 a.real.item(), a.imag.item()))
-            print('<P  , Q*F*FQP> = {:.6f}{:+.6f}j'.format(
+            print('<P  , Q*F*Ψ> = {:.6f}{:+.6f}j'.format(
                 b.real.item(), b.imag.item()))
-            print('<Q  , P*F*FPQ> = {:.6f}{:+.6f}j'.format(
+            print('<Q  , P*F*Ψ> = {:.6f}{:+.6f}j'.format(
                 c.real.item(), c.imag.item()))
             # Test whether Adjoint fixed probe operator is correct
             np.testing.assert_allclose(a.real, b.real, rtol=1e-5)
-            # np.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
+            np.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
             np.testing.assert_allclose(a.real, c.real, rtol=1e-5)
-            # np.testing.assert_allclose(a.imag, c.imag, rtol=1e-5)
+            np.testing.assert_allclose(a.imag, c.imag, rtol=1e-5)
+
 
 if __name__ == '__main__':
     unittest.main()
