@@ -77,7 +77,7 @@ class Ptycho(Operator):
     def fwd(self, probe, scan, psi, **kwargs):  # noqa: D102
         probe = probe.reshape(
             (self.ntheta, -1, self.probe_shape, self.probe_shape))
-        nearplane = self.diffraction.fwd(psi=psi, scan=scan) * probe
+        nearplane = self.diffraction.fwd(psi=psi, scan=scan, probe=probe)
         farplane = self.propagation.fwd(nearplane)
         assert farplane.shape == (self.ntheta, self.nscan, self.detector_shape,
                                   self.detector_shape)
@@ -87,15 +87,15 @@ class Ptycho(Operator):
         probe = probe.reshape(
             (self.ntheta, -1, self.probe_shape, self.probe_shape))
         nearplane = self.propagation.adj(farplane)
-        psi = self.diffraction.adj(nearplane=nearplane * np.conj(probe),
+        psi = self.diffraction.adj(nearplane=nearplane, probe=probe,
                                    scan=scan)
         assert psi.shape == (self.ntheta, self.nz, self.n)
         return psi
 
     def adj_probe(self, farplane, scan, psi, **kwargs):  # noqa: D102
-        psi_patches = self.diffraction.fwd(psi=psi, scan=scan)
         nearplane = self.propagation.adj(farplane=farplane)
-        probe = np.sum(nearplane * np.conj(psi_patches), axis=1)
+        probe = self.diffraction.adj_probe(psi=psi, scan=scan, nearplane=nearplane)
+        probe = np.sum(probe, axis=1)
         assert probe.shape == (self.ntheta, self.probe_shape, self.probe_shape)
         return probe
 

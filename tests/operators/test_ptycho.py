@@ -50,16 +50,19 @@ class TestPtycho(unittest.TestCase):
                 scan=scan,
                 psi=original,
             )
+            assert d.shape == farplane.shape
             o = op.adj(
                 farplane=farplane,
                 probe=probe,
                 scan=scan,
             )
+            assert original.shape == o.shape
             p = op.adj_probe(
                 farplane=farplane,
                 scan=scan,
                 psi=original,
             )
+            assert probe.shape == p.shape
             a = inner_complex(d, farplane)
             b = inner_complex(probe, p)
             c = inner_complex(original, o)

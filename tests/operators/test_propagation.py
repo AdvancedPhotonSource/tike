@@ -40,12 +40,12 @@ class TestPropagation(unittest.TestCase):
         ) as op:
             f = op.fwd(
                 nearplane=nearplane,
-                farplane=farplane,
             )
+            assert f.shape == farplane.shape
             n = op.adj(
-                nearplane=nearplane,
                 farplane=farplane,
             )
+            assert nearplane.shape == n.shape
             a = inner_complex(nearplane, n)
             b = inner_complex(f, farplane)
             print()
