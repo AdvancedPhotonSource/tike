@@ -59,7 +59,7 @@ import logging
 import numpy as np
 
 from tike.ptycho import PtychoBackend
-from .solvers import __all__ as _available_solvers
+from tike.ptycho import solvers
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ def reconstruct(
         less than this amount.
 
     """
-    if algorithm in _available_solvers:
+    if algorithm in solvers.__all__:
         # Initialize an operator.
         with PtychoBackend(
                 nscan=scan.shape[1],
