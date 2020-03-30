@@ -131,11 +131,12 @@ def simulate(
             axis=2,
         ))
 
+
 def reconstruct(
         data,
         probe, scan,
         psi,
-        algorithm, num_iter=1, rtol=1e-3, **kwargs
+        algorithm, num_iter=1, rtol=-1, **kwargs
 ):  # yapf: disable
     """Reconstruct the `psi` and `probe` using the given `algorithm`.
 
