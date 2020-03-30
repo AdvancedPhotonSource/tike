@@ -49,6 +49,8 @@
 
 Each trajectory returns position as a function of time and some other
 parameters.
+
+.. |t_docstring| replace:: Time steps to evaluate the function.
 """
 
 __author__ = "Doga Gursoy, Daniel Ching"
@@ -90,7 +92,7 @@ def _periodic_function_interface(t, A=0.5, f=60, p=0):
     Parameters
     ----------
     t : np.array
-        Time steps to evaluate the function.
+        |t_docstring|
     A : float
         The amplitude of the function.
     f : float
@@ -109,7 +111,10 @@ def hexagonal(t, D, f, row):
 
     Parameters
     ----------
+    t : np.array
+        |t_docstring|
     D : float
+        The diameter of the circles.
     f : float
         How often to we move to the next circle.
     row : int
@@ -145,12 +150,14 @@ def sinusoid(A, f, p, t):
 
     Parameters
     ----------
+    t : np.array
+        |t_docstring|
     A : float
-        The amplitude of the function
+        The amplitude of the function.
     f : float
-        The temporal frequency of the function
-    p : float
-        The phase shift of the function
+        The temporal frequency of the function.
+    p : float [radians]
+        The phase shift of the function.
 
     """
     w = f2w(f)
@@ -164,12 +171,14 @@ def triangle(A, f, p, t):
 
     Parameters
     ----------
+    t : np.array
+        |t_docstring|
     A : float
-        The amplitude of the function
+        The amplitude of the function.
     f : float
-        The temporal frequency of the function
-    p : float
-        The phase shift of the function
+        The temporal frequency of the function.
+    p : float [radians]
+        The phase shift of the function.
 
     """
     w = f2w(f)
@@ -196,12 +205,14 @@ def sawtooth(A, f, p, t):
 
     Parameters
     ----------
+    t : np.array
+        |t_docstring|
     A : float
-        The amplitude of the function
+        The amplitude of the function.
     f : float
-        The temporal frequency of the function
-    p : float
-        The phase shift of the function
+        The temporal frequency of the function.
+    p : float [radians]
+        The phase shift of the function.
 
     """
     ts = t * f - p / (2 * np.pi)
@@ -216,12 +227,14 @@ def square(A, f, p, t):
 
     Parameters
     ----------
+    t : np.array
+        |t_docstring|
     A : float
-        The amplitude of the function
+        The amplitude of the function.
     f : float
-        The temporal frequency of the function
-    p : float
-        The phase shift of the function
+        The temporal frequency of the function.
+    p : float [radians]
+        The phase shift of the function.
 
     """
     ts = t - p / (2 * np.pi) / f
@@ -235,12 +248,14 @@ def staircase(A, f, p, t):
 
     Parameters
     ----------
+    t : np.array
+        |t_docstring|
     A : float
-        The amplitude of the function
+        The amplitude of the function.
     f : float
-        The temporal frequency of the function
-    p : float
-        The phase shift of the function
+        The temporal frequency of the function.
+    p : float [radians]
+        The phase shift of the function.
 
     """
     ts = t * f - p / (2 * np.pi)
@@ -257,6 +272,8 @@ def lissajous(A, B, fx, fy, px, py, t):
 
     Parameters
     ----------
+    t : np.array
+        |t_docstring|
     A, B : float
         The horizontal and vertical amplitudes of the function
     fx, fy : float
@@ -290,6 +307,8 @@ def raster(A, B, f, x0, y0, t):
 
     Parameters
     ----------
+    t : np.array
+        |t_docstring|
     A : float
         The horizontal length of lines
     B : float
@@ -313,6 +332,8 @@ def spiral(r1, t1, v, t):
 
     Parameters
     ----------
+    t : np.array
+        |t_docstring|
     r1 : float
         The radius at time t1.
     t1: float
@@ -350,6 +371,8 @@ def diagonal(A, B, fx, fy, px, py, t):
         The temporal frequencies of the function
     px, py : float
         The phase shifts of the x and y components of the function
+    t : np.array
+        |t_docstring|
 
     """
     x = triangle(A, fx, px + np.pi / 2, t)

@@ -47,6 +47,7 @@ class Ptycho(Operator):
         Coordinates of the minimum corner of the probe grid for each
         measurement in the coordinate system of psi. Vertical coordinates
         first, horizontal coordinates second.
+
     """
 
     def __init__(self, detector_shape, probe_shape, nscan, nz, n,

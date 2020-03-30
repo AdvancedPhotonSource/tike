@@ -22,6 +22,10 @@ def line_search(f, x, d, step_length=1, step_shrink=0.5):
         The current position.
     d : vector
         The search direction.
+    step_length : float
+        The initial step_length.
+    step_shrink : float
+        Decrease the step_length by this fraction at each iteration.
 
     Returns
     -------

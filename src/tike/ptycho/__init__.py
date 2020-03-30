@@ -14,22 +14,26 @@ Functions
 
 Each function in this module should have the following interface:
 
+.. |ptycho_docstring| replace::
+
+    data :  (T, P,    V, H) :py:class:`numpy.array` float32
+        An array of detector intensities for each of the `P` positions at `T`
+        viewing angles. The grid of each detector is `H` pixels wide
+        (the horizontal direction) and `V` pixels tall (the vertical direction).
+    probe : (T, P, M, V, H) :py:class:`numpy.array` complex64
+        The illuminations of the probes.
+    psi :   (T,       V, H) :py:class:`numpy.array` complex64
+        The object transmission function.
+    scan :  (T, P,       2) :py:class:`numpy.array` float32
+        The scanning positions with vertical coordinate listed before horizontal
+        coordinates.
+
 Parameters
 ----------
-data :  (T, P,    V, H) :py:class:`numpy.array` float32
-    An array of detector intensities for each of the `P` positions at `T`
-    viewing angles. The grid of each detector is `H` pixels wide
-    (the horizontal direction) and `V` pixels tall (the vertical direction).
-probe : (T, P, M, V, H) :py:class:`numpy.array` complex64
-    The illuminations of the probes.
-psi :   (T,       V, H) :py:class:`numpy.array` complex64
-    The object transmission function.
-scan :  (T, P,       2) :py:class:`numpy.array` float32
-    The scanning positions with vertical coordinate listed before horizontal
-    coordinates.
-kwargs : :py:class:`dict`
-    Keyword arguments specific to this function. `**kwargs` should always be
-    included so that extra parameters are ignored instead of raising an error.
+    |ptycho_docstring|
+    kwargs : :py:class:`dict`
+        Keyword arguments specific to this function. `**kwargs` should always be
+        included so that extra parameters are ignored instead of raising an error.
 
 """
 import os

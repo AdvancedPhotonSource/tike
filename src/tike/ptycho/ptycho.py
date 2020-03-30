@@ -141,6 +141,7 @@ def reconstruct(
 
     Parameters
     ----------
+    |ptycho_doctring|
     algorithm : string
         The name of one algorithms to use for reconstructing.
     rtol : float
