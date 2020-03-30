@@ -22,16 +22,20 @@ class TestConvolution(unittest.TestCase):
         self.nscan = 27
         self.original_shape = (self.ntheta, 128, 128)
         self.probe_shape = 15
+        self.fly = 9
+        self.nmode = 11
 
     def test_adjoint(self):
         """Check that the diffraction adjoint operator is correct."""
         np.random.seed(0)
         scan = np.random.rand(self.ntheta, self.nscan, 2) * 127 - 15
         original = random_complex(*self.original_shape)
-        nearplane = random_complex(self.ntheta, self.nscan, self.probe_shape,
-                                   self.probe_shape)
-        kernel = random_complex(self.ntheta, self.nscan, self.probe_shape,
-                                self.probe_shape)
+        nearplane = random_complex(
+            self.ntheta, self.nscan // self.fly, self.fly, self.nmode,
+            self.probe_shape, self.probe_shape)
+        kernel = random_complex(
+            self.ntheta, self.nscan // self.fly, self.fly, self.nmode,
+            self.probe_shape, self.probe_shape)
 
         scan = scan.astype('float32')
         original = original.astype('complex64')
@@ -44,6 +48,8 @@ class TestConvolution(unittest.TestCase):
                 nz=self.original_shape[-2],
                 n=self.original_shape[-1],
                 probe_shape=self.probe_shape,
+                fly=self.fly,
+                nmode=self.nmode,
         ) as slv:
             d = slv.fwd(
                 scan=scan,

@@ -8,13 +8,36 @@ from .operator import Operator
 class Convolution(Operator):
     """2D Convolution operator with linear interpolation."""
 
-    def __init__(self, probe_shape, nscan, nz, n, ntheta, **kwargs):
+    def __init__(self, probe_shape, nscan, nz, n, ntheta, nmode=1, fly=1, **kwargs):
         super(Convolution, self).__init__(**kwargs)
         self.nscan = nscan
         self.probe_shape = probe_shape
         self.nz = nz
         self.n = n
         self.ntheta = ntheta
+        self.nmode = nmode
+        self.fly = fly
+
+    def reshape_psi(self, x):
+        """Return x reshaped like an object."""
+        return x.reshape(self.ntheta, self.nz, self.n)
+
+    def reshape_probe(self, x):
+        """Return x reshaped like a probe."""
+        x = x.reshape(self.ntheta, -1, self.fly, self.nmode,
+                      self.probe_shape, self.probe_shape)
+        assert x.shape[1] == 1 or x.shape[1] == self.nscan // self.fly
+        return x
+
+    def reshape_nearplane(self, x):
+        """Return x reshaped like a nearplane."""
+        return x.reshape(self.ntheta, self.nscan // self.fly, self.fly, self.nmode,
+                         self.probe_shape, self.probe_shape)
+
+    def reshape_patches(self, x):
+        """Return x reshaped like a object patches."""
+        return x.reshape(self.ntheta, self.nscan // self.fly, self.fly, 1,
+                         self.probe_shape, self.probe_shape)
 
     def _patch_iterator(self, psi, scan, patch_op):
         """Apply patch_op at all valid scan position within psi."""
@@ -48,44 +71,8 @@ class Convolution(Operator):
         The patches within the bounds of psi are linearly interpolated, and
         indices outside the bounds of psi are not allowed.
         """
-        nearplane = np.zeros(
-            (self.ntheta, self.nscan, self.probe_shape, self.probe_shape),
-            dtype=psi.dtype,
-        )
-
-        def extract_patches(view_angle, position, i, j, weight):
-            nearplane[view_angle, position, ...] += psi[
-                view_angle,
-                i:i + self.probe_shape,
-                j:j + self.probe_shape,
-            ] * weight
-
-        self._patch_iterator(psi, scan, extract_patches)
-
-        return nearplane * probe
-
-    def adj(self, nearplane, scan, probe):
-        """Combine probe shaped patches into a psi shaped grid by addition."""
-        # If nearplane cannot be reshaped into this shape, then there are not
-        # enough scan positions to correctly do this operation.
-        nearplane = nearplane.reshape(
-            (self.ntheta, self.nscan, self.probe_shape, self.probe_shape),
-        ) * np.conj(probe)
-        psi = np.zeros_like(nearplane, shape=(self.ntheta, self.nz, self.n))
-
-        def combine_patches(view_angle, position, i, j, weight):
-            psi[
-                view_angle,
-                i:i + self.probe_shape,
-                j:j + self.probe_shape,
-            ] += weight * nearplane[view_angle, position]
-
-        self._patch_iterator(psi, scan, combine_patches)
-
-        return psi
-
-    def adj_probe(self, nearplane, scan, psi):
-        """Combine probe shaped patches into a psi shaped grid by addition."""
+        psi = self.reshape_psi(psi)
+        probe = self.reshape_probe(probe)
         patches = np.zeros(
             (self.ntheta, self.nscan, self.probe_shape, self.probe_shape),
             dtype=psi.dtype,
@@ -100,4 +87,48 @@ class Convolution(Operator):
 
         self._patch_iterator(psi, scan, extract_patches)
 
+        return self.reshape_patches(patches) * probe
+
+    def adj(self, nearplane, scan, probe):
+        """Combine probe shaped patches into a psi shaped grid by addition."""
+        probe = self.reshape_probe(probe)
+        nearplane = self.reshape_nearplane(nearplane)
+        # If nearplane cannot be reshaped into this shape, then there are not
+        # enough scan positions to correctly do this operation.
+        nearplane = np.conj(probe) * nearplane
+        nearplane = nearplane.reshape(self.ntheta, self.nscan, -1,
+                                      self.probe_shape, self.probe_shape)
+        nearplane = np.sum(nearplane, axis=2)
+
+        psi = np.zeros((self.ntheta, self.nz, self.n), dtype=nearplane.dtype)
+
+        def combine_patches(view_angle, position, i, j, weight):
+            psi[
+                view_angle,
+                i:i + self.probe_shape,
+                j:j + self.probe_shape,
+            ] += weight * nearplane[view_angle, position]
+
+        self._patch_iterator(psi, scan, combine_patches)
+
+        return psi
+
+    def adj_probe(self, nearplane, scan, psi):
+        """Combine probe shaped patches into a psi shaped grid by addition."""
+        nearplane = self.reshape_nearplane(nearplane)
+        patches = np.zeros(
+            (self.ntheta, self.nscan, self.probe_shape, self.probe_shape),
+            dtype=psi.dtype,
+        )
+
+        def extract_patches(view_angle, position, i, j, weight):
+            patches[view_angle, position, ...] += psi[
+                view_angle,
+                i:i + self.probe_shape,
+                j:j + self.probe_shape,
+            ] * weight
+
+        self._patch_iterator(psi, scan, extract_patches)
+
+        patches = self.reshape_patches(patches)
         return np.conj(patches) * nearplane

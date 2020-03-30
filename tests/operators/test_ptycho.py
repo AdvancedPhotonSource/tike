@@ -16,14 +16,16 @@ __docformat__ = 'restructuredtext en'
 class TestPtycho(unittest.TestCase):
     """Test the ptychography operator."""
 
-    def setUp(self, ntheta=3, pw=15, nscan=27):
+    def setUp(self, ntheta=3, pw=15, nscan=27, fly=9, nmode=5):
         """Load a dataset for reconstruction."""
         self.nscan = nscan
         self.ntheta = ntheta
-        self.probe_shape = (ntheta, pw, pw)
+        self.probe_shape = (ntheta, nscan // fly, fly, nmode, pw, pw)
         self.detector_shape = (pw * 3, pw * 3)
         self.original_shape = (ntheta, 128, 128)
         self.scan_shape = (ntheta, nscan, 2)
+        self.fly = fly
+        self.nmode = nmode
 
     def test_adjoint(self):
         """Check that the adjoint operator is correct."""
@@ -31,7 +33,7 @@ class TestPtycho(unittest.TestCase):
         scan = np.random.rand(*self.scan_shape).astype('float32') * 127 - 15
         probe = random_complex(*self.probe_shape)
         original = random_complex(*self.original_shape)
-        farplane = random_complex(self.ntheta, self.nscan, *self.detector_shape)
+        farplane = random_complex(*self.probe_shape[:-2], *self.detector_shape)
 
         probe = probe.astype('complex64')
         original = original.astype('complex64')
@@ -44,6 +46,8 @@ class TestPtycho(unittest.TestCase):
                 nz=self.original_shape[-2],
                 n=self.original_shape[-1],
                 ntheta=self.ntheta,
+                fly=self.fly,
+                nmode=self.nmode,
         ) as op:
             d = op.fwd(
                 probe=probe,

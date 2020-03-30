@@ -101,7 +101,6 @@ def simulate(
         detector_shape,
         probe, scan,
         psi,
-        nmode=1,
         **kwargs
 ):  # yapf: disable
     """Propagate the wavefront to the detector.
@@ -110,7 +109,6 @@ def simulate(
     """
     assert scan.ndim == 3
     assert psi.ndim == 3
-    probe = probe.reshape(scan.shape[0], -1, nmode, *probe.shape[-2:])
     with PtychoBackend(
         nscan=scan.shape[-2],
         probe_shape=probe.shape[-1],
@@ -120,18 +118,18 @@ def simulate(
         ntheta=scan.shape[0],
         **kwargs,
     ) as solver:
-        data = 0
-        for i in range(nmode):
-            data += np.square(np.abs(
-                solver.fwd(
-                    probe=probe[:, :, i],
-                    scan=scan,
-                    psi=psi,
-                    **kwargs,
-                )
-            ))
-        return solver.asnumpy(data)
-
+        farplane = solver.fwd(
+            probe=probe,
+            scan=scan,
+            psi=psi,
+            **kwargs,
+        )
+        return np.square(np.linalg.norm(
+            farplane.reshape(solver.ntheta, solver.nscan // solver.fly, -1,
+                             detector_shape, detector_shape),
+            ord=2,
+            axis=2,
+        ))
 
 def reconstruct(
         data,
