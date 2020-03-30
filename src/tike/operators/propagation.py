@@ -64,7 +64,8 @@ class Propagation(Operator):
         )
         return farplane * np.conj(
             1
-            - (np.sqrt(data) / (intensity + 1e-32))[:, :, np.newaxis, np.newaxis]
+            - (np.sqrt(data) / (intensity + 1e-32))[:, :, np.newaxis,
+                                                    np.newaxis]
         )  # yapf:disable
 
     def _poisson_cost(self, data, farplane):

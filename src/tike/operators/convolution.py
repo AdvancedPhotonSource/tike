@@ -8,7 +8,8 @@ from .operator import Operator
 class Convolution(Operator):
     """2D Convolution operator with linear interpolation."""
 
-    def __init__(self, probe_shape, nscan, nz, n, ntheta, nmode=1, fly=1, **kwargs):
+    def __init__(self, probe_shape, nscan, nz, n, ntheta, nmode=1, fly=1,
+                 **kwargs):
         super(Convolution, self).__init__(**kwargs)
         self.nscan = nscan
         self.probe_shape = probe_shape
@@ -31,8 +32,8 @@ class Convolution(Operator):
 
     def reshape_nearplane(self, x):
         """Return x reshaped like a nearplane."""
-        return x.reshape(self.ntheta, self.nscan // self.fly, self.fly, self.nmode,
-                         self.probe_shape, self.probe_shape)
+        return x.reshape(self.ntheta, self.nscan // self.fly, self.fly,
+                         self.nmode, self.probe_shape, self.probe_shape)
 
     def reshape_patches(self, x):
         """Return x reshaped like a object patches."""
