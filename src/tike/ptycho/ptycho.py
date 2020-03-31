@@ -59,7 +59,7 @@ import logging
 import numpy as np
 
 from tike.ptycho import PtychoBackend
-from .solvers import __all__ as _available_solvers
+from tike.ptycho import solvers
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,6 @@ def simulate(
         detector_shape,
         probe, scan,
         psi,
-        nmode=1,
         **kwargs
 ):  # yapf: disable
     """Propagate the wavefront to the detector.
@@ -110,7 +109,6 @@ def simulate(
     """
     assert scan.ndim == 3
     assert psi.ndim == 3
-    probe = probe.reshape(scan.shape[0], -1, nmode, *probe.shape[-2:])
     with PtychoBackend(
         nscan=scan.shape[-2],
         probe_shape=probe.shape[-1],
@@ -120,29 +118,31 @@ def simulate(
         ntheta=scan.shape[0],
         **kwargs,
     ) as solver:
-        data = 0
-        for i in range(nmode):
-            data += np.square(np.abs(
-                solver.fwd(
-                    probe=probe[:, :, i],
-                    scan=scan,
-                    psi=psi,
-                    **kwargs,
-                )
-            ))
-        return solver.asnumpy(data)
+        farplane = solver.fwd(
+            probe=probe,
+            scan=scan,
+            psi=psi,
+            **kwargs,
+        )
+        return np.square(np.linalg.norm(
+            farplane.reshape(solver.ntheta, solver.nscan // solver.fly, -1,
+                             detector_shape, detector_shape),
+            ord=2,
+            axis=2,
+        ))
 
 
 def reconstruct(
         data,
         probe, scan,
         psi,
-        algorithm, num_iter=1, rtol=1e-3, **kwargs
+        algorithm, num_iter=1, rtol=-1, **kwargs
 ):  # yapf: disable
     """Reconstruct the `psi` and `probe` using the given `algorithm`.
 
     Parameters
     ----------
+    |ptycho_doctring|
     algorithm : string
         The name of one algorithms to use for reconstructing.
     rtol : float
@@ -150,7 +150,7 @@ def reconstruct(
         less than this amount.
 
     """
-    if algorithm in _available_solvers:
+    if algorithm in solvers.__all__:
         # Initialize an operator.
         with PtychoBackend(
                 nscan=scan.shape[1],
