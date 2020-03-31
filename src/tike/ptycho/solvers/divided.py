@@ -76,11 +76,11 @@ def update_probe(self, nearplane, probe, scan, psi, num_iter=1):
         return np.linalg.norm(nearplane - probe * obj_patches)
 
     def grad(probe):
-        return np.sum(
+        return np.mean(
             np.conj(obj_patches) * (probe * obj_patches - nearplane),
             axis=(1, 2),
             keepdims=True,
-        ) / self.nscan
+        )
 
     probe, cost = conjugate_gradient(
         self.array_module,

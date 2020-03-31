@@ -47,10 +47,10 @@ jobs:
       conda build . --no-anaconda-upload -c conda-forge
       --python $(python.version)
     displayName: Conda build
-  - bash: |
-      pydocstyle --match='(?!utils).*\.py' --count -v src/$(package_name)/
-    displayName: Run python docstring linter
-    condition: eq(variables['python.version'], '3.7')
+  # - bash: |
+  #     pydocstyle --match='(?!utils).*\.py' --count -v src/$(package_name)/
+  #   displayName: Run python docstring linter
+  #   condition: eq(variables['python.version'], '3.7')
 
 - job: macOS
   pool:
