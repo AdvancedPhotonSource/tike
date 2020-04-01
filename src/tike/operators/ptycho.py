@@ -72,8 +72,6 @@ class Ptycho(Operator):
         self.ntheta = ntheta
         self.fly = fly
         self.nmode = nmode
-        self.cost = getattr(self, f'_{model}_cost')
-        self.grad = getattr(self, f'_{model}_grad')
 
     def __exit__(self, type, value, traceback):
         self.propagation.__exit__(type, value, traceback)
@@ -93,22 +91,16 @@ class Ptycho(Operator):
         return self.diffraction.adj_probe(psi=psi, scan=scan,
                                           nearplane=nearplane)  # yapf: disable
 
-    def _poisson_cost(self, data, psi, scan, probe):
+    def cost(self, data, psi, scan, probe):  # noqa: D102
         farplane = self.fwd(psi=psi, scan=scan, probe=probe)
-        simdata = np.square(np.abs(farplane))
-        return np.sum(simdata - data * np.log(simdata + 1e-32))
+        return self.propagation.cost(data, farplane)
 
-    def _poisson_grad(self, data, psi, scan, probe):
+    def grad(self, data, psi, scan, probe):  # noqa: D102
         farplane = self.fwd(psi=psi, scan=scan, probe=probe)
-        data_diff = farplane * (1 - data /
-                                (np.square(np.abs(farplane)) + 1e-32))
+        data_diff = self.propagation.grad(data, farplane)
         return self.adj(farplane=data_diff, probe=probe, scan=scan)
 
-    def _gaussian_cost(self, data, psi, scan, probe):
+    def grad_probe(self, data, psi, scan, probe):  # noqa: D102
         farplane = self.fwd(psi=psi, scan=scan, probe=probe)
-        return np.sum(np.square(np.abs(farplane) - np.sqrt(data)))
-
-    def _gaussian_grad(self, data, psi, scan, probe):
-        farplane = self.fwd(psi=psi, scan=scan, probe=probe)
-        data_diff = farplane - np.sqrt(data) * np.exp(1j * np.angle(farplane))
-        return self.adj(farplane=data_diff, probe=probe, scan=scan)
+        data_diff = self.propagation.grad(data, farplane)
+        return self.adj_probe(farplane=data_diff, psi=psi, scan=scan)
