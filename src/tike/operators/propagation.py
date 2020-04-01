@@ -50,7 +50,7 @@ class Propagation(Operator):
 
     def _gaussian_cost(self, data, farplane):
         modulus = np.linalg.norm(
-            farplane.reshape(*data.shape[:2], -1, *data.shape[-2:]),
+            farplane.reshape(*data.shape[:2], -1, *data.shape[2:]),
             ord=2,
             axis=2,
         )
@@ -58,7 +58,7 @@ class Propagation(Operator):
 
     def _gaussian_grad(self, data, farplane):
         modulus = np.linalg.norm(
-            farplane.reshape(*data.shape[:2], -1, *data.shape[-2:]),
+            farplane.reshape(*data.shape[:2], -1, *data.shape[2:]),
             ord=2,
             axis=2,
         )
@@ -68,7 +68,7 @@ class Propagation(Operator):
 
     def _poisson_cost(self, data, farplane):
         intensity = np.square(np.linalg.norm(
-            farplane.reshape(*data.shape[:2], -1, *data.shape[-2:]),
+            farplane.reshape(*data.shape[:2], -1, *data.shape[2:]),
             ord=2,
             axis=2,
         ))
@@ -76,11 +76,10 @@ class Propagation(Operator):
 
     def _poisson_grad(self, data, farplane):
         intensity = np.square(np.linalg.norm(
-            farplane.reshape(*data.shape[:2], -1, *data.shape[-2:]),
+            farplane.reshape(*data.shape[:2], -1, *data.shape[2:]),
             ord=2,
             axis=2,
         ))
-        return farplane * np.conj(
-            1
-            - (data / (intensity + 1e-32))[:, :, np.newaxis, np.newaxis]
-        )  # yapf: disable
+        return farplane * (
+            1 - data / (intensity + 1e-32)
+        )[:, :, np.newaxis, np.newaxis]  # yapf: disable
