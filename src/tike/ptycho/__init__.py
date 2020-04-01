@@ -30,10 +30,11 @@ Each function in this module should have the following interface:
 
 Parameters
 ----------
-    |ptycho_docstring|
-    kwargs : :py:class:`dict`
-        Keyword arguments specific to this function. `**kwargs` should always be
-        included so that extra parameters are ignored instead of raising an error.
+|ptycho_docstring|
+
+kwargs : :py:class:`dict`
+    Keyword arguments specific to this function. `**kwargs` should always be
+    included so that extra parameters are ignored instead of raising an error.
 
 """
 import os

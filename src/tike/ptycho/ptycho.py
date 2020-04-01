@@ -110,13 +110,13 @@ def simulate(
     assert scan.ndim == 3
     assert psi.ndim == 3
     with PtychoBackend(
-        nscan=scan.shape[-2],
-        probe_shape=probe.shape[-1],
-        detector_shape=int(detector_shape),
-        nz=psi.shape[-2],
-        n=psi.shape[-1],
-        ntheta=scan.shape[0],
-        **kwargs,
+            nscan=scan.shape[-2],
+            probe_shape=probe.shape[-1],
+            detector_shape=int(detector_shape),
+            nz=psi.shape[-2],
+            n=psi.shape[-1],
+            ntheta=scan.shape[0],
+            **kwargs,
     ) as solver:
         farplane = solver.fwd(
             probe=probe,
@@ -129,7 +129,7 @@ def simulate(
                              detector_shape, detector_shape),
             ord=2,
             axis=2,
-        ))
+        ))  # yapf: disable
 
 
 def reconstruct(
@@ -169,8 +169,8 @@ def reconstruct(
             }
 
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
-                        "iterations.".format(
-                            algorithm, *data.shape[1:], num_iter))
+                        "iterations.".format(algorithm, *data.shape[1:],
+                                             num_iter))
 
             cost = 0
             for i in range(num_iter):
@@ -179,7 +179,7 @@ def reconstruct(
                     operator,
                     data=data,
                     **kwargs,
-                )  # yapf: disable
+                )
                 # Check for early termination
                 if i > 0 and abs((result['cost'] - cost) / cost) < rtol:
                     logger.info(

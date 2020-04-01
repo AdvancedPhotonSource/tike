@@ -49,39 +49,37 @@ class Propagation(Operator):
     # COST FUNCTIONS AND GRADIENTS --------------------------------------------
 
     def _gaussian_cost(self, data, farplane):
-        intensity = np.linalg.norm(
+        modulus = np.linalg.norm(
             farplane.reshape(*data.shape[:2], -1, *data.shape[-2:]),
             ord=2,
             axis=2,
         )
-        return np.linalg.norm((np.sqrt(data) - intensity))
+        return np.linalg.norm(modulus - np.sqrt(data))**2
 
     def _gaussian_grad(self, data, farplane):
-        intensity = np.linalg.norm(
+        modulus = np.linalg.norm(
             farplane.reshape(*data.shape[:2], -1, *data.shape[-2:]),
             ord=2,
             axis=2,
         )
-        return farplane * np.conj(
-            1
-            - (np.sqrt(data) / (intensity + 1e-32))[:, :, np.newaxis,
-                                                    np.newaxis]
-        )  # yapf:disable
+        return farplane * (
+            1 - np.sqrt(data) / (modulus + 1e-32)
+        )[:, :, np.newaxis, np.newaxis]  # yapf:disable
 
     def _poisson_cost(self, data, farplane):
-        intensity = np.linalg.norm(
+        intensity = np.square(np.linalg.norm(
             farplane.reshape(*data.shape[:2], -1, *data.shape[-2:]),
             ord=2,
             axis=2,
-        )
+        ))
         return np.sum(intensity - data * np.log(intensity + 1e-32))
 
     def _poisson_grad(self, data, farplane):
-        intensity = np.linalg.norm(
+        intensity = np.square(np.linalg.norm(
             farplane.reshape(*data.shape[:2], -1, *data.shape[-2:]),
             ord=2,
             axis=2,
-        )
+        ))
         return farplane * np.conj(
             1
             - (data / (intensity + 1e-32))[:, :, np.newaxis, np.newaxis]
