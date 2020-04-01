@@ -7,8 +7,12 @@ library.
 
 """
 
+import logging
 import warnings
+
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 def line_search(f, x, d, step_length=1, step_shrink=0.5):
@@ -112,10 +116,5 @@ def conjugate_gradient(
             d=dir,
         )
         x = x + gamma * dir
-        # check convergence
-        if (i + 1) % 8 == 0:
-            print("%4d, %.3e, 0, %.7e" % (
-                (i + 1), gamma,
-                cost,
-            ))  # yapf: disable
+        logger.debug("%4d, %.3e, %.7e", (i + 1), gamma, cost)
     return x, cost
