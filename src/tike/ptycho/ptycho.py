@@ -190,4 +190,4 @@ def reconstruct(
         return result
     else:
         raise ValueError(
-            "The {} algorithm is not an available.".format(algorithm))
+            "The '{}' algorithm is not an available.".format(algorithm))
