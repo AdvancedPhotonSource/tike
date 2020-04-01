@@ -40,20 +40,24 @@ class Convolution(Operator):
         return x.reshape(self.ntheta, self.nscan // self.fly, self.fly, 1,
                          self.probe_shape, self.probe_shape)
 
-    def _patch_iterator(self, psi, scan, patch_op):
+    @staticmethod
+    def _patch_iterator(
+        scan, probe_shape, psi_shape,
+        patch_op, left, right,
+    ):
         """Apply patch_op at all valid scan position within psi."""
         # For interpolating a pixel to a non-integer position on a grid, we need
         # to divide the area of the pixel between the 4 grid spaces that it
         # overlaps. The weights of each of the adjacent spaces is their area of
         # overlap with the pixel. The side lengths of each of the areas is the
         # remainder from the coordinates of the pixel on the grid.
-        for view_angle in range(self.ntheta):
-            for position in range(self.nscan):
+        for view_angle in range(scan.shape[0]):
+            for position in range(scan.shape[1]):
                 rem, ind = np.modf(scan[view_angle, position])
                 if (
                     ind[0] < 0 or ind[1] < 0
-                    or psi.shape[-2] <= ind[0] + self.probe_shape
-                    or psi.shape[-1] <= ind[1] + self.probe_shape
+                    or psi_shape[-2] <= ind[0] + probe_shape
+                    or psi_shape[-1] <= ind[1] + probe_shape
                 ):
                     # skip scans where the probe position overlaps edges
                     continue
@@ -64,7 +68,7 @@ class Convolution(Operator):
                 y = (int(ind[1]), 1 + int(ind[1]))
                 corners = ((x, y) for x, y in itertools.product(x, y))
                 for weight, (i, j) in zip(areas, corners):
-                    patch_op(view_angle, position, i, j, weight)
+                    patch_op(left, right, view_angle, position, i, j, weight)
 
     def fwd(self, psi, scan, probe):
         """Extract probe shaped patches from the psi at each scan position.
@@ -79,14 +83,15 @@ class Convolution(Operator):
             dtype=psi.dtype,
         )
 
-        def extract_patches(view_angle, position, i, j, weight):
+        def extract_patches(patches, psi, view_angle, position, i, j, weight):
             patches[view_angle, position, ...] += psi[
                 view_angle,
                 i:i + self.probe_shape,
                 j:j + self.probe_shape,
             ] * weight
 
-        self._patch_iterator(psi, scan, extract_patches)
+        Convolution._patch_iterator(scan, self.probe_shape, psi.shape,
+                                    extract_patches, patches, psi)
 
         return self.reshape_patches(patches) * probe
 
@@ -103,14 +108,15 @@ class Convolution(Operator):
 
         psi = np.zeros((self.ntheta, self.nz, self.n), dtype=nearplane.dtype)
 
-        def combine_patches(view_angle, position, i, j, weight):
+        def combine_patches(psi, nearplane, view_angle, position, i, j, weight):
             psi[
                 view_angle,
                 i:i + self.probe_shape,
                 j:j + self.probe_shape,
             ] += weight * nearplane[view_angle, position]
 
-        self._patch_iterator(psi, scan, combine_patches)
+        Convolution._patch_iterator(scan, self.probe_shape, psi.shape,
+                                    combine_patches, psi, nearplane)
 
         return psi
 
@@ -122,14 +128,15 @@ class Convolution(Operator):
             dtype=psi.dtype,
         )
 
-        def extract_patches(view_angle, position, i, j, weight):
+        def extract_patches(patches, psi, view_angle, position, i, j, weight):
             patches[view_angle, position, ...] += psi[
                 view_angle,
                 i:i + self.probe_shape,
                 j:j + self.probe_shape,
             ] * weight
 
-        self._patch_iterator(psi, scan, extract_patches)
+        Convolution._patch_iterator(scan, self.probe_shape, psi.shape,
+                                    extract_patches, patches, psi)
 
         patches = self.reshape_patches(patches)
         return np.conj(patches) * nearplane
