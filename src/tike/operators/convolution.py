@@ -1,6 +1,6 @@
 import itertools
 
-from numba import complex64, int32, float32, njit
+from numba import njit
 import numpy as np
 
 from .operator import Operator
@@ -92,9 +92,7 @@ class Convolution(Operator):
         return np.conj(patches) * nearplane
 
 
-@njit(complex64[:, :, :](complex64[:, :, :], complex64[:, :, :, :], int32,
-                         int32, int32, int32, int32, float32),
-      parallel=False)
+@njit(parallel=False, cache=True)
 def _combine_patches(psi, nearplane, view_angle, position, i, j, probe_shape,
                      weight):
     """Add patches to psi at given positions."""
@@ -106,9 +104,7 @@ def _combine_patches(psi, nearplane, view_angle, position, i, j, probe_shape,
     return psi
 
 
-@njit(complex64[:, :, :, :](complex64[:, :, :, :], complex64[:, :, :], int32,
-                            int32, int32, int32, int32, float32),
-      parallel=False)
+@njit(parallel=False, cache=True)
 def _extract_patches(patches, psi, view_angle, position, i, j, probe_shape,
                      weight):
     """Extract patches from psi at given positions."""
