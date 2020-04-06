@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 
 def divided(
     op,
-    data, probe, scan, psi,
-    recover_psi=True, recover_probe=False, recover_positions=False,
+    data, probe, scan, psi, nearplane=None, farplane=None,
+    recover_psi=True, recover_probe=True, recover_positions=False,
     **kwargs
 ):  # yapf: disable
     """Solve near- and farfield- ptychography problems separately.
@@ -24,7 +24,9 @@ def divided(
     .. seealso:: tike.ptycho.combined
 
     """
+    if nearplane is None:
     nearplane = op.diffraction.fwd(psi=psi, scan=scan, probe=probe)
+    if farplane is None:
     farplane = op.propagation.fwd(nearplane)
 
     farplane, cost = update_phase(op, data, farplane, num_iter=2)
@@ -42,7 +44,14 @@ def divided(
     if recover_positions:
         scan, cost = update_positions(op, nearplane, psi, probe, scan)
 
-    return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
+    return {
+        'psi': psi,
+        'probe': probe,
+        'cost': cost,
+        'scan': scan,
+        'nearplane': nearplane,
+        'farplane': farplane,
+    }
 
 
 def update_phase(op, data, farplane, num_iter=1):

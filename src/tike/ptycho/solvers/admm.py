@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 def admm(
     op,
-    data, probe, scan, psi,
+    data, probe, scan, psi, nearplane=None, farplane=None,
     ρ=0.5, λ=0, τ=0.5, μ=0,
     recover_psi=True, recover_probe=True,
     **kwargs
@@ -23,7 +23,9 @@ def admm(
     .. seealso:: tike.ptycho.combined, tike.ptycho.divided
 
     """
+    if nearplane is None:
     nearplane = op.diffraction.fwd(psi=psi, scan=scan, probe=probe)
+    if farplane is None:
     farplane = op.propagation.fwd(nearplane)
 
     farplane, cost = update_phase(op, data, farplane, ρ, λ, num_iter=2)
@@ -45,8 +47,16 @@ def admm(
     μ = μ + τ * (op.diffraction.fwd(probe=probe, psi=psi, scan=scan) -
                  nearplane)
 
-    return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan,
-            'λ': λ, 'μ': μ}
+    return {
+        'psi': psi,
+        'probe': probe,
+        'cost': cost,
+        'scan': scan,
+        'λ': λ,
+        'μ': μ,
+        'nearplane': nearplane,
+        'farplane': farplane,
+    }
 
 
 def update_phase(op, data, farplane, ρ, λ, num_iter=1):
