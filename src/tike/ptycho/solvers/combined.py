@@ -17,11 +17,11 @@ def combined(
 
     .. seealso:: tike.ptycho.divided
     """
-    if recover_probe:
-        probe, cost = update_probe(op, data, psi, scan, probe, num_iter=2)
-
     if recover_psi:
         psi, cost = update_object(op, data, psi, scan, probe, num_iter=2)
+
+    if recover_probe:
+        probe, cost = update_probe(op, data, psi, scan, probe, num_iter=2)
 
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 

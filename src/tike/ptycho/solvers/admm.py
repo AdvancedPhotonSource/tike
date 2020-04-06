@@ -33,13 +33,13 @@ def admm(
         ρ, λ, τ, μ, num_iter=2,
     )  # yapf: disable
 
-    if recover_probe:
-        probe, cost = update_probe(op, nearplane, probe, scan, psi, μ, τ,
-                                   num_iter=2)  # yapf: disable
-
     if recover_psi:
         psi, cost = update_object(op, nearplane, probe, scan, psi, μ, τ,
                                   num_iter=2)  # yapf: disable
+
+    if recover_probe:
+        probe, cost = update_probe(op, nearplane, probe, scan, psi, μ, τ,
+                                   num_iter=2)  # yapf: disable
 
     λ = λ + ρ * (op.propagation.fwd(nearplane) - farplane)
     μ = μ + τ * (op.diffraction.fwd(probe=probe, psi=psi, scan=scan) -

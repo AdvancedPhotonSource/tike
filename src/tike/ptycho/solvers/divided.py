@@ -31,13 +31,13 @@ def divided(
 
     nearplane = op.propagation.adj(farplane)
 
-    if recover_probe:
-        probe, cost = update_probe(op, nearplane, probe, scan, psi,
-                                   num_iter=2)  # yapf: disable
-
     if recover_psi:
         psi, cost = update_object(op, nearplane, probe, scan, psi,
                                   num_iter=2)  # yapf: disable
+
+    if recover_probe:
+        probe, cost = update_probe(op, nearplane, probe, scan, psi,
+                                   num_iter=2)  # yapf: disable
 
     if recover_positions:
         scan, cost = update_positions(op, nearplane, psi, probe, scan)
