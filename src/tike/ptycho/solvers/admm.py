@@ -12,6 +12,7 @@ def admm(
     data, probe, scan, psi, nearplane=None, farplane=None,
     ρ=0.5, λ=0, τ=0.5, μ=0,
     recover_psi=True, recover_probe=True,
+    cg_iter=4,
     **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using ADMM.
@@ -24,24 +25,24 @@ def admm(
 
     """
     if nearplane is None:
-    nearplane = op.diffraction.fwd(psi=psi, scan=scan, probe=probe)
+        nearplane = op.diffraction.fwd(psi=psi, scan=scan, probe=probe)
     if farplane is None:
-    farplane = op.propagation.fwd(nearplane)
+        farplane = op.propagation.fwd(nearplane)
 
-    farplane, cost = update_phase(op, data, farplane, ρ, λ, num_iter=2)
+    farplane, cost = update_phase(op, data, farplane, ρ, λ, num_iter=cg_iter)
 
     nearplane, cost = update_nearplane(
         op, nearplane, farplane, probe, psi, scan,
-        ρ, λ, τ, μ, num_iter=2,
+        ρ, λ, τ, μ, num_iter=cg_iter,
     )  # yapf: disable
 
     if recover_psi:
         psi, cost = update_object(op, nearplane, probe, scan, psi, μ, τ,
-                                  num_iter=2)  # yapf: disable
+                                  num_iter=cg_iter)  # yapf: disable
 
     if recover_probe:
         probe, cost = update_probe(op, nearplane, probe, scan, psi, μ, τ,
-                                   num_iter=2)  # yapf: disable
+                                   num_iter=cg_iter)  # yapf: disable
 
     λ = λ + ρ * (op.propagation.fwd(nearplane) - farplane)
     μ = μ + τ * (op.diffraction.fwd(probe=probe, psi=psi, scan=scan) -

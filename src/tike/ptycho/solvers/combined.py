@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 def combined(
     op,
     data, probe, scan, psi,
-    recover_psi=True, recover_probe=False,
+    recover_psi=True, recover_probe=True,
+    cg_iter=4,
     **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using a combined approach.
@@ -18,10 +19,10 @@ def combined(
     .. seealso:: tike.ptycho.divided
     """
     if recover_psi:
-        psi, cost = update_object(op, data, psi, scan, probe, num_iter=2)
+        psi, cost = update_object(op, data, psi, scan, probe, num_iter=cg_iter)
 
     if recover_probe:
-        probe, cost = update_probe(op, data, psi, scan, probe, num_iter=2)
+        probe, cost = update_probe(op, data, psi, scan, probe, num_iter=cg_iter)
 
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 

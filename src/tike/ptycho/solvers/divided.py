@@ -11,6 +11,7 @@ def divided(
     op,
     data, probe, scan, psi, nearplane=None, farplane=None,
     recover_psi=True, recover_probe=True, recover_positions=False,
+    cg_iter=4,
     **kwargs
 ):  # yapf: disable
     """Solve near- and farfield- ptychography problems separately.
@@ -25,21 +26,21 @@ def divided(
 
     """
     if nearplane is None:
-    nearplane = op.diffraction.fwd(psi=psi, scan=scan, probe=probe)
+        nearplane = op.diffraction.fwd(psi=psi, scan=scan, probe=probe)
     if farplane is None:
-    farplane = op.propagation.fwd(nearplane)
+        farplane = op.propagation.fwd(nearplane)
 
-    farplane, cost = update_phase(op, data, farplane, num_iter=2)
+    farplane, cost = update_phase(op, data, farplane, num_iter=cg_iter)
 
     nearplane = op.propagation.adj(farplane)
 
     if recover_psi:
         psi, cost = update_object(op, nearplane, probe, scan, psi,
-                                  num_iter=2)  # yapf: disable
+                                  num_iter=cg_iter)  # yapf: disable
 
     if recover_probe:
         probe, cost = update_probe(op, nearplane, probe, scan, psi,
-                                   num_iter=2)  # yapf: disable
+                                   num_iter=cg_iter)  # yapf: disable
 
     if recover_positions:
         scan, cost = update_positions(op, nearplane, psi, probe, scan)
