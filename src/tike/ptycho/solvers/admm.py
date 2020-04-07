@@ -11,7 +11,7 @@ def admm(
     op,
     data, probe, scan, psi, nearplane=None, farplane=None,
     ρ=0.5, λ=0, τ=0.5, μ=0,
-    recover_psi=True, recover_probe=True,
+    recover_psi=True, recover_probe=True, recover_nearplane=True,
     cg_iter=4,
     **kwargs
 ):  # yapf: disable
@@ -32,10 +32,13 @@ def admm(
     farplane, cost = update_phase(op, data, farplane, nearplane, ρ, λ,
                                   num_iter=cg_iter)  # yapf: disable
 
-    nearplane, cost = update_nearplane(
-        op, nearplane, farplane, probe, psi, scan,
-        ρ, λ, τ, μ, num_iter=cg_iter,
-    )  # yapf: disable
+    if recover_nearplane:
+        nearplane, cost = update_nearplane(
+            op, nearplane, farplane, probe, psi, scan,
+            ρ, λ, τ, μ, num_iter=cg_iter,
+        )  # yapf: disable
+    else:
+        nearplane = op.propagation.adj(farplane)
 
     if recover_psi:
         psi, cost = update_object(op, nearplane, probe, scan, psi, μ, τ,
