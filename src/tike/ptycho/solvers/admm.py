@@ -7,6 +7,24 @@ from tike.opt import conjugate_gradient, line_search
 logger = logging.getLogger(__name__)
 
 
+def admm1(
+    op,
+    data, probe, scan, psi, nearplane=None, farplane=None,
+    ρ=0.5, λ=0, τ=0.5, μ=0,
+    recover_psi=True, recover_probe=True, recover_nearplane=False,
+    cg_iter=4,
+    **kwargs
+):  # yapf: disable)
+    return admm(
+        op,
+        data, probe, scan, psi, nearplane, farplane,
+        ρ, λ, τ, μ,
+        recover_psi, recover_probe, recover_nearplane,
+        cg_iter,
+        **kwargs
+    )
+
+
 def admm(
     op,
     data, probe, scan, psi, nearplane=None, farplane=None,
