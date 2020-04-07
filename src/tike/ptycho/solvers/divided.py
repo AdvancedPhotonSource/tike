@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 def divided(
     op,
-    data, probe, scan, psi, nearplane=None, farplane=None,
+    data, probe, scan, psi,
     recover_psi=True, recover_probe=True, recover_positions=False,
     cg_iter=4,
     **kwargs
@@ -25,10 +25,7 @@ def divided(
     .. seealso:: tike.ptycho.combined
 
     """
-    if nearplane is None:
-        nearplane = op.diffraction.fwd(psi=psi, scan=scan, probe=probe)
-    if farplane is None:
-        farplane = op.propagation.fwd(nearplane)
+    farplane = op.fwd(psi=psi, scan=scan, probe=probe)
 
     farplane, cost = update_phase(op, data, farplane, num_iter=cg_iter)
 
@@ -50,7 +47,6 @@ def divided(
         'probe': probe,
         'cost': cost,
         'scan': scan,
-        'nearplane': nearplane,
         'farplane': farplane,
     }
 

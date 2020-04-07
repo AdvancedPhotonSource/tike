@@ -29,7 +29,8 @@ def admm(
     if farplane is None:
         farplane = op.propagation.fwd(nearplane)
 
-    farplane, cost = update_phase(op, data, farplane, ρ, λ, num_iter=cg_iter)
+    farplane, cost = update_phase(op, data, farplane, nearplane, ρ, λ,
+                                  num_iter=cg_iter)  # yapf: disable
 
     nearplane, cost = update_nearplane(
         op, nearplane, farplane, probe, psi, scan,
@@ -60,9 +61,9 @@ def admm(
     }
 
 
-def update_phase(op, data, farplane, ρ, λ, num_iter=1):
+def update_phase(op, data, farplane, nearplane, ρ, λ, num_iter=1):
     """Solve the farplane phase problem."""
-    farplane0 = farplane.copy()
+    farplane0 = op.propagation.fwd(nearplane)
 
     def cost_function(farplane):
         return (op.propagation.cost(data, farplane) +
@@ -90,16 +91,17 @@ def update_nearplane(
     ρ, λ, τ, μ, num_iter=1,
 ):  # yapf: disable
     """Solve the nearplane problem."""
+    nearplane0 = op.diffraction.fwd(probe=probe, psi=psi, scan=scan)
 
     def cost_function(nearplane):
         return (
             + ρ * np.linalg.norm(
-                + op.propagation.fwd(nearplane=nearplane)
+                + op.propagation.fwd(nearplane)
                 - farplane
                 + λ / ρ
             )**2
             + τ * np.linalg.norm(
-                + op.diffraction.fwd(probe=probe, psi=psi, scan=scan)
+                + nearplane0
                 - nearplane
                 + μ / τ
             )**2
@@ -113,7 +115,7 @@ def update_nearplane(
                 + λ / ρ
             )
             - τ * (
-                + op.diffraction.fwd(probe=probe, psi=psi, scan=scan)
+                + nearplane0
                 - nearplane
                 + μ / τ
             )
