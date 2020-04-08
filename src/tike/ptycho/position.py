@@ -1,5 +1,11 @@
+import logging
+
+import numba
 import numpy as np
 from skimage.feature import register_translation
+
+logger = logging.getLogger(__name__)
+
 
 def update_positionsn(self, scan, target, source, probe,  psi, sample=64, beta=100):
     """Update scan positions by comparing previous iteration nearpalne patches."""
@@ -34,87 +40,90 @@ def update_positionso(self, scan, nearplane, psi, probe, sample=64, beta=100):
     scan = beta * update + scan
     return scan, None
 
-def update_positions(self, nearplane0, psi, probe, scan):
-    """Update scan positions by comparing previous iteration object patches."""
-    mode_axis = 2
-    nmodes = 1
 
-    # Ensure that the mode dimension is used
-    probe = probe.reshape(
-        (self.ntheta, -1, nmodes, self.probe_shape, self.probe_shape),)
-    nearplane0 = nearplane0.reshape(
-        (self.ntheta, -1, nmodes, self.probe_shape, self.probe_shape),)
+def lstsq(a, b):
+    """Return the least-squares solution for a @ x = b.
 
-    def least_squares(a, b):
-        """Return the least-squares solution for a @ x = b.
+    This implementation, unlike np.linalg.lstsq, allows a stack of matricies to
+    be processed simultaneously. The input sizes of the matricies are as
+    follows:
+        a (..., M, N)
+        b (..., M)
+        x (...,    N)
 
-        This implementation, unlike np.linalg.lstsq, allows a stack of
-        matricies to be processed simultaneously. The input sizes of the
-        matricies are as follows:
-            a (..., M, N)
-            b (..., M)
-            x (...,    N)
+    ...seealso:: https://github.com/numpy/numpy/issues/8720
+    """
+    assert a.shape[:-1] == b.shape, (f"Leading dims of a {a.shape}"
+                                     f"and b {b.shape} must be same!")
+    shape = a.shape[:-2]
+    a = a.reshape(-1, *a.shape[-2:])
+    b = b.reshape(-1, *b.shape[-1:], 1)
+    aT = np.swapaxes(a, -1, -2)
+    x = np.linalg.pinv(aT @ a) @ aT @ b
+    return x.reshape(*shape, a.shape[-1])
 
-        ...seealso:: https://github.com/numpy/numpy/issues/8720
-        """
-        shape = a.shape[:-2]
-        a = a.reshape(-1, *a.shape[-2:])
-        b = b.reshape(-1, *b.shape[-1:], 1)
-        x = np.empty((a.shape[0], a.shape[-1]))
-        aT = np.swapaxes(a, -1, -2)
-        x = np.linalg.pinv(aT @ a) @ aT @ b
-        return x.reshape(*shape, a.shape[-1])
 
-    nearplane = np.expand_dims(
-        self.diffraction.fwd(
+def update_positions_pd(operator, data, psi, probe, scan,
+                        dx=1, step=0.05): # yapf: disable
+    """Update scan positions using the gradient of intensity method.
+
+    Uses the finite difference method to compute the gradient of the farfield
+    intensity with respect to position movement in horizontal and vertical
+    directions. Then a least squares solver is used to find the position shift
+    that will minimize the intensity error for each of the detector pixels.
+
+    Parameters
+    ----------
+    farplane : array-like complex64
+        The current farplane estimate from psi, probe, scan
+    dx : float
+        The step size used to estimate the gradient
+
+    References
+    ----------
+    Dwivedi, Priya, A.P. Konijnenberg, S.F. Pereira, and H.P. Urbach. 2018.
+    “Lateral Position Correction in Ptychography Using the Gradient of
+    Intensity Patterns.” Ultramicroscopy 192 (September): 29–36.
+    https://doi.org/10.1016/j.ultramic.2018.04.004.
+    """
+    # step 1: the difference between measured and estimate intensity
+    farplane = operator.fwd(psi=psi, scan=scan, probe=probe)
+    intensity = np.square(
+        np.linalg.norm(
+            farplane.reshape(*data.shape[:2], -1, *data.shape[2:]),
+            ord=2,
+            axis=2,
+        ))
+    dI = (data - intensity).reshape(*data.shape[:-2], np.prod(data.shape[-2:]))
+
+    # step 2: the partial derivatives of wavefront respect to position
+    dfarplane_dx = (farplane - operator.fwd(
             psi=psi,
-            scan=scan,
-        ),
-        axis=mode_axis,
-    ) * probe
-
-    dn = (nearplane0 - nearplane).view('float32')
-    dn = dn.reshape(*dn.shape[:-2], -1)
-
-    ndx = (np.expand_dims(
-        self.diffraction.fwd(
+        probe=probe,
+        scan=scan + np.array((0, dx), dtype='float32'),
+    )) / dx
+    dfarplane_dy = (farplane - operator.fwd(
             psi=psi,
-            scan=scan + np.array((0, 1), dtype='float32'),
-        ),
-        axis=mode_axis,
-    ) * probe - nearplane).view('float32')
+        probe=probe,
+        scan=scan + np.array((dx, 0), dtype='float32'),
+    )) / dx
 
-    ndy = (np.expand_dims(
-        self.diffraction.fwd(
-            psi=psi,
-            scan=scan + np.array((1, 0), dtype='float32'),
-        ),
-        axis=mode_axis,
-    ) * probe - nearplane).view('float32')
+    # step 3: the partial derivatives of intensity respect to position
+    # TODO: Find actual deriviatives for multi-mode situation
+    dI_dx = 2 * np.sum(np.real(dfarplane_dx * np.conj(farplane)), axis=(-3, -4))
+    dI_dy = 2 * np.sum(np.real(dfarplane_dy * np.conj(farplane)), axis=(-3, -4))
 
-    dxy = np.stack(
-        (
-            ndy.reshape(*ndy.shape[:-2], -1),
-            ndx.reshape(*ndx.shape[:-2], -1),
-        ), axis=-1)
+    # step 4: solve for ΔX, ΔY using least squares
+    dI_dxdy = np.stack((dI_dy.reshape(*dI.shape), dI_dx.reshape(*dI.shape)),
+                       axis=-1)
 
-    grad = least_squares(a=dxy, b=dn)
+    grad = lstsq(a=dI_dxdy, b=dI)
 
-    grad = np.mean(grad, axis=mode_axis)
+    logger.info('%10s grad max %+12.5e min %+12.5e', 'position', np.max(grad),
+                np.min(grad))
 
-    def cost_function(scan):
-        nearplane = np.expand_dims(
-            self.diffraction.fwd(
-                psi=psi,
-                scan=scan,
-            ),
-            axis=mode_axis,
-        ) * probe
-        return np.linalg.norm(nearplane - nearplane0)
+    scan = scan - step * grad
+    cost = operator.cost(data=data, psi=psi, scan=scan, probe=probe)
 
-    step = 0.01
-    scan = scan + step * grad
-    cost = cost_function(scan)
-
-    logger.debug(' position cost is             %+12.5e', cost)
+    logger.info('%10s cost is %+12.5e', 'position', cost)
     return scan, cost

@@ -3,6 +3,7 @@ import logging
 import numpy as np
 
 from tike.opt import conjugate_gradient, line_search
+from ..position import update_positions_pd
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 def combined(
     op,
     data, probe, scan, psi,
-    recover_psi=True, recover_probe=True,
+    recover_psi=True, recover_probe=True, recover_positions=False,
     cg_iter=4,
     **kwargs
 ):  # yapf: disable
@@ -23,6 +24,9 @@ def combined(
 
     if recover_probe:
         probe, cost = update_probe(op, data, psi, scan, probe, num_iter=cg_iter)
+
+    if recover_positions:
+        scan, cost = update_positions_pd(op, data, psi, probe, scan)
 
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 
