@@ -3,6 +3,7 @@ import logging
 import numpy as np
 
 from tike.opt import conjugate_gradient, line_search
+from ..position import update_positions_pd
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,6 @@ def divided(
     farplane = op.fwd(psi=psi, scan=scan, probe=probe)
 
     farplane, cost = update_phase(op, data, farplane, num_iter=cg_iter)
-
     nearplane = op.propagation.adj(farplane)
 
     if recover_psi:
@@ -40,7 +40,7 @@ def divided(
                                    num_iter=cg_iter)  # yapf: disable
 
     if recover_positions:
-        scan, cost = update_positions(op, nearplane, psi, probe, scan)
+        scan, cost = update_positions_pd(op, data, psi, probe, scan)
 
     return {
         'psi': psi,
