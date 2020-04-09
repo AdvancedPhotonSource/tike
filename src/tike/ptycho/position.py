@@ -83,10 +83,14 @@ def update_positions_pd(operator, data, psi, probe, scan,
 
     grad = lstsq(a=dI_dxdy, b=dI)
 
-    logger.info('%10s grad max %+12.5e min %+12.5e', 'position', np.max(grad),
-                np.min(grad))
+    logger.debug('grad max: %+12.5e min: %+12.5e', np.max(grad), np.min(grad))
+    logger.debug('step size: %3.2g', step)
 
+    # Prevent position drift by keeping center of mass stationary
+    center0 = np.mean(scan, axis=-2, keepdims=True)
     scan = scan - step * grad
+    center1 = np.mean(scan, axis=-2, keepdims=True)
+    scan = scan + (center0 - center1)
     cost = operator.cost(data=data, psi=psi, scan=scan, probe=probe)
 
     logger.info('%10s cost is %+12.5e', 'position', cost)
