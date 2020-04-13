@@ -6,7 +6,6 @@ from tike.opt import conjugate_gradient, line_search
 
 logger = logging.getLogger(__name__)
 
-test test test
 def combined(
     operator,
     data, probe, scan, psi,
