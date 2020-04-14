@@ -75,7 +75,7 @@ def direction_dy(grad0, grad1, dir):
     """
     return (
         - grad1
-        + dir * np.square(np.linalg.norm(np.ravel(grad1)))
+        + dir * np.linalg.norm(np.ravel(grad1))**2
         / (np.sum(np.conj(dir) * (grad1 - grad0)) + 1e-32)
     )
 

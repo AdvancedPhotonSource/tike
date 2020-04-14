@@ -134,6 +134,7 @@ def _patch_iterator(scan, probe_shape, psi_shape, patch_op, output, input):
                 # skip scans where the probe position overlaps edges
                 # print(ind, rem)
                 continue
+            assert rem[0] >= 0 and rem[1] >= 0
             w = [1 - rem[0], rem[0]]  # lengths of the pixels
             l = [1 - rem[1], rem[1]]
             x = [int(ind[0]), 1 + int(ind[0])]  # coordinates of patch
