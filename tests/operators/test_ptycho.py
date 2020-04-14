@@ -26,6 +26,7 @@ class TestPtycho(unittest.TestCase):
         self.scan_shape = (ntheta, nscan, 2)
         self.fly = fly
         self.nmode = nmode
+        print(PtychoBackend)
 
     def test_adjoint(self):
         """Check that the adjoint operator is correct."""
