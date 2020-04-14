@@ -69,7 +69,7 @@ def orthogonalize_gs(x, ndim=1):
 
 
 def orthogonalize_eig(x):
-    """Orthogonalize modes of x using a eigenvectors of the pairwise dot product.
+    """Orthogonalize modes of x using eigenvectors of the pairwise dot product.
 
     Parameters
     ----------
