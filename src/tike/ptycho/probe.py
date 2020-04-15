@@ -86,11 +86,8 @@ def orthogonalize_eig(x):
     # 'A' holds the dot product of all possible mode pairs
     A = np.empty((nmodes, nmodes), dtype='complex64')
     for i in range(nmodes):
-        for j in range(i, nmodes):
-            # Perhaps this should be an inner product
-            # which means one of the vectors should be conjugated?
-            A[i, j] = np.sum(x[i] * x[j])
-            A[j, i] = A[i, j]
+        for j in range(nmodes):
+            A[i, j] = np.sum(np.conj(x[i]) * x[j])
 
     values, vectors = np.linalg.eig(A)
 
