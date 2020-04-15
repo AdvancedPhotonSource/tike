@@ -97,8 +97,4 @@ def orthogonalize_eig(x):
             x_new[j] += vectors[i, j] * x[i]
 
     # Sort new modes by eigen value in decending order
-    x_sorted = np.zeros_like(x)
-    for i, order in enumerate(np.argsort(-values)):
-        x_sorted[i] = x_new[order]
-
-    return x_sorted
+    return x_new[np.argsort(-values)]
