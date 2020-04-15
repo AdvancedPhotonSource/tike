@@ -75,6 +75,11 @@ class Ptycho(Operator):
         self.cost = getattr(self, f'_{model}_cost')
         self.grad = getattr(self, f'_{model}_grad')
 
+    def __enter__(self):
+        self.propagation.__enter__()
+        self.diffraction.__enter__()
+        return self
+
     def __exit__(self, type, value, traceback):
         self.propagation.__exit__(type, value, traceback)
         self.diffraction.__exit__(type, value, traceback)
