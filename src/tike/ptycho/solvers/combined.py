@@ -16,7 +16,6 @@ def combined(
 ):  # yapf: disable
     """Solve the ptychography problem using a combined approach.
 
-    .. seealso:: tike.ptycho.divided
     """
     if recover_psi:
         psi, cost = update_object(op, data, psi, scan, probe, num_iter=cg_iter)
