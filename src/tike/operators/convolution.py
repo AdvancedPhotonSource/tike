@@ -29,10 +29,12 @@ class Convolution(Operator):
     ----------
     psi : (ntheta, nz, n) complex64
         The complex wavefront modulation of the object.
-    probe : (ntheta, nscan // fly, fly, nmode, probe_shape, probe_shape) complex64
-        The complex illumination function.
-    nearplane: (ntheta, nscan // fly, fly, nmode, probe_shape, probe_shape) complex64
-        The wavefronts after exiting the object.
+    probe : complex64
+        The (ntheta, nscan // fly, fly, nmode, probe_shape, probe_shape)
+        complex illumination function.
+    nearplane: complex64
+        The (ntheta, nscan // fly, fly, nmode, probe_shape, probe_shape)
+        wavefronts after exiting the object.
     scan : (ntheta, nscan, 2) float32
         Coordinates of the minimum corner of the probe grid for each
         measurement in the coordinate system of psi. Vertical coordinates

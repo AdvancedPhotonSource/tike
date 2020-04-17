@@ -41,12 +41,15 @@ class Ptycho(Operator):
     ----------
     psi : (ntheta, nz, n) complex64
         The complex wavefront modulation of the object.
-    probe : (ntheta, nscan // fly, fly, nmode, probe_shape, probe_shape) complex64
-        The complex illumination function.
-    nearplane: (ntheta, nscan // fly, fly, nmode, probe_shape, probe_shape) complex64
-        The wavefronts after exiting the object.
-    farplane: (ntheta, nscan // fly, fly, nmode, detector_shape, detector_shape) complex64
-        The wavefronts hitting the detector respectively.
+    probe : complex64
+        The complex (ntheta, nscan // fly, fly, nmode, probe_shape,
+        probe_shape) illumination function.
+    nearplane: complex64
+        The (ntheta, nscan // fly, fly, nmode, probe_shape, probe_shape)
+        wavefronts after exiting the object.
+    farplane: complex64
+        The (ntheta, nscan // fly, fly, nmode, detector_shape, detector_shape)
+        wavefronts hitting the detector respectively.
     data : (ntheta, nscan, detector_shape, detector_shape) complex64
         data is the square of the absolute value of `farplane`. `data` is the
         intensity of the `farplane`.
