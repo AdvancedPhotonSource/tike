@@ -8,14 +8,11 @@ from .convolution import Convolution
 
 
 class Ptycho(Operator):
-    """A base class for ptychography solvers.
+    """A Ptychography operator.
 
-    This class is a context manager which provides the basic operators required
-    to implement a ptychography solver. Specific implementations of this class
-    can either inherit from this class or just provide the same interface.
-
-    Solver implementations should inherit from PtychoBacked which is an alias
-    for whichever Ptycho implementation is selected at import time.
+    Compose a diffraction and propagation operator to simulate the interaction
+    of an illumination wavefront with an object followed by the propagation of
+    the wavefront to a detector plane.
 
     Attributes
     ----------
@@ -33,14 +30,24 @@ class Ptycho(Operator):
         The pixel width and height of the reconstructed grid.
     ntheta : int
         The number of angular partitions of the data.
+    model : string
+        The type of noise model to use for the cost functions.
+    propagation : Operator
+        The wave propagation operator being used.
+    diffraction : Operator
+        The object probe interaction operator being used.
 
     Parameters
     ----------
     psi : (ntheta, nz, n) complex64
         The complex wavefront modulation of the object.
-    probe : (ntheta, probe_shape, probe_shape) complex64
+    probe : (ntheta, nscan // fly, fly, nmode, probe_shape, probe_shape) complex64
         The complex illumination function.
-    data, farplane : (ntheta, nscan, detector_shape, detector_shape) complex64
+    nearplane: (ntheta, nscan // fly, fly, nmode, probe_shape, probe_shape) complex64
+        The wavefronts after exiting the object.
+    farplane: (ntheta, nscan // fly, fly, nmode, detector_shape, detector_shape) complex64
+        The wavefronts hitting the detector respectively.
+    data : (ntheta, nscan, detector_shape, detector_shape) complex64
         data is the square of the absolute value of `farplane`. `data` is the
         intensity of the `farplane`.
     scan : (ntheta, nscan, 2) float32
@@ -56,7 +63,6 @@ class Ptycho(Operator):
                  diffraction=Convolution,
                  **kwargs):  # noqa: D102 yapf: disable
         """Please see help(Ptycho) for more info."""
-        super(Ptycho, self).__init__(**kwargs)
         self.propagation = propagation(ntheta * nscan * nmode, detector_shape,
                                        probe_shape, model=model, fly=fly,
                                        nmode=nmode,
