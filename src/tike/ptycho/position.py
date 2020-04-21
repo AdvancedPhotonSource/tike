@@ -28,7 +28,7 @@ def lstsq(a, b):
 
 
 def update_positions_pd(operator, data, psi, probe, scan,
-                        dx=1, step=0.05): # yapf: disable
+                        dx=1, step=0.05):  # yapf: disable
     """Update scan positions using the gradient of intensity method.
 
     Uses the finite difference method to compute the gradient of the farfield
