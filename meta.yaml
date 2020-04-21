@@ -20,6 +20,7 @@ requirements:
   run:
     - matplotlib-base
     - mpi4py  # [not win]
+    - numba
     - numpy
     - python={{ python }}
     - setuptools
