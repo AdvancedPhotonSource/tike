@@ -46,6 +46,7 @@ class Convolution(Operator):
     def __init__(self, probe_shape, nscan, nz, n, ntheta, nmode=1, fly=1,
                  **kwargs):  # yapf: disable
         self.probe_shape = probe_shape
+        self.nscan = nscan
         self.nz = nz
         self.n = n
         self.ntheta = ntheta
