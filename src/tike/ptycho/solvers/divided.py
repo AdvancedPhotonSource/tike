@@ -8,9 +8,10 @@ logger = logging.getLogger(__name__)
 
 
 def divided(
-    self,
+    op,
     data, probe, scan, psi,
-    recover_psi=True, recover_probe=False, recover_positions=False,
+    recover_psi=True, recover_probe=True, recover_positions=False,
+    cg_iter=4,
     **kwargs
 ):  # yapf: disable
     """Solve near- and farfield- ptychography problems separately.
@@ -21,40 +22,44 @@ def divided(
     least-squares solver for generalized maximum-likelihood ptychography.
     Optics Express. 2018.
 
-    .. seealso:: tike.ptycho.combined
-
     """
-    nearplane = self.diffraction.fwd(psi=psi, scan=scan, probe=probe)
+    farplane = op.fwd(psi=psi, scan=scan, probe=probe)
 
-    farplane = self.propagation.fwd(nearplane)
-    farplane, cost = update_phase(self, data, farplane, num_iter=2)
-    nearplane = self.propagation.adj(farplane)
+    farplane, cost = update_phase(op, data, farplane, num_iter=cg_iter)
+
+    nearplane = op.propagation.adj(farplane)
 
     if recover_psi:
-        psi, cost = update_object(self, nearplane, probe, scan, psi,
-                                  num_iter=2)  # yapf: disable
+        psi, cost = update_object(op, nearplane, probe, scan, psi,
+                                  num_iter=cg_iter)  # yapf: disable
 
     if recover_probe:
-        probe, cost = update_probe(self, nearplane, probe, scan, psi,
-                                   num_iter=2)  # yapf: disable
+        probe, cost = update_probe(op, nearplane, probe, scan, psi,
+                                   num_iter=cg_iter)  # yapf: disable
 
     if recover_positions:
-        scan, cost = update_positions(self, nearplane, psi, probe, scan)
+        scan, cost = update_positions(op, nearplane, psi, probe, scan)
 
-    return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
+    return {
+        'psi': psi,
+        'probe': probe,
+        'cost': cost,
+        'scan': scan,
+        'farplane': farplane,
+    }
 
 
-def update_phase(self, data, farplane, num_iter=1):
+def update_phase(op, data, farplane, num_iter=1):
     """Solve the farplane phase problem."""
 
     def grad(farplane):
-        return self.propagation.grad(data, farplane)
+        return op.propagation.grad(data, farplane)
 
     def cost_function(farplane):
-        return self.propagation.cost(data, farplane)
+        return op.propagation.cost(data, farplane)
 
     farplane, cost = conjugate_gradient(
-        self.array_module,
+        None,
         x=farplane,
         cost_function=cost_function,
         grad=grad,
@@ -66,16 +71,17 @@ def update_phase(self, data, farplane, num_iter=1):
     return farplane, cost
 
 
-def update_probe(self, nearplane, probe, scan, psi, num_iter=1):
+def update_probe(op, nearplane, probe, scan, psi, num_iter=1):
     """Solve the nearplane single probe recovery problem."""
-    obj_patches = self.diffraction.fwd(psi=psi,
-                                       scan=scan,
-                                       probe=np.ones_like(probe))
+    obj_patches = op.diffraction.fwd(psi=psi,
+                                     scan=scan,
+                                     probe=np.ones_like(probe))
 
     def cost_function(probe):
-        return np.linalg.norm(nearplane - probe * obj_patches)
+        return np.linalg.norm(probe * obj_patches - nearplane)**2
 
     def grad(probe):
+        # Use the average gradient for all probe positions
         return np.mean(
             np.conj(obj_patches) * (probe * obj_patches - nearplane),
             axis=(1, 2),
@@ -83,7 +89,7 @@ def update_probe(self, nearplane, probe, scan, psi, num_iter=1):
         )
 
     probe, cost = conjugate_gradient(
-        self.array_module,
+        None,
         x=probe,
         cost_function=cost_function,
         grad=grad,
@@ -94,23 +100,23 @@ def update_probe(self, nearplane, probe, scan, psi, num_iter=1):
     return probe, cost
 
 
-def update_object(self, nearplane, probe, scan, psi, num_iter=1):
+def update_object(op, nearplane, probe, scan, psi, num_iter=1):
     """Solve the nearplane object recovery problem."""
 
     def cost_function(psi):
         return np.linalg.norm(
-            nearplane - self.diffraction.fwd(psi=psi, scan=scan, probe=probe))
+            op.diffraction.fwd(psi=psi, scan=scan, probe=probe) - nearplane)**2
 
     def grad(psi):
-        return self.diffraction.adj(
-            nearplane=(self.diffraction.fwd(psi=psi, scan=scan, probe=probe) -
+        return op.diffraction.adj(
+            nearplane=(op.diffraction.fwd(psi=psi, scan=scan, probe=probe) -
                        nearplane),
             scan=scan,
             probe=probe,
         )
 
     psi, cost = conjugate_gradient(
-        self.array_module,
+        None,
         x=psi,
         cost_function=cost_function,
         grad=grad,
@@ -197,7 +203,7 @@ def update_positions(self, nearplane0, psi, probe, scan):
             ),
             axis=mode_axis,
         ) * probe
-        return np.linalg.norm(nearplane - nearplane0)
+        return np.linalg.norm(nearplane - nearplane0)**2
 
     scan = scan + grad
     cost = cost_function(scan)

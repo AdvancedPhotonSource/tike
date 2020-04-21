@@ -1,32 +1,20 @@
 from abc import ABC
 
-import numpy
-
 
 class Operator(ABC):
     """A base class for Operators.
 
-    An Operator is a context manager which provides the basic functions (forward
-    and adjoint) required solve an inverse problem.
+    An Operator is a context manager which provides the basic functions
+    (forward and adjoint) required solve an inverse problem.
 
-    Attributes
-    ----------
-    array_module : Python module
-        A module which provides a NumPy interface that will be compatible with
-        the arrays passed to the operator.
-    asnumpy : function
-        This function converts the arrays of the type processed by this
-        operator into NumPy arrays.
+    Operators may be composed into other operators and inherited from to
+    provide additional implementations to the ones provided in this library.
 
     """
-
-    def __init__(self, array_module=None, asnumpy=None, **kwargs):
-        """Set the array_module and asnumpy parameters to default values."""
-        self.array_module = numpy if array_module is None else array_module
-        self.asnumpy = numpy.asarray if asnumpy is None else asnumpy
-
     def __enter__(self):
         """Return self at start of a with-block."""
+        # Call the __enter__ methods for any composed operators.
+        # Allocate special memory objects.
         return self
 
     def __exit__(self, type, value, traceback):
@@ -35,6 +23,8 @@ class Operator(ABC):
         Tasks to be handled by this function include freeing memory or closing
         files.
         """
+        # Call the __exit__ methods of any composed classes.
+        # Deallocate special memory objects.
         pass
 
     def fwd(self, **kwargs):
