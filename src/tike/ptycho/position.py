@@ -62,20 +62,27 @@ def update_positions_pd(operator, data, psi, probe, scan,
 
     # step 2: the partial derivatives of wavefront respect to position
     dfarplane_dx = (farplane - operator.fwd(
-            psi=psi,
+        psi=psi,
         probe=probe,
         scan=scan + np.array((0, dx), dtype='float32'),
     )) / dx
     dfarplane_dy = (farplane - operator.fwd(
-            psi=psi,
+        psi=psi,
         probe=probe,
         scan=scan + np.array((dx, 0), dtype='float32'),
     )) / dx
 
     # step 3: the partial derivatives of intensity respect to position
-    # TODO: Find actual deriviatives for multi-mode situation
-    dI_dx = 2 * np.sum(np.real(dfarplane_dx * np.conj(farplane)), axis=(-3, -4))
-    dI_dy = 2 * np.sum(np.real(dfarplane_dy * np.conj(farplane)), axis=(-3, -4))
+    dI_dx = 2 * np.sum(
+        np.real(dfarplane_dx * np.conj(farplane)).reshape(
+            *data.shape[:2], -1, *data.shape[2:]),
+        axis=2,
+    )
+    dI_dy = 2 * np.sum(
+        np.real(dfarplane_dy * np.conj(farplane)).reshape(
+            *data.shape[:2], -1, *data.shape[2:]),
+        axis=2,
+    )
 
     # step 4: solve for ΔX, ΔY using least squares
     dI_dxdy = np.stack((dI_dy.reshape(*dI.shape), dI_dx.reshape(*dI.shape)),
