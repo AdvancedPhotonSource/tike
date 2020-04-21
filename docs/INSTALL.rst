@@ -12,6 +12,9 @@ At this time, `tike` can only be installed from source.
 From the source code
 ********************
 
+The build and runtime requirments are listed in `/meta.yaml`, the conda-build
+recipe.
+
 Install the package using typical installation methods.
 
 .. code-block:: bash

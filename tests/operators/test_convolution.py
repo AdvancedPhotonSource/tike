@@ -24,6 +24,7 @@ class TestConvolution(unittest.TestCase):
         self.probe_shape = 15
         self.fly = 9
         self.nmode = 11
+        print(Convolution)
 
     def test_adjoint(self):
         """Check that the diffraction adjoint operator is correct."""

@@ -56,7 +56,7 @@ class Propagation(Operator):
         # because this is faster than numpy.pad for older versions of NumPy.
         padded_nearplane = np.zeros(
             (*nearplane.shape[:-2], self.detector_shape, self.detector_shape),
-            dtype=nearplane.dtype,
+            dtype='complex64',
         )
         padded_nearplane[..., pad:end, pad:end] = nearplane
         # We must cast the result of np.fft.fft2
@@ -64,7 +64,7 @@ class Propagation(Operator):
         return np.fft.fft2(
             padded_nearplane,
             norm='ortho',
-        ).astype(nearplane.dtype)
+        ).astype('complex64')
 
     def adj(self, farplane, **kwargs):
         """Adjoint Fourier-based free-space propagation operator."""
@@ -74,7 +74,7 @@ class Propagation(Operator):
         return np.fft.ifft2(
             farplane,
             norm='ortho',
-        )[..., pad:end, pad:end].astype(farplane.dtype)
+        )[..., pad:end, pad:end].astype('complex64')
 
     # COST FUNCTIONS AND GRADIENTS --------------------------------------------
 
