@@ -26,12 +26,11 @@ Modules by problem type
 The solvers for each problem-type (ptychography, tomography, etc) are separated
 into modules of their respective names.
 
-
 .. toctree::
    :maxdepth: 3
    :hidden:
 
-   api
+   api/index
    install
    examples
    contributing

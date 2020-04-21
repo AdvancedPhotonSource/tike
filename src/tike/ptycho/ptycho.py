@@ -103,10 +103,7 @@ def simulate(
         psi,
         **kwargs
 ):  # yapf: disable
-    """Propagate the wavefront to the detector.
-
-    Return real-valued intensities measured by the detector.
-    """
+    """Return real-valued detector counts of simulated ptychography data."""
     assert scan.ndim == 3
     assert psi.ndim == 3
     with PtychoBackend(
@@ -138,13 +135,12 @@ def reconstruct(
         psi,
         algorithm, num_iter=1, rtol=-1, **kwargs
 ):  # yapf: disable
-    """Reconstruct the `psi` and `probe` using the given `algorithm`.
+    """Solve the ptychography problem using the given `algorithm`.
 
     Parameters
     ----------
-    |ptycho_doctring|
     algorithm : string
-        The name of one algorithms to use for reconstructing.
+        The name of one algorithms from :py:mod:`.ptycho.solvers`.
     rtol : float
         Terminate early if the relative decrease of the cost function is
         less than this amount.

@@ -9,9 +9,10 @@ implemented in Python can share the same core operators and can be upgraded to
 better operators in the future.
 
 All operator methods should take NumPy arrays as inputs. This is a design
-decision which was made because clients of the operators library should not need
-to be concerned about memory locality which is necessary complexity when
-implementating operators for specialized hardware (such as GPUs).
+decision which was made because clients of the operators library should not
+need to be concerned about memory locality which is necessary complexity when
+implementating operators for specialized hardware (such as GPUs). Additionally,
+we assume that GPU memory is too small to hold an entire workload at once.
 
 """
 
