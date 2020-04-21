@@ -119,9 +119,9 @@ def simulate(
             **kwargs,
     ) as operator:
         farplane = operator.fwd(
-            probe=operator.asarray(probe),
-            scan=operator.asarray(scan),
-            psi=operator.asarray(psi),
+            probe=operator.asarray(probe, dtype='complex64'),
+            scan=operator.asarray(scan, dtype='float32'),
+            psi=operator.asarray(psi, dtype='complex64'),
             **kwargs,
         )
         return operator.asnumpy(
@@ -165,11 +165,11 @@ def reconstruct(
                 **kwargs,
         ) as operator:
 
-            data = operator.asarray(data)
+            data = operator.asarray(data, dtype='float32')
             result = {
-                'psi': operator.asarray(psi),
-                'probe': operator.asarray(probe),
-                'scan': operator.asarray(scan),
+                'psi': operator.asarray(psi, dtype='complex64'),
+                'probe': operator.asarray(probe, dtype='complex64'),
+                'scan': operator.asarray(scan, dtype='float32'),
             }
 
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "

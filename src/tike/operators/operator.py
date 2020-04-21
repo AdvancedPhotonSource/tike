@@ -5,34 +5,26 @@ import numpy
 class Operator(ABC):
     """A base class for Operators.
 
-    An Operator is a context manager which provides the basic functions (forward
-    and adjoint) required solve an inverse problem.
-
-    Attributes
-    ----------
-    array_module : Python module
-        A module which provides a NumPy interface that will be compatible with
-        the arrays passed to the operator.
-    asnumpy : function
-        This function converts the arrays of the type processed by this
-        operator into NumPy arrays.
+    An Operator is a context manager which provides the basic functions
+    (forward and adjoint) required solve an inverse problem.
 
     Attributes
     ----------
     xp : module
-        Provides the array functions that this operator uses i.e. NumPy, Cupy
-    asnumpy : function
-        Converts this operators native array to a numpy array.
+        Provides the array implementation that this operator uses i.e. NumPy,
+        Cupy
 
     """
     xp = numpy
 
     @classmethod
     def asarray(cls, *args, **kwargs):
+        """Convert NumPy arrays into the array-type of this operator."""
         return numpy.asarray(*args, **kwargs)
 
     @classmethod
     def asnumpy(cls, *args, **kwargs):
+        """Convert the arrays of this operator into NumPy arrays."""
         return numpy.asarray(*args, **kwargs)
 
     def __enter__(self):
