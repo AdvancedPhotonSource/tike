@@ -164,13 +164,16 @@ def reconstruct(
                 ntheta=scan.shape[0],
                 **kwargs,
         ) as operator:
-
+            # send any array-likes to device
             data = operator.asarray(data, dtype='float32')
             result = {
                 'psi': operator.asarray(psi, dtype='complex64'),
                 'probe': operator.asarray(probe, dtype='complex64'),
                 'scan': operator.asarray(scan, dtype='float32'),
             }
+            for key, value in kwargs.items():
+                if np.ndim(value) > 0:
+                    kwargs[key] = operator.asarray(value)
 
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[1:],
