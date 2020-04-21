@@ -7,33 +7,66 @@ from tike.opt import conjugate_gradient, line_search
 logger = logging.getLogger(__name__)
 
 def combined(
-    operator,
+    op,
     data, probe, scan, psi,
     recover_psi=True, recover_probe=True,
-    **kwargs,
+    cg_iter=4,
+    **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using a combined approach.
 
-    .. seealso:: tike.ptycho.divided
     """
     if recover_psi:
+        psi, cost = update_object(op, data, psi, scan, probe, num_iter=cg_iter)
 
-        def cost_psi(psi):
-            return operator.cost(data, psi, scan, probe)
+    if recover_probe:
+        probe, cost = update_probe(op, data, psi, scan, probe, num_iter=cg_iter)
 
-        def grad_psi(psi):
-            return operator.grad(data, psi, scan, probe)
+    return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 
-        psi, cost = conjugate_gradient(
-            operator.array_module,
-            x=psi,
-            cost_function=cost_psi,
-            grad=grad_psi,
-            num_iter=2,
+
+def update_probe(op, data, psi, scan, probe, num_iter=1):
+    """Solve the probe recovery problem."""
+
+    def cost_function(probe):
+        return op.cost(data, psi, scan, probe)
+
+    def grad(probe):
+        # Use the average gradient for all probe positions
+        return np.mean(
+            op.grad_probe(data, psi, scan, probe),
+            axis=(1, 2),
+            keepdims=True,
         )
 
-    return {
-        'psi': psi,
-        'probe': probe,
-        'cost': cost,
-    }
+    probe, cost = conjugate_gradient(
+        None,
+        x=probe,
+        cost_function=cost_function,
+        grad=grad,
+        num_iter=num_iter,
+    )
+
+    logger.info('%10s cost is %+12.5e', 'probe', cost)
+    return probe, cost
+
+
+def update_object(op, data, psi, scan, probe, num_iter=1):
+    """Solve the object recovery problem."""
+
+    def cost_function(psi):
+        return op.cost(data, psi, scan, probe)
+
+    def grad(psi):
+        return op.grad(data, psi, scan, probe)
+
+    psi, cost = conjugate_gradient(
+        None,
+        x=psi,
+        cost_function=cost_function,
+        grad=grad,
+        num_iter=num_iter,
+    )
+
+    logger.info('%10s cost is %+12.5e', 'object', cost)
+    return psi, cost

@@ -103,20 +103,17 @@ def simulate(
         psi,
         **kwargs
 ):  # yapf: disable
-    """Propagate the wavefront to the detector.
-
-    Return real-valued intensities measured by the detector.
-    """
+    """Return real-valued detector counts of simulated ptychography data."""
     assert scan.ndim == 3
     assert psi.ndim == 3
     with PtychoBackend(
-        nscan=scan.shape[-2],
-        probe_shape=probe.shape[-1],
-        detector_shape=int(detector_shape),
-        nz=psi.shape[-2],
-        n=psi.shape[-1],
-        ntheta=scan.shape[0],
-        **kwargs,
+            nscan=scan.shape[-2],
+            probe_shape=probe.shape[-1],
+            detector_shape=int(detector_shape),
+            nz=psi.shape[-2],
+            n=psi.shape[-1],
+            ntheta=scan.shape[0],
+            **kwargs,
     ) as solver:
         farplane = solver.fwd(
             probe=probe,
@@ -129,7 +126,7 @@ def simulate(
                              detector_shape, detector_shape),
             ord=2,
             axis=2,
-        ))
+        ))  # yapf: disable
 
 
 def reconstruct(
@@ -138,13 +135,12 @@ def reconstruct(
         psi,
         algorithm, num_iter=1, rtol=-1, **kwargs
 ):  # yapf: disable
-    """Reconstruct the `psi` and `probe` using the given `algorithm`.
+    """Solve the ptychography problem using the given `algorithm`.
 
     Parameters
     ----------
-    |ptycho_doctring|
     algorithm : string
-        The name of one algorithms to use for reconstructing.
+        The name of one algorithms from :py:mod:`.ptycho.solvers`.
     rtol : float
         Terminate early if the relative decrease of the cost function is
         less than this amount.
@@ -169,8 +165,8 @@ def reconstruct(
             }
 
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
-                        "iterations.".format(
-                            algorithm, *data.shape[1:], num_iter))
+                        "iterations.".format(algorithm, *data.shape[1:],
+                                             num_iter))
 
             cost = 0
             for i in range(num_iter):
@@ -179,7 +175,7 @@ def reconstruct(
                     operator,
                     data=data,
                     **kwargs,
-                )  # yapf: disable
+                )
                 # Check for early termination
                 if i > 0 and abs((result['cost'] - cost) / cost) < rtol:
                     logger.info(
@@ -190,4 +186,4 @@ def reconstruct(
         return result
     else:
         raise ValueError(
-            "The {} algorithm is not an available.".format(algorithm))
+            "The '{}' algorithm is not an available.".format(algorithm))
