@@ -88,7 +88,7 @@ def update_phase(op, data, farplane, nearplane, ρ, λ, num_iter=1):
 
     def cost_function(farplane):
         return (op.propagation.cost(data, farplane) +
-                ρ * np.linalg.norm(farplane0 - farplane + λ / ρ)**2)
+                ρ * np.linalg.norm(np.ravel(farplane0 - farplane + λ / ρ))**2)
 
     def grad(farplane):
         return (op.propagation.grad(data, farplane) - ρ *
@@ -116,16 +116,16 @@ def update_nearplane(
 
     def cost_function(nearplane):
         return (
-            + ρ * np.linalg.norm(
+            + ρ * np.linalg.norm(np.ravel(
                 + op.propagation.fwd(nearplane)
                 - farplane
                 + λ / ρ
-            )**2
-            + τ * np.linalg.norm(
+            ))**2
+            + τ * np.linalg.norm(np.ravel(
                 + nearplane0
                 - nearplane
                 + μ / τ
-            )**2
+            ))**2
         )  # yapf: disable
 
     def grad(nearplane):
@@ -162,7 +162,8 @@ def update_probe(op, nearplane, probe, scan, psi, μ, τ, num_iter=1):
                                      probe=np.ones_like(probe))
 
     def cost_function(probe):
-        return τ * np.linalg.norm(probe * obj_patches - nearplane + μ / τ)**2
+        return τ * np.linalg.norm(
+            np.ravel(probe * obj_patches - nearplane + μ / τ))**2
 
     def grad(probe):
         # Use the average gradient for all probe positions
@@ -190,8 +191,9 @@ def update_object(op, nearplane, probe, scan, psi, μ, τ, num_iter=1):
 
     def cost_function(psi):
         return τ * np.linalg.norm(
-            op.diffraction.fwd(psi=psi, scan=scan, probe=probe) - nearplane +
-            μ / τ)**2
+            np.ravel(
+                op.diffraction.fwd(psi=psi, scan=scan, probe=probe) -
+                nearplane + μ / τ))**2
 
     def grad(psi):
         return τ * op.diffraction.adj(

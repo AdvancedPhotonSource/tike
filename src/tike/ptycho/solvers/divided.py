@@ -80,7 +80,7 @@ def update_probe(op, nearplane, probe, scan, psi, num_iter=1):
                                      probe=np.ones_like(probe))
 
     def cost_function(probe):
-        return np.linalg.norm(probe * obj_patches - nearplane)**2
+        return np.linalg.norm(np.ravel(probe * obj_patches - nearplane))**2
 
     def grad(probe):
         # Use the average gradient for all probe positions
@@ -107,7 +107,9 @@ def update_object(op, nearplane, probe, scan, psi, num_iter=1):
 
     def cost_function(psi):
         return np.linalg.norm(
-            op.diffraction.fwd(psi=psi, scan=scan, probe=probe) - nearplane)**2
+            np.ravel(
+                op.diffraction.fwd(psi=psi, scan=scan, probe=probe) -
+                nearplane))**2
 
     def grad(psi):
         return op.diffraction.adj(
@@ -205,7 +207,7 @@ def update_positions(self, nearplane0, psi, probe, scan):
             ),
             axis=mode_axis,
         ) * probe
-        return np.linalg.norm(nearplane - nearplane0)**2
+        return np.linalg.norm(np.ravel(nearplane - nearplane0))**2
 
     scan = scan + grad
     cost = cost_function(scan)

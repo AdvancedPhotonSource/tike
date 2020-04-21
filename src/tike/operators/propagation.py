@@ -53,7 +53,7 @@ class Propagation(Operator):
             ord=2,
             axis=2,
         )
-        return np.linalg.norm(modulus - np.sqrt(data))**2
+        return np.linalg.norm(np.ravel(modulus - np.sqrt(data)))**2
 
     def _gaussian_grad(self, data, farplane):
         modulus = np.linalg.norm(
