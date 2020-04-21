@@ -61,7 +61,7 @@ def update_phase(op, data, farplane, num_iter=1):
         return op.propagation.cost(data, farplane)
 
     farplane, cost = conjugate_gradient(
-        None,
+        op.xp,
         x=farplane,
         cost_function=cost_function,
         grad=grad,
@@ -91,7 +91,7 @@ def update_probe(op, nearplane, probe, scan, psi, num_iter=1):
         )
 
     probe, cost = conjugate_gradient(
-        None,
+        op.xp,
         x=probe,
         cost_function=cost_function,
         grad=grad,
@@ -118,7 +118,7 @@ def update_object(op, nearplane, probe, scan, psi, num_iter=1):
         )
 
     psi, cost = conjugate_gradient(
-        None,
+        op.xp,
         x=psi,
         cost_function=cost_function,
         grad=grad,

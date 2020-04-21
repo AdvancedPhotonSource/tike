@@ -56,7 +56,6 @@ class Ptycho(Operator):
                  diffraction=Convolution,
                  **kwargs):  # noqa: D102 yapf: disable
         """Please see help(Ptycho) for more info."""
-        super(Ptycho, self).__init__(**kwargs)
         self.propagation = propagation(ntheta * nscan * nmode, detector_shape,
                                        probe_shape, model=model, fly=fly,
                                        nmode=nmode,

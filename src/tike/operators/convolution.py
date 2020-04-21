@@ -11,7 +11,6 @@ class Convolution(Operator):
 
     def __init__(self, probe_shape, nscan, nz, n, ntheta, nmode=1, fly=1,
                  **kwargs):  # yapf: disable
-        super(Convolution, self).__init__(**kwargs)
         self.nscan = nscan
         self.probe_shape = probe_shape
         self.nz = nz

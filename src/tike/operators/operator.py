@@ -2,7 +2,6 @@ from abc import ABC
 
 import numpy
 
-
 class Operator(ABC):
     """A base class for Operators.
 
@@ -18,12 +17,23 @@ class Operator(ABC):
         This function converts the arrays of the type processed by this
         operator into NumPy arrays.
 
-    """
+    Attributes
+    ----------
+    xp : module
+        Provides the array functions that this operator uses i.e. NumPy, Cupy
+    asnumpy : function
+        Converts this operators native array to a numpy array.
 
-    def __init__(self, array_module=None, asnumpy=None, **kwargs):
-        """Set the array_module and asnumpy parameters to default values."""
-        self.array_module = numpy if array_module is None else array_module
-        self.asnumpy = numpy.asarray if asnumpy is None else asnumpy
+    """
+    xp = numpy
+
+    @classmethod
+    def asarray(cls, *args, **kwargs):
+        return numpy.asarray(*args, **kwargs)
+
+    @classmethod
+    def asnumpy(cls, *args, **kwargs):
+        return numpy.asarray(*args, **kwargs)
 
     def __enter__(self):
         """Return self at start of a with-block."""

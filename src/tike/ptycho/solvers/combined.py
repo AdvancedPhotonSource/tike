@@ -1,7 +1,5 @@
 import logging
 
-import numpy as np
-
 from tike.opt import conjugate_gradient, line_search
 from ..position import update_positions_pd
 
@@ -39,14 +37,14 @@ def update_probe(op, data, psi, scan, probe, num_iter=1):
 
     def grad(probe):
         # Use the average gradient for all probe positions
-        return np.mean(
+        return op.xp.mean(
             op.grad_probe(data, psi, scan, probe),
             axis=(1, 2),
             keepdims=True,
         )
 
     probe, cost = conjugate_gradient(
-        None,
+        op.xp,
         x=probe,
         cost_function=cost_function,
         grad=grad,
@@ -67,7 +65,7 @@ def update_object(op, data, psi, scan, probe, num_iter=1):
         return op.grad(data, psi, scan, probe)
 
     psi, cost = conjugate_gradient(
-        None,
+        op.xp,
         x=psi,
         cost_function=cost_function,
         grad=grad,

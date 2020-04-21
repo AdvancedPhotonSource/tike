@@ -36,10 +36,6 @@ class TestPtycho(unittest.TestCase):
         original = random_complex(*self.original_shape)
         farplane = random_complex(*self.probe_shape[:-2], *self.detector_shape)
 
-        probe = probe.astype('complex64')
-        original = original.astype('complex64')
-        farplane = farplane.astype('complex64')
-
         with PtychoBackend(
                 nscan=self.scan_shape[-2],
                 probe_shape=self.probe_shape[-1],
@@ -50,6 +46,12 @@ class TestPtycho(unittest.TestCase):
                 fly=self.fly,
                 nmode=self.nmode,
         ) as op:
+
+            probe = op.asarray(probe.astype('complex64'))
+            original = op.asarray(original.astype('complex64'))
+            farplane = op.asarray(farplane.astype('complex64'))
+            scan = op.asarray(scan.astype('float32'))
+
             d = op.fwd(
                 probe=probe,
                 scan=scan,
@@ -79,10 +81,10 @@ class TestPtycho(unittest.TestCase):
             print('<Q  , P*F*Ψ> = {:.6f}{:+.6f}j'.format(
                 c.real.item(), c.imag.item()))
             # Test whether Adjoint fixed probe operator is correct
-            np.testing.assert_allclose(a.real, b.real, rtol=1e-5)
-            np.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
-            np.testing.assert_allclose(a.real, c.real, rtol=1e-5)
-            np.testing.assert_allclose(a.imag, c.imag, rtol=1e-5)
+            op.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5)
+            op.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
+            op.xp.testing.assert_allclose(a.real, c.real, rtol=1e-5)
+            op.xp.testing.assert_allclose(a.imag, c.imag, rtol=1e-5)
 
 
 if __name__ == '__main__':

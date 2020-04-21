@@ -95,7 +95,7 @@ def update_phase(op, data, farplane, nearplane, ρ, λ, num_iter=1):
                 (farplane0 - farplane + λ / ρ))
 
     farplane, cost = conjugate_gradient(
-        None,
+        op.xp,
         x=farplane,
         cost_function=cost_function,
         grad=grad,
@@ -143,7 +143,7 @@ def update_nearplane(
         )  # yapf: disable
 
     nearplane, cost = conjugate_gradient(
-        None,
+        op.xp,
         x=nearplane,
         cost_function=cost_function,
         grad=grad,
@@ -174,7 +174,7 @@ def update_probe(op, nearplane, probe, scan, psi, μ, τ, num_iter=1):
         )
 
     probe, cost = conjugate_gradient(
-        None,
+        op.xp,
         x=probe,
         cost_function=cost_function,
         grad=grad,
@@ -202,7 +202,7 @@ def update_object(op, nearplane, probe, scan, psi, μ, τ, num_iter=1):
         )
 
     psi, cost = conjugate_gradient(
-        None,
+        op.xp,
         x=psi,
         cost_function=cost_function,
         grad=grad,

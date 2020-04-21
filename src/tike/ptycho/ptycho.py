@@ -117,19 +117,22 @@ def simulate(
             n=psi.shape[-1],
             ntheta=scan.shape[0],
             **kwargs,
-    ) as solver:
-        farplane = solver.fwd(
-            probe=probe,
-            scan=scan,
-            psi=psi,
+    ) as operator:
+        farplane = operator.fwd(
+            probe=operator.asarray(probe),
+            scan=operator.asarray(scan),
+            psi=operator.asarray(psi),
             **kwargs,
         )
-        return np.square(np.linalg.norm(
-            farplane.reshape(solver.ntheta, solver.nscan // solver.fly, -1,
-                             detector_shape, detector_shape),
-            ord=2,
-            axis=2,
-        ))  # yapf: disable
+        return operator.asnumpy(
+            operator.xp.square(
+                operator.xp.linalg.norm(
+                    farplane.reshape(operator.ntheta,
+                                     operator.nscan // operator.fly, -1,
+                                     detector_shape, detector_shape),
+                    ord=2,
+                    axis=2,
+                )))
 
 
 def reconstruct(
@@ -162,10 +165,11 @@ def reconstruct(
                 **kwargs,
         ) as operator:
 
+            data = operator.asarray(data)
             result = {
-                'psi': psi,
-                'probe': probe,
-                'scan': scan,
+                'psi': operator.asarray(psi),
+                'probe': operator.asarray(probe),
+                'scan': operator.asarray(scan),
             }
 
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
@@ -187,7 +191,8 @@ def reconstruct(
                         "iterations.", rtol, i)
                     break
                 cost = result['cost']
-        return result
+
+        return {k: operator.asnumpy(v) for k, v in result.items()}
     else:
         raise ValueError(
             "The '{}' algorithm is not an available.".format(algorithm))
