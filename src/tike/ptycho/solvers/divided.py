@@ -1,7 +1,5 @@
 import logging
 
-import numpy as np
-
 from tike.opt import conjugate_gradient, line_search
 from ..position import update_positions_pd
 
@@ -75,17 +73,18 @@ def update_phase(op, data, farplane, num_iter=1):
 
 def update_probe(op, nearplane, probe, scan, psi, num_iter=1):
     """Solve the nearplane single probe recovery problem."""
+    xp = op.xp
     obj_patches = op.diffraction.fwd(psi=psi,
                                      scan=scan,
-                                     probe=np.ones_like(probe))
+                                     probe=xp.ones_like(probe))
 
     def cost_function(probe):
-        return np.linalg.norm(np.ravel(probe * obj_patches - nearplane))**2
+        return xp.linalg.norm(xp.ravel(probe * obj_patches - nearplane))**2
 
     def grad(probe):
         # Use the average gradient for all probe positions
-        return np.mean(
-            np.conj(obj_patches) * (probe * obj_patches - nearplane),
+        return xp.mean(
+            xp.conj(obj_patches) * (probe * obj_patches - nearplane),
             axis=(1, 2),
             keepdims=True,
         )
@@ -104,10 +103,11 @@ def update_probe(op, nearplane, probe, scan, psi, num_iter=1):
 
 def update_object(op, nearplane, probe, scan, psi, num_iter=1):
     """Solve the nearplane object recovery problem."""
+    xp = op.xp
 
     def cost_function(psi):
-        return np.linalg.norm(
-            np.ravel(
+        return xp.linalg.norm(
+            xp.ravel(
                 op.diffraction.fwd(psi=psi, scan=scan, probe=probe) -
                 nearplane))**2
 
@@ -129,130 +129,3 @@ def update_object(op, nearplane, probe, scan, psi, num_iter=1):
 
     logger.info('%10s cost is %+12.5e', 'object', cost)
     return psi, cost
-
-
-def update_positions(self, nearplane0, psi, probe, scan):
-    """Update scan positions by comparing previous iteration object patches."""
-    mode_axis = 2
-    nmode = 1
-
-    # Ensure that the mode dimension is used
-    probe = probe.reshape(
-        (self.ntheta, -1, nmode, self.probe_shape, self.probe_shape),)
-    nearplane0 = nearplane0.reshape(
-        (self.ntheta, -1, nmode, self.probe_shape, self.probe_shape),)
-
-    def least_squares(a, b):
-        """Return the least-squares solution for a @ x = b.
-
-        This implementation, unlike np.linalg.lstsq, allows a stack of
-        matricies to be processed simultaneously. The input sizes of the
-        matricies are as follows:
-            a (..., M, N)
-            b (..., M)
-            x (...,    N)
-
-        ...seealso:: https://github.com/numpy/numpy/issues/8720
-        """
-        shape = a.shape[:-2]
-        a = a.reshape(-1, *a.shape[-2:])
-        b = b.reshape(-1, *b.shape[-1:], 1)
-        x = np.empty((a.shape[0], a.shape[-1]))
-        aT = np.swapaxes(a, -1, -2)
-        x = np.linalg.pinv(aT @ a) @ aT @ b
-        return x.reshape(*shape, a.shape[-1])
-
-    nearplane = np.expand_dims(
-        self.diffraction.fwd(
-            psi=psi,
-            scan=scan,
-        ),
-        axis=mode_axis,
-    ) * probe
-
-    dn = (nearplane0 - nearplane).view('float32')
-    dn = dn.reshape(*dn.shape[:-2], -1)
-
-    ndx = (np.expand_dims(
-        self.diffraction.fwd(
-            psi=psi,
-            scan=scan + np.array((0, 1), dtype='float32'),
-        ),
-        axis=mode_axis,
-    ) * probe - nearplane).view('float32')
-
-    ndy = (np.expand_dims(
-        self.diffraction.fwd(
-            psi=psi,
-            scan=scan + np.array((1, 0), dtype='float32'),
-        ),
-        axis=mode_axis,
-    ) * probe - nearplane).view('float32')
-
-    dxy = np.stack((
-        ndy.reshape(*ndy.shape[:-2], -1),
-        ndx.reshape(*ndx.shape[:-2], -1),
-    ),
-                   axis=-1)
-
-    grad = least_squares(a=dxy, b=dn)
-
-    grad = np.mean(grad, axis=mode_axis)
-
-    def cost_function(scan):
-        nearplane = np.expand_dims(
-            self.diffraction.fwd(
-                psi=psi,
-                scan=scan,
-            ),
-            axis=mode_axis,
-        ) * probe
-        return np.linalg.norm(np.ravel(nearplane - nearplane0))**2
-
-    scan = scan + grad
-    cost = cost_function(scan)
-
-    logger.debug(' position cost is             %+12.5e', cost)
-    return scan, cost
-
-
-def orthogonalize_gs(np, x):
-    """Gram-schmidt orthogonalization for complex arrays.
-
-    x : (..., nmode, :, :) array_like
-        The array with modes in the -3 dimension.
-
-    TODO: Possibly a faster implementation would use QR decomposition.
-    """
-
-    def inner(x, y, axis=None):
-        """Return the complex inner product of x and y along axis."""
-        return np.sum(np.conj(x) * y, axis=axis, keepdims=True)
-
-    def norm(x, axis=None):
-        """Return the complex vector norm of x along axis."""
-        return np.sqrt(inner(x, x, axis=axis))
-
-    # Reshape x into a 2D array
-    unflat_shape = x.shape
-    nmode = unflat_shape[-3]
-    x_ortho = x.reshape(*unflat_shape[:-2], -1)
-
-    for i in range(1, nmode):
-        u = x_ortho[..., 0:i, :]
-        v = x_ortho[..., i:i + 1, :]
-        projections = u * inner(u, v, axis=-1) / inner(u, u, axis=-1)
-        x_ortho[..., i:i + 1, :] -= np.sum(projections, axis=-2, keepdims=True)
-
-    if __debug__:
-        # Test each pair of vectors for orthogonality
-        for i in range(nmode):
-            for j in range(i):
-                error = abs(
-                    inner(x_ortho[..., i:i + 1, :],
-                          x_ortho[..., j:j + 1, :],
-                          axis=-1))
-                assert np.all(error < 1e-5), (
-                    f"Some vectors are not orthogonal!, {error}, {error.shape}")
-
-    return x_ortho.reshape(unflat_shape)

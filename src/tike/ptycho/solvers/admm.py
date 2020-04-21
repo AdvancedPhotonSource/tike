@@ -1,7 +1,5 @@
 import logging
 
-import numpy as np
-
 from tike.opt import conjugate_gradient, line_search
 
 logger = logging.getLogger(__name__)
@@ -84,11 +82,12 @@ def admm(
 
 def update_phase(op, data, farplane, nearplane, ρ, λ, num_iter=1):
     """Solve the farplane phase problem."""
+    xp = op.xp
     farplane0 = op.propagation.fwd(nearplane)
 
     def cost_function(farplane):
         return (op.propagation.cost(data, farplane) +
-                ρ * np.linalg.norm(np.ravel(farplane0 - farplane + λ / ρ))**2)
+                ρ * xp.linalg.norm(xp.ravel(farplane0 - farplane + λ / ρ))**2)
 
     def grad(farplane):
         return (op.propagation.grad(data, farplane) - ρ *
@@ -112,16 +111,17 @@ def update_nearplane(
     ρ, λ, τ, μ, num_iter=1,
 ):  # yapf: disable
     """Solve the nearplane problem."""
+    xp = op.xp
     nearplane0 = op.diffraction.fwd(probe=probe, psi=psi, scan=scan)
 
     def cost_function(nearplane):
         return (
-            + ρ * np.linalg.norm(np.ravel(
+            + ρ * xp.linalg.norm(xp.ravel(
                 + op.propagation.fwd(nearplane)
                 - farplane
                 + λ / ρ
             ))**2
-            + τ * np.linalg.norm(np.ravel(
+            + τ * xp.linalg.norm(xp.ravel(
                 + nearplane0
                 - nearplane
                 + μ / τ
@@ -157,18 +157,19 @@ def update_nearplane(
 
 def update_probe(op, nearplane, probe, scan, psi, μ, τ, num_iter=1):
     """Solve the nearplane single probe recovery problem."""
+    xp = op.xp
     obj_patches = op.diffraction.fwd(psi=psi,
                                      scan=scan,
-                                     probe=np.ones_like(probe))
+                                     probe=xp.ones_like(probe))
 
     def cost_function(probe):
-        return τ * np.linalg.norm(
-            np.ravel(probe * obj_patches - nearplane + μ / τ))**2
+        return τ * xp.linalg.norm(
+            xp.ravel(probe * obj_patches - nearplane + μ / τ))**2
 
     def grad(probe):
         # Use the average gradient for all probe positions
-        return np.mean(
-            τ * np.conj(obj_patches) *
+        return xp.mean(
+            τ * xp.conj(obj_patches) *
             (probe * obj_patches - nearplane + μ / τ),
             axis=(1, 2),
             keepdims=True,
@@ -188,10 +189,11 @@ def update_probe(op, nearplane, probe, scan, psi, μ, τ, num_iter=1):
 
 def update_object(op, nearplane, probe, scan, psi, μ, τ, num_iter=1):
     """Solve the nearplane object recovery problem."""
+    xp = op.xp
 
     def cost_function(psi):
-        return τ * np.linalg.norm(
-            np.ravel(
+        return τ * xp.linalg.norm(
+            xp.ravel(
                 op.diffraction.fwd(psi=psi, scan=scan, probe=probe) -
                 nearplane + μ / τ))**2
 
