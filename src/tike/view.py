@@ -52,7 +52,7 @@ __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = [
     'plot_complex',
-    'plot_phase',
+    'plot_wave',
     'trajectory',
     'plot_footprint',
     'plot_trajectories',
@@ -83,7 +83,7 @@ def plot_complex(Z, rmin=None, rmax=None, imin=None, imax=None):
     cb1 = plt.colorbar(orientation='horizontal')
 
 
-def plot_phase(Z, amin=None, amax=None):
+def plot_wave(Z, amin=None, amax=None):
     """Plot the amplitude and phase of a 2D image side by side.
 
     Takes parameters amin, amax to scale the range of the amplitude. The phase
