@@ -118,22 +118,23 @@ def simulate(
             ntheta=scan.shape[0],
             **kwargs,
     ) as operator:
-        farplane = operator.fwd(
-            probe=operator.asarray(probe, dtype='complex64'),
-            scan=operator.asarray(scan, dtype='float32'),
-            psi=operator.asarray(psi, dtype='complex64'),
-            **kwargs,
-        )
-        return operator.asnumpy(
-            operator.xp.square(
-                operator.xp.linalg.norm(
+        data = 0
+        for mode in np.split(probe, probe.shape[-3], axis=-3):
+            farplane = operator.fwd(
+                probe=operator.asarray(mode, dtype='complex64'),
+                scan=operator.asarray(scan, dtype='float32'),
+                psi=operator.asarray(psi, dtype='complex64'),
+                **kwargs,
+            )
+            data += np.square(
+                np.linalg.norm(
                     farplane.reshape(operator.ntheta,
                                      operator.nscan // operator.fly, -1,
                                      detector_shape, detector_shape),
                     ord=2,
                     axis=2,
-                )))
-
+                ))
+        return operator.asnumpy(data)
 
 def reconstruct(
         data,
