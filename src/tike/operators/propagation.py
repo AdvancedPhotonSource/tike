@@ -19,31 +19,20 @@ class Propagation(Operator):
     def fwd(self, nearplane, **kwargs):
         """Forward Fourier-based free-space propagation operator."""
         assert self.nwaves == np.prod(nearplane.shape[:-2])
-        pad = (self.detector_shape - self.probe_shape) // 2
-        end = self.probe_shape + pad
-        # We copy nearplane into a larger array the shape of the farplane
-        # because this is faster than numpy.pad for older versions of NumPy.
-        padded_nearplane = np.zeros(
-            (*nearplane.shape[:-2], self.detector_shape, self.detector_shape),
-            dtype='complex64',
-        )
-        padded_nearplane[..., pad:end, pad:end] = nearplane
         # We must cast the result of np.fft.fft2
         # because this implementation does not preserve type.
         return np.fft.fft2(
-            padded_nearplane,
+            nearplane,
             norm='ortho',
         ).astype('complex64')
 
     def adj(self, farplane, **kwargs):
         """Adjoint Fourier-based free-space propagation operator."""
         assert self.nwaves == np.prod(farplane.shape[:-2])
-        pad = (self.detector_shape - self.probe_shape) // 2
-        end = self.probe_shape + pad
         return np.fft.ifft2(
             farplane,
             norm='ortho',
-        )[..., pad:end, pad:end].astype('complex64')
+        ).astype('complex64')
 
     # COST FUNCTIONS AND GRADIENTS --------------------------------------------
 
@@ -55,7 +44,7 @@ class Propagation(Operator):
         )
         return np.linalg.norm(np.ravel(modulus - np.sqrt(data)))**2
 
-    def _gaussian_grad(self, data, farplane):
+    def _gaussian_grad(self, data, farplane, overwrite=False):
         modulus = np.linalg.norm(
             farplane.reshape(*data.shape[:2], -1, *data.shape[2:]),
             ord=2,
@@ -73,7 +62,7 @@ class Propagation(Operator):
         ))
         return np.sum(intensity - data * np.log(intensity + 1e-32))
 
-    def _poisson_grad(self, data, farplane):
+    def _poisson_grad(self, data, farplane, overwrite=False):
         intensity = np.square(np.linalg.norm(
             farplane.reshape(*data.shape[:2], -1, *data.shape[2:]),
             ord=2,

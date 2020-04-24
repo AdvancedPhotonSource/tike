@@ -56,13 +56,28 @@ class Ptycho(Operator):
                  diffraction=Convolution,
                  **kwargs):  # noqa: D102 yapf: disable
         """Please see help(Ptycho) for more info."""
-        self.propagation = propagation(ntheta * nscan * nmode, detector_shape,
-                                       probe_shape, model=model, fly=fly,
-                                       nmode=nmode,
-                                       **kwargs)  # yapf: disable
-        self.diffraction = diffraction(probe_shape, nscan, nz, n, ntheta,
-                                       model=model, fly=fly, nmode=nmode,
-                                       **kwargs)  # yapf: disable
+        self.propagation = propagation(
+            nwaves=ntheta * nscan * nmode,
+            probe_shape=probe_shape,
+            detector_shape=detector_shape,
+            model=model,
+            fly=fly,
+            nmode=nmode,
+            **kwargs,
+        )
+        self.diffraction = diffraction(
+            probe_shape=probe_shape,
+            detector_shape=detector_shape,
+            nscan=nscan,
+            nz=nz,
+            n=n,
+            ntheta=ntheta,
+            model=model,
+            fly=fly,
+            nmode=nmode,
+            **kwargs,
+        )
+        # TODO: Replace these with @property functions
         self.nscan = nscan
         self.probe_shape = probe_shape
         self.detector_shape = detector_shape
@@ -81,30 +96,41 @@ class Ptycho(Operator):
         self.propagation.__exit__(type, value, traceback)
         self.diffraction.__exit__(type, value, traceback)
 
-    def fwd(self, probe, scan, psi, **kwargs):  # noqa: D102
+    def fwd(self, probe, scan, psi, **kwargs):
         nearplane = self.diffraction.fwd(psi=psi, scan=scan, probe=probe)
-        farplane = self.propagation.fwd(nearplane)
+        farplane = self.propagation.fwd(nearplane, overwrite=True)
         return farplane
 
-    def adj(self, farplane, probe, scan, **kwargs):  # noqa: D102
-        nearplane = self.propagation.adj(farplane)
-        return self.diffraction.adj(nearplane=nearplane, probe=probe, scan=scan)
+    def adj(self, farplane, probe, scan, overwrite=False, **kwargs):
+        nearplane = self.propagation.adj(farplane, overwrite=overwrite)
+        return self.diffraction.adj(nearplane=nearplane,
+                                    probe=probe,
+                                    scan=scan,
+                                    overwrite=True)
 
-    def adj_probe(self, farplane, scan, psi, **kwargs):  # noqa: D102
-        nearplane = self.propagation.adj(farplane=farplane)
-        return self.diffraction.adj_probe(psi=psi, scan=scan,
-                                          nearplane=nearplane)  # yapf: disable
+    def adj_probe(self, farplane, scan, psi, overwrite=False, **kwargs):
+        nearplane = self.propagation.adj(farplane=farplane, overwrite=overwrite)
+        return self.diffraction.adj_probe(psi=psi,
+                                          scan=scan,
+                                          nearplane=nearplane,
+                                          overwrite=True)
 
-    def cost(self, data, psi, scan, probe):  # noqa: D102
+    def cost(self, data, psi, scan, probe):
         farplane = self.fwd(psi=psi, scan=scan, probe=probe)
         return self.propagation.cost(data, farplane)
 
-    def grad(self, data, psi, scan, probe):  # noqa: D102
+    def grad(self, data, psi, scan, probe):
         farplane = self.fwd(psi=psi, scan=scan, probe=probe)
-        data_diff = self.propagation.grad(data, farplane)
-        return self.adj(farplane=data_diff, probe=probe, scan=scan)
+        data_diff = self.propagation.grad(data, farplane, overwrite=True)
+        return self.adj(farplane=data_diff,
+                        probe=probe,
+                        scan=scan,
+                        overwrite=True)
 
-    def grad_probe(self, data, psi, scan, probe):  # noqa: D102
+    def grad_probe(self, data, psi, scan, probe):
         farplane = self.fwd(psi=psi, scan=scan, probe=probe)
-        data_diff = self.propagation.grad(data, farplane)
-        return self.adj_probe(farplane=data_diff, psi=psi, scan=scan)
+        data_diff = self.propagation.grad(data, farplane, overwrite=True)
+        return self.adj_probe(farplane=data_diff,
+                              psi=psi,
+                              scan=scan,
+                              overwrite=True)

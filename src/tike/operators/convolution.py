@@ -9,7 +9,7 @@ from .operator import Operator
 class Convolution(Operator):
     """2D Convolution operator with linear interpolation."""
 
-    def __init__(self, probe_shape, nscan, nz, n, ntheta, nmode=1, fly=1,
+    def __init__(self, probe_shape, nscan, nz, n, ntheta, nmode=1, fly=1, detector_shape=None,
                  **kwargs):  # yapf: disable
         self.nscan = nscan
         self.probe_shape = probe_shape
@@ -18,6 +18,7 @@ class Convolution(Operator):
         self.ntheta = ntheta
         self.nmode = nmode
         self.fly = fly
+        self.detector_shape = probe_shape if detector_shape is None else detector_shape
 
     def reshape_psi(self, x):
         """Return x reshaped like an object."""
