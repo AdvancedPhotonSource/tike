@@ -35,21 +35,25 @@ def update_probe(op, data, psi, scan, probe, num_iter=1):
     def cost_function(probe):
         return op.cost(data, psi, scan, probe)
 
-    def grad(probe):
-        # Use the average gradient for all probe positions
-        return op.xp.mean(
-            op.grad_probe(data, psi, scan, probe),
-            axis=(1, 2),
-            keepdims=True,
-        )
+    for mode in range(probe.shape[-3]):
 
-    probe, cost = conjugate_gradient(
-        op.xp,
-        x=probe,
-        cost_function=cost_function,
-        grad=grad,
-        num_iter=num_iter,
-    )
+        def grad(probe):
+            # Use the average gradient for all probe positions
+            grad = op.xp.zeros_like(probe)
+            grad[..., mode:mode+1, :, :] = op.xp.mean(
+                op.grad_probe(data, psi, scan, probe, mode),
+                axis=(1, 2),
+                keepdims=True,
+            )
+            return grad
+
+        probe, cost = conjugate_gradient(
+            op.xp,
+            x=probe,
+            cost_function=cost_function,
+            grad=grad,
+            num_iter=num_iter,
+        )
 
     logger.info('%10s cost is %+12.5e', 'probe', cost)
     return probe, cost
