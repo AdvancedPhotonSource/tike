@@ -140,7 +140,7 @@ class Ptycho(Operator):
                     self.fwd(psi=psi, scan=scan, probe=mode),
                     intensity,
                 ),
-                probe=probe,
+                probe=mode,
                 scan=scan,
                 overwrite=True,
             )
