@@ -125,21 +125,22 @@ class Ptycho(Operator):
             overwrite=True,
         )
 
-    def _compute_intensity(self, data, psi, scan, probe):
+    def _compute_intensity(self, data, psi, scan, probe, n=-1, mode=None):
+        """Compute detector intensities replacing the nth probe mode"""
         intensity = 0
-        for mode in np.split(probe, probe.shape[-3], axis=-3):
+        for m in range(probe.shape[-3]):
             intensity += np.sum(
                 np.square(np.abs(self.fwd(
                     psi=psi,
                     scan=scan,
-                    probe=mode,
+                    probe=mode if m == n else probe[..., m:m + 1, :, :],
                 ).reshape(*data.shape[:2], -1, *data.shape[2:]))),
                 axis=2,
             )  # yapf: disable
         return intensity
 
-    def cost(self, data, psi, scan, probe):
-        intensity = self._compute_intensity(data, psi, scan, probe)
+    def cost(self, data, psi, scan, probe, n=-1, mode=None):
+        intensity = self._compute_intensity(data, psi, scan, probe, n, mode)
         return self.propagation.cost(data, intensity)
 
     def grad(self, data, psi, scan, probe):
@@ -159,12 +160,16 @@ class Ptycho(Operator):
             )
         return grad_obj
 
-    def grad_probe(self, data, psi, scan, probe, m=0):
-        intensity = self._compute_intensity(data, psi, scan, probe)
+    def grad_probe(self, data, psi, scan, probe, n=-1, mode=None):
+        intensity = self._compute_intensity(data, psi, scan, probe, n, mode)
         return self.adj_probe(
             farplane=self.propagation.grad(
                 data,
-                self.fwd(psi=psi, scan=scan, probe=probe[..., m:m + 1, :, :]),
+                self.fwd(
+                    psi=psi,
+                    scan=scan,
+                    probe=mode if mode is not None else probe,
+                ),
                 intensity,
             ),
             psi=psi,

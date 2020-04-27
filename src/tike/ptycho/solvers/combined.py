@@ -31,25 +31,23 @@ def combined(
 
 def update_probe(op, data, psi, scan, probe, num_iter=1):
     """Solve the probe recovery problem."""
+    # TODO: Cache object patche between mode updates
+    for m in range(probe.shape[-3]):
 
-    def cost_function(probe):
-        return op.cost(data, psi, scan, probe)
+        def cost_function(mode):
+            return op.cost(data, psi, scan, probe, m, mode)
 
-    for mode in range(probe.shape[-3]):
-
-        def grad(probe):
+        def grad(mode):
             # Use the average gradient for all probe positions
-            grad = op.xp.zeros_like(probe)
-            grad[..., mode:mode+1, :, :] = op.xp.mean(
-                op.grad_probe(data, psi, scan, probe, mode),
+            return op.xp.mean(
+                op.grad_probe(data, psi, scan, probe, m, mode),
                 axis=(1, 2),
                 keepdims=True,
             )
-            return grad
 
-        probe, cost = conjugate_gradient(
+        probe[..., m:m + 1, :, :], cost = conjugate_gradient(
             op.xp,
-            x=probe,
+            x=probe[..., m:m + 1, :, :],
             cost_function=cost_function,
             grad=grad,
             num_iter=num_iter,
