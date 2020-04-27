@@ -51,18 +51,17 @@ class Ptycho(Operator):
     """
 
     def __init__(self, detector_shape, probe_shape, nscan, nz, n,
-                 ntheta=1, model='gaussian', nmode=1, fly=1,
+                 ntheta=1, model='gaussian', fly=1,
                  propagation=Propagation,
                  diffraction=Convolution,
                  **kwargs):  # noqa: D102 yapf: disable
         """Please see help(Ptycho) for more info."""
         self.propagation = propagation(
-            nwaves=ntheta * nscan * nmode,
+            nwaves=ntheta * nscan,
             probe_shape=probe_shape,
             detector_shape=detector_shape,
             model=model,
             fly=fly,
-            nmode=nmode,
             **kwargs,
         )
         self.diffraction = diffraction(
@@ -74,7 +73,6 @@ class Ptycho(Operator):
             ntheta=ntheta,
             model=model,
             fly=fly,
-            nmode=nmode,
             **kwargs,
         )
         # TODO: Replace these with @property functions
@@ -85,7 +83,6 @@ class Ptycho(Operator):
         self.n = n
         self.ntheta = ntheta
         self.fly = fly
-        self.nmode = nmode
 
     def __enter__(self):
         self.propagation.__enter__()
@@ -97,30 +94,46 @@ class Ptycho(Operator):
         self.diffraction.__exit__(type, value, traceback)
 
     def fwd(self, probe, scan, psi, **kwargs):
-        nearplane = self.diffraction.fwd(psi=psi, scan=scan, probe=probe)
-        farplane = self.propagation.fwd(nearplane, overwrite=True)
-        return farplane
+        return self.propagation.fwd(
+            self.diffraction.fwd(
+                psi=psi,
+                scan=scan,
+                probe=probe,
+            ),
+            overwrite=True,
+        )
 
     def adj(self, farplane, probe, scan, overwrite=False, **kwargs):
-        nearplane = self.propagation.adj(farplane, overwrite=overwrite)
-        return self.diffraction.adj(nearplane=nearplane,
-                                    probe=probe,
-                                    scan=scan,
-                                    overwrite=True)
+        return self.diffraction.adj(
+            nearplane=self.propagation.adj(
+                farplane,
+                overwrite=overwrite,
+            ),
+            probe=probe,
+            scan=scan,
+            overwrite=True,
+        )
 
     def adj_probe(self, farplane, scan, psi, overwrite=False, **kwargs):
-        nearplane = self.propagation.adj(farplane=farplane, overwrite=overwrite)
-        return self.diffraction.adj_probe(psi=psi,
-                                          scan=scan,
-                                          nearplane=nearplane,
-                                          overwrite=True)
+        return self.diffraction.adj_probe(
+            psi=psi,
+            scan=scan,
+            nearplane=self.propagation.adj(
+                farplane=farplane,
+                overwrite=overwrite,
+            ),
+            overwrite=True,
+        )
 
     def _compute_intensity(self, data, psi, scan, probe):
         intensity = 0
         for mode in np.split(probe, probe.shape[-3], axis=-3):
-            farplane = self.fwd(psi=psi, scan=scan, probe=mode)
-            intensity += np.sum(np.square(np.abs(
-                farplane.reshape(*data.shape[:2], -1, *data.shape[2:]))),
+            intensity += np.sum(
+                np.square(np.abs(self.fwd(
+                    psi=psi,
+                    scan=scan,
+                    probe=mode,
+                ).reshape(*data.shape[:2], -1, *data.shape[2:]))),
                 axis=2,
             )  # yapf: disable
         return intensity
@@ -151,7 +164,7 @@ class Ptycho(Operator):
         return self.adj_probe(
             farplane=self.propagation.grad(
                 data,
-                self.fwd(psi=psi, scan=scan, probe=probe[..., m:m+1, :, :]),
+                self.fwd(psi=psi, scan=scan, probe=probe[..., m:m + 1, :, :]),
                 intensity,
             ),
             psi=psi,
