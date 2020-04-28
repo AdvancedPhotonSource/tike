@@ -4,25 +4,37 @@ import numpy as np
 def add_modes_random_phase(probe, nmodes):
     """Initialize additional probe modes by phase shifting the first mode.
 
+    Parameters
+    ----------
+    probe : (:, :, :, M, :, :) array
+        A probe with M > 0 incoherent modes.
+    nmodes : int
+        The number of desired modes.
+
     References
     ----------
     M. Odstrcil, P. Baksh, S. A. Boden, R. Card, J. E. Chad, J. G. Frey, W. S.
     Brocklesby, "Ptychographic coherent diffractive imaging with orthogonal
     probe relaxation." Opt. Express 24, 8360 (2016). doi: 10.1364/OE.24.008360
     """
-    probe_shape = (*probe.shape[:3], nmodes, *probe.shape[-2:])
-    # keep existing modes if provided
-    probe_ = np.ones(probe_shape, dtype='complex64')
-    pmodes = probe.shape[-3]
-    probe_[..., 0:pmodes, :, :] = probe
+    all_modes = np.empty((*probe.shape[:-3], nmodes, *probe.shape[-2:]),
+                         dtype='complex64')
     pw = probe.shape[-1]
-    for m in range(pmodes, nmodes):
-        xshift = np.exp(-2j * np.pi * ((np.arange(0, pw) / pw + 1 /
-                                        (pw * 2)) - 0.5) * np.random.rand())
-        yshift = np.exp(-2j * np.pi * ((np.arange(0, pw) / pw + 1 /
-                                        (pw * 2)) - 0.5) * np.random.rand())
-        probe_[..., m, :, :] *= (xshift[None] * yshift[:, None])
-    return probe_
+    for m in range(nmodes):
+        if m < probe.shape[-3]:
+            # copy existing mode
+            all_modes[..., m, :, :] = probe[..., m, :, :]
+        else:
+            # randomly shift the first mode
+            xshift = np.exp(-2j * np.pi * ((np.arange(0, pw) / pw + 1 /
+                                            (pw * 2)) - 0.5) *
+                            np.random.rand())
+            yshift = np.exp(-2j * np.pi * ((np.arange(0, pw) / pw + 1 /
+                                            (pw * 2)) - 0.5) *
+                            np.random.rand())
+            all_modes[..., m, :, :] = (probe[..., 0, :, :] * xshift[None] *
+                                       yshift[:, None])
+    return all_modes
 
 
 # TODO: Possibly a faster implementation would use QR decomposition, but numpy
