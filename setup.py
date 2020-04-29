@@ -27,8 +27,17 @@ setuptools.setup(
         'Topic :: Scientific/Engineering',
         ],
     entry_points={
-        'tike.PtychoBackend': [
-            'numpyfft = tike.operators:Ptycho',
+        'tike.Ptycho': [
+            'cupy = tike.operators.cupy:Ptycho',
+            'numpy = tike.operators.numpy:Ptycho',
+        ],
+        'tike.Convolution': [
+            'cupy = tike.operators.cupy:Convolution',
+            'numpy = tike.operators.numpy:Convolution',
+        ],
+        'tike.Propagation': [
+            'cupy = tike.operators.cupy:Propagation',
+            'numpy = tike.operators.numpy:Propagation',
         ],
     },
 )

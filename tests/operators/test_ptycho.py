@@ -6,7 +6,7 @@ import unittest
 import numpy as np
 
 from .util import random_complex, inner_complex
-from tike.ptycho import PtychoBackend
+from tike.operators import Ptycho
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
@@ -25,7 +25,7 @@ class TestPtycho(unittest.TestCase):
         self.original_shape = (ntheta, 128, 128)
         self.scan_shape = (ntheta, nscan, 2)
         self.fly = fly
-        print(PtychoBackend)
+        print(Ptycho)
 
     def test_adjoint(self):
         """Check that the adjoint operator is correct."""
@@ -35,7 +35,7 @@ class TestPtycho(unittest.TestCase):
         original = random_complex(*self.original_shape)
         farplane = random_complex(*self.probe_shape[:-2], *self.detector_shape)
 
-        with PtychoBackend(
+        with Ptycho(
                 nscan=self.scan_shape[-2],
                 probe_shape=self.probe_shape[-1],
                 detector_shape=self.detector_shape[-1],

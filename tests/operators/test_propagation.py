@@ -7,7 +7,6 @@ import numpy as np
 
 from .util import random_complex, inner_complex
 from tike.operators import Propagation
-# from libtike.cupy import Propagation
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."

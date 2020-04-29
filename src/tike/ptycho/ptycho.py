@@ -58,7 +58,7 @@ __all__ = [
 import logging
 import numpy as np
 
-from tike.ptycho import PtychoBackend
+from tike.operators import Ptycho
 from tike.ptycho import solvers
 
 logger = logging.getLogger(__name__)
@@ -106,7 +106,7 @@ def simulate(
     """Return real-valued detector counts of simulated ptychography data."""
     assert scan.ndim == 3
     assert psi.ndim == 3
-    with PtychoBackend(
+    with Ptycho(
             nscan=scan.shape[-2],
             probe_shape=probe.shape[-1],
             detector_shape=int(detector_shape),
@@ -152,7 +152,7 @@ def reconstruct(
     """
     if algorithm in solvers.__all__:
         # Initialize an operator.
-        with PtychoBackend(
+        with Ptycho(
                 nscan=scan.shape[1],
                 probe_shape=probe.shape[-1],
                 detector_shape=data.shape[-1],
