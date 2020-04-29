@@ -6,6 +6,7 @@ setuptools.setup(
     name='tike',
     packages=setuptools.find_packages('src'),
     package_dir={'': 'src'},
+    include_package_data=True,
     setup_requires=['setuptools_scm', 'setuptools_scm_git_archive'],
     use_scm_version=True,
     author='Doga Gursoy',
