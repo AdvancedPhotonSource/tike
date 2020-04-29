@@ -19,9 +19,7 @@ requirements:
     - setuptools_scm_git_archive
   run:
     - matplotlib-base
-    - mpi4py  # [not win]
-    - numba
-    - numpy
+    - numpy>=1.17
     - python={{ python }}
     - setuptools
 

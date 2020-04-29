@@ -1,6 +1,4 @@
-matplotlib
-mpi4py
-numpy>=1.10
-scipy
+matplotlib-base
+numpy>=1.17
 setuptools
 setuptools_scm_git_archive

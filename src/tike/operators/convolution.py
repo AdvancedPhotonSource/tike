@@ -1,6 +1,5 @@
 import itertools
 
-from numba import njit
 import numpy as np
 
 from .operator import Operator
@@ -126,7 +125,6 @@ class Convolution(Operator):
         return np.conj(patches) * nearplane
 
 
-@njit(parallel=False, cache=True)
 def _combine_patches(psi, nearplane, view_angle, position, i, j, probe_shape,
                      weight):
     """Add patches to psi at given positions."""
@@ -138,7 +136,6 @@ def _combine_patches(psi, nearplane, view_angle, position, i, j, probe_shape,
     return psi
 
 
-@njit(parallel=False, cache=True)
 def _extract_patches(patches, psi, view_angle, position, i, j, probe_shape,
                      weight):
     """Extract patches from psi at given positions."""
@@ -150,7 +147,6 @@ def _extract_patches(patches, psi, view_angle, position, i, j, probe_shape,
     return patches
 
 
-@njit(parallel=True)
 def _patch_iterator(scan, probe_shape, psi_shape, patch_op, output, input):
     """Apply `patch_op` at all valid scan positions within psi."""
     # For interpolating a pixel to a non-integer position on a grid, we need
