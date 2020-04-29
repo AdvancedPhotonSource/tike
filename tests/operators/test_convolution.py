@@ -6,7 +6,8 @@ import unittest
 import numpy as np
 
 from .util import random_complex, inner_complex
-from tike.operators import Convolution
+# from tike.operators import Convolution
+from libtike.cupy import Convolution
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
@@ -22,8 +23,8 @@ class TestConvolution(unittest.TestCase):
         self.nscan = 27
         self.original_shape = (self.ntheta, 128, 128)
         self.probe_shape = 15
+        self.detector_shape = self.probe_shape * 3
         self.fly = 9
-        self.nmode = 11
         print(Convolution)
 
     def test_adjoint(self):
@@ -32,10 +33,10 @@ class TestConvolution(unittest.TestCase):
         scan = np.random.rand(self.ntheta, self.nscan, 2) * 127 - 15
         original = random_complex(*self.original_shape)
         nearplane = random_complex(
-            self.ntheta, self.nscan // self.fly, self.fly, self.nmode,
-            self.probe_shape, self.probe_shape)
+            self.ntheta, self.nscan // self.fly, self.fly, 1,
+            self.detector_shape, self.detector_shape)
         kernel = random_complex(
-            self.ntheta, self.nscan // self.fly, self.fly, self.nmode,
+            self.ntheta, self.nscan // self.fly, self.fly, 1,
             self.probe_shape, self.probe_shape)
 
         with Convolution(
@@ -44,8 +45,8 @@ class TestConvolution(unittest.TestCase):
                 nz=self.original_shape[-2],
                 n=self.original_shape[-1],
                 probe_shape=self.probe_shape,
+                detector_shape=self.detector_shape,
                 fly=self.fly,
-                nmode=self.nmode,
         ) as op:
             scan = op.asarray(scan.astype('float32'))
             original = op.asarray(original.astype('complex64'))

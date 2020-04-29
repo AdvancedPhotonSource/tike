@@ -6,7 +6,8 @@ import unittest
 import numpy as np
 
 from .util import random_complex, inner_complex
-from tike.operators import Propagation
+# from tike.operators import Propagation
+from libtike.cupy import Propagation
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
@@ -20,7 +21,7 @@ class TestPropagation(unittest.TestCase):
         """Load a dataset for reconstruction."""
         self.nwaves = 13
         self.probe_shape = 127
-        self.detector_shape = self.probe_shape * 3
+        self.detector_shape = self.probe_shape
         print(Propagation)
 
     def test_adjoint(self):

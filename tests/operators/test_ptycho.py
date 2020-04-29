@@ -6,7 +6,7 @@ import unittest
 import numpy as np
 
 from .util import random_complex, inner_complex
-from tike.ptycho import PtychoBackend
+from libtike.cupy import Ptycho as PtychoBackend
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
@@ -25,7 +25,6 @@ class TestPtycho(unittest.TestCase):
         self.original_shape = (ntheta, 128, 128)
         self.scan_shape = (ntheta, nscan, 2)
         self.fly = fly
-        self.nmode = 1
         print(PtychoBackend)
 
     def test_adjoint(self):
@@ -44,7 +43,6 @@ class TestPtycho(unittest.TestCase):
                 n=self.original_shape[-1],
                 ntheta=self.ntheta,
                 fly=self.fly,
-                nmode=self.nmode,
         ) as op:
 
             probe = op.asarray(probe.astype('complex64'))
