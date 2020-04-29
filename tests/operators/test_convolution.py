@@ -6,8 +6,8 @@ import unittest
 import numpy as np
 
 from .util import random_complex, inner_complex
-# from tike.operators import Convolution
-from libtike.cupy import Convolution
+from tike.operators import Convolution
+# from libtike.cupy import Convolution
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
@@ -30,7 +30,7 @@ class TestConvolution(unittest.TestCase):
     def test_adjoint(self):
         """Check that the diffraction adjoint operator is correct."""
         np.random.seed(0)
-        scan = np.random.rand(self.ntheta, self.nscan, 2) * 127 - 15
+        scan = np.random.rand(self.ntheta, self.nscan, 2) * (127 - 15 - 1)
         original = random_complex(*self.original_shape)
         nearplane = random_complex(
             self.ntheta, self.nscan // self.fly, self.fly, 1,

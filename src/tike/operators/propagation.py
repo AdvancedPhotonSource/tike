@@ -1,6 +1,7 @@
 """Defines a free-space propagation operator based on the NumPy FFT module."""
 
 import numpy as np
+from numpy.fft import fftn, ifftn
 
 from .operator import Operator
 
@@ -47,23 +48,40 @@ class Propagation(Operator):
         self.cost = getattr(self, f'_{model}_cost')
         self.grad = getattr(self, f'_{model}_grad')
 
-    def fwd(self, nearplane, **kwargs):
+    def fwd(self, nearplane, overwrite=False, **kwargs):
         """Forward Fourier-based free-space propagation operator."""
-        assert self.nwaves == np.prod(nearplane.shape[:-2])
-        # We must cast the result of np.fft.fft2
-        # because this implementation does not preserve type.
-        return np.fft.fft2(
-            nearplane,
+        self._check_shape(nearplane)
+        if not overwrite:
+            nearplane = np.copy(nearplane)
+        shape = nearplane.shape
+        return fftn(
+            nearplane.reshape(self.nwaves, self.detector_shape,
+                                self.detector_shape),
             norm='ortho',
-        ).astype('complex64')
+            axes=(-2, -1),
+            # overwrite_x=True,
+        ).reshape(shape).astype('complex64')
 
-    def adj(self, farplane, **kwargs):
+    def adj(self, farplane, overwrite=False, **kwargs):
         """Adjoint Fourier-based free-space propagation operator."""
-        assert self.nwaves == np.prod(farplane.shape[:-2])
-        return np.fft.ifft2(
-            farplane,
+        self._check_shape(farplane)
+        if not overwrite:
+            farplane = np.copy(farplane)
+        shape = farplane.shape
+        return ifftn(
+            farplane.reshape(self.nwaves, self.detector_shape,
+                                self.detector_shape),
             norm='ortho',
-        ).astype('complex64')
+            axes=(-2, -1),
+            # overwrite_x=True,
+        ).reshape(shape).astype('complex64')
+
+    def _check_shape(self, x):
+        assert type(x) is self.xp.ndarray, type(x)
+        shape = (self.nwaves, self.detector_shape, self.detector_shape)
+        if (__debug__ and x.shape[-2:] != shape[-2:]
+                and np.prod(x.shape[:-2]) != self.nwaves):
+            raise ValueError(f'waves must have shape {shape} not {x.shape}.')
 
     # COST FUNCTIONS AND GRADIENTS --------------------------------------------
 
