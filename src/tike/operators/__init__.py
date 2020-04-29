@@ -8,7 +8,7 @@ are based. In this way, multiple solvers (e.g. ePIE, gradient descent, SIRT)
 implemented in Python can share the same core operators and can be upgraded to
 better operators in the future.
 
-All operator methods should take the array type that matches the output of
+All operator methods accept the array type that matches the output of
 their asarray() method.
 
 """

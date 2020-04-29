@@ -6,7 +6,38 @@ from .operator import Operator
 
 
 class Propagation(Operator):
-    """A base class for Fourier-based free-space propagation."""
+    """A base class for Fourier-based free-space propagation.
+
+    Take an (..., N, N) array and pads the last two dimensions with zeros until
+    it is size (..., M, M). Then apply the Fourier transform to the last two
+    dimensions.
+
+    Attributes
+    ----------
+    probe_shape : int
+        The pixel width and height of the nearplane waves.
+    detector_shape : int
+        The pixel width and height of the farplane waves.
+    nwaves : int
+        The number of waves to propagate from the nearplane to farplane.
+    model : string
+        The type of noise model to use for the cost functions.
+    cost : (data-like, farplane-like) -> float
+        The function to be minimized when solving a problem.
+    grad : (data-like, farplane-like) -> farplane-like
+        The gradient of cost.
+
+    Parameters
+    ----------
+    nearplane: (..., probe_shape, probe_shape) complex64
+        The wavefronts after exiting the object.
+    farplane: (..., detector_shape, detector_shape) complex64
+        The wavefronts hitting the detector respectively.
+    data : (ntheta, nscan, detector_shape, detector_shape) complex64
+        data is the square of the absolute value of `farplane`. `data` is the
+        intensity of the `farplane`.
+
+    """
 
     def __init__(self, nwaves, detector_shape, probe_shape, model='gaussian',
                  **kwargs):  # yapf: disable

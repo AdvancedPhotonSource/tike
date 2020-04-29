@@ -7,12 +7,46 @@ from .operator import Operator
 
 
 class Convolution(Operator):
-    """2D Convolution operator with linear interpolation."""
+    """A 2D Convolution operator with linear interpolation.
+
+    Compute the product two arrays at specific relative positions.
+
+    Attributes
+    ----------
+    nscan : int
+        The number of scan positions at each angular view.
+    fly : int
+        The number of consecutive scan positions that describe a fly scan.
+    nmode : int
+        The number of probe modes per scan position.
+    probe_shape : int
+        The pixel width and height of the (square) probe illumination.
+    nz, n : int
+        The pixel width and height of the reconstructed grid.
+    ntheta : int
+        The number of angular partitions of the data.
+
+    Parameters
+    ----------
+    psi : (ntheta, nz, n) complex64
+        The complex wavefront modulation of the object.
+    probe : complex64
+        The (ntheta, nscan // fly, fly, nmode, probe_shape, probe_shape)
+        complex illumination function.
+    nearplane: complex64
+        The (ntheta, nscan // fly, fly, nmode, probe_shape, probe_shape)
+        wavefronts after exiting the object.
+    scan : (ntheta, nscan, 2) float32
+        Coordinates of the minimum corner of the probe grid for each
+        measurement in the coordinate system of psi. Vertical coordinates
+        first, horizontal coordinates second.
+
+    """
 
     def __init__(self, probe_shape, nscan, nz, n, ntheta, nmode=1, fly=1, detector_shape=None,
                  **kwargs):  # yapf: disable
-        self.nscan = nscan
         self.probe_shape = probe_shape
+        self.nscan = nscan
         self.nz = nz
         self.n = n
         self.ntheta = ntheta

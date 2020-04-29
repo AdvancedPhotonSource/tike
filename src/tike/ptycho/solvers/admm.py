@@ -37,8 +37,6 @@ def admm(
     ----------
     Selin Aslan
 
-    .. seealso:: tike.ptycho.combined, tike.ptycho.divided
-
     """
     if nearplane is None:
         nearplane = op.diffraction.fwd(psi=psi, scan=scan, probe=probe)

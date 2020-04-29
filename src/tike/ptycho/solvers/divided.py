@@ -21,8 +21,6 @@ def divided(
     least-squares solver for generalized maximum-likelihood ptychography.
     Optics Express. 2018.
 
-    .. seealso:: tike.ptycho.combined
-
     """
     farplane = op.fwd(psi=psi, scan=scan, probe=probe)
 
