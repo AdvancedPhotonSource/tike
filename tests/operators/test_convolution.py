@@ -32,12 +32,11 @@ class TestConvolution(unittest.TestCase):
         np.random.seed(0)
         scan = np.random.rand(self.ntheta, self.nscan, 2) * (127 - 15 - 1)
         original = random_complex(*self.original_shape)
-        nearplane = random_complex(
-            self.ntheta, self.nscan // self.fly, self.fly, 1,
-            self.detector_shape, self.detector_shape)
-        kernel = random_complex(
-            self.ntheta, self.nscan // self.fly, self.fly, 1,
-            self.probe_shape, self.probe_shape)
+        nearplane = random_complex(self.ntheta, self.nscan // self.fly,
+                                   self.fly, 1, self.detector_shape,
+                                   self.detector_shape)
+        kernel = random_complex(self.ntheta, self.nscan // self.fly, self.fly,
+                                1, self.probe_shape, self.probe_shape)
 
         with Convolution(
                 ntheta=self.ntheta,
@@ -53,11 +52,7 @@ class TestConvolution(unittest.TestCase):
             nearplane = op.asarray(nearplane.astype('complex64'))
             kernel = op.asarray(kernel.astype('complex64'))
 
-            d = op.fwd(
-                scan=scan,
-                psi=original,
-                probe=kernel
-            )
+            d = op.fwd(scan=scan, psi=original, probe=kernel)
             assert nearplane.shape == d.shape
             o = op.adj(
                 nearplane=nearplane,

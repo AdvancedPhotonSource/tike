@@ -40,13 +40,9 @@ class TestPropagation(unittest.TestCase):
             nearplane = op.asarray(nearplane, dtype='complex64')
             farplane = op.asarray(farplane, dtype='complex64')
 
-            f = op.fwd(
-                nearplane=nearplane,
-            )
+            f = op.fwd(nearplane=nearplane,)
             assert f.shape == farplane.shape
-            n = op.adj(
-                farplane=farplane,
-            )
+            n = op.adj(farplane=farplane,)
             assert nearplane.shape == n.shape
             a = inner_complex(nearplane, n)
             b = inner_complex(f, farplane)

@@ -30,7 +30,7 @@ class TestPtycho(unittest.TestCase):
     def test_adjoint(self):
         """Check that the adjoint operator is correct."""
         np.random.seed(0)
-        scan = np.random.rand(*self.scan_shape).astype('float32') * (127 - 15 - 1)
+        scan = np.random.rand(*self.scan_shape).astype('float32') * (127 - 16)
         probe = random_complex(*self.probe_shape)
         original = random_complex(*self.original_shape)
         farplane = random_complex(*self.probe_shape[:-2], *self.detector_shape)
