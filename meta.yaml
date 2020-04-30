@@ -32,7 +32,6 @@ test:
     - tike.opt
     - tike.ptycho
     - tike.scan
-    - tike.tomo
     - tike.trajectory
     - tike.view
 
