@@ -75,14 +75,12 @@ def plot_complex(Z, rmin=None, rmax=None, imin=None, imax=None):
     Takes parameters rmin, rmax, imin, imax to scale the ranges of the real
     and imaginary plots.
     """
-    plt.figure(dpi=128)
     plt.subplot(1, 2, 1)
     plt.imshow(Z.real, vmin=rmin, vmax=rmax)
     cb0 = plt.colorbar(orientation='horizontal')
     plt.subplot(1, 2, 2)
     plt.imshow(Z.imag, vmin=imin, vmax=imax)
     cb1 = plt.colorbar(orientation='horizontal')
-    plt.show()
 
 
 def plot_phase(Z, amin=None, amax=None):
@@ -97,14 +95,12 @@ def plot_phase(Z, amin=None, amax=None):
             "This phase plot will be incorrect because "
             "the phase of a zero-amplitude complex number is undefined. "
             "Adding a small constant to the amplitude may help.")
-    plt.figure(dpi=128)
     plt.subplot(1, 2, 1)
     plt.imshow(amplitude, vmin=amin, vmax=amax)
     cb0 = plt.colorbar(orientation='horizontal')
     plt.subplot(1, 2, 2)
     plt.imshow(phase, vmin=-np.pi, vmax=np.pi, cmap=plt.cm.twilight)
     cb1 = plt.colorbar(orientation='horizontal')
-    plt.show()
     print(np.min(Z), np.max(Z))
 
 
@@ -112,7 +108,6 @@ def trajectory(x, y, connect=True, frame=None, pause=True, dt=1e-12):
     """Plot a 2D trajectory."""
     if frame is None:
         frame = [np.min(x), np.max(x), np.min(y), np.max(y)]
-    fig = plt.figure(figsize=(6, 6))
     ax = fig.add_subplot(111)
     ax.set_xlabel('x')
     ax.set_ylabel('y')
@@ -130,7 +125,6 @@ def trajectory(x, y, connect=True, frame=None, pause=True, dt=1e-12):
         plt.draw()
         if pause is True:
             plt.pause(dt)
-    plt.show()
 
 
 def plot_footprint(theta, v, h):

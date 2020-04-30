@@ -21,6 +21,7 @@ class TestPropagation(unittest.TestCase):
         self.nwaves = 13
         self.probe_shape = 127
         self.detector_shape = self.probe_shape * 3
+        print(Propagation)
 
     def test_adjoint(self):
         """Check that the adjoint operator is correct."""

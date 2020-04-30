@@ -7,8 +7,13 @@ library.
 
 """
 
+import logging
 import warnings
+
+from numba import njit
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 def line_search(f, x, d, step_length=1, step_shrink=0.5):
@@ -54,6 +59,7 @@ def line_search(f, x, d, step_length=1, step_shrink=0.5):
     return step_length, fxsd
 
 
+@njit(cache=True)
 def direction_dy(grad0, grad1, dir):
     """Return the Dai-Yuan search direction.
 
@@ -67,13 +73,11 @@ def direction_dy(grad0, grad1, dir):
         The previous search direction.
 
     """
-    xp = np
-    _dir = (
-        -grad1
-        + dir * xp.square(xp.linalg.norm(grad1))
-        / (xp.sum(xp.conj(dir) * (grad1 - grad0)) + 1e-32)
+    return (
+        - grad1
+        + dir * np.linalg.norm(np.ravel(grad1))**2
+        / (np.sum(np.conj(dir) * (grad1 - grad0)) + 1e-32)
     )
-    return _dir
 
 
 def conjugate_gradient(
@@ -112,10 +116,5 @@ def conjugate_gradient(
             d=dir,
         )
         x = x + gamma * dir
-        # check convergence
-        if (i + 1) % 8 == 0:
-            print("%4d, %.3e, 0, %.7e" % (
-                (i + 1), gamma,
-                cost,
-            ))  # yapf: disable
+        logger.debug("%4d, %.3e, %.7e", (i + 1), gamma, cost)
     return x, cost

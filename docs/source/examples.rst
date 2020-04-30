@@ -9,7 +9,7 @@ from other packages.
    :titlesonly:
    :hidden:
 
-   examples/admm
+   # examples/admm
    examples/ptycho
    examples/scan
-   examples/tomo
+   # examples/tomo

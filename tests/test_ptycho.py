@@ -91,28 +91,26 @@ class TestPtychoRecon(unittest.TestCase):
             os.path.join(testdir, "data/Cryptomeria_japonica-0128.png"))
         phase = plt.imread(
             os.path.join(testdir, "data/Bombus_terrestris-0128.png"))
-        original = amplitude / 255 * np.exp(1j * phase / 255 * np.pi)
+        original = amplitude * np.exp(1j * phase * np.pi)
         self.original = np.expand_dims(original, axis=0).astype('complex64')
 
         pw = 15  # probe width
         weights = tike.ptycho.gaussian(pw, rin=0.8, rout=1.0)
         probe = weights * np.exp(1j * weights * 0.2)
-        self.probe = np.expand_dims(probe, axis=0).astype('complex64')
+        self.probe = np.expand_dims(probe, (0, 1, 2, 3)).astype('complex64')
 
         v, h = np.meshgrid(
             np.linspace(0, amplitude.shape[0]-pw, 13, endpoint=True),
             np.linspace(0, amplitude.shape[0]-pw, 13, endpoint=True),
             indexing='ij'
-            )
+        )  # yapf: disable
         scan = np.stack((np.ravel(v), np.ravel(h)), axis=1)
         self.scan = np.expand_dims(scan, axis=0).astype('float32')
 
-        self.data = tike.ptycho.simulate(
-            detector_shape=pw * 2,
-            probe=self.probe,
-            scan=self.scan,
-            psi=self.original
-            )
+        self.data = tike.ptycho.simulate(detector_shape=pw * 2,
+                                         probe=self.probe,
+                                         scan=self.scan,
+                                         psi=self.original)
 
         assert self.data.shape == (1, 13 * 13, pw * 2, pw * 2)
         assert self.data.dtype == 'float32', self.data.dtype
@@ -153,29 +151,59 @@ class TestPtychoRecon(unittest.TestCase):
         np.testing.assert_array_equal(data.shape, self.data.shape)
         np.testing.assert_allclose(np.sqrt(data), np.sqrt(self.data), atol=1e-6)
 
-    # def test_consistent_cgrad(self):
-    #     """Check ptycho.cgrad for consistency."""
-    #     result = tike.ptycho.reconstruct(
-    #         data=self.data,
-    #         probe=self.probe,
-    #         scan=self.scan,
-    #         psi=np.ones_like(self.original),
-    #         algorithm='cgrad',
-    #         num_iter=10,
-    #         rho=0.5,
-    #         gamma=0.25,
-    #         reg=1+0j
-    #         )
-    #     recon_file = os.path.join(testdir, 'data/ptycho_cgrad.pickle.lzma')
-    #     if os.path.isfile(recon_file):
-    #         with lzma.open(recon_file, 'rb') as file:
-    #             standard = pickle.load(file)
-    #     else:
-    #         with lzma.open(recon_file, 'wb') as file:
-    #             pickle.dump(result['psi'], file)
-    #         raise FileNotFoundError("ptycho.cgrad standard not initialized.")
-    #     np.testing.assert_array_equal(result['psi'].shape, self.original.shape)
-    #     np.testing.assert_allclose(result['psi'], standard, atol=1e-6)
+    def error_metric(self, x):
+        """Return the error between two arrays."""
+        return np.linalg.norm(x - self.original)
+
+    def template_consistent_algorithm(self, algorithm):
+        """Check ptycho.solver.algorithm for consistency."""
+        result = {
+            'psi': np.ones_like(self.original),
+            'probe': self.probe,
+            'scan': self.scan,
+        }
+        # error0 = self.error_metric(self.error_metric(result['psi']))
+        # print('\n', error0)
+        for _ in range(5):
+            result = tike.ptycho.reconstruct(
+                **result,
+                data=self.data,
+                algorithm=algorithm,
+                num_iter=1,
+                # Only works when probe recovery is false because scaling
+                recover_probe=True,
+                recover_psi=True,
+            )
+            # error1 = self.error_metric(result['psi'])
+            # print(error1)
+            # assert error1 < error0
+            # error0 = error1
+
+        recon_file = os.path.join(testdir,
+                                  f'data/ptycho_{algorithm}.pickle.lzma')
+        if os.path.isfile(recon_file):
+            with lzma.open(recon_file, 'rb') as file:
+                standard = pickle.load(file)
+        else:
+            with lzma.open(recon_file, 'wb') as file:
+                pickle.dump(result['psi'], file)
+            raise FileNotFoundError(
+                f"ptycho '{algorithm}' standard not initialized.")
+        np.testing.assert_array_equal(result['psi'].shape, self.original.shape)
+        np.testing.assert_allclose(result['psi'], standard, atol=1e-3)
+
+    def test_consistent_combined(self):
+        """Check ptycho.solver.combined for consistency."""
+        self.template_consistent_algorithm('combined')
+
+    def test_consistent_admm(self):
+        """Check ptycho.solver.admm for consistency."""
+        self.template_consistent_algorithm('admm')
+
+    def test_consistent_divided(self):
+        """Check ptycho.solver.divided for consistency."""
+        self.template_consistent_algorithm('divided')
+
 
 if __name__ == '__main__':
     unittest.main()

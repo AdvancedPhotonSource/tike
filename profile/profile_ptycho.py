@@ -1,19 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 """Benchmark ptychography reconstruction."""
 
-import os
 import logging
 import lzma
+import os
 import pickle
 from pyinstrument import Profiler
 import unittest
+
 # These environmental variables must be set before numpy is imported anywhere.
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
+
 import numpy as np  # noqa
 import tike.ptycho  # noqa
 
@@ -38,27 +39,48 @@ class BenchmarkPtycho(unittest.TestCase):
         """Never run this test."""
         pass
 
-    def test_cgrad(self):
-        """Use pyinstrument to benchmark ptycho.grad on one core."""
+    def template_algorithm(self, algorithm):
+        """Use pyinstrument to benchmark a ptycho algorithm on one core."""
         logging.disable(logging.WARNING)
         result = {
             'psi': np.ones_like(self.original),
             'probe': self.probe,
+            'scan': self.scan,
         }
+        # Do one iteration to complete JIT compilation
+        result = tike.ptycho.reconstruct(
+            **result,
+            data=self.data,
+            algorithm=algorithm,
+            num_iter=1,
+            rtol=-1,
+        )
         self.profiler.start()
-        for i in range(50):
-            result = tike.ptycho.reconstruct(
-                **result,
-                data=self.data,
-                scan=self.scan,
-                algorithm='cgrad',
-                num_iter=1,
-                rho=0,
-                gamma=0.5
-                )
+        result = tike.ptycho.reconstruct(
+            **result,
+            data=self.data,
+            algorithm=algorithm,
+            num_iter=50,
+            rtol=-1,
+        )
         self.profiler.stop()
         print('\n')
-        print(self.profiler.output_text(unicode=True, color=True))
+        print(self.profiler.output_text(
+            unicode=True,
+            color=True,
+        ))
+
+    def test_combined(self):
+        """Use pyinstrument to benchmark the combined algorithm."""
+        self.template_algorithm('combined')
+
+    def test_divided(self):
+        """Use pyinstrument to benchmark the divided algorithm."""
+        self.template_algorithm('divided')
+
+    def test_admm(self):
+        """Use pyinstrument to benchmark the admm algorithm."""
+        self.template_algorithm('admm')
 
 
 if __name__ == '__main__':
