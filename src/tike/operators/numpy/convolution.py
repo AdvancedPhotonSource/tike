@@ -42,8 +42,8 @@ class Convolution(Operator):
 
     """
 
-    def __init__(self, probe_shape, nscan, nz, n, ntheta, nmode=1, fly=1, detector_shape=None,
-                 **kwargs):  # yapf: disable
+    def __init__(self, probe_shape, nscan, nz, n, ntheta, nmode=1, fly=1,
+                 detector_shape=None, **kwargs):  # yapf: disable
         self.probe_shape = probe_shape
         self.nscan = nscan
         self.nz = nz
@@ -51,7 +51,10 @@ class Convolution(Operator):
         self.ntheta = ntheta
         self.nmode = nmode
         self.fly = fly
-        self.detector_shape = probe_shape if detector_shape is None else detector_shape
+        if detector_shape is None:
+            self.detector_shape = probe_shape
+        else:
+            self.detector_shape = detector_shape
         self.pad = (self.detector_shape - self.probe_shape) // 2
         self.end = self.probe_shape + self.pad
 

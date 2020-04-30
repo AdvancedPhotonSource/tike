@@ -56,7 +56,7 @@ class Propagation(Operator):
         shape = nearplane.shape
         return fftn(
             nearplane.reshape(self.nwaves, self.detector_shape,
-                                self.detector_shape),
+                              self.detector_shape),
             norm='ortho',
             axes=(-2, -1),
             # overwrite_x=True,
@@ -70,7 +70,7 @@ class Propagation(Operator):
         shape = farplane.shape
         return ifftn(
             farplane.reshape(self.nwaves, self.detector_shape,
-                                self.detector_shape),
+                             self.detector_shape),
             norm='ortho',
             axes=(-2, -1),
             # overwrite_x=True,
