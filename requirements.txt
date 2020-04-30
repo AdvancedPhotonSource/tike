@@ -1,3 +1,4 @@
+cupy>=7
 importlib_resources
 matplotlib-base
 numpy>=1.17

@@ -18,6 +18,8 @@ requirements:
     - python={{ python }}
     - setuptools_scm_git_archive
   run:
+    - cupy>=7
+    - importlib_resources
     - matplotlib-base
     - numpy>=1.17
     - python={{ python }}
