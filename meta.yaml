@@ -18,8 +18,6 @@ requirements:
     - python={{ python }}
     - setuptools_scm_git_archive
   run:
-    - cupy>=7
-    - importlib_resources
     - matplotlib-base
     - numpy>=1.17
     - python={{ python }}
@@ -42,6 +40,7 @@ test:
     - tests/*
   commands:
     - pytest tests/operators/
+    - pytest tests/test_ptycho.py
 
 app:
     own_environment: True
