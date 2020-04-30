@@ -53,6 +53,7 @@ __all__ = [
     "gaussian",
     "reconstruct",
     "simulate",
+    "check_allowed_positions",
 ]
 
 import logging
@@ -106,6 +107,7 @@ def simulate(
     """Return real-valued detector counts of simulated ptychography data."""
     assert scan.ndim == 3
     assert psi.ndim == 3
+    check_allowed_positions(scan, psi, probe)
     with PtychoBackend(
             nscan=scan.shape[-2],
             probe_shape=probe.shape[-1],
@@ -146,6 +148,7 @@ def reconstruct(
         less than this amount.
 
     """
+    check_allowed_positions(scan, psi, probe)
     if algorithm in solvers.__all__:
         # Initialize an operator.
         with PtychoBackend(
@@ -187,3 +190,18 @@ def reconstruct(
     else:
         raise ValueError(
             "The '{}' algorithm is not an available.".format(algorithm))
+
+
+def check_allowed_positions(scan, psi, probe):
+    """Check that all positions are within the field of view.
+
+    Positions must be > zero and < the object shape - 1. For interpolation
+    reasons the field of view must have 1 pixel padding on the later edge.
+    """
+    int_scan = scan // 1
+    less_than_zero = int_scan < 0
+    greater_than_psi = int_scan + probe.shape[-2:] + 1 > psi.shape[-2:]
+    if np.any(less_than_zero) or np.any(greater_than_psi):
+        x = np.logical_or(less_than_zero, greater_than_psi)
+        raise ValueError("These scan positions exist outside field of view:\n"
+                         f"{scan[np.logical_or(x[..., 0], x[..., 1])]}")
