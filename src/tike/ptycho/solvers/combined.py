@@ -6,7 +6,6 @@ from tike.opt import conjugate_gradient, line_search
 
 logger = logging.getLogger(__name__)
 
-tset
 
 def combined(
     operator,
