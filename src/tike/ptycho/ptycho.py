@@ -60,6 +60,7 @@ import numpy as np
 
 from tike.operators import Ptycho
 from tike.ptycho import solvers
+from .position import check_allowed_positions
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +107,7 @@ def simulate(
     """Return real-valued detector counts of simulated ptychography data."""
     assert scan.ndim == 3
     assert psi.ndim == 3
+    check_allowed_positions(scan, psi, probe)
     with Ptycho(
             nscan=scan.shape[-2],
             probe_shape=probe.shape[-1],
@@ -150,6 +152,7 @@ def reconstruct(
         less than this amount.
 
     """
+    check_allowed_positions(scan, psi, probe)
     if algorithm in solvers.__all__:
         # Initialize an operator.
         with Ptycho(

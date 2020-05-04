@@ -5,6 +5,21 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
+def check_allowed_positions(scan, psi, probe):
+    """Check that all positions are within the field of view.
+
+    Positions must be > zero and < the object shape - 1. For interpolation
+    reasons the field of view must have 1 pixel padding on the later edge.
+    """
+    int_scan = scan // 1
+    less_than_zero = int_scan < 0
+    greater_than_psi = int_scan + probe.shape[-2:] + 1 > psi.shape[-2:]
+    if np.any(less_than_zero) or np.any(greater_than_psi):
+        x = np.logical_or(less_than_zero, greater_than_psi)
+        raise ValueError("These scan positions exist outside field of view:\n"
+                         f"{scan[np.logical_or(x[..., 0], x[..., 1])]}")
+
+
 def lstsq(a, b, xp):
     """Return the least-squares solution for a @ x = b.
 
@@ -61,15 +76,17 @@ def update_positions_pd(operator, data, psi, probe, scan,
     for m in range(probe.shape[-3]):
 
         # step 2: the partial derivatives of wavefront respect to position
-        farplane = operator.fwd(psi=psi, scan=scan, probe=probe[..., m:m+1, :, :])
+        farplane = operator.fwd(psi=psi,
+                                scan=scan,
+                                probe=probe[..., m:m + 1, :, :])
         dfarplane_dx = (farplane - operator.fwd(
             psi=psi,
-            probe=probe[..., m:m+1, :, :],
+            probe=probe[..., m:m + 1, :, :],
             scan=scan + operator.xp.array((0, dx), dtype='float32'),
         )) / dx
         dfarplane_dy = (farplane - operator.fwd(
             psi=psi,
-            probe=probe[..., m:m+1, :, :],
+            probe=probe[..., m:m + 1, :, :],
             scan=scan + operator.xp.array((dx, 0), dtype='float32'),
         )) / dx
 
