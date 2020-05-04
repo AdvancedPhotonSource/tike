@@ -116,7 +116,8 @@ def update_positions_pd(operator, data, psi, probe, scan,
     scan = scan - step * grad
     center1 = np.mean(scan, axis=-2, keepdims=True)
     scan = scan + (center0 - center1)
-    cost = operator.cost(data=data, psi=psi, scan=scan, probe=probe)
 
+    check_allowed_positions(scan, psi, probe)
+    cost = operator.cost(data=data, psi=psi, scan=scan, probe=probe)
     logger.info('%10s cost is %+12.5e', 'position', cost)
     return scan, cost
