@@ -110,8 +110,8 @@ class TestPtychoRecon(unittest.TestCase):
         self.probe = np.expand_dims(probe, (0, 1, 2, 3)).astype('complex64')
 
         v, h = np.meshgrid(
-            np.linspace(0, amplitude.shape[0]-pw-1, 13, endpoint=True),
-            np.linspace(0, amplitude.shape[0]-pw-1, 13, endpoint=True),
+            np.linspace(1, amplitude.shape[0]-pw-1, 13, endpoint=True),
+            np.linspace(1, amplitude.shape[0]-pw-1, 13, endpoint=True),
             indexing='ij'
         )  # yapf: disable
         scan = np.stack((np.ravel(v), np.ravel(h)), axis=1)
