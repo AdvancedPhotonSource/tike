@@ -1,31 +1,45 @@
-"""Defines reference implementations for all operators.
+"""Defines implementations for all operators.
 
-All of the solvers, rely on core operators including forward and adjoint
-operators. These core operators may have multiple implementations based on
-different backends e.g. CUDA, OpenCL, NumPy. The classes in this module
-prescribe an interface and reference implementation upon which specific solvers
-are based. In this way, multiple solvers (e.g. ePIE, gradient descent, SIRT)
-implemented in Python can share the same core operators and can be upgraded to
-better operators in the future.
+All of the solvers, rely on operators including forward and adjoint operators.
+In tike, forward and adjoint operators are paired as fwd and adj methods of an
+Operator.
 
-All operator methods should take NumPy arrays as inputs. This is a design
-decision which was made because clients of the operators library should not
-need to be concerned about memory locality which is necessary complexity when
-implementating operators for specialized hardware (such as GPUs). Additionally,
-we assume that GPU memory is too small to hold an entire workload at once.
+These Operators may have multiple implementations based on different libraries
+e.g. CUDA, OpenCL, NumPy. The classes in the operators.numpy module prescribe
+an interface and reference implementation upon which other operators are based.
+In this way, multiple solvers (e.g. ePIE, gradient descent, SIRT) implemented
+in Python can share the same core operators and can be upgraded to better
+operators in the future. Operator implementations are selected by setting the
+TIKE_BACKEND environment variable.
 
+All operator methods accept the array type that matches the output of their
+asarray() method.
 """
 
-from .convolution import *
-from .operator import *
-from .propagation import *
-from .ptycho import *
-from .tomo import *
+import os
+import pkg_resources
 
-__all__ = (
-    'Operator',
-    'Convolution',
-    'Propagation',
-    'Ptycho',
-    'Tomo',
-)
+
+def set_backend(requested_backend):
+    for operator in ['Ptycho', 'Convolution', 'Propagation']:
+        backend_options = {}
+        failed_import = []
+        for entry_point in pkg_resources.iter_entry_points(f'tike.{operator}'):
+            try:
+                backend_options[entry_point.name] = entry_point.load()
+            except ImportError:
+                failed_import.append(entry_point.name)
+        if requested_backend in backend_options:
+            globals()[operator] = backend_options[requested_backend]
+        else:
+            raise ImportError(
+                f"Cannot set {operator} operator as '{requested_backend}'. "
+                f"Available backends: {list(backend_options.keys())}. "
+                f"Unavailable backends: {failed_import}.")
+
+
+# Search available entry points for requested backend.
+if f"TIKE_BACKEND" in os.environ:
+    set_backend(os.environ["TIKE_BACKEND"])
+else:
+    set_backend('numpy')

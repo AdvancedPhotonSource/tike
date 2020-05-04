@@ -1,7 +1,5 @@
 import logging
 
-import numpy as np
-
 from tike.opt import conjugate_gradient, line_search
 from ..position import update_positions_pd
 
@@ -32,25 +30,27 @@ def combined(
 
 def update_probe(op, data, psi, scan, probe, num_iter=1):
     """Solve the probe recovery problem."""
+    # TODO: Cache object patche between mode updates
+    for m in range(probe.shape[-3]):
 
-    def cost_function(probe):
-        return op.cost(data, psi, scan, probe)
+        def cost_function(mode):
+            return op.cost(data, psi, scan, probe, m, mode)
 
-    def grad(probe):
-        # Use the average gradient for all probe positions
-        return np.mean(
-            op.grad_probe(data, psi, scan, probe),
-            axis=(1, 2),
-            keepdims=True,
+        def grad(mode):
+            # Use the average gradient for all probe positions
+            return op.xp.mean(
+                op.grad_probe(data, psi, scan, probe, m, mode),
+                axis=(1, 2),
+                keepdims=True,
+            )
+
+        probe[..., m:m + 1, :, :], cost = conjugate_gradient(
+            op.xp,
+            x=probe[..., m:m + 1, :, :],
+            cost_function=cost_function,
+            grad=grad,
+            num_iter=num_iter,
         )
-
-    probe, cost = conjugate_gradient(
-        None,
-        x=probe,
-        cost_function=cost_function,
-        grad=grad,
-        num_iter=num_iter,
-    )
 
     logger.info('%10s cost is %+12.5e', 'probe', cost)
     return probe, cost
@@ -66,7 +66,7 @@ def update_object(op, data, psi, scan, probe, num_iter=1):
         return op.grad(data, psi, scan, probe)
 
     psi, cost = conjugate_gradient(
-        None,
+        op.xp,
         x=psi,
         cost_function=cost_function,
         grad=grad,

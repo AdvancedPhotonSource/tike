@@ -100,8 +100,8 @@ class TestPtychoRecon(unittest.TestCase):
         self.probe = np.expand_dims(probe, (0, 1, 2, 3)).astype('complex64')
 
         v, h = np.meshgrid(
-            np.linspace(0, amplitude.shape[0]-pw, 13, endpoint=True),
-            np.linspace(0, amplitude.shape[0]-pw, 13, endpoint=True),
+            np.linspace(0, amplitude.shape[0]-pw-1, 13, endpoint=True),
+            np.linspace(0, amplitude.shape[0]-pw-1, 13, endpoint=True),
             indexing='ij'
         )  # yapf: disable
         scan = np.stack((np.ravel(v), np.ravel(h)), axis=1)
@@ -196,13 +196,13 @@ class TestPtychoRecon(unittest.TestCase):
         """Check ptycho.solver.combined for consistency."""
         self.template_consistent_algorithm('combined')
 
-    def test_consistent_admm(self):
-        """Check ptycho.solver.admm for consistency."""
-        self.template_consistent_algorithm('admm')
+    # def test_consistent_admm(self):
+    #     """Check ptycho.solver.admm for consistency."""
+    #     self.template_consistent_algorithm('admm')
 
-    def test_consistent_divided(self):
-        """Check ptycho.solver.divided for consistency."""
-        self.template_consistent_algorithm('divided')
+    # def test_consistent_divided(self):
+    #     """Check ptycho.solver.divided for consistency."""
+    #     self.template_consistent_algorithm('divided')
 
 
 if __name__ == '__main__':

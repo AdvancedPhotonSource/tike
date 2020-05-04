@@ -58,7 +58,7 @@ __all__ = [
 import logging
 import numpy as np
 
-from tike.ptycho import PtychoBackend
+from tike.operators import Ptycho
 from tike.ptycho import solvers
 
 logger = logging.getLogger(__name__)
@@ -106,7 +106,7 @@ def simulate(
     """Return real-valued detector counts of simulated ptychography data."""
     assert scan.ndim == 3
     assert psi.ndim == 3
-    with PtychoBackend(
+    with Ptycho(
             nscan=scan.shape[-2],
             probe_shape=probe.shape[-1],
             detector_shape=int(detector_shape),
@@ -114,20 +114,24 @@ def simulate(
             n=psi.shape[-1],
             ntheta=scan.shape[0],
             **kwargs,
-    ) as solver:
-        farplane = solver.fwd(
-            probe=probe,
-            scan=scan,
-            psi=psi,
-            **kwargs,
-        )
-        return np.square(np.linalg.norm(
-            farplane.reshape(solver.ntheta, solver.nscan // solver.fly, -1,
-                             detector_shape, detector_shape),
-            ord=2,
-            axis=2,
-        ))  # yapf: disable
-
+    ) as operator:
+        data = 0
+        for mode in np.split(probe, probe.shape[-3], axis=-3):
+            farplane = operator.fwd(
+                probe=operator.asarray(mode, dtype='complex64'),
+                scan=operator.asarray(scan, dtype='float32'),
+                psi=operator.asarray(psi, dtype='complex64'),
+                **kwargs,
+            )
+            data += np.square(
+                np.linalg.norm(
+                    farplane.reshape(operator.ntheta,
+                                     operator.nscan // operator.fly, -1,
+                                     detector_shape, detector_shape),
+                    ord=2,
+                    axis=2,
+                ))
+        return operator.asnumpy(data)
 
 def reconstruct(
         data,
@@ -148,7 +152,7 @@ def reconstruct(
     """
     if algorithm in solvers.__all__:
         # Initialize an operator.
-        with PtychoBackend(
+        with Ptycho(
                 nscan=scan.shape[1],
                 probe_shape=probe.shape[-1],
                 detector_shape=data.shape[-1],
@@ -157,12 +161,16 @@ def reconstruct(
                 ntheta=scan.shape[0],
                 **kwargs,
         ) as operator:
-
+            # send any array-likes to device
+            data = operator.asarray(data, dtype='float32')
             result = {
-                'psi': psi,
-                'probe': probe,
-                'scan': scan,
+                'psi': operator.asarray(psi, dtype='complex64'),
+                'probe': operator.asarray(probe, dtype='complex64'),
+                'scan': operator.asarray(scan, dtype='float32'),
             }
+            for key, value in kwargs.items():
+                if np.ndim(value) > 0:
+                    kwargs[key] = operator.asarray(value)
 
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[1:],
@@ -183,7 +191,8 @@ def reconstruct(
                         "iterations.", rtol, i)
                     break
                 cost = result['cost']
-        return result
+
+        return {k: operator.asnumpy(v) for k, v in result.items()}
     else:
         raise ValueError(
             "The '{}' algorithm is not an available.".format(algorithm))

@@ -1,6 +1,7 @@
 """Defines a free-space propagation operator based on the NumPy FFT module."""
 
 import numpy as np
+from numpy.fft import fftn, ifftn
 
 from .operator import Operator
 
@@ -47,69 +48,55 @@ class Propagation(Operator):
         self.cost = getattr(self, f'_{model}_cost')
         self.grad = getattr(self, f'_{model}_grad')
 
-    def fwd(self, nearplane, **kwargs):
+    def fwd(self, nearplane, overwrite=False, **kwargs):
         """Forward Fourier-based free-space propagation operator."""
-        assert self.nwaves == np.prod(nearplane.shape[:-2])
-        pad = (self.detector_shape - self.probe_shape) // 2
-        end = self.probe_shape + pad
-        # We copy nearplane into a larger array the shape of the farplane
-        # because this is faster than numpy.pad for older versions of NumPy.
-        padded_nearplane = np.zeros(
-            (*nearplane.shape[:-2], self.detector_shape, self.detector_shape),
-            dtype='complex64',
-        )
-        padded_nearplane[..., pad:end, pad:end] = nearplane
-        # We must cast the result of np.fft.fft2
-        # because this implementation does not preserve type.
-        return np.fft.fft2(
-            padded_nearplane,
+        self._check_shape(nearplane)
+        if not overwrite:
+            nearplane = np.copy(nearplane)
+        shape = nearplane.shape
+        return fftn(
+            nearplane.reshape(self.nwaves, self.detector_shape,
+                              self.detector_shape),
             norm='ortho',
-        ).astype('complex64')
+            axes=(-2, -1),
+            # overwrite_x=True,
+        ).reshape(shape).astype('complex64')
 
-    def adj(self, farplane, **kwargs):
+    def adj(self, farplane, overwrite=False, **kwargs):
         """Adjoint Fourier-based free-space propagation operator."""
-        assert self.nwaves == np.prod(farplane.shape[:-2])
-        pad = (self.detector_shape - self.probe_shape) // 2
-        end = self.probe_shape + pad
-        return np.fft.ifft2(
-            farplane,
+        self._check_shape(farplane)
+        if not overwrite:
+            farplane = np.copy(farplane)
+        shape = farplane.shape
+        return ifftn(
+            farplane.reshape(self.nwaves, self.detector_shape,
+                             self.detector_shape),
             norm='ortho',
-        )[..., pad:end, pad:end].astype('complex64')
+            axes=(-2, -1),
+            # overwrite_x=True,
+        ).reshape(shape).astype('complex64')
+
+    def _check_shape(self, x):
+        assert type(x) is self.xp.ndarray, type(x)
+        shape = (self.nwaves, self.detector_shape, self.detector_shape)
+        if (__debug__ and x.shape[-2:] != shape[-2:]
+                and np.prod(x.shape[:-2]) != self.nwaves):
+            raise ValueError(f'waves must have shape {shape} not {x.shape}.')
 
     # COST FUNCTIONS AND GRADIENTS --------------------------------------------
 
-    def _gaussian_cost(self, data, farplane):
-        modulus = np.linalg.norm(
-            farplane.reshape(*data.shape[:2], -1, *data.shape[2:]),
-            ord=2,
-            axis=2,
-        )
-        return np.linalg.norm(modulus - np.sqrt(data))**2
+    def _gaussian_cost(self, data, intensity):
+        return np.linalg.norm(np.ravel(np.sqrt(intensity) - np.sqrt(data)))**2
 
-    def _gaussian_grad(self, data, farplane):
-        modulus = np.linalg.norm(
-            farplane.reshape(*data.shape[:2], -1, *data.shape[2:]),
-            ord=2,
-            axis=2,
-        )
+    def _gaussian_grad(self, data, farplane, intensity, overwrite=False):
         return farplane * (
-            1 - np.sqrt(data) / (modulus + 1e-32)
+            1 - np.sqrt(data) / (np.sqrt(intensity) + 1e-32)
         )[:, :, np.newaxis, np.newaxis]  # yapf:disable
 
-    def _poisson_cost(self, data, farplane):
-        intensity = np.square(np.linalg.norm(
-            farplane.reshape(*data.shape[:2], -1, *data.shape[2:]),
-            ord=2,
-            axis=2,
-        ))
+    def _poisson_cost(self, data, intensity):
         return np.sum(intensity - data * np.log(intensity + 1e-32))
 
-    def _poisson_grad(self, data, farplane):
-        intensity = np.square(np.linalg.norm(
-            farplane.reshape(*data.shape[:2], -1, *data.shape[2:]),
-            ord=2,
-            axis=2,
-        ))
+    def _poisson_grad(self, data, farplane, intensity, overwrite=False):
         return farplane * (
             1 - data / (intensity + 1e-32)
         )[:, :, np.newaxis, np.newaxis]  # yapf: disable

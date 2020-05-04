@@ -8,4 +8,4 @@ def random_complex(*args):
 
 def inner_complex(x, y):
     """Return the complex inner product; the order of the operands matters."""
-    return np.sum(np.conj(x) * y)
+    return (x.conj() * y).sum()
