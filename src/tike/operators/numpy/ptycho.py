@@ -1,4 +1,4 @@
-"""Defines a pytchography operator based on the NumPy FFT module."""
+"""Defines a ptychography operator based on the NumPy FFT module."""
 
 import numpy as np
 
