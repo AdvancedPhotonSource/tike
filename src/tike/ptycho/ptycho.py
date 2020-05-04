@@ -177,6 +177,7 @@ def reconstruct(
                                              num_iter))
 
             cost = 0
+            print('test')
             for i in range(num_iter):
                 kwargs.update(result)
                 result = getattr(solvers, algorithm)(
