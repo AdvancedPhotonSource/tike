@@ -8,14 +8,16 @@ logger = logging.getLogger(__name__)
 def check_allowed_positions(scan, psi, probe):
     """Check that all positions are within the field of view.
 
-    Positions must be > zero and < the object shape - 1. For interpolation
-    reasons the field of view must have 1 pixel padding on the later edge.
+    The field of view must have 1 pixel buffer around the edge. i.e. positions
+    must be >= 1 and < the object shape - 1 - probe.shape. This padding is to
+    allow approximating gradients and to provide better interpolation near the
+    edges of the field of view.
     """
     int_scan = scan // 1
-    less_than_zero = int_scan < 0
+    less_than_one = int_scan < 1
     greater_than_psi = int_scan + probe.shape[-2:] + 1 > psi.shape[-2:]
-    if np.any(less_than_zero) or np.any(greater_than_psi):
-        x = np.logical_or(less_than_zero, greater_than_psi)
+    if np.any(less_than_one) or np.any(greater_than_psi):
+        x = np.logical_or(less_than_one, greater_than_psi)
         raise ValueError("These scan positions exist outside field of view:\n"
                          f"{scan[np.logical_or(x[..., 0], x[..., 1])]}")
 

@@ -5,3 +5,4 @@ environment variable.
 
 """
 from .ptycho import *
+from .position import check_allowed_positions

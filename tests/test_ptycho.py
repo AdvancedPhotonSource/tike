@@ -78,12 +78,12 @@ class TestPtychoUtils(unittest.TestCase):
         np.testing.assert_array_equal(weights, truth)
 
     def test_check_allowed_positions(self):
-        psi = np.empty((7, 3, 9))
+        psi = np.empty((7, 4, 9))
         probe = np.empty((7, 1, 1, 8, 2, 2))
-        scan = np.array([[0, 0], [0, 6.9], [0.1, 0], [0, 5.5]])
+        scan = np.array([[1, 1], [1, 6.9], [1.1, 1], [1.9, 5.5]])
         tike.ptycho.check_allowed_positions(scan, psi, probe)
 
-        for scan in np.array([[0, 7], [0, -0.1], [-.1, 0], [1, 0]]):
+        for scan in np.array([[1, 7], [1, 0.9], [0.9, 1], [1, 0]]):
             with self.assertRaises(ValueError):
                 tike.ptycho.check_allowed_positions(scan, psi, probe)
 
