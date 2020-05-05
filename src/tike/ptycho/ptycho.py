@@ -192,8 +192,8 @@ def reconstruct(
                     break
                 cost = result['cost']
 
-            result['psi'], result['probe'] = _rescale_obj_probe(
-                operator, data, result['psi'], result['scan'], result['probe'])
+                result['psi'], result['probe'] = _rescale_obj_probe(
+                    result['psi'], result['probe'])
 
         return {k: operator.asnumpy(v) for k, v in result.items()}
     else:
@@ -201,16 +201,10 @@ def reconstruct(
             "The '{}' algorithm is not an available.".format(algorithm))
 
 
-def _rescale_obj_probe(operator, data, psi, scan, probe):
+def _rescale_obj_probe(psi, probe):
     """Keep the object amplitude around 1 by scaling by a constant"""
-    intensity = operator._compute_intensity(data, psi, scan, probe)
-
-    rescale = (np.linalg.norm(np.ravel(np.sqrt(intensity))) /
-               np.linalg.norm(np.ravel(np.sqrt(data))))
-
+    rescale = np.mean(np.abs(psi))
     logger.info("object and probe rescaled by %f", rescale)
-
-    probe /= rescale
-    psi *= rescale
-
+    probe *= rescale
+    psi /= rescale
     return psi, probe
