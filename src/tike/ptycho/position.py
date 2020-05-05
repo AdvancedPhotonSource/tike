@@ -25,7 +25,7 @@ def check_allowed_positions(scan, psi, probe):
                          f"{scan[np.logical_or(x[..., 0], x[..., 1])]}")
 
 
-def lstsq(a, b, xp):
+def _lstsq(a, b, xp):
     """Return the least-squares solution for a @ x = b.
 
     This implementation, unlike np.linalg.lstsq, allows a stack of matricies to
@@ -106,7 +106,7 @@ def update_positions_pd(operator, data, psi, probe, scan,
     dI_dxdy = np.stack((dI_dy.reshape(*dI.shape), dI_dx.reshape(*dI.shape)),
                        axis=-1)
 
-    grad = lstsq(a=dI_dxdy, b=dI, xp=operator.xp)
+    grad = _lstsq(a=dI_dxdy, b=dI, xp=operator.xp)
 
     logger.debug('grad max: %+12.5e min: %+12.5e', np.max(grad), np.min(grad))
     logger.debug('step size: %3.2g', step)

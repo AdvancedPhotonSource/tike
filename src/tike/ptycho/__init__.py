@@ -1,6 +1,6 @@
 """Provide ptychography solvers and tooling.
 
-Select a non-default Ptycho implementation by setting the TIKE_PTYCHO
+Select a non-default Ptycho implementation by setting the TIKE_BACKEND
 environment variable.
 
 """

@@ -1,4 +1,4 @@
-from .. import numpy
+from tike.operators import numpy
 from .convolution import Convolution
 from .propagation import Propagation
 from .operator import Operator
