@@ -42,19 +42,19 @@ def divided(
 
         if recover_psi:
             psi, cost = update_object(op,
-                                    nearplane,
-                                    probe[..., m:m + 1, :, :],
-                                    scan,
-                                    psi,
-                                    num_iter=cg_iter)
+                                      nearplane,
+                                      probe[..., m:m + 1, :, :],
+                                      scan,
+                                      psi,
+                                      num_iter=cg_iter)
 
         if recover_probe:
             probe, cost = update_probe(op,
-                                    nearplane,
-                                    probe[..., m:m + 1, :, :],
-                                    scan,
-                                    psi,
-                                    num_iter=cg_iter)
+                                       nearplane,
+                                       probe[..., m:m + 1, :, :],
+                                       scan,
+                                       psi,
+                                       num_iter=cg_iter)
 
     if recover_positions:
         scan, cost = update_positions_pd(op, data, psi, probe, scan)
