@@ -6,6 +6,7 @@ setuptools.setup(
     name='tike',
     packages=setuptools.find_packages('src'),
     package_dir={'': 'src'},
+    include_package_data=True,
     setup_requires=['setuptools_scm', 'setuptools_scm_git_archive'],
     use_scm_version=True,
     author='Doga Gursoy',
@@ -22,13 +23,21 @@ setuptools.setup(
         'Natural Language :: English',
         'Operating System :: OS Independent',
         'Programming Language :: Python :: 3 :: Only',
-        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Topic :: Scientific/Engineering',
         ],
     entry_points={
-        'tike.PtychoBackend': [
-            'numpyfft = tike.operators:Ptycho',
+        'tike.Ptycho': [
+            'cupy = tike.operators.cupy:Ptycho',
+            'numpy = tike.operators.numpy:Ptycho',
+        ],
+        'tike.Convolution': [
+            'cupy = tike.operators.cupy:Convolution',
+            'numpy = tike.operators.numpy:Convolution',
+        ],
+        'tike.Propagation': [
+            'cupy = tike.operators.cupy:Propagation',
+            'numpy = tike.operators.numpy:Propagation',
         ],
     },
 )

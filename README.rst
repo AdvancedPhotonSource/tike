@@ -13,10 +13,15 @@ The aim of Tike is to provide fast and accurate implementations of a wide
 variety of reconstruction algorithms, and to provide a common platform for the
 synchrotron research community.
 
-********
-Features
-********
+**************************
+Current Features (5d26a94)
+**************************
 
-- Simulation of scanning geometries
-- 3D object reconstruction from ptychography data
-- Algorithms for imaging thick objects
+Ptychography
+============
+
+- single-energy
+- multiple scan positions per diffraction pattern (fly-scans)
+- multiple incoherent modes per diffraction pattern (multi-mode probes)
+- one shared (multi-modal) probe per angular view
+

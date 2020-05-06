@@ -47,6 +47,14 @@ class BenchmarkPtycho(unittest.TestCase):
             'probe': self.probe,
             'scan': self.scan,
         }
+        # Do one iteration to complete JIT compilation
+        result = tike.ptycho.reconstruct(
+            **result,
+            data=self.data,
+            algorithm=algorithm,
+            num_iter=1,
+            rtol=-1,
+        )
         self.profiler.start()
         result = tike.ptycho.reconstruct(
             **result,
