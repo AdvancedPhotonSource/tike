@@ -1,5 +1,6 @@
 from abc import ABC
 
+import numpy
 
 class Operator(ABC):
     """A base class for Operators.
@@ -10,7 +11,25 @@ class Operator(ABC):
     Operators may be composed into other operators and inherited from to
     provide additional implementations to the ones provided in this library.
 
+    Attributes
+    ----------
+    xp : module
+        Provides the array implementation that this operator uses i.e. NumPy,
+        Cupy
+
     """
+    xp = numpy
+
+    @classmethod
+    def asarray(cls, *args, **kwargs):
+        """Convert NumPy arrays into the array-type of this operator."""
+        return numpy.asarray(*args, **kwargs)
+
+    @classmethod
+    def asnumpy(cls, *args, **kwargs):
+        """Convert the arrays of this operator into NumPy arrays."""
+        return numpy.asarray(*args, **kwargs)
+
     def __enter__(self):
         """Return self at start of a with-block."""
         # Call the __enter__ methods for any composed operators.

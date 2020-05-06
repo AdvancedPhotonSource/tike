@@ -19,9 +19,7 @@ requirements:
     - setuptools_scm_git_archive
   run:
     - matplotlib-base
-    - mpi4py  # [not win]
-    - numba
-    - numpy
+    - numpy>=1.17
     - python={{ python }}
     - setuptools
 
@@ -34,7 +32,6 @@ test:
     - tike.opt
     - tike.ptycho
     - tike.scan
-    - tike.tomo
     - tike.trajectory
     - tike.view
 
@@ -42,6 +39,7 @@ test:
     - tests/*
   commands:
     - pytest tests/operators/
+    - pytest tests/test_ptycho.py
 
 app:
     own_environment: True

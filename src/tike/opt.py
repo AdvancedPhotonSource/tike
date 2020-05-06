@@ -10,9 +10,6 @@ library.
 import logging
 import warnings
 
-from numba import njit
-import numpy as np
-
 logger = logging.getLogger(__name__)
 
 
@@ -59,8 +56,7 @@ def line_search(f, x, d, step_length=1, step_shrink=0.5):
     return step_length, fxsd
 
 
-@njit(cache=True)
-def direction_dy(grad0, grad1, dir):
+def direction_dy(xp, grad0, grad1, dir):
     """Return the Dai-Yuan search direction.
 
     Parameters
@@ -75,8 +71,8 @@ def direction_dy(grad0, grad1, dir):
     """
     return (
         - grad1
-        + dir * np.linalg.norm(np.ravel(grad1))**2
-        / (np.sum(np.conj(dir) * (grad1 - grad0)) + 1e-32)
+        + dir * xp.linalg.norm(grad1.ravel())**2
+        / (xp.sum(dir.conj() * (grad1 - grad0)) + 1e-32)
     )
 
 
@@ -108,7 +104,7 @@ def conjugate_gradient(
         if i == 0:
             dir = -grad1
         else:
-            dir = direction_dy(grad0, grad1, dir)
+            dir = direction_dy(array_module, grad0, grad1, dir)
         grad0 = grad1
         gamma, cost = line_search(
             f=cost_function,

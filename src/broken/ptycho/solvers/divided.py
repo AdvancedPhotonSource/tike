@@ -1,7 +1,5 @@
 import logging
 
-import numpy as np
-
 from tike.opt import conjugate_gradient, line_search
 from ..position import update_positions_pd
 
@@ -59,7 +57,7 @@ def update_phase(op, data, farplane, num_iter=1):
         return op.propagation.cost(data, farplane)
 
     farplane, cost = conjugate_gradient(
-        None,
+        op.xp,
         x=farplane,
         cost_function=cost_function,
         grad=grad,
@@ -73,23 +71,24 @@ def update_phase(op, data, farplane, num_iter=1):
 
 def update_probe(op, nearplane, probe, scan, psi, num_iter=1):
     """Solve the nearplane single probe recovery problem."""
+    xp = op.xp
     obj_patches = op.diffraction.fwd(psi=psi,
                                      scan=scan,
-                                     probe=np.ones_like(probe))
+                                     probe=xp.ones_like(probe))
 
     def cost_function(probe):
-        return np.linalg.norm(probe * obj_patches - nearplane)**2
+        return xp.linalg.norm(xp.ravel(probe * obj_patches - nearplane))**2
 
     def grad(probe):
         # Use the average gradient for all probe positions
-        return np.mean(
-            np.conj(obj_patches) * (probe * obj_patches - nearplane),
+        return xp.mean(
+            xp.conj(obj_patches) * (probe * obj_patches - nearplane),
             axis=(1, 2),
             keepdims=True,
         )
 
     probe, cost = conjugate_gradient(
-        None,
+        op.xp,
         x=probe,
         cost_function=cost_function,
         grad=grad,
@@ -102,10 +101,13 @@ def update_probe(op, nearplane, probe, scan, psi, num_iter=1):
 
 def update_object(op, nearplane, probe, scan, psi, num_iter=1):
     """Solve the nearplane object recovery problem."""
+    xp = op.xp
 
     def cost_function(psi):
-        return np.linalg.norm(
-            op.diffraction.fwd(psi=psi, scan=scan, probe=probe) - nearplane)**2
+        return xp.linalg.norm(
+            xp.ravel(
+                op.diffraction.fwd(psi=psi, scan=scan, probe=probe) -
+                nearplane))**2
 
     def grad(psi):
         return op.diffraction.adj(
@@ -116,7 +118,7 @@ def update_object(op, nearplane, probe, scan, psi, num_iter=1):
         )
 
     psi, cost = conjugate_gradient(
-        None,
+        op.xp,
         x=psi,
         cost_function=cost_function,
         grad=grad,
