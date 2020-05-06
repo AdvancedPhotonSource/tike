@@ -38,7 +38,7 @@ def divided(
                                       farplane,
                                       intensity,
                                       num_iter=cg_iter)
-        nearplane = op.propagation.adj(farplane)
+        nearplane = op.propagation.adj(farplane, overwrite=True)
 
         if recover_psi:
             psi, cost = update_object(op,
