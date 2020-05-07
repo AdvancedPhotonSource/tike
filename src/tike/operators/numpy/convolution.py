@@ -183,8 +183,8 @@ def _patch_iterator(scan, probe_shape, psi_shape, patch_op, output, input):
             if (ind[0] < 0 or ind[1] < 0
                     or psi_shape[-2] <= ind[0] + probe_shape
                     or psi_shape[-1] <= ind[1] + probe_shape):
-                raise ValueError("Scan position is out of bounds! %d, %d",
-                                 ind[0], ind[1])
+                raise ValueError(
+                    f"Scan position is out of bounds! {ind[0]}, {ind[1]}")
             assert rem[0] >= 0 and rem[1] >= 0
             w = [1 - rem[0], rem[0]]  # lengths of the pixels
             l = [1 - rem[1], rem[1]]

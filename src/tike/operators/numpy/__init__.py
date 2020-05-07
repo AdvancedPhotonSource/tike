@@ -11,10 +11,10 @@ from .propagation import *
 from .ptycho import *
 from .tomo import *
 
-# __all__ = (
-#     'Operator',
-#     'Convolution',
-#     'Propagation',
-#     'Ptycho',
-#     'Tomo',
-# )
+__all__ = (
+    'Convolution',
+    'Operator',
+    'Propagation',
+    'Ptycho',
+    # 'Tomo',
+)

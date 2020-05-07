@@ -2,15 +2,13 @@ import cupy as cp
 from cupyx.scipy.fft import fftn, ifftn
 from cupyx.scipy.fftpack import get_fft_plan
 
-from .. import numpy
+from tike.operators import numpy
 from .operator import Operator
 
 
-# TODO: Check that in-place FFTs for view of contiguous arrays are fixed
-# for cupy>=7.4. See cupy#3079
-
 class Propagation(Operator, numpy.Propagation):
     """A Fourier-based free-space propagation using CuPy."""
+
     def __enter__(self):
         farplane = cp.empty(
             (self.nwaves, self.detector_shape, self.detector_shape),

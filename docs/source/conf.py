@@ -118,6 +118,9 @@ htmlhelp_basename = project+'doc'
 # -- Options for autodoc output ------------------------------------------
 
 autodoc_mock_imports = [
+    'cupy',
+    'cupyx',
+    'importlib_resources',
     'matplotlib',
     'matplotlib.pyplot',
     'mpi4py',

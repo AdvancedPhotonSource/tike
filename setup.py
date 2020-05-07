@@ -27,6 +27,10 @@ setuptools.setup(
         'Topic :: Scientific/Engineering',
         ],
     entry_points={
+        'tike.Operator': [
+            'cupy = tike.operators.cupy:Operator',
+            'numpy = tike.operators.numpy:Operator',
+        ],
         'tike.Ptycho': [
             'cupy = tike.operators.cupy:Ptycho',
             'numpy = tike.operators.numpy:Ptycho',
