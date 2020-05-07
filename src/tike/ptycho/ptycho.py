@@ -182,6 +182,10 @@ def reconstruct(
 
             cost = 0
             for i in range(num_iter):
+                result['probe'] = _rescale_obj_probe(operator, data,
+                                                     result['psi'],
+                                                     result['scan'],
+                                                     result['probe'])
                 kwargs.update(result)
                 result = getattr(solvers, algorithm)(
                     operator,
@@ -195,11 +199,6 @@ def reconstruct(
                         "iterations.", rtol, i)
                     break
                 cost = result['cost']
-
-                result['probe'] = _rescale_obj_probe(operator, data,
-                                                     result['psi'],
-                                                     result['scan'],
-                                                     result['probe'])
 
         return {k: operator.asnumpy(v) for k, v in result.items()}
     else:
