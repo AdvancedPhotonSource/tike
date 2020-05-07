@@ -182,6 +182,10 @@ def reconstruct(
 
             cost = 0
             for i in range(num_iter):
+                result['probe'] = _rescale_obj_probe(operator, data,
+                                                     result['psi'],
+                                                     result['scan'],
+                                                     result['probe'])
                 kwargs.update(result)
                 result = getattr(solvers, algorithm)(
                     operator,
@@ -200,3 +204,17 @@ def reconstruct(
     else:
         raise ValueError(
             "The '{}' algorithm is not an available.".format(algorithm))
+
+
+def _rescale_obj_probe(operator, data, psi, scan, probe):
+    """Keep the object amplitude around 1 by scaling probe by a constant."""
+    intensity = operator._compute_intensity(data, psi, scan, probe)
+
+    rescale = (np.linalg.norm(np.ravel(np.sqrt(data))) /
+               np.linalg.norm(np.ravel(np.sqrt(intensity))))
+
+    logger.info("object and probe rescaled by %f", rescale)
+
+    probe *= rescale
+
+    return probe
