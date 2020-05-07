@@ -1,45 +1,45 @@
 package:
   name: tike
-  version: 0.4.1
+  version: alpha
 
 source:
   path: .
 
 build:
   number: 0
+  noarch: python
   script:
-    - "{{ PYTHON }} build.py"
-    - "{{ PYTHON }} -m pip install . --no-deps --ignore-installed --no-cache-dir -vvv"
+    - "{{ PYTHON }} -m pip install . --no-deps --ignore-installed
+      --no-cache-dir --no-binary :all: -vvv"
 
 requirements:
-  build:
-    - {{ compiler('c') }}  # [not win]
   host:
-    - Make  # [win]
-    - MinGW  # [win]
     - pip
     - python={{ python }}
-    - setuptools
-    - setuptools_scm
+    - setuptools_scm_git_archive
   run:
-    - futures  # [py2k]
-    - numpy
-    - matplotlib
-    - openmp
+    - matplotlib-base
+    - numpy>=1.17
     - python={{ python }}
-    - six
-    - 'pillow>5.2'  # [win]
-    - tomopy
+    - setuptools
 
 test:
   requires:
-    - nose
+    - pytest
   imports:
     - tike
+    - tike.operators
+    - tike.opt
+    - tike.ptycho
+    - tike.scan
+    - tike.trajectory
+    - tike.view
+
   source_files:
-    - test*
+    - tests/*
   commands:
-    - nosetests
+    - pytest tests/operators/
+    - pytest tests/test_ptycho.py
 
 app:
     own_environment: True

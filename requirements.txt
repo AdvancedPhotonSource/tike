@@ -1,7 +1,7 @@
-numpy
-matplotlib
-openmp
-python
-scipy
-six
-"tomopy>=1.2"
+cupy>=7
+importlib_resources
+matplotlib-base
+numpy>=1.17
+python>=3.6
+setuptools
+setuptools_scm_git_archive
