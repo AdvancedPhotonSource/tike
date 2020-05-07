@@ -26,14 +26,10 @@ def add_modes_random_phase(probe, nmodes):
             all_modes[..., m, :, :] = probe[..., m, :, :]
         else:
             # randomly shift the first mode
-            xshift = np.exp(-2j * np.pi * ((np.arange(0, pw) / pw + 1 /
-                                            (pw * 2)) - 0.5) *
-                            np.random.rand())
-            yshift = np.exp(-2j * np.pi * ((np.arange(0, pw) / pw + 1 /
-                                            (pw * 2)) - 0.5) *
-                            np.random.rand())
-            all_modes[..., m, :, :] = (probe[..., 0, :, :] * xshift[None] *
-                                       yshift[:, None])
+            shift = np.exp(-2j * np.pi * (np.random.rand(2, 1) - 0.5) *
+                           ((np.arange(0, pw) + 0.5) / pw - 0.5))
+            all_modes[..., m, :, :] = (probe[..., 0, :, :] * shift[0][None] *
+                                       shift[1][:, None])
     return all_modes
 
 

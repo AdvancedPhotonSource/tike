@@ -77,6 +77,16 @@ class TestPtychoUtils(unittest.TestCase):
                 truth = pickle.dump(weights, file)
         np.testing.assert_array_equal(weights, truth)
 
+    def test_check_allowed_positions(self):
+        psi = np.empty((7, 4, 9))
+        probe = np.empty((7, 1, 1, 8, 2, 2))
+        scan = np.array([[1, 1], [1, 6.9], [1.1, 1], [1.9, 5.5]])
+        tike.ptycho.check_allowed_positions(scan, psi, probe)
+
+        for scan in np.array([[1, 7], [1, 0.9], [0.9, 1], [1, 0]]):
+            with self.assertRaises(ValueError):
+                tike.ptycho.check_allowed_positions(scan, psi, probe)
+
 
 class TestPtychoRecon(unittest.TestCase):
     """Test various ptychography reconstruction methods for consistency."""
@@ -100,8 +110,8 @@ class TestPtychoRecon(unittest.TestCase):
         self.probe = np.expand_dims(probe, (0, 1, 2, 3)).astype('complex64')
 
         v, h = np.meshgrid(
-            np.linspace(0, amplitude.shape[0]-pw-1, 13, endpoint=True),
-            np.linspace(0, amplitude.shape[0]-pw-1, 13, endpoint=True),
+            np.linspace(1, amplitude.shape[0]-pw-1, 13, endpoint=True),
+            np.linspace(1, amplitude.shape[0]-pw-1, 13, endpoint=True),
             indexing='ij'
         )  # yapf: disable
         scan = np.stack((np.ravel(v), np.ravel(h)), axis=1)

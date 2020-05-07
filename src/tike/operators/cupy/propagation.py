@@ -2,7 +2,7 @@ import cupy as cp
 from cupyx.scipy.fft import fftn, ifftn
 from cupyx.scipy.fftpack import get_fft_plan
 
-from .. import numpy
+from tike.operators import numpy
 from .operator import Operator
 
 

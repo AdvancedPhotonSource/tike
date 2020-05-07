@@ -19,9 +19,21 @@ asarray() method.
 import os
 import pkg_resources
 
+from tike.operators import numpy as default
+default_backend = "numpy"
 
-def set_backend(requested_backend):
-    for operator in ['Ptycho', 'Convolution', 'Propagation']:
+
+def _set_backend(requested_backend):
+    """Set the operators to the requested_backend.
+
+    Try loading all of the entry points. If the requested_backend fails,
+    provide the reason why and show the backends that did not fail.
+    """
+    for operator in ['Operator', 'Ptycho', 'Convolution', 'Propagation']:
+        if requested_backend == default_backend:
+            globals()[operator] = getattr(default, operator)
+            continue
+
         backend_options = {}
         failed_import = []
         for entry_point in pkg_resources.iter_entry_points(f'tike.{operator}'):
@@ -40,6 +52,6 @@ def set_backend(requested_backend):
 
 # Search available entry points for requested backend.
 if f"TIKE_BACKEND" in os.environ:
-    set_backend(os.environ["TIKE_BACKEND"])
+    _set_backend(os.environ["TIKE_BACKEND"])
 else:
-    set_backend('numpy')
+    _set_backend(default_backend)
