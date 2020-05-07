@@ -15,9 +15,10 @@ def check_allowed_positions(scan, psi, probe):
     """
     int_scan = scan // 1
     less_than_one = int_scan < 1
-    greater_than_psi = np.logical_or(
-        int_scan[..., -2] >= psi.shape[-2] - probe.shape[-2],
-        int_scan[..., -1] >= psi.shape[-1] - probe.shape[-1],
+    greater_than_psi = np.stack(
+        (int_scan[..., -2] >= psi.shape[-2] - probe.shape[-2],
+         int_scan[..., -1] >= psi.shape[-1] - probe.shape[-1]),
+        -1,
     )
     if np.any(less_than_one) or np.any(greater_than_psi):
         x = np.logical_or(less_than_one, greater_than_psi)
