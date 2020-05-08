@@ -43,5 +43,9 @@ setuptools.setup(
             'cupy = tike.operators.cupy:Propagation',
             'numpy = tike.operators.numpy:Propagation',
         ],
+        'tike.Lamino': [
+            'cupy = tike.operators.cupy:Lamino',
+            'numpy = tike.operators.numpy:Lamino',
+        ],
     },
 )

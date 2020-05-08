@@ -9,12 +9,14 @@ from .convolution import *
 from .operator import *
 from .propagation import *
 from .ptycho import *
-from .tomo import *
+#from .tomo import *
+from .lamino import *
 
 __all__ = (
     'Convolution',
     'Operator',
     'Propagation',
     'Ptycho',
-    # 'Tomo',
+    'Lamino',
+    # 'Tomo',    
 )

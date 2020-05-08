@@ -29,7 +29,7 @@ def _set_backend(requested_backend):
     Try loading all of the entry points. If the requested_backend fails,
     provide the reason why and show the backends that did not fail.
     """
-    for operator in ['Operator', 'Ptycho', 'Convolution', 'Propagation']:
+    for operator in ['Operator', 'Ptycho', 'Convolution', 'Propagation', 'Lamino']:
         if requested_backend == default_backend:
             globals()[operator] = getattr(default, operator)
             continue
