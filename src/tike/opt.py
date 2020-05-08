@@ -50,7 +50,7 @@ def line_search(f, x, d, step_length=1, step_shrink=0.5, linear=None):
 
     """
     assert step_shrink > 0 and step_shrink < 1
-    linear = lambda x: x if linear is None else linear
+    linear = (lambda x: x) if linear is None else linear
     m = 0  # Some tuning parameter for termination
     # Save cache function calls instead of computing them many times
     lx = linear(x)
