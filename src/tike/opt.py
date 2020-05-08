@@ -13,13 +13,21 @@ import warnings
 logger = logging.getLogger(__name__)
 
 
-def line_search(f, x, d, step_length=1, step_shrink=0.5):
-    """Return a new `step_length` using a backtracking line search.
+def line_search(f, x, d, step_length=1, step_shrink=0.5, linear=None):
+    """Perform a backtracking line search for a partially-linear cost-function.
+
+    For cost functions composed of a non-linear part, f, and a linear part, l,
+    such that the cost = f(l(x)), a backtracking line search computations may
+    be reduced in exchange for memory because l(x + γ * d) = l(x) + γ * l(d).
+    For completely non-linear functions, the linear part is just the identity
+    function.
 
     Parameters
     ----------
-    f : function(x)
-        The function being optimized.
+    f : function(linear(x))
+        The non-linear part of the function being optimized.
+    linear : function(x), optional
+        The linear part of the function being optimized.
     x : vector
         The current position.
     d : vector
@@ -42,11 +50,15 @@ def line_search(f, x, d, step_length=1, step_shrink=0.5):
 
     """
     assert step_shrink > 0 and step_shrink < 1
+    linear = lambda x: x if linear is None else linear
     m = 0  # Some tuning parameter for termination
-    fx = f(x)  # Save the result of f(x) instead of computing it many times
+    # Save cache function calls instead of computing them many times
+    lx = linear(x)
+    ld = linear(d)
+    fx = f(lx)
     # Decrease the step length while the step increases the cost function
     while True:
-        fxsd = f(x + step_length * d)
+        fxsd = f(lx + step_length * ld)
         if fxsd <= fx + step_shrink * m:
             break
         step_length *= step_shrink
@@ -69,19 +81,17 @@ def direction_dy(xp, grad0, grad1, dir):
         The previous search direction.
 
     """
-    return (
-        - grad1
-        + dir * xp.linalg.norm(grad1.ravel())**2
-        / (xp.sum(dir.conj() * (grad1 - grad0)) + 1e-32)
-    )
+    return (-grad1 + dir * xp.linalg.norm(grad1.ravel())**2 /
+            (xp.sum(dir.conj() * (grad1 - grad0)) + 1e-32))
 
 
 def conjugate_gradient(
-        array_module,
-        x,
-        cost_function,
-        grad,
-        num_iter=1,
+    array_module,
+    x,
+    cost_function,
+    grad,
+    num_iter=1,
+    linear_function=None,
 ):
     """Use conjugate gradient to estimate `x`.
 
@@ -108,6 +118,7 @@ def conjugate_gradient(
         grad0 = grad1
         gamma, cost = line_search(
             f=cost_function,
+            linear=linear_function,
             x=x,
             d=dir,
         )
