@@ -1,6 +1,7 @@
 from tike.operators import numpy
 from .operator import Operator
 from .usfft import eq2us, us2eq
+
 import numpy as np
 
 
@@ -47,9 +48,12 @@ class Lamino(Operator):
         # USFFT from equally-spaced grid to unequally-spaced grid
         F = eq2us(u, self.xi, self.n, self.eps, self.xp).reshape(
             [self.ntheta, self.n, self.n])
+        
         # Inverse 2D FFT
+        # cupy converts result of fft,fftshift to complex128???        
         data = self.xp.fft.fftshift(self.xp.fft.ifft2(self.xp.fft.fftshift(
             F, axes=(1, 2)), axes=(1, 2), norm="ortho"), axes=(1, 2))
+        data=data.astype("complex64")
         return data
 
     def adj(self, data, **kwargs):
@@ -61,24 +65,24 @@ class Lamino(Operator):
         u = us2eq(F, -self.xi, self.n, self.eps, self.xp)
         return u
 
-    def cost(self, data, u):
+    def cost(self, data, obj):
         "Cost function for the least-squres laminography problem"
-        return self.xp.linalg.norm(self.fwd(u)-data)**2
+        return self.xp.linalg.norm(self.fwd(obj)-data)**2
 
-    def grad(self, data, psi, scan, probe):
+    def grad(self, data, obj):
         "Gradient for the least-squares laminography problem"
-        Lu = self.fwd(u)
-        grad = self.adj(Lu-data)/(self.ntheta*self.n**3)
+        Lobj = self.fwd(obj)
+        grad = self.adj(Lobj-data)/(self.ntheta*self.n**3)
         return grad
 
     def _make_grids(self, theta):
         """ Initialize unequally-spaced points in the frequency space that are used 
         for computing fwd and adj laminography operators by using USFFT"""
         [ku, kv] = self.xp.mgrid[-self.n//2: self.n//2, -self.n//2: self.n//2]/self.n
-        ku = ku.flatten()
-        kv = kv.flatten()
+        ku = ku.flatten().astype('float32')
+        kv = kv.flatten().astype('float32')
         xi = self.xp.zeros([self.ntheta, self.n*self.n, 3],
-                           dtype=self.xp.float32)
+                           dtype='float32')
         for itheta in range(self.ntheta):
             xi[itheta, :, 0] = ku*self.xp.cos(theta[itheta]) + \
                 kv*self.xp.sin(theta[itheta])*self.xp.cos(self.tilt)
