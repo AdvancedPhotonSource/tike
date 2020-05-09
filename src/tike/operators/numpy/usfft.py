@@ -121,7 +121,7 @@ def us2eq(f, x, n, eps, xp):
                 ids = n+ell2+i2+(2*n+2*m)*(n+ell1+i1) + \
                     (2*n+2*m)*(2*n+2*m)*(n+ell0+i0)
                 vals = f*kera
-                # accumulate by indexes (with possible index intersections), 
+                # accumulate by indexes (with possible index intersections),
                 # TODO acceleration of bincount!!
                 vals = xp.bincount(ids, weights=vals.real) + \
                     1j*xp.bincount(ids, weights=vals.imag)
