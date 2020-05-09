@@ -6,13 +6,12 @@ def eq2us(f, x, n, eps, xp):
         eps - accuracy of computing USFFT
     """
     # parameters for the USFFT transform
-    eps = xp.float32(eps)
     mu = -xp.log(eps)/(2*n**2)
     Te = 1/xp.pi*xp.sqrt(-mu*xp.log(eps)+(mu*n)**2/4)
     m = xp.int(xp.ceil(2*n*Te))
 
     # smearing kernel (ker)
-    ker = xp.zeros((2*n, 2*n, 2*n),dtype='float32')
+    ker = xp.zeros((2*n, 2*n, 2*n), dtype='float32')
     [xeq0, xeq1, xeq2] = xp.mgrid[-n//2:n//2, -n//2:n//2, -n//2:n//2]
     ker[n//2:n//2+n, n//2:n//2+n, n//2:n//2 +
         n] = xp.exp(-mu*xeq0**2-mu*xeq1**2-mu*xeq2**2)
@@ -34,7 +33,7 @@ def eq2us(f, x, n, eps, xp):
 
     # smearing operation (F=Fe*kera), gathering
     F = xp.zeros(x.shape[0], dtype="complex64")
-    
+
     # Sequential approach (slow)
     # for k in range(x.shape[0]):
     #     F[k] = 0
@@ -53,20 +52,20 @@ def eq2us(f, x, n, eps, xp):
     ell0 = ((2*n*x[:, 0])//1).astype(xp.int32)
     ell1 = ((2*n*x[:, 1])//1).astype(xp.int32)
     ell2 = ((2*n*x[:, 2])//1).astype(xp.int32)
-    c = xp.sqrt(xp.pi/mu)**3
-    cc = xp.pi**2/mu
+    cons = [xp.sqrt(xp.pi/mu)**3, xp.pi**2/mu]
+
     for i0 in range(2*m):
-        delta0 = (ell0-m+i0).astype('float32')/(2*n)-x[:, 0]                
+        delta0 = (ell0-m+i0).astype('float32')/(2*n)-x[:, 0]
         for i1 in range(2*m):
-            delta1 = (ell1-m+i1).astype('float32')/(2*n)-x[:, 1]                
+            delta1 = (ell1-m+i1).astype('float32')/(2*n)-x[:, 1]
             for i2 in range(2*m):
-                delta2 = (ell2-m+i2).astype('float32')/(2*n)-x[:, 2]                
-                
-                kera = c*xp.exp(-cc*(delta0**2+delta1**2+delta2**2))                                                                                   
+                delta2 = (ell2-m+i2).astype('float32')/(2*n)-x[:, 2]
+
+                kera = cons[0]*xp.exp(-cons[1]*(delta0**2+delta1**2+delta2**2))
                 ids = n+ell2+i2+(2*n+2*m)*(n+ell1+i1) + \
                     (2*n+2*m)*(2*n+2*m)*(n+ell0+i0)
                 F += Fe[ids]*kera
-            
+
     return F
 
 
@@ -108,34 +107,36 @@ def us2eq(f, x, n, eps, xp):
     ell0 = ((2*n*x[:, 0])//1).astype(xp.int32)
     ell1 = ((2*n*x[:, 1])//1).astype(xp.int32)
     ell2 = ((2*n*x[:, 2])//1).astype(xp.int32)
-    c = xp.sqrt(xp.pi/mu)**3
-    cc = xp.pi**2/mu
+    # precomute constants
+    cons = [xp.sqrt(xp.pi/mu)**3, xp.pi**2/mu]
+
     for i0 in range(2*m):
-        delta0 = (ell0-m+i0).astype('float32')/(2*n)-x[:, 0]                
+        delta0 = (ell0-m+i0).astype('float32')/(2*n)-x[:, 0]
         for i1 in range(2*m):
-            delta1 = (ell1-m+i1).astype('float32')/(2*n)-x[:, 1]                
+            delta1 = (ell1-m+i1).astype('float32')/(2*n)-x[:, 1]
             for i2 in range(2*m):
-                delta2 = (ell2-m+i2).astype('float32')/(2*n)-x[:, 2]                
-                
-                kera = c*xp.exp(-cc*(delta0**2+delta1**2+delta2**2))                                                                                           
+                delta2 = (ell2-m+i2).astype('float32')/(2*n)-x[:, 2]
+
+                kera = cons[0]*xp.exp(-cons[1]*(delta0**2+delta1**2+delta2**2))
                 ids = n+ell2+i2+(2*n+2*m)*(n+ell1+i1) + \
                     (2*n+2*m)*(2*n+2*m)*(n+ell0+i0)
-                # accumulate by indexes (with possible index intersections), todo acceleration
-                vals = xp.bincount(ids, weights=xp.real(
-                    f*kera))+1j*xp.bincount(ids, weights=xp.imag(f*kera))
+                vals = f*kera
+                # accumulate by indexes (with possible index intersections), 
+                # TODO acceleration of bincount!!
+                vals = xp.bincount(ids, weights=vals.real) + \
+                    1j*xp.bincount(ids, weights=vals.imag)
                 ids = xp.nonzero(vals)[0]
                 G[ids] += vals[ids]
-    G = G.reshape(2*n+2*m, 2*n+2*m, 2*n+2*m)
+
     # wrapping array G
     [idx, idy, idz] = xp.mgrid[-m:2*n+m, -m:2*n+m, -m:2*n+m]
     idx0 = xp.mod(idx+2*n, 2*n)
     idy0 = xp.mod(idy+2*n, 2*n)
     idz0 = xp.mod(idz+2*n, 2*n)
+    ind = (idz0+idy0*(2*n)+idx0*(2*n*2*n)).flatten()
     # accumulate by indexes (with possible index intersections)
-    G = xp.bincount(xp.ndarray.flatten(idz0+idy0*(2*n)+idx0*(2*n*2*n)), weights=xp.real(xp.ndarray.flatten(G))) +\
-        1j*xp.bincount(xp.ndarray.flatten(idz0+idy0*(2*n)+idx0*(2*n*2*n)),
-                       weights=xp.imag(xp.ndarray.flatten(G)))
-    G = xp.reshape(G, [2*n, 2*n, 2*n])
+    G = xp.bincount(ind, weights=G.real) + 1j*xp.bincount(ind, weights=G.imag)
+    G = G.reshape([2*n, 2*n, 2*n])
 
     # FFT and compesantion for smearing
     F = xp.fft.fftshift(xp.fft.fftn(xp.fft.fftshift(G)))
