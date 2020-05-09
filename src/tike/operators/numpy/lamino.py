@@ -50,10 +50,8 @@ class Lamino(Operator):
             [self.ntheta, self.n, self.n])
         
         # Inverse 2D FFT
-        # cupy converts result of fft,fftshift to complex128???        
         data = self.xp.fft.fftshift(self.xp.fft.ifft2(self.xp.fft.fftshift(
             F, axes=(1, 2)), axes=(1, 2), norm="ortho"), axes=(1, 2))
-        data=data.astype("complex64")
         return data
 
     def adj(self, data, **kwargs):
