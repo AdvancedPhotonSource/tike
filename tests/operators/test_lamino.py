@@ -5,7 +5,7 @@ import unittest
 
 import numpy as np
 
-from util import random_complex, inner_complex
+from .util import random_complex, inner_complex
 from tike.operators import Lamino
 
 __author__ = "Daniel Ching, Viktor Nikitin"
