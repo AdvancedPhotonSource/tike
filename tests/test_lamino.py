@@ -54,12 +54,13 @@ import unittest
 import numpy as np
 
 import tike.lamino
-import dxchange
+
 __author__ = "Daniel Ching, Viktor Nikitin"
-__copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
+__copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 testdir = os.path.dirname(__file__)
+
 
 class TestLaminoRecon(unittest.TestCase):
     """Test various laminography reconstruction methods for consistency."""
@@ -68,15 +69,16 @@ class TestLaminoRecon(unittest.TestCase):
         """Create a dataset for testing this module.
         Only called with setUp detects that `dataset_file` has been deleted.
         """
+        import dxchange
 
-        delta = dxchange.read_tiff('data/delta-chip-128.tiff')[::4,::4,::4]
-        beta = dxchange.read_tiff('data/beta-chip-128.tiff')[::4,::4,::4]
-        self.original = delta+1j*beta
-        
-        self.theta = np.linspace(0,2*np.pi,16,endpoint=False)
-        self.tilt = np.pi/3
+        delta = dxchange.read_tiff('data/delta-chip-128.tiff')[::4, ::4, ::4]
+        beta = dxchange.read_tiff('data/beta-chip-128.tiff')[::4, ::4, ::4]
+        self.original = delta + 1j * beta
 
-        self.data = tike.lamino.simulate(self.original,self.theta,self.tilt)
+        self.theta = np.linspace(0, 2 * np.pi, 16, endpoint=False)
+        self.tilt = np.pi / 3
+
+        self.data = tike.lamino.simulate(self.original, self.theta, self.tilt)
         assert self.data.shape == (16, 32, 32)
         assert self.data.dtype == 'complex64', self.data.dtype
 
@@ -84,7 +86,7 @@ class TestLaminoRecon(unittest.TestCase):
             self.data,
             self.original,
             self.theta,
-            self.tilt
+            self.tilt,
         ]
 
         with lzma.open(dataset_file, 'wb') as file:
@@ -119,9 +121,9 @@ class TestLaminoRecon(unittest.TestCase):
                 theta=self.theta,
                 tilt=self.tilt,
                 algorithm=algorithm,
-                num_iter=1,                
+                num_iter=1,
             )
-            
+
         recon_file = os.path.join(testdir,
                                   f'data/lamino_{algorithm}.pickle.lzma')
         if os.path.isfile(recon_file):
@@ -139,6 +141,7 @@ class TestLaminoRecon(unittest.TestCase):
     def test_consistent_combined(self):
         """Check lamino.solver.lamcg for consistency."""
         self.template_consistent_algorithm('lamcg')
+
 
 if __name__ == '__main__':
     unittest.main()
