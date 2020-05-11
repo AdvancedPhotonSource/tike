@@ -44,15 +44,14 @@ class Ptycho(Operator):
     probe : complex64
         The complex (ntheta, nscan // fly, fly, nmode, probe_shape,
         probe_shape) illumination function.
-    nearplane: complex64
-        The (ntheta, nscan // fly, fly, nmode, probe_shape, probe_shape)
-        wavefronts after exiting the object.
-    farplane: complex64
-        The (ntheta, nscan // fly, fly, nmode, detector_shape, detector_shape)
-        wavefronts hitting the detector respectively.
-    data : (ntheta, nscan, detector_shape, detector_shape) complex64
-        data is the square of the absolute value of `farplane`. `data` is the
-        intensity of the `farplane`.
+    mode : complex64
+        A single (ntheta, nscan // fly, fly, 1, probe_shape, probe_shape)
+        probe mode.
+    nearplane, farplane: complex64
+        The (ntheta, nscan // fly, fly, 1, detector_shape, detector_shape)
+        wavefronts exiting the object and hitting the detector respectively.
+    intensity, data : (ntheta, nscan, detector_shape, detector_shape) complex64
+        The square of the absolute value of `farplane` summed over `fly` and `modes`.
     scan : (ntheta, nscan, 2) float32
         Coordinates of the minimum corner of the probe grid for each
         measurement in the coordinate system of psi. Vertical coordinates
