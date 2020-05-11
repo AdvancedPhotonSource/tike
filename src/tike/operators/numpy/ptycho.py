@@ -51,7 +51,8 @@ class Ptycho(Operator):
         The (ntheta, nscan // fly, fly, 1, detector_shape, detector_shape)
         wavefronts exiting the object and hitting the detector respectively.
     intensity, data : (ntheta, nscan, detector_shape, detector_shape) complex64
-        The square of the absolute value of `farplane` summed over `fly` and `modes`.
+        The square of the absolute value of `farplane` summed over `fly` and
+        `modes`.
     scan : (ntheta, nscan, 2) float32
         Coordinates of the minimum corner of the probe grid for each
         measurement in the coordinate system of psi. Vertical coordinates
