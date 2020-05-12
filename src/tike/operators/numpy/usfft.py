@@ -1,3 +1,9 @@
+def _get_kernel(xp, pad, mu):
+    """Return the interpolation kernel for the USFFT."""
+    xeq = xp.mgrid[-pad:pad, -pad:pad, -pad:pad]
+    return xp.exp(-mu * xp.sum(xeq**2, axis=0)).astype('float32')
+
+
 def eq2us(f, x, n, eps, xp):
     """USFFT from equally-spaced grid to unequally-spaced grid.
 
@@ -20,15 +26,11 @@ def eq2us(f, x, n, eps, xp):
     m = xp.int(xp.ceil(2 * n * Te))
 
     # smearing kernel (kernel)
-    kernel = xp.zeros([2 * n] * ndim, dtype='float32')
-    xeq = xp.mgrid[-pad:pad, -pad:pad, -pad:pad]
-    kernel[pad:end, pad:end, pad:end] = xp.exp(-mu * xp.sum(xeq**2, axis=0))
+    kernel = _get_kernel(xp, pad, mu)
 
     # FFT and compesantion for smearing
     fe = xp.zeros([2 * n] * ndim, dtype="complex64")
-    fe[pad:end, pad:end, pad:end] = (
-        f / ((2 * n)**ndim * kernel[pad:end, pad:end, pad:end])
-    )  # yapf: disable
+    fe[pad:end, pad:end, pad:end] = f / ((2 * n)**ndim * kernel)
     Fe0 = xp.fft.fftshift(xp.fft.fftn(xp.fft.fftshift(fe)))
 
     # wrapping array Fe0
