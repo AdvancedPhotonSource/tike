@@ -41,6 +41,7 @@ def eq2us(f, x, n, eps, xp):
 
     # smearing operation (F=Fe*kera), gathering
     cons = [xp.sqrt(xp.pi / mu)**3, xp.pi**2 / mu]
+    delta = lambda l, i, x: ((l - m + i).astype('float32') / (2 * n) - x)**2
 
     # # Sequential approach (slow)
     # F = xp.zeros(x.shape[0], dtype="complex64")
@@ -75,18 +76,19 @@ def eq2us(f, x, n, eps, xp):
     ell0 = ((2 * n * x[:, 0]) // 1).astype(xp.int32)
     ell1 = ((2 * n * x[:, 1]) // 1).astype(xp.int32)
     ell2 = ((2 * n * x[:, 2]) // 1).astype(xp.int32)
-
+    stride = ((2 * (n + m))**2, 2 * (n + m))
     for i0 in range(2 * m):
-        delta0 = (ell0 - m + i0).astype('float32') / (2 * n) - x[:, 0]
+        delta0 = delta(ell0, i0, x[:, 0])
         for i1 in range(2 * m):
-            delta1 = (ell1 - m + i1).astype('float32') / (2 * n) - x[:, 1]
+            delta1 = delta(ell1, i1, x[:, 1])
             for i2 in range(2 * m):
-                delta2 = (ell2 - m + i2).astype('float32') / (2 * n) - x[:, 2]
-
-                kera = cons[0] * xp.exp(-cons[1] *
-                                        (delta0**2 + delta1**2 + delta2**2))
-                ids = n+ell2+i2+(2*n+2*m)*(n+ell1+i1) + \
-                    (2*n+2*m)*(2*n+2*m)*(n+ell0+i0)
+                delta2 = delta(ell2, i2, x[:, 2])
+                kera = cons[0] * xp.exp(-cons[1] * (delta0 + delta1 + delta2))
+                ids = (
+                    n + ell2 + i2
+                    + stride[1] * (n + ell1 + i1)
+                    + stride[0] * (n + ell0 + i0)
+                )  # yapf: disable
                 F += Fe[ids] * kera
 
     return F
