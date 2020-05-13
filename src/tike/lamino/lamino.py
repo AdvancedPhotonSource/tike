@@ -82,8 +82,6 @@ def simulate(
         data = operator.fwd(obj)
         assert data.dtype == 'complex64', data.dtype
         data = operator.asnumpy(data)
-        assert data.dtype == 'complex64', data.dtype
-
     return operator.asnumpy(data)
 
 
