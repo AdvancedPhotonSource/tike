@@ -74,8 +74,7 @@ class Lamino(Operator):
         return grad
 
     def _make_grids(self, theta):
-        """ Initialize unequally-spaced points in the frequency space that are used 
-        for computing fwd and adj laminography operators by using USFFT"""
+        """Return (ntheta*n*n, 3) unequally-spaced frequencies for the USFFT."""
         [ku, kv] = self.xp.mgrid[-self.n//2: self.n//2, -self.n//2: self.n//2]/self.n
         ku = ku.ravel().astype('float32')
         kv = kv.ravel().astype('float32')
