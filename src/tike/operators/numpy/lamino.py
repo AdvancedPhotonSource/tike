@@ -21,7 +21,7 @@ class Lamino(Operator):
     Parameters
     ----------
     u : (n, n, n) complex64
-        The complex refractivae index of the object.    
+        The complex refractive index of the object.    
     data : (ntheta, n, n) complex64
         The complex projection data of the object.
     """
