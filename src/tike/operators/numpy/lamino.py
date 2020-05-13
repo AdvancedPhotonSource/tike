@@ -50,7 +50,7 @@ class Lamino(Operator):
         """Perform the adjoint Laminography transform."""
         # Forward 2D FFT
         F = self.xp.fft.fftshift(self.xp.fft.fft2(self.xp.fft.fftshift(
-            data, axes=(1, 2)), axes=(1, 2), norm="ortho"), axes=(1, 2)).flatten()
+            data, axes=(1, 2)), axes=(1, 2), norm="ortho"), axes=(1, 2)).ravel()
         # Inverse (x->-x) USFFT from unequally-spaced grid to equally-spaced grid
         u = us2eq(F, -self.xi, self.n, self.eps, self.xp)
         return u
