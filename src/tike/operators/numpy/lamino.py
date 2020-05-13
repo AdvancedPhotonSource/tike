@@ -77,8 +77,8 @@ class Lamino(Operator):
         """ Initialize unequally-spaced points in the frequency space that are used 
         for computing fwd and adj laminography operators by using USFFT"""
         [ku, kv] = self.xp.mgrid[-self.n//2: self.n//2, -self.n//2: self.n//2]/self.n
-        ku = ku.flatten().astype('float32')
-        kv = kv.flatten().astype('float32')
+        ku = ku.ravel().astype('float32')
+        kv = kv.ravel().astype('float32')
         xi = self.xp.zeros([self.ntheta, self.n*self.n, 3],
                            dtype='float32')
         for itheta in range(self.ntheta):
