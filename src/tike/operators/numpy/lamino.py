@@ -26,7 +26,7 @@ class Lamino(Operator):
         The complex projection data of the object.
     """
 
-    def __init__(self, n, theta, tilt=np.pi/3, eps=1e-3,
+    def __init__(self, n, theta, tilt, eps=1e-3,
                  **kwargs):  # noqa: D102 yapf: disable
         """Please see help(Lamino) for more info."""
         self.n = n
