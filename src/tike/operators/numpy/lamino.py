@@ -35,13 +35,6 @@ class Lamino(Operator):
         self.eps = eps
         self.xi = self._make_grids(theta)
 
-    def __enter__(self):
-        """Return self at start of a with-block."""
-        return self
-
-    def __exit__(self, type, value, traceback):
-        """Free memory."""
-
     def fwd(self, u, **kwargs):
         """Perform the forward Laminography transform."""
         # USFFT from equally-spaced grid to unequally-spaced grid
