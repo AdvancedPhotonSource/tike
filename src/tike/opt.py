@@ -9,6 +9,11 @@ library.
 
 import logging
 import warnings
+import concurrent.futures as cf
+import threading
+from functools import partial
+import time
+from tike.operators.cupy.operator import Operator
 
 logger = logging.getLogger(__name__)
 
@@ -99,13 +104,33 @@ def conjugate_gradient(
         The number of steps to take.
 
     """
+    gpu_count = 2
+    #gpu_list = range(gpu_count)
+    gpu_list = [0]
+    def multiGPU_init(gpu_id):
+        print('tst:', gpu_id)
+        grad(gpu_id)
+    #with cf.ThreadPoolExecutor(max_workers=gpu_count) as executor:
+    #    results = executor.map(grad, gpu_list)
+    #    #results = executor.map(multiGPU_init, gpu_list)
     for i in range(num_iter):
-        grad1 = grad(x)
+        grad1 = grad(gpu_count)
+        #grad1 = grad(x)
+            #results = list(results)
+        #for ite in results:
+        #    print(type(ite))
+        #grad1 = list(results)
         if i == 0:
             dir = -grad1
         else:
             dir = direction_dy(array_module, grad0, grad1, dir)
         grad0 = grad1
+        dir_cpu = Operator.asnumpy(dir)
+        print('testdircpu:', dir_cpu.dtype, type(dir_cpu))
+        dirm = Operator.asarray_multi(dir_cpu)
+        print('testdir:', type(dirm),len(dirm),type(dirm[1]),dirm[1].dtype, dirm[1].shape)
+        time.sleep(5)
+        exit()
         gamma, cost = line_search(
             f=cost_function,
             x=x,

@@ -15,6 +15,7 @@
 // patches has shape (nscan, patch_shape, patch_shape)
 // nscan is the number of positions per images
 // scan has shape (nimage, nscan)
+
 extern "C" __global__
 void patch(float2 *images, float2 *patches, const float2 *scan,
            int nimage, int nimagey, int nimagex,
@@ -23,6 +24,8 @@ void patch(float2 *images, float2 *patches, const float2 *scan,
   const int tp = threadIdx.x + blockDim.x * (blockIdx.x);  // thread patch
   const int ts = blockIdx.y;  // thread scan
   const int ti = blockIdx.z;  // thread image
+
+  //if (tp==0) printf("kernel\n");
   if (tp >= patch_shape * patch_shape || ts >= nscan || ti >= nimage) return;
 
   // patch index (pi)
@@ -53,6 +56,7 @@ void patch(float2 *images, float2 *patches, const float2 *scan,
 
   const float sxf = scan[ts + ti * nscan].y - sx;
   const float syf = scan[ts + ti * nscan].x - sy;
+  //if (tp==0) printf("kernel:%f\n", scan[ts + ti * nscan].y);
   assert(1.0f >= sxf && sxf >= 0.0f && 1.0f >= syf && syf >= 0.0f);
 
   // Linear interpolation

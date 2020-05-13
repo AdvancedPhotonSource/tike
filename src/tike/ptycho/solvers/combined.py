@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 def combined(
     op,
     data, probe, scan, psi,
-    recover_psi=True, recover_probe=True, recover_positions=False,
+    recover_psi=True, recover_probe=False, recover_positions=False,
     cg_iter=4,
     **kwargs
 ):  # yapf: disable
@@ -65,11 +65,14 @@ def update_object(op, data, psi, scan, probe, num_iter=1):
     def grad(psi):
         return op.grad(data, psi, scan, probe)
 
+    def grad_multi(gpu_id):
+        return op.grad_multi(gpu_id, data, psi, scan, probe)
+
     psi, cost = conjugate_gradient(
         op.xp,
         x=psi,
         cost_function=cost_function,
-        grad=grad,
+        grad=grad_multi,
         num_iter=num_iter,
     )
 

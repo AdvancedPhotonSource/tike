@@ -52,6 +52,7 @@ import pickle
 import unittest
 
 import numpy as np
+import concurrent.futures as cf
 
 import tike.ptycho
 
@@ -100,8 +101,8 @@ class TestPtychoRecon(unittest.TestCase):
         self.probe = np.expand_dims(probe, (0, 1, 2, 3)).astype('complex64')
 
         v, h = np.meshgrid(
-            np.linspace(0, amplitude.shape[0]-pw-1, 13, endpoint=True),
-            np.linspace(0, amplitude.shape[0]-pw-1, 13, endpoint=True),
+            np.linspace(0, amplitude.shape[0]-pw-1, 60, endpoint=True),
+            np.linspace(0, amplitude.shape[0]-pw-1, 60, endpoint=True),
             indexing='ij'
         )  # yapf: disable
         scan = np.stack((np.ravel(v), np.ravel(h)), axis=1)
@@ -112,7 +113,7 @@ class TestPtychoRecon(unittest.TestCase):
                                          scan=self.scan,
                                          psi=self.original)
 
-        assert self.data.shape == (1, 13 * 13, pw * 2, pw * 2)
+        assert self.data.shape == (1, 60 * 60, pw * 2, pw * 2)
         assert self.data.dtype == 'float32', self.data.dtype
 
         setup_data = [
@@ -137,19 +138,20 @@ class TestPtychoRecon(unittest.TestCase):
                 self.probe,
                 self.original,
             ] = pickle.load(file)
+        print(self.data.shape, self.scan.shape, self.probe.shape, self.original.shape)
 
-    def test_consistent_simulate(self):
-        """Check ptycho.simulate for consistency."""
-        data = tike.ptycho.simulate(
-            detector_shape=self.data.shape[-1],
-            probe=self.probe,
-            scan=self.scan,
-            psi=self.original,
-        )
-        assert data.dtype == 'float32', data.dtype
-        assert self.data.dtype == 'float32', self.data.dtype
-        np.testing.assert_array_equal(data.shape, self.data.shape)
-        np.testing.assert_allclose(np.sqrt(data), np.sqrt(self.data), atol=1e-6)
+    #def test_consistent_simulate(self):
+    #    """Check ptycho.simulate for consistency."""
+    #    data = tike.ptycho.simulate(
+    #        detector_shape=self.data.shape[-1],
+    #        probe=self.probe,
+    #        scan=self.scan,
+    #        psi=self.original,
+    #    )
+    #    assert data.dtype == 'float32', data.dtype
+    #    assert self.data.dtype == 'float32', self.data.dtype
+    #    np.testing.assert_array_equal(data.shape, self.data.shape)
+    #    np.testing.assert_allclose(np.sqrt(data), np.sqrt(self.data), atol=1e-6)
 
     def error_metric(self, x):
         """Return the error between two arrays."""
@@ -192,8 +194,16 @@ class TestPtychoRecon(unittest.TestCase):
         np.testing.assert_array_equal(result['psi'].shape, self.original.shape)
         np.testing.assert_allclose(result['psi'], standard, atol=1e-3)
 
+
     def test_consistent_combined(self):
         """Check ptycho.solver.combined for consistency."""
+        #gpu_count = 4
+        #gpu_list = range(gpu_count)
+        #def multiGPU_init(gpu_id):
+        #    print('test:', gpu_id)
+
+        #with cf.ThreadPoolExecutor(max_workers=gpu_count) as executor:
+        #    results = executor.map(multiGPU_init, gpu_list)
         self.template_consistent_algorithm('combined')
 
     # def test_consistent_admm(self):

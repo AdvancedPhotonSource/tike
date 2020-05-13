@@ -37,6 +37,21 @@ class Propagation(Operator, numpy.Propagation):
                 overwrite_x=True,
             ).reshape(shape)
 
+    def fwd_multi(self, gpu_id, nearplane, overwrite=False, **kwargs):
+        self._check_shape(nearplane)
+        with cp.cuda.Device(gpu_id):
+            if not overwrite:
+                nearplane = cp.copy(nearplane)
+            shape = nearplane.shape
+            with self.plan:
+                return fftn(
+                    nearplane.reshape(self.nwaves, self.detector_shape,
+                                      self.detector_shape),
+                    norm='ortho',
+                    axes=(-2, -1),
+                    overwrite_x=True,
+                ).reshape(shape)
+
     def adj(self, farplane, overwrite=False, **kwargs):
         self._check_shape(farplane)
         if not overwrite:

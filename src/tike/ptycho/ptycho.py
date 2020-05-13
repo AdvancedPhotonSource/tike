@@ -57,6 +57,7 @@ __all__ = [
 
 import logging
 import numpy as np
+import cupy as cp
 
 from tike.operators import Ptycho
 from tike.ptycho import solvers
@@ -150,10 +151,11 @@ def reconstruct(
         less than this amount.
 
     """
+    gpu_count = 2
     if algorithm in solvers.__all__:
         # Initialize an operator.
         with Ptycho(
-                nscan=scan.shape[1],
+                nscan=scan.shape[1]//gpu_count,
                 probe_shape=probe.shape[-1],
                 detector_shape=data.shape[-1],
                 nz=psi.shape[-2],
@@ -162,27 +164,39 @@ def reconstruct(
                 **kwargs,
         ) as operator:
             # send any array-likes to device
-            data = operator.asarray(data, dtype='float32')
-            result = {
-                'psi': operator.asarray(psi, dtype='complex64'),
-                'probe': operator.asarray(probe, dtype='complex64'),
-                'scan': operator.asarray(scan, dtype='float32'),
+            scanm, datam = operator.asarray_multi_split(scan, data)
+            resultm = {
+                'psi': operator.asarray_multi(psi, dtype='complex64'),
+                'probe': operator.asarray_multi(probe, dtype='complex64'),
             }
-            for key, value in kwargs.items():
-                if np.ndim(value) > 0:
-                    kwargs[key] = operator.asarray(value)
+            #print('psim[0]:', psim[0].shape, psim[0].dtype)
+            #print('scanm[0]:', len(scanm), scanm[0].shape, scanm[0].dtype)
+            #print(scanm[1][:, :, 0], scanm[1][:, :, 1])
+            #data = operator.asarray(data, dtype='float32')
+            #result = {
+            #    'psi': operator.asarray(psi, dtype='complex64'),
+            #    'probe': operator.asarray(probe, dtype='complex64'),
+            #    'scan': operator.asarray(scan, dtype='float32'),
+            #}
+            #for key, value in kwargs.items():
+            #    if np.ndim(value) > 0:
+            #        kwargs[key] = operator.asarray(value)
 
+            with cp.cuda.Device(0):
+                scan_test = cp.asarray(scan)
+            with cp.cuda.Device(1):
+                print("testdataacc:", scan_test.shape, type(scan_test), scan_test[:,:,1])
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[1:],
                                              num_iter))
 
             cost = 0
-            print('test')
             for i in range(num_iter):
-                kwargs.update(result)
+                kwargs.update(resultm)
                 result = getattr(solvers, algorithm)(
                     operator,
-                    data=data,
+                    data=datam,
+                    scan=scanm,
                     **kwargs,
                 )
                 # Check for early termination
