@@ -40,11 +40,7 @@ void patch(float2 *images, float2 *patches, const float2 *scan,
   if (sx < 0 || nimagex <= sx + patch_shape ||
       sy < 0 || nimagey <= sy + patch_shape){
     // printf("%f, %f - %f, %f\n", sx, sy, sxf, syf);
-    // scans where the probe position overlaps edges we fill with zeros
-    if (forward){
-      patches[pi].x = 0.0f;
-      patches[pi].y = 0.0f;
-    }
+    assert(false);
     return;
   }
 

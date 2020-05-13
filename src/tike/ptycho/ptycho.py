@@ -60,6 +60,7 @@ import numpy as np
 
 from tike.operators import Ptycho
 from tike.ptycho import solvers
+from .position import check_allowed_positions, get_padded_object
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +107,7 @@ def simulate(
     """Return real-valued detector counts of simulated ptychography data."""
     assert scan.ndim == 3
     assert psi.ndim == 3
+    check_allowed_positions(scan, psi, probe)
     with Ptycho(
             nscan=scan.shape[-2],
             probe_shape=probe.shape[-1],
@@ -136,8 +138,8 @@ def simulate(
 def reconstruct(
         data,
         probe, scan,
-        psi,
-        algorithm, num_iter=1, rtol=-1, **kwargs
+        algorithm,
+        psi=None, num_iter=1, rtol=-1, **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
 
@@ -150,6 +152,8 @@ def reconstruct(
         less than this amount.
 
     """
+    (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
+    check_allowed_positions(scan, psi, probe)
     if algorithm in solvers.__all__:
         # Initialize an operator.
         with Ptycho(
@@ -178,6 +182,10 @@ def reconstruct(
 
             cost = 0
             for i in range(num_iter):
+                result['probe'] = _rescale_obj_probe(operator, data,
+                                                     result['psi'],
+                                                     result['scan'],
+                                                     result['probe'])
                 kwargs.update(result)
                 result = getattr(solvers, algorithm)(
                     operator,
@@ -196,3 +204,17 @@ def reconstruct(
     else:
         raise ValueError(
             "The '{}' algorithm is not an available.".format(algorithm))
+
+
+def _rescale_obj_probe(operator, data, psi, scan, probe):
+    """Keep the object amplitude around 1 by scaling probe by a constant."""
+    intensity = operator._compute_intensity(data, psi, scan, probe)
+
+    rescale = (np.linalg.norm(np.ravel(np.sqrt(data))) /
+               np.linalg.norm(np.ravel(np.sqrt(intensity))))
+
+    logger.info("object and probe rescaled by %f", rescale)
+
+    probe *= rescale
+
+    return probe

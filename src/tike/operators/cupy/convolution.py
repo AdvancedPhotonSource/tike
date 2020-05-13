@@ -2,7 +2,7 @@ from importlib_resources import files
 
 import cupy as cp
 
-from .. import numpy
+from tike.operators import numpy
 from .operator import Operator
 
 _cu_source = files('tike.operators.cupy').joinpath('convolution.cu').read_text()
