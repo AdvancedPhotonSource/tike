@@ -68,9 +68,7 @@ class Lamino(Operator):
 
     def grad(self, data, obj):
         "Gradient for the least-squares laminography problem"
-        Lobj = self.fwd(obj)
-        grad = self.adj(Lobj-data)/(self.ntheta*self.n**3)
-        return grad
+        return self.adj(data=self.fwd(obj) - data) / (self.ntheta * self.n**3)
 
     def _make_grids(self, theta):
         """Return (ntheta*n*n, 3) unequally-spaced frequencies for the USFFT."""
