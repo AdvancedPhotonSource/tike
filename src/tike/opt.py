@@ -125,16 +125,16 @@ def conjugate_gradient(
         else:
             dir = direction_dy(array_module, grad0, grad1, dir)
         grad0 = grad1
+        # scatter dir to all GPUs
         dir_cpu = Operator.asnumpy(dir)
-        print('testdircpu:', dir_cpu.dtype, type(dir_cpu))
         dirm = Operator.asarray_multi(dir_cpu)
-        print('testdir:', type(dirm),len(dirm),type(dirm[1]),dirm[1].dtype, dirm[1].shape)
         time.sleep(5)
         exit()
+
         gamma, cost = line_search(
             f=cost_function,
             x=x,
-            d=dir,
+            d=dirm,
         )
         x = x + gamma * dir
         logger.debug("%4d, %.3e, %.7e", (i + 1), gamma, cost)
