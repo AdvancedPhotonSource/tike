@@ -47,7 +47,7 @@
 # #########################################################################
 
 __author__ = "Daniel Ching, Viktor Nikitin"
-__copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
+__copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = [
     "reconstruct",
