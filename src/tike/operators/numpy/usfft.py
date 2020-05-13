@@ -38,30 +38,43 @@ def eq2us(f, x, n, eps, xp):
     idx0 = xp.mod(idx + 2 * n, 2 * n)
     Fe = xp.zeros([2 * (n + m)] * ndim, dtype="complex64")
     Fe[tuple(idx + m)] = Fe0[tuple(idx0)]
-    Fe = Fe.flatten()
 
     # smearing operation (F=Fe*kera), gathering
-    F = xp.zeros(x.shape[0], dtype="complex64")
+    cons = [xp.sqrt(xp.pi / mu)**3, xp.pi**2 / mu]
 
-    # Sequential approach (slow)
+    # # Sequential approach (slow)
+    # F = xp.zeros(x.shape[0], dtype="complex64")
     # for k in range(x.shape[0]):
-    #     F[k] = 0
-    #     ell0 = xp.int(xp.floor(2*n*x[k, 0]))
-    #     ell1 = xp.int(xp.floor(2*n*x[k, 1]))
-    #     ell2 = xp.int(xp.floor(2*n*x[k, 2]))
-    #     for i0 in range(2*m):
-    #         for i1 in range(2*m):
-    #             for i2 in range(2*m):
-    #                 F[k] += Fe[n+ell0+i0, n+ell1+i1, n+ell2+i2] * \
-    #                     xp.sqrt(xp.pi)**3/xp.sqrt(mu*mu*mu)*(xp.exp(-xp.pi**2/mu*((ell0-m+i0)/(2*n)-x[k, 0])**2
-    #                                                                 -xp.pi**2/mu*((ell1-m+i1)/(2*n)-x[k, 1])**2
-    #                                                                 -xp.pi**2/mu*((ell2-m+i2)/(2*n)-x[k, 2])**2))
+    #     ell0 = xp.int(xp.floor(2 * n * x[k, 0]))
+    #     ell1 = xp.int(xp.floor(2 * n * x[k, 1]))
+    #     ell2 = xp.int(xp.floor(2 * n * x[k, 2]))
+    #     for i0 in range(2 * m):
+    #         for i1 in range(2 * m):
+    #             for i2 in range(2 * m):
+    #                 kera = cons[0] * xp.exp(cons[1] * (
+    #                     + ((ell0 - m + i0) / (2 * n) - x[k, 0])**2
+    #                     + ((ell1 - m + i1) / (2 * n) - x[k, 1])**2
+    #                     + ((ell2 - m + i2) / (2 * n) - x[k, 2])**2
+    #                 ))  # yapf: disable
+    #                 F[k] += Fe[n + ell0 + i0, n + ell1 + i1, n + ell2 + i2] * kera
+
+    # # Vectorize kernel (fast for large kernels)
+    # i = xp.mgrid[0:2 * m, 0:2 * m, 0:2 * m]
+    # F = xp.empty(x.shape[0], dtype="complex64")
+    # for k in range(x.shape[0]):
+    #     ell = xp.floor(2 * n * x[k]).astype('int')[:, None, None, None]
+    #     kera = cons[0] * xp.exp(cons[1] * xp.sum(
+    #         xp.square((ell - m + i) / (2 * n) - x[k][:, None, None, None]),
+    #         axis=0,
+    #     ))
+    #     F[k] = xp.sum(Fe[tuple(n + ell + i)] * kera)
 
     # Vectorize approach (faster)
+    F = xp.zeros(x.shape[0], dtype="complex64")
+    Fe = Fe.ravel()
     ell0 = ((2 * n * x[:, 0]) // 1).astype(xp.int32)
     ell1 = ((2 * n * x[:, 1]) // 1).astype(xp.int32)
     ell2 = ((2 * n * x[:, 2]) // 1).astype(xp.int32)
-    cons = [xp.sqrt(xp.pi / mu)**3, xp.pi**2 / mu]
 
     for i0 in range(2 * m):
         delta0 = (ell0 - m + i0).astype('float32') / (2 * n) - x[:, 0]
