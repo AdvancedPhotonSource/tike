@@ -1,8 +1,7 @@
-from tike.operators import numpy
+import numpy as np
+
 from .operator import Operator
 from .usfft import eq2us, us2eq
-
-import numpy as np
 
 
 class Lamino(Operator):
