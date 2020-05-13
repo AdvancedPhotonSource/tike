@@ -64,7 +64,7 @@ class Lamino(Operator):
 
     def cost(self, data, obj):
         "Cost function for the least-squres laminography problem"
-        return self.xp.linalg.norm(self.fwd(obj)-data)**2
+        return self.xp.linalg.norm((self.fwd(obj)-data).ravel())**2
 
     def grad(self, data, obj):
         "Gradient for the least-squares laminography problem"
