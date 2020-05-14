@@ -123,8 +123,8 @@ def reconstruct(
                 if np.ndim(value) > 0:
                     kwargs[key] = operator.asarray(value)
 
-            logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
-                        "iterations.".format(algorithm, *data.shape,
+            logger.info("{} on {:,d} by {:,d} by {:,d} volume for {:,d} "
+                        "iterations.".format(algorithm, *obj.shape,
                                              num_iter))
 
             cost = 0
