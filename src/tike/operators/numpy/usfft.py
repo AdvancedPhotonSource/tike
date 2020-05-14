@@ -40,7 +40,7 @@ def eq2us(f, x, n, eps, xp):
     Fe[tuple(idx + m)] = Fe0[tuple(idx0)]
 
     # smearing operation (F=Fe*kera), gathering
-    cons = [xp.sqrt(xp.pi / mu)**3, xp.pi**2 / mu]
+    cons = [xp.sqrt(xp.pi / mu)**3, -xp.pi**2 / mu]
     delta = lambda l, i, x: ((l - m + i).astype('float32') / (2 * n) - x)**2
 
     # # Sequential approach (slow)
@@ -59,37 +59,24 @@ def eq2us(f, x, n, eps, xp):
     #                 ))  # yapf: disable
     #                 F[k] += Fe[n + ell0 + i0, n + ell1 + i1, n + ell2 + i2] * kera
 
-    # # Vectorize kernel (fast for large kernels)
-    # i = xp.mgrid[0:2 * m, 0:2 * m, 0:2 * m]
-    # F = xp.empty(x.shape[0], dtype="complex64")
-    # for k in range(x.shape[0]):
-    #     ell = xp.floor(2 * n * x[k]).astype('int')[:, None, None, None]
-    #     kera = cons[0] * xp.exp(cons[1] * xp.sum(
-    #         xp.square((ell - m + i) / (2 * n) - x[k][:, None, None, None]),
-    #         axis=0,
-    #     ))
-    #     F[k] = xp.sum(Fe[tuple(n + ell + i)] * kera)
-
     # Vectorize approach (faster)
     F = xp.zeros(x.shape[0], dtype="complex64")
     Fe = Fe.ravel()
-    ell0 = ((2 * n * x[:, 0]) // 1).astype(xp.int32)
-    ell1 = ((2 * n * x[:, 1]) // 1).astype(xp.int32)
-    ell2 = ((2 * n * x[:, 2]) // 1).astype(xp.int32)
+    ell = ((2 * n * x) // 1).astype(xp.int32)  # nearest grid to x
     stride = ((2 * (n + m))**2, 2 * (n + m))
     for i0 in range(2 * m):
-        delta0 = delta(ell0, i0, x[:, 0])
+        delta0 = delta(ell[:, 0], i0, x[:, 0])
         for i1 in range(2 * m):
-            delta1 = delta(ell1, i1, x[:, 1])
+            delta1 = delta(ell[:, 1], i1, x[:, 1])
             for i2 in range(2 * m):
-                delta2 = delta(ell2, i2, x[:, 2])
-                kera = cons[0] * xp.exp(-cons[1] * (delta0 + delta1 + delta2))
+                delta2 = delta(ell[:, 2], i2, x[:, 2])
+                Fkernel = cons[0] * xp.exp(cons[1] * (delta0 + delta1 + delta2))
                 ids = (
-                    n + ell2 + i2
-                    + stride[1] * (n + ell1 + i1)
-                    + stride[0] * (n + ell0 + i0)
+                    n + ell[:, 2] + i2
+                    + stride[1] * (n + ell[:, 1] + i1)
+                    + stride[0] * (n + ell[:, 0] + i0)
                 )  # yapf: disable
-                F += Fe[ids] * kera
+                F += Fe[ids] * Fkernel
 
     return F
 
