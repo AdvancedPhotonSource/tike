@@ -58,9 +58,13 @@ def update_probe(op, data, psi, scan, probe, num_iter=1):
 
 def update_object(op, data, psi, scan, probe, num_iter=1):
     """Solve the object recovery problem."""
+    gpu_count = 2
 
     def cost_function(psi):
         return op.cost(data, psi, scan, probe)
+
+    def cost_function_multi(psi, **kwargs):
+        return op.cost_multi(gpu_count, data, psi, scan, probe, **kwargs)
 
     def grad(psi):
         return op.grad(data, psi, scan, probe)
@@ -71,7 +75,7 @@ def update_object(op, data, psi, scan, probe, num_iter=1):
     psi, cost = conjugate_gradient(
         op.xp,
         x=psi,
-        cost_function=cost_function,
+        cost_function=cost_function_multi,
         grad=grad_multi,
         num_iter=num_iter,
     )

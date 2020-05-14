@@ -50,14 +50,18 @@ def line_search(f, x, d, step_length=1, step_shrink=0.5):
     m = 0  # Some tuning parameter for termination
     fx = f(x)  # Save the result of f(x) instead of computing it many times
     # Decrease the step length while the step increases the cost function
+
     while True:
-        fxsd = f(x + step_length * d)
+        fxsd = f(x, step_length = step_length, dir = d)
+        #fxsd = f(x + step_length * d)
         if fxsd <= fx + step_shrink * m:
             break
         step_length *= step_shrink
         if step_length < 1e-32:
             warnings.warn("Line search failed for conjugate gradient.")
             return 0, fx
+    print('fxsd:', step_length, fxsd)
+    exit()
     return step_length, fxsd
 
 
@@ -128,8 +132,6 @@ def conjugate_gradient(
         # scatter dir to all GPUs
         dir_cpu = Operator.asnumpy(dir)
         dirm = Operator.asarray_multi(dir_cpu)
-        time.sleep(5)
-        exit()
 
         gamma, cost = line_search(
             f=cost_function,

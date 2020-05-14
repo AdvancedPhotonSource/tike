@@ -6,6 +6,7 @@ import concurrent.futures as cf
 import threading
 from functools import partial
 import cupy as cp
+import numpy as np
 
 
 class Ptycho(Operator, numpy.Ptycho):
@@ -81,6 +82,40 @@ class Ptycho(Operator, numpy.Ptycho):
             )  # yapf: disable
         return intensity
 
+    def cost_device(self, gpu_id, data, psi, scan, probe, n=-1, mode=None): # cupy arrays
+        with cp.cuda.Device(gpu_id):
+            intensity = self._compute_intensity(data, psi, scan, probe, n, mode)
+            return self.propagation.cost(data, intensity)
+
+    # multi-GPU cost() entry point
+    def cost_multi(self, gpu_count, data, psi, scan, probe, n=-1, mode=None, **kwargs):  # lists of cupy array
+        psi_list = [None] * gpu_count
+        for i in range(gpu_count):
+            if 'step_length' in kwargs and 'dir' in kwargs:
+                with cp.cuda.Device(i):
+                    #print('testpsii:', i, psi[i].tolist())
+                    #print('testdiri:', i,(kwargs.get('step_length')*kwargs.get('dir')[i]).tolist())
+                    psi_list[i] = psi[i] + kwargs.get('step_length') * kwargs.get('dir')[i]
+            else:
+                psi_list[i] = psi[i]
+
+        #for i in range(gpu_count):
+        #    with cp.cuda.Device(i):
+        #        print('testpsi:', i, psi[i].tolist())
+
+        gpu_list = range(gpu_count)
+        with cf.ThreadPoolExecutor(max_workers=gpu_count) as executor:
+            cost_out = executor.map(self.cost_device, gpu_list, data, psi_list, scan, probe)
+        cost_list = list(cost_out)
+
+        cost_cpu = np.zeros(cost_list[0].shape, cost_list[0].dtype)
+        for i in range(gpu_count):
+            with cp.cuda.Device(i):
+                cost_cpu += Operator.asnumpy(cost_list[i])
+        print('test:', type(cost_cpu), cost_cpu.dtype, cost_cpu.shape, cost_cpu)
+
+        return cost_cpu
+
     def grad_device(self, gpu_id, data, psi, scan, probe):  # cupy arrays
         with cp.cuda.Device(gpu_id):
             intensity = self._compute_intensity(data, psi, scan, probe)
@@ -99,6 +134,7 @@ class Ptycho(Operator, numpy.Ptycho):
                 )
             return grad_obj
 
+    # multi-GPU grad() entry point
     def grad_multi(self, gpu_count, data, psi, scan, probe):  # lists of cupy array
         #intensity = self._compute_intensity_multi(gpu_id, data, psi, scan, probe) # intensity is a list of cupy arrays
         #gpu_count = gpu_id

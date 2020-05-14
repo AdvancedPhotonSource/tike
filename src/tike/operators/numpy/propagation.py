@@ -86,10 +86,10 @@ class Propagation(Operator):
     # COST FUNCTIONS AND GRADIENTS --------------------------------------------
 
     def _gaussian_cost(self, data, intensity):
+        a = np.linalg.norm(np.ravel(np.sqrt(intensity) - np.sqrt(data)))**2
         return np.linalg.norm(np.ravel(np.sqrt(intensity) - np.sqrt(data)))**2
 
     def _gaussian_grad(self, data, farplane, intensity, overwrite=False):
-        print('tst')
         return farplane * (
             1 - np.sqrt(data) / (np.sqrt(intensity) + 1e-32)
         )[:, :, np.newaxis, np.newaxis]  # yapf:disable
