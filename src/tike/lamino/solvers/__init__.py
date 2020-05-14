@@ -1,7 +1,7 @@
 """Contains different solver implementations."""
 
-from .lamcg import lamcg
+from .cgrad import cgrad
 
 __all__ = [
-    "lamcg",
+    "cgrad",
 ]

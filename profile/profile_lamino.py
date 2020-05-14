@@ -55,7 +55,7 @@ class BenchmarkPtycho(unittest.TestCase):
 
     def test_cgrad(self):
         """Use pyinstrument to benchmark the conjugate gradient algorithm."""
-        self.template_algorithm('lamcg')
+        self.template_algorithm('cgrad')
 
 
 if __name__ == '__main__':

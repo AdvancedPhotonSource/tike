@@ -5,7 +5,7 @@ from tike.opt import conjugate_gradient, line_search
 logger = logging.getLogger(__name__)
 
 
-def lamcg(
+def cgrad(
     op,
     data, obj,
     cg_iter=4,

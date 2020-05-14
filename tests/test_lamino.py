@@ -139,8 +139,8 @@ class TestLaminoRecon(unittest.TestCase):
         np.testing.assert_allclose(result['obj'], standard, atol=1e-3)
 
     def test_consistent_combined(self):
-        """Check lamino.solver.lamcg for consistency."""
-        self.template_consistent_algorithm('lamcg')
+        """Check lamino.solver.cgrad for consistency."""
+        self.template_consistent_algorithm('cgrad')
 
 
 if __name__ == '__main__':
