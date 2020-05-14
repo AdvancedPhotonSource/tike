@@ -32,12 +32,7 @@ def eq2us(f, x, n, eps, xp):
     fe = xp.zeros([2 * n] * ndim, dtype="complex64")
     fe[pad:end, pad:end, pad:end] = f / ((2 * n)**ndim * kernel)
     Fe0 = xp.fft.fftshift(xp.fft.fftn(xp.fft.fftshift(fe)))
-
-    # wrapping array Fe0
-    idx = xp.mgrid[-m:2 * n + m, -m:2 * n + m, -m:2 * n + m]
-    idx0 = xp.mod(idx + 2 * n, 2 * n)
-    Fe = xp.zeros([2 * (n + m)] * ndim, dtype="complex64")
-    Fe[tuple(idx + m)] = Fe0[tuple(idx0)]
+    Fe = xp.pad(Fe0, m, mode='wrap')
 
     # smearing operation (F=Fe*kera), gathering
     cons = [xp.sqrt(xp.pi / mu)**3, -xp.pi**2 / mu]
