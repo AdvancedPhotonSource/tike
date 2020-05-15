@@ -187,3 +187,11 @@ class Ptycho(Operator, numpy.Ptycho):
         #    print('data:')
         #        #print('grad_obj:', grad_obj.shape)
         #    return grad_obj
+
+
+    # multi-GPU update()
+    def update_multi(self, gpu_count, psi, gamma, dir):  # lists of cupy array
+        for i in range(gpu_count):
+            with cp.cuda.Device(i):
+                psi[i] = psi[i] + gamma * dir[i]
+        return psi

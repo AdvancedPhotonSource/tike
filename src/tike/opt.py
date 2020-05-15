@@ -61,7 +61,6 @@ def line_search(f, x, d, step_length=1, step_shrink=0.5):
             warnings.warn("Line search failed for conjugate gradient.")
             return 0, fx
     print('fxsd:', step_length, fxsd)
-    exit()
     return step_length, fxsd
 
 
@@ -90,6 +89,7 @@ def conjugate_gradient(
         x,
         cost_function,
         grad,
+        update,
         num_iter=1,
 ):
     """Use conjugate gradient to estimate `x`.
@@ -138,6 +138,8 @@ def conjugate_gradient(
             x=x,
             d=dirm,
         )
-        x = x + gamma * dir
+        # update the image
+        #x = x + gamma * dir
+        x = update(x, gamma, dirm)
         logger.debug("%4d, %.3e, %.7e", (i + 1), gamma, cost)
     return x, cost
