@@ -72,11 +72,15 @@ def update_object(op, data, psi, scan, probe, num_iter=1):
     def grad_multi(gpu_id):
         return op.grad_multi(gpu_id, data, psi, scan, probe)
 
+    def update_multi(psi, *args):
+        return op.update_multi(gpu_count, psi, *args)
+
     psi, cost = conjugate_gradient(
         op.xp,
         x=psi,
         cost_function=cost_function_multi,
         grad=grad_multi,
+        update=update_multi,
         num_iter=num_iter,
     )
 
