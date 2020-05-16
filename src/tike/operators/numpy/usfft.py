@@ -79,7 +79,7 @@ def eq2us(f, x, n, eps, xp, gather=vector_gather):
     x : (N, 3)
         The sampled frequencies on unequally-spaced grid.
     eps : float
-        The desired relative?/absolute? accuracy of the USFFT.
+        The desired relative accuracy of the USFFT.
     """
     ndim = f.ndim
     pad = n // 2  # where zero-padding stops
