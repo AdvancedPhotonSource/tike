@@ -17,7 +17,10 @@ def _get_kernel(xp, pad, mu):
 def vector_gather(xp, Fe, x, n, m, mu):
     """A faster implementation of sequential_gather"""
     cons = [xp.sqrt(xp.pi / mu)**3, -xp.pi**2 / mu]
-    delta = lambda l, i, x: ((l - m + i).astype('float32') / (2 * n) - x)**2
+
+    def delta(l, i, x):
+        return ((l - m + i).astype('float32') / (2 * n) - x)**2
+
     F = xp.zeros(x.shape[0], dtype="complex64")
     ell = ((2 * n * x) // 1).astype(xp.int32)  # nearest grid to x
     for i0 in range(2 * m):
@@ -139,7 +142,10 @@ def sequential_scatter(xp, f, x, n, m, mu):
 def vector_scatter(xp, f, x, n, m, mu, ndim=3):
     """A faster implemenation of sequential_scatter."""
     cons = [xp.sqrt(xp.pi / mu)**ndim, -xp.pi**2 / mu]
-    delta = lambda l, i, x: ((l - m + i).astype('float32') / (2 * n) - x)**2
+
+    def delta(l, i, x):
+        return ((l - m + i).astype('float32') / (2 * n) - x)**2
+
     G = xp.zeros([(2 * (n + m))**ndim], dtype="complex64")
     ell = ((2 * n * x) // 1).astype(xp.int32)  # nearest grid to x
     stride = ((2 * (n + m))**2, 2 * (n + m))

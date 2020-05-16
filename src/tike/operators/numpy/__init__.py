@@ -9,7 +9,6 @@ from .convolution import *
 from .operator import *
 from .propagation import *
 from .ptycho import *
-#from .tomo import *
 from .lamino import *
 
 __all__ = (
@@ -18,5 +17,4 @@ __all__ = (
     'Propagation',
     'Ptycho',
     'Lamino',
-    # 'Tomo',    
 )
