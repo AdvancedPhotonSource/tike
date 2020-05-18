@@ -76,7 +76,7 @@ class Lamino(Operator, numpy.Lamino):
         const = cp.array([cp.sqrt(cp.pi / mu)**3, -cp.pi**2 / mu],
                          dtype='float32')
         block = (min(self.scatter_kernel.max_threads_per_block, (2 * m)**3),)
-        grid = (1, 0, f.shape[0])
+        grid = (1, 0, min(f.shape[0], 65535))
         self.scatter_kernel(grid, block, (
             G,
             f.astype('complex64'),
@@ -93,7 +93,7 @@ class Lamino(Operator, numpy.Lamino):
         const = cp.array([cp.sqrt(cp.pi / mu)**3, -cp.pi**2 / mu],
                          dtype='float32')
         block = (min(self.scatter_kernel.max_threads_per_block, (2 * m)**3),)
-        grid = (1, 0, x.shape[0])
+        grid = (1, 0, min(x.shape[0], 65535))
         self.gather_kernel(grid, block, (
             F,
             Fe.astype('complex64'),
