@@ -1,0 +1,3 @@
+BasedOnStyle: Google
+AlwaysBreakAfterReturnType: All
+BreakBeforeBinaryOperators: All
