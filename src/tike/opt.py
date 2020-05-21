@@ -108,9 +108,7 @@ def conjugate_gradient(
         The number of steps to take.
 
     """
-    gpu_count = 2
     #gpu_list = range(gpu_count)
-    gpu_list = [0]
     def multiGPU_init(gpu_id):
         print('tst:', gpu_id)
         grad(gpu_id)
@@ -118,12 +116,7 @@ def conjugate_gradient(
     #    results = executor.map(grad, gpu_list)
     #    #results = executor.map(multiGPU_init, gpu_list)
     for i in range(num_iter):
-        grad1 = grad(gpu_count)
-        #grad1 = grad(x)
-            #results = list(results)
-        #for ite in results:
-        #    print(type(ite))
-        #grad1 = list(results)
+        grad1 = grad(x)
         if i == 0:
             dir = -grad1
         else:

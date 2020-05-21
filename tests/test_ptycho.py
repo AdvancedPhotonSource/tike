@@ -169,6 +169,7 @@ class TestPtychoRecon(unittest.TestCase):
         for _ in range(1):
             result = tike.ptycho.reconstruct(
                 **result,
+                gpu_count=2,
                 data=self.data,
                 algorithm=algorithm,
                 num_iter=1,

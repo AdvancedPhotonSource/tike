@@ -135,6 +135,7 @@ def simulate(
         return operator.asnumpy(data)
 
 def reconstruct(
+        gpu_count,
         data,
         probe, scan,
         psi,
@@ -151,7 +152,6 @@ def reconstruct(
         less than this amount.
 
     """
-    gpu_count = 2
     if algorithm in solvers.__all__:
         # Initialize an operator.
         with Ptycho(
@@ -195,6 +195,7 @@ def reconstruct(
                 kwargs.update(resultm)
                 result = getattr(solvers, algorithm)(
                     operator,
+                    gpu_count=gpu_count,
                     data=datam,
                     scan=scanm,
                     **kwargs,

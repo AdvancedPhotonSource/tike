@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 def combined(
     op,
-    data, probe, scan, psi,
+    gpu_count, data, probe, scan, psi,
     recover_psi=True, recover_probe=False, recover_positions=False,
     cg_iter=4,
     **kwargs
@@ -17,7 +17,7 @@ def combined(
 
     """
     if recover_psi:
-        psi, cost = update_object(op, data, psi, scan, probe, num_iter=cg_iter)
+        psi, cost = update_object(op, gpu_count, data, psi, scan, probe, num_iter=cg_iter)
 
     if recover_probe:
         probe, cost = update_probe(op, data, psi, scan, probe, num_iter=cg_iter)
@@ -56,9 +56,8 @@ def update_probe(op, data, psi, scan, probe, num_iter=1):
     return probe, cost
 
 
-def update_object(op, data, psi, scan, probe, num_iter=1):
+def update_object(op, gpu_count, data, psi, scan, probe, num_iter=1):
     """Solve the object recovery problem."""
-    gpu_count = 2
 
     def cost_function(psi):
         return op.cost(data, psi, scan, probe)
@@ -69,8 +68,8 @@ def update_object(op, data, psi, scan, probe, num_iter=1):
     def grad(psi):
         return op.grad(data, psi, scan, probe)
 
-    def grad_multi(gpu_id):
-        return op.grad_multi(gpu_id, data, psi, scan, probe)
+    def grad_multi(psi):
+        return op.grad_multi(gpu_count, data, psi, scan, probe)
 
     def update_multi(psi, *args):
         return op.update_multi(gpu_count, psi, *args)
