@@ -207,7 +207,13 @@ def reconstruct(
                     break
                 cost = result['cost']
 
-        return {k: operator.asnumpy(v) for k, v in result.items()}
+                Output = {}
+                Output['cost'] = result['cost']
+                for k, v in result.items():
+                    if k != 'cost':
+                        Output[k] = operator.asnumpy(v[0])
+        #return {k: operator.asnumpy(v) for k, v in result.items()}
+        return Output
     else:
         raise ValueError(
             "The '{}' algorithm is not an available.".format(algorithm))
