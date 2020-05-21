@@ -15,30 +15,31 @@
 // patches has shape (nscan, patch_shape, patch_shape)
 // nscan is the number of positions per images
 // scan has shape (nimage, nscan)
-extern "C" __global__
-void patch(float2 *images, float2 *patches, const float2 *scan,
-           int nimage, int nimagey, int nimagex,
-           int nscan, int patch_shape, int padded_shape,
-           bool forward) {
+extern "C" __global__ void
+patch(float2 *images, float2 *patches, const float2 *scan, int nimage,
+      int nimagey, int nimagex, int nscan, int patch_shape, int padded_shape,
+      bool forward) {
   const int tp = threadIdx.x + blockDim.x * (blockIdx.x);  // thread patch
-  const int ts = blockIdx.y;  // thread scan
-  const int ti = blockIdx.z;  // thread image
+  const int ts = blockIdx.y;                               // thread scan
+  const int ti = blockIdx.z;                               // thread image
   if (tp >= patch_shape * patch_shape || ts >= nscan || ti >= nimage) return;
 
   // patch index (pi)
   const int px = tp % patch_shape;
   const int py = tp / patch_shape;
   const int pad = (padded_shape - patch_shape) / 2;
+  // clang-format off
   const int pi = (
     + pad + px + padded_shape * (pad + py)
     + padded_shape * padded_shape * (ts + nscan * ti)
   );
+  // clang-format on
 
   const float sx = floor(scan[ts + ti * nscan].y);
   const float sy = floor(scan[ts + ti * nscan].x);
 
-  if (sx < 0 || nimagex <= sx + patch_shape ||
-      sy < 0 || nimagey <= sy + patch_shape){
+  if (sx < 0 || nimagex <= sx + patch_shape || sy < 0
+      || nimagey <= sy + patch_shape) {
     // printf("%f, %f - %f, %f\n", sx, sy, sxf, syf);
     assert(false);
     return;
@@ -52,6 +53,7 @@ void patch(float2 *images, float2 *patches, const float2 *scan,
   assert(1.0f >= sxf && sxf >= 0.0f && 1.0f >= syf && syf >= 0.0f);
 
   // Linear interpolation
+  // clang-format off
   if (forward) {
     patches[pi].x = images[ii              ].x * (1.0f - sxf) * (1.0f - syf)
                   + images[ii + 1          ].x * (       sxf) * (1.0f - syf)
