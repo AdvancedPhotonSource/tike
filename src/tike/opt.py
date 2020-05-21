@@ -108,13 +108,6 @@ def conjugate_gradient(
         The number of steps to take.
 
     """
-    #gpu_list = range(gpu_count)
-    def multiGPU_init(gpu_id):
-        print('tst:', gpu_id)
-        grad(gpu_id)
-    #with cf.ThreadPoolExecutor(max_workers=gpu_count) as executor:
-    #    results = executor.map(grad, gpu_list)
-    #    #results = executor.map(multiGPU_init, gpu_list)
     for i in range(num_iter):
         grad1 = grad(x)
         if i == 0:

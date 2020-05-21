@@ -45,7 +45,6 @@ class Ptycho(Operator, numpy.Ptycho):
             ),
             overwrite=True,
         )
-        print('inten:', scan.shape, scan[:, :, 1])
         return scan
 
     def _compute_intensity_multi(self, gpu_id, data, psi, scan, probe, n=-1, mode=None):
@@ -99,10 +98,6 @@ class Ptycho(Operator, numpy.Ptycho):
             else:
                 psi_list[i] = psi[i]
 
-        #for i in range(gpu_count):
-        #    with cp.cuda.Device(i):
-        #        print('testpsi:', i, psi[i].tolist())
-
         gpu_list = range(gpu_count)
         with cf.ThreadPoolExecutor(max_workers=gpu_count) as executor:
             cost_out = executor.map(self.cost_device, gpu_list, data, psi_list, scan, probe)
@@ -112,7 +107,6 @@ class Ptycho(Operator, numpy.Ptycho):
         for i in range(gpu_count):
             with cp.cuda.Device(i):
                 cost_cpu += Operator.asnumpy(cost_list[i])
-        print('test:', type(cost_cpu), cost_cpu.dtype, cost_cpu.shape, cost_cpu)
 
         return cost_cpu
 
@@ -137,10 +131,7 @@ class Ptycho(Operator, numpy.Ptycho):
     # multi-GPU grad() entry point
     def grad_multi(self, gpu_count, data, psi, scan, probe):  # lists of cupy array
         #intensity = self._compute_intensity_multi(gpu_id, data, psi, scan, probe) # intensity is a list of cupy arrays
-        #gpu_count = gpu_id
         gpu_list = range(gpu_count)
-        #def multiGPU_init(gpu_i):
-        #    print('tst:', gpu_i)
         with cf.ThreadPoolExecutor(max_workers=gpu_count) as executor:
             grad_out = executor.map(self.grad_device, gpu_list, data, psi, scan, probe)
         grad_list = list(grad_out)
@@ -161,33 +152,6 @@ class Ptycho(Operator, numpy.Ptycho):
         #print('testgrad2:', grad_tmp.shape)
         #print('testgrad:', grad_list[0].tolist())
         #print('testgrad1:', grad_list[1].tolist())
-
-
-
-
-        #with cp.cuda.Device(gpu_id):
-        #    #print('test1:', gpu_id, scan[0][:, :, 0], scan[0][:, :, 1])
-        #    #print('test1:', gpu_id, psi[0].shape) print('test2:', gpu_id, self.nscan)
-        #    intensity = self._compute_intensity_multi(gpu_id, data[gpu_id], psi[gpu_id], scan[gpu_id], probe[gpu_id])
-        #    print('test1:', gpu_id, intensity)
-        #    grad_obj = self.xp.zeros_like(psi[gpu_id])
-        #    print('data:', gpu_id, scan[gpu_id][:, :, 1])
-        #    #for mode in cp.split(probe[gpu_id], probe[gpu_id].shape[-3], axis=-3):
-        #    #    # TODO: Pass obj through adj() instead of making new obj inside
-        #    #    grad_obj += self.adj(
-        #    #        farplane=self.propagation.grad(
-        #    #            data[gpu_id],
-        #    #            self.fwd(psi=psi, scan=scan[gpu_id], probe=mode),
-        #    #            intensity,
-        #    #        ),
-        #    #        probe=mode,
-        #    #        scan=scan[gpu_id],
-        #    #        overwrite=True,
-        #    #    )
-        #    print('data:')
-        #        #print('grad_obj:', grad_obj.shape)
-        #    return grad_obj
-
 
     # multi-GPU update()
     def update_multi(self, gpu_count, psi, gamma, dir):  # lists of cupy array
