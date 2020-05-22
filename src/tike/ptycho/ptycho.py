@@ -192,6 +192,10 @@ def reconstruct(
 
             cost = 0
             for i in range(num_iter):
+                #result['probe'] = _rescale_obj_probe(operator, data,
+                #                                     result['psi'],
+                #                                     result['scan'],
+                #                                     result['probe'])
                 kwargs.update(resultm)
                 result = getattr(solvers, algorithm)(
                     operator,

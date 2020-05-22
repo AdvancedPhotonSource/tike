@@ -25,7 +25,6 @@ void patch(float2 *images, float2 *patches, const float2 *scan,
   const int ts = blockIdx.y;  // thread scan
   const int ti = blockIdx.z;  // thread image
 
-  //if (tp==0) printf("kernel\n");
   if (tp >= patch_shape * patch_shape || ts >= nscan || ti >= nimage) return;
 
   // patch index (pi)

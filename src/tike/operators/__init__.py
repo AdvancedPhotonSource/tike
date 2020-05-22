@@ -25,11 +25,10 @@ def set_backend(requested_backend):
         backend_options = {}
         failed_import = []
         for entry_point in pkg_resources.iter_entry_points(f'tike.{operator}'):
+            try:
                 backend_options[entry_point.name] = entry_point.load()
-#            try:
-#                backend_options[entry_point.name] = entry_point.load()
-#            except ImportError:
-#                failed_import.append(entry_point.name)
+            except ImportError:
+                failed_import.append(entry_point.name)
         if requested_backend in backend_options:
             globals()[operator] = backend_options[requested_backend]
         else:
