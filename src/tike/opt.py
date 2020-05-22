@@ -166,5 +166,5 @@ def conjugate_gradient(
             d=dir,
         )
         x = x + gamma * dir
-        logger.debug("%4d, %.3e, %.7e", (i + 1), gamma, cost)
+        logger.debug("step %d; length = %.3e; cost = %.6e", i, gamma, cost)
     return x, cost
