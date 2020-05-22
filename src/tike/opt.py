@@ -12,34 +12,50 @@ import warnings
 
 logger = logging.getLogger(__name__)
 
-def line_search_sqr(f, p1, p2, p3, step_length=1, step_shrink=0.5):
-        """Optimized line search for square functions
-            Example of otimized computation for the Gaussian model:
-            sum_j|G_j(psi+gamma dpsi)|^2 = sum_j|G_j(psi)|^2+
-                                           gamma^2*sum_j|G_j(dpsi)|^2+
-                                           gamma*sum_j (G_j(psi).real*G_j(psi).real+2*G_j(dpsi).imag*G_j(dpsi).imag)
-            p1 = sum_j|G_j(psi)|^2
-            p2 = sum_j|G_j(dpsi)|^2
-            p3 = sum_j (G_j(psi).real*G_j(psi).real+2*G_j(dpsi).imag*G_j(dpsi).imag)
-            Parameters	
-            ----------	
-            f : function(x)	
-                The function being optimized.	
-            p1,p2,p3 : vectors	
-                Temporarily vectors to avoid computing forward operators        
-        """
-        
-        assert step_shrink > 0 and step_shrink < 1
-        m = 0  # Some tuning parameter for termination
-        fp1 = f(p1) # optimize computation
-        # Decrease the step length while the step increases the cost function
-        while f(p1+step_length**2 * p2+step_length*p3) > fp1 + step_shrink * m:
-            if step_length < 1e-32:
-                warnings.warn("Line search failed for conjugate gradient.")
-                return 0
-            step_length *= step_shrink            
-        return step_length
-    
+
+def line_search_sqr(f, p0, p1, p2, step_length=1, step_shrink=0.5):
+    """Perform an optimized line search for squared absolute value functions.
+
+    Starting with the following identity which converts a squared absolute
+    value expression into the sum of two quadratics.
+
+    ```
+    a, b = np.random.rand(2) + 1j * np.random.rand(2)
+    c = np.random.rand()
+    abs(a + c * b)**2 == (a.real + c * b.real)**2 + (a.imag + c * b.imag)**2
+    ```
+
+    Then, assuming the operator G is a linear operator.
+
+    sum_j |G(x_j + step * d_j)|^2 = step^2 * p2 + step * p1 + p0
+
+    p2 = sum_j |G(d_j)|^2
+    p1 = 2 * sum_j( G(x_j).real * G(d_j).real + G(x_j).imag * G(d_j).imag )
+    p0 = sum_j |G(x_j)|^2
+
+    Parameters
+    ----------
+    f : function(x)
+        The function being optimized.
+    p0,p1,p2 : vectors
+        Temporarily vectors to avoid computing forward operators
+    """
+    assert step_shrink > 0 and step_shrink < 1
+    m = 0  # Some tuning parameter for termination
+    # Save cache function calls instead of computing them many times
+    fx = f(p0)
+    # Decrease the step length while the step increases the cost function
+    while True:
+        fxsd = f(p0 + step_length * p1 + step_length**2 * p2)
+        if fxsd <= fx + step_shrink * m:
+            break
+        step_length *= step_shrink
+        if step_length < 1e-32:
+            warnings.warn("Line search failed for conjugate gradient.")
+            return 0, fx
+    return step_length, fxsd
+
+
 def line_search(f, x, d, step_length=1, step_shrink=0.5, linear=None):
     """Perform a backtracking line search for a partially-linear cost-function.
 
