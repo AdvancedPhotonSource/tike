@@ -99,7 +99,7 @@ def eq2us(f, x, n, eps, xp, gather=vector_gather):
     Fe0 = xp.fft.fftshift(xp.fft.fftn(xp.fft.fftshift(fe)))
     Fe = xp.pad(Fe0, m, mode='wrap')
 
-    F = vector_gather(xp, Fe, x, n, m, mu)
+    F = gather(xp, Fe, x, n, m, mu)
 
     return F
 
