@@ -96,7 +96,7 @@ def eq2us(f, x, n, eps, xp, gather=vector_gather):
     # FFT and compesantion for smearing
     fe = xp.zeros([2 * n] * ndim, dtype="complex64")
     fe[pad:end, pad:end, pad:end] = f / ((2 * n)**ndim * kernel)
-    Fe0 = xp.fft.fftshift(xp.fft.fftn(xp.fft.fftshift(fe)))
+    Fe0 = checkerboard(xp, xp.fft.fftn(checkerboard(xp, fe)), inverse=True)
     Fe = xp.pad(Fe0, m, mode='wrap')
 
     F = gather(xp, Fe, x, n, m, mu)
@@ -202,7 +202,7 @@ def us2eq(f, x, n, eps, xp, scatter=vector_scatter):
     G = _unpad(G, m)
 
     # FFT and compesantion for smearing
-    F = xp.fft.fftshift(xp.fft.fftn(xp.fft.fftshift(G)))
+    F = checkerboard(xp, xp.fft.fftn(checkerboard(xp, G)), inverse=True)
     F = F[pad:end, pad:end, pad:end] / ((2 * n)**3 * kernel)
 
     return F
@@ -233,4 +233,30 @@ def _unpad(array, width, mode='wrap'):
         array[-twice:-width] += array[:width]
         array = array[width:-width]
         array = np.moveaxis(array, 0, -1)
+    return array
+
+
+def _g(x):
+    return 1 - 2 * (x % 2)
+
+
+def checkerboard(xp, array, axes=None, inverse=False):
+    """In-place FFTshift for even sized grids only.
+
+    If and only if the dimensions of `array` are even numbers, flipping the
+    signs of input signal in an alternating pattern before an FFT is equivalent
+    to shifting the zero-frequency component to the center of the spectrum
+    before the FFT.
+    """
+    axes = range(array.ndim) if axes is None else axes
+    for i in axes:
+        if array.shape[i] % 2 != 0:
+            raise ValueError(
+                "Can only use checkerboard algorithm for even dimensions. "
+                f"This dimension is {array.shape[i]}.")
+        array = xp.moveaxis(array, i, -1)
+        array *= _g(xp.arange(array.shape[-1]) + 1)
+        if inverse:
+            array *= _g(array.shape[-1] // 2)
+        array = xp.moveaxis(array, -1, i)
     return array

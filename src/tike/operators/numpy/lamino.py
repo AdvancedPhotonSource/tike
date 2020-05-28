@@ -1,7 +1,7 @@
 import numpy as np
 
 from .operator import Operator
-from .usfft import eq2us, us2eq
+from .usfft import eq2us, us2eq, checkerboard
 
 
 class Lamino(Operator):
@@ -43,22 +43,34 @@ class Lamino(Operator):
                   self.xp).reshape([self.ntheta, self.n, self.n])
 
         # Inverse 2D FFT
-        data = self.xp.fft.fftshift(
-            self.xp.fft.ifft2(self.xp.fft.fftshift(F, axes=(1, 2)),
-                              axes=(1, 2),
-                              norm="ortho"),
+        data = checkerboard(
+            self.xp,
+            self.xp.fft.ifft2(
+                checkerboard(self.xp, F, axes=(1, 2)),
+                axes=(1, 2),
+                norm="ortho",
+            ),
             axes=(1, 2),
+            inverse=True,
         )
         return data
 
     def adj(self, data, **kwargs):
         """Perform the adjoint Laminography transform."""
         # Forward 2D FFT
-        F = self.xp.fft.fftshift(
-            self.xp.fft.fft2(self.xp.fft.fftshift(data, axes=(1, 2)),
-                             axes=(1, 2),
-                             norm="ortho"),
+        F = checkerboard(
+            self.xp,
+            self.xp.fft.fft2(
+                checkerboard(
+                    self.xp,
+                    data.copy(),
+                    axes=(1, 2),
+                ),
+                axes=(1, 2),
+                norm="ortho",
+            ),
             axes=(1, 2),
+            inverse=True,
         ).ravel()
         # Inverse (x->-x) USFFT from unequally-spaced grid to equally-spaced
         # grid
