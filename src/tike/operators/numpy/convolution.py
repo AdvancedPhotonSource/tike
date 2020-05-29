@@ -70,40 +70,25 @@ class Convolution(Operator):
             (self.ntheta, self.nscan, self.detector_shape, self.detector_shape),
             dtype='complex64',
         )
-        patches[..., self.pad:self.end, self.pad:self.end] = _patch_iterator(
-            scan,
-            self.probe_shape,
-            psi.shape,
-            _extract_patches,
-            output=patches[..., self.pad:self.end, self.pad:self.end],
-            input=psi,
-        )
+        patches = self._patch(patches, psi, scan, fwd=True)
         patches = patches.reshape(self.ntheta, self.nscan // self.fly, self.fly,
                                   1, self.detector_shape, self.detector_shape)
         patches[..., self.pad:self.end, self.pad:self.end] *= probe
         return patches
 
-    def adj(self, nearplane, scan, probe, obj=None, overwrite=False):
+    def adj(self, nearplane, scan, probe, psi=None, overwrite=False):
         """Combine probe shaped patches into a psi shaped grid by addition."""
         self._check_shape_nearplane(nearplane)
         self._check_shape_probe(probe)
         if not overwrite:
             nearplane = nearplane.copy()
-        nearplane[..., self.pad:self.end, self.pad:self.end] *= np.conj(probe)
+        nearplane[..., self.pad:self.end, self.pad:self.end] *= probe.conj()
         nearplane = nearplane.reshape(self.ntheta, self.nscan,
                                       self.detector_shape, self.detector_shape)
-        if obj is None:
-            obj = self.xp.zeros((self.ntheta, self.nz, self.n),
+        if psi is None:
+            psi = self.xp.zeros((self.ntheta, self.nz, self.n),
                                 dtype='complex64')
-        obj = _patch_iterator(
-            scan,
-            self.probe_shape,
-            obj.shape,
-            _combine_patches,
-            output=obj,
-            input=nearplane[..., self.pad:self.end, self.pad:self.end],
-        )
-        return obj
+        return self._patch(nearplane, psi, scan, fwd=False)
 
     def adj_probe(self, nearplane, scan, psi, overwrite=False):
         """Combine probe shaped patches into a probe."""
@@ -112,18 +97,12 @@ class Convolution(Operator):
             (self.ntheta, self.nscan, self.probe_shape, self.probe_shape),
             dtype='complex64',
         )
-        patches = _patch_iterator(
-            scan,
-            self.probe_shape,
-            psi.shape,
-            _extract_patches,
-            output=patches,
-            input=psi,
-        )
+        patches = self._patch(patches, psi, scan, fwd=True)
         patches = patches.reshape(self.ntheta, self.nscan // self.fly, self.fly,
                                   1, self.probe_shape, self.probe_shape)
-        return (nearplane[..., self.pad:self.end, self.pad:self.end] *
-                np.conj(patches))
+        patches = patches.conj()
+        patches *= nearplane[..., self.pad:self.end, self.pad:self.end]
+        return patches
 
     def _check_shape_probe(self, x):
         """Check that the probe is correctly shaped."""
@@ -146,15 +125,39 @@ class Convolution(Operator):
             raise ValueError(
                 f"nearplane must have shape {shape1} not {x.shape}")
 
+    def _patch(self, patches, psi, scan, fwd=True):
+        """Reimplement this wrapper to switch the patch getting function."""
+        pad = (patches.shape[-1] - self.probe_shape) // 2
+        end = self.probe_shape + pad
+        if fwd:
+            patches[..., pad:end, pad:end] = _patch_iterator(
+                scan,
+                self.probe_shape,
+                psi.shape,
+                _extract_patches,
+                patches[..., pad:end, pad:end],
+                psi,
+            )
+            return patches
+        else:
+            return _patch_iterator(
+                scan,
+                self.probe_shape,
+                psi.shape,
+                _combine_patches,
+                psi,
+                patches[..., pad:end, pad:end],
+            )
 
-def _combine_patches(psi, nearplane, view_angle, position, i, j, probe_shape,
+
+def _combine_patches(psi, patches, view_angle, position, i, j, probe_shape,
                      weight):
     """Add patches to psi at given positions."""
     psi[
         view_angle,
         i:i + probe_shape,
         j:j + probe_shape,
-    ] += weight * nearplane[view_angle, position]  # yapf: disable
+    ] += weight * patches[view_angle, position]  # yapf: disable
     return psi
 
 
