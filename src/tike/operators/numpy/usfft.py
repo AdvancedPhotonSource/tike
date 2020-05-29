@@ -69,7 +69,7 @@ def sequential_gather(xp, Fe, x, n, m, mu):
     return F
 
 
-def eq2us(f, x, n, eps, xp, gather=vector_gather):
+def eq2us(f, x, n, eps, xp, gather=vector_gather, fftn=None):
     """USFFT from equally-spaced grid to unequally-spaced grid.
 
     Parameters
@@ -81,6 +81,7 @@ def eq2us(f, x, n, eps, xp, gather=vector_gather):
     eps : float
         The desired relative accuracy of the USFFT.
     """
+    fftn = xp.fft.fftn if fftn is None else fftn
     ndim = f.ndim
     pad = n // 2  # where zero-padding stops
     end = pad + n  # where f stops
@@ -96,7 +97,7 @@ def eq2us(f, x, n, eps, xp, gather=vector_gather):
     # FFT and compesantion for smearing
     fe = xp.zeros([2 * n] * ndim, dtype="complex64")
     fe[pad:end, pad:end, pad:end] = f / ((2 * n)**ndim * kernel)
-    Fe0 = checkerboard(xp, xp.fft.fftn(checkerboard(xp, fe)), inverse=True)
+    Fe0 = checkerboard(xp, fftn(checkerboard(xp, fe)), inverse=True)
     Fe = xp.pad(Fe0, m, mode='wrap')
 
     F = gather(xp, Fe, x, n, m, mu)
@@ -171,7 +172,7 @@ def vector_scatter(xp, f, x, n, m, mu, ndim=3):
     return G.reshape([2 * (n + m)] * ndim)
 
 
-def us2eq(f, x, n, eps, xp, scatter=vector_scatter):
+def us2eq(f, x, n, eps, xp, scatter=vector_scatter, fftn=None):
     """USFFT from unequally-spaced grid to equally-spaced grid.
 
     Parameters
@@ -187,6 +188,7 @@ def us2eq(f, x, n, eps, xp, scatter=vector_scatter):
     scatter : function
         The scatter function to use.
     """
+    fftn = xp.fft.fftn if fftn is None else fftn
     pad = n // 2  # where zero-padding stops
     end = pad + n  # where f stops
 
@@ -202,7 +204,7 @@ def us2eq(f, x, n, eps, xp, scatter=vector_scatter):
     G = _unpad(G, m)
 
     # FFT and compesantion for smearing
-    F = checkerboard(xp, xp.fft.fftn(checkerboard(xp, G)), inverse=True)
+    F = checkerboard(xp, fftn(checkerboard(xp, G)), inverse=True)
     F = F[pad:end, pad:end, pad:end] / ((2 * n)**3 * kernel)
 
     return F
