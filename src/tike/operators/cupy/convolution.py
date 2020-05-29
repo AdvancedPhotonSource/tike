@@ -18,14 +18,14 @@ class Convolution(Operator, numpy.Convolution):
         pass
 
     def _patch(self, patches, psi, scan, fwd=True):
-        max_thread = min(self.probe_shape**2,
+        max_thread = min(self.probe_shape,
                          _patch_kernel.attributes['max_threads_per_block'])
-        blocks = (max_thread,)
         grids = (
-            -(-self.probe_shape**2 // max_thread),  # ceil division
+            self.probe_shape,
             scan.shape[-2],
             self.ntheta,
         )
+        blocks = (max_thread,)
         _patch_kernel(
             grids,
             blocks,
