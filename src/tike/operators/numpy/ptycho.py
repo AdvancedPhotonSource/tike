@@ -20,8 +20,6 @@ class Ptycho(Operator):
         The number of scan positions at each angular view.
     fly : int
         The number of consecutive scan positions that describe a fly scan.
-    nmode : int
-        The number of probe modes per scan position.
     probe_shape : int
         The pixel width and height of the (square) probe illumination.
     detector_shape : int
@@ -42,7 +40,7 @@ class Ptycho(Operator):
     psi : (ntheta, nz, n) complex64
         The complex wavefront modulation of the object.
     probe : complex64
-        The complex (ntheta, nscan // fly, fly, nmode, probe_shape,
+        The complex (ntheta, nscan // fly, fly, 1, probe_shape,
         probe_shape) illumination function.
     mode : complex64
         A single (ntheta, nscan // fly, fly, 1, probe_shape, probe_shape)
