@@ -1,3 +1,4 @@
+"""Check whether the checkerboard algorithm is equivalent to fftshift."""
 import numpy as np
 import cupy as cp
 from cupyx.scipy.fft import fftn, ifftn

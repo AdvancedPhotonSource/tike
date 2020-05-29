@@ -239,6 +239,7 @@ def _unpad(array, width, mode='wrap'):
 
 
 def _g(x):
+    """Return -1 for odd x and 1 for even x."""
     return 1 - 2 * (x % 2)
 
 
