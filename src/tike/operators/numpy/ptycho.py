@@ -67,11 +67,8 @@ class Ptycho(Operator):
                  **kwargs):  # noqa: D102 yapf: disable
         """Please see help(Ptycho) for more info."""
         self.propagation = propagation(
-            nwaves=ntheta * nscan,
-            probe_shape=probe_shape,
             detector_shape=detector_shape,
             model=model,
-            fly=fly,
             **kwargs,
         )
         self.diffraction = diffraction(
