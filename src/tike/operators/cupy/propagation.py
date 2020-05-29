@@ -10,15 +10,27 @@ class Propagation(Operator, numpy.Propagation):
     """A Fourier-based free-space propagation using CuPy."""
 
     def __enter__(self):
-        # TODO: initialize fftplan cache
+        self.plan_cache = {}
         return self
 
     def __exit__(self, type, value, traceback):
-        # TODO: delete fftplan cache
-        pass
+        self.plan_cache.clear()
+        del self.plan_cache
 
-    def _fft2(self, *args, overwrite=False, **kwargs):
-        return fftn(*args, overwrite_x=overwrite, **kwargs)
+    def _get_fft_plan(self, a, axes, **kwargs):
+        """Cache multiple FFT plans at the same time."""
+        key = (*a.shape, *axes)
+        if key in self.plan_cache:
+            plan = self.plan_cache[key]
+        else:
+            plan = get_fft_plan(a, axes=axes)
+            self.plan_cache[key] = plan
+        return plan
 
-    def _ifft2(self, *args, overwrite=False, **kwargs):
-        return ifftn(*args, overwrite_x=overwrite, **kwargs)
+    def _fft2(self, a, *args, overwrite=False, **kwargs):
+        with self._get_fft_plan(a, **kwargs):
+            return fftn(a, *args, overwrite_x=overwrite, **kwargs)
+
+    def _ifft2(self, a, *args, overwrite=False, **kwargs):
+        with self._get_fft_plan(a, **kwargs):
+            return ifftn(a, *args, overwrite_x=overwrite, **kwargs)
