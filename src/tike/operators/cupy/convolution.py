@@ -12,24 +12,24 @@ _patch_kernel = cp.RawKernel(_cu_source, "patch")
 class Convolution(Operator, numpy.Convolution):
 
     def __enter__(self):
-        max_thread = min(self.probe_shape**2,
-                         _patch_kernel.attributes['max_threads_per_block'])
-        self.blocks = (max_thread,)
-        self.grids = (
-            -(-self.probe_shape**2 // max_thread),  # ceil division
-            self.nscan,
-            self.ntheta,
-        )
         return self
 
     def __exit__(self, type, value, traceback):
         pass
 
     def _patch(self, patches, psi, scan, fwd=True):
+        max_thread = min(self.probe_shape**2,
+                         _patch_kernel.attributes['max_threads_per_block'])
+        blocks = (max_thread,)
+        grids = (
+            -(-self.probe_shape**2 // max_thread),  # ceil division
+            scan.shape[-2],
+            self.ntheta,
+        )
         _patch_kernel(
-            self.grids,
-            self.blocks,
-            (psi, patches, scan, self.ntheta, self.nz, self.n, self.nscan,
+            grids,
+            blocks,
+            (psi, patches, scan, self.ntheta, self.nz, self.n, scan.shape[-2],
              self.probe_shape, patches.shape[-1], fwd),
         )
         if fwd:

@@ -72,7 +72,6 @@ class Ptycho(Operator):
         self.diffraction = diffraction(
             probe_shape=probe_shape,
             detector_shape=detector_shape,
-            nscan=nscan,
             nz=nz,
             n=n,
             ntheta=ntheta,
@@ -81,7 +80,6 @@ class Ptycho(Operator):
             **kwargs,
         )
         # TODO: Replace these with @property functions
-        self.nscan = nscan
         self.probe_shape = probe_shape
         self.detector_shape = detector_shape
         self.nz = nz
