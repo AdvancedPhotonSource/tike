@@ -63,12 +63,14 @@ class Convolution(Operator):
         psi = psi.reshape(self.ntheta, self.nz, self.n)
         self._check_shape_probe(probe, scan.shape[-2])
         patches = self.xp.zeros(
-            (self.ntheta, scan.shape[-2], self.detector_shape, self.detector_shape),
+            (self.ntheta, scan.shape[-2], self.detector_shape,
+             self.detector_shape),
             dtype='complex64',
         )
         patches = self._patch(patches, psi, scan, fwd=True)
-        patches = patches.reshape(self.ntheta, scan.shape[-2] // self.fly, self.fly,
-                                  1, self.detector_shape, self.detector_shape)
+        patches = patches.reshape(self.ntheta, scan.shape[-2] // self.fly,
+                                  self.fly, 1, self.detector_shape,
+                                  self.detector_shape)
         patches[..., self.pad:self.end, self.pad:self.end] *= probe
         return patches
 
@@ -94,8 +96,9 @@ class Convolution(Operator):
             dtype='complex64',
         )
         patches = self._patch(patches, psi, scan, fwd=True)
-        patches = patches.reshape(self.ntheta, scan.shape[-2] // self.fly, self.fly,
-                                  1, self.probe_shape, self.probe_shape)
+        patches = patches.reshape(self.ntheta, scan.shape[-2] // self.fly,
+                                  self.fly, 1, self.probe_shape,
+                                  self.probe_shape)
         patches = patches.conj()
         patches *= nearplane[..., self.pad:self.end, self.pad:self.end]
         return patches
@@ -104,8 +107,8 @@ class Convolution(Operator):
         """Check that the probe is correctly shaped."""
         assert type(x) is self.xp.ndarray, type(x)
         # unique probe for each position
-        shape1 = (self.ntheta, nscan // self.fly, self.fly, 1,
-                  self.probe_shape, self.probe_shape)
+        shape1 = (self.ntheta, nscan // self.fly, self.fly, 1, self.probe_shape,
+                  self.probe_shape)
         # one probe for all positions
         shape2 = (self.ntheta, 1, 1, 1, self.probe_shape, self.probe_shape)
         if __debug__ and x.shape != shape2 and x.shape != shape1:
