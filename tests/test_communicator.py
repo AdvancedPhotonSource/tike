@@ -1,8 +1,9 @@
 import numpy as np
-from tike.communicator import MPICommunicator
+# from tike.communicator import MPICommunicator
 import unittest
+import pytest
 
-
+@pytest.mark.skip(reason="The communicator module is broken/disabled.")
 class TestMPICommunicator(unittest.TestCase):
     """Test the functions of the MPICommunicator class."""
 
