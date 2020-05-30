@@ -47,6 +47,7 @@ class TestLamino(unittest.TestCase):
             assert obj.shape == o.shape
             a = inner_complex(d, data)
             b = inner_complex(obj, o)
+            print()
             print('<Lobj,   data> = {:.6f}{:+.6f}j'.format(
                 a.real.item(), a.imag.item()))
             print('<obj  , L*data> = {:.6f}{:+.6f}j'.format(
