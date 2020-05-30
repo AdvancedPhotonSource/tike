@@ -60,6 +60,7 @@ __docformat__ = 'restructuredtext en'
 
 testdir = os.path.dirname(__file__)
 
+
 @pytest.mark.skip(reason="The tomo module is broken/disabled.")
 class TestPtychoRecon(unittest.TestCase):
     """Test various ptychography reconstruction methods for consistency."""
@@ -72,24 +73,23 @@ class TestPtychoRecon(unittest.TestCase):
         import matplotlib.pyplot as plt
         # Create object
         delta = plt.imread(
-            os.path.join(testdir, "data/Cryptomeria_japonica-0128.tif")
-        )
+            os.path.join(testdir, "data/Cryptomeria_japonica-0128.tif"))
         beta = plt.imread(
-            os.path.join(testdir, "data/Bombus_terrestris-0128.tif")
-        )
+            os.path.join(testdir, "data/Bombus_terrestris-0128.tif"))
         original = np.empty(delta.shape, dtype='complex64')
         original.real = delta / 2550
         original.imag = beta / 2550
         self.original = np.tile(original, (1, 1, 1)).astype('complex64')
         # Define views
-        self.theta = np.linspace(0, np.pi, 201, endpoint=False).astype('float32')
+        self.theta = np.linspace(0, np.pi, 201,
+                                 endpoint=False).astype('float32')
         # Simulate data
         self.data = tike.tomo.simulate(obj=self.original, theta=self.theta)
         setup_data = [
             self.data.astype('complex64'),
             self.theta.astype('float32'),
             self.original.astype('complex64'),
-            ]
+        ]
         with lzma.open(dataset_file, 'wb') as file:
             pickle.dump(setup_data, file)
 
@@ -112,10 +112,10 @@ class TestPtychoRecon(unittest.TestCase):
         theta = xp.array(self.theta)
         original = xp.array(self.original)
         with TomoBackend(
-            ntheta=theta.size,
-            nz=original.shape[0],
-            n=original.shape[1],
-            center=original.shape[1] / 2,
+                ntheta=theta.size,
+                nz=original.shape[0],
+                n=original.shape[1],
+                center=original.shape[1] / 2,
         ) as slv:
             data = slv.fwd(original, theta)
             u1 = slv.adj(data, theta)
@@ -124,7 +124,7 @@ class TestPtychoRecon(unittest.TestCase):
             print()
             print(f"<> = {t1.real.item():06f}{t1.imag.item():+06f}j\n"
                   f"<> = {t2.real.item():06f}{t2.imag.item():+06f}j")
-            xp.testing.assert_allclose(t1, t2,rtol=1e-3)
+            xp.testing.assert_allclose(t1, t2, rtol=1e-3)
 
     def test_consistent_simulate(self):
         """Check tomo.forward for consistency."""
@@ -137,11 +137,11 @@ class TestPtychoRecon(unittest.TestCase):
         When we project at angles 0 and PI/2, the foward operator should be the
         same as taking the sum over the object array along each axis.
         """
-        theta = np.array([0, np.pi/2, np.pi, -np.pi/2], dtype='float32')
+        theta = np.array([0, np.pi / 2, np.pi, -np.pi / 2], dtype='float32')
         size = 11
         original = np.zeros((1, size, size), dtype='complex64')
-        original[0, size//2, :] += 1
-        original[0, :, size//2] += 1j
+        original[0, size // 2, :] += 1
+        original[0, :, size // 2] += 1j
         data = tike.tomo.simulate(original, theta)
         data1 = np.sum(original, axis=1)
         data2 = np.sum(original, axis=2)
@@ -171,6 +171,7 @@ class TestPtychoRecon(unittest.TestCase):
     #             pickle.dump(recon.astype(np.complex64), file)
     #         raise e
     #     np.testing.assert_allclose(recon, standard, rtol=1e-3)
+
 
 if __name__ == '__main__':
     unittest.main()
