@@ -16,8 +16,6 @@ class Convolution(Operator):
         The number of scan positions at each angular view.
     fly : int
         The number of consecutive scan positions that describe a fly scan.
-    nmode : int
-        The number of probe modes per scan position.
     probe_shape : int
         The pixel width and height of the (square) probe illumination.
     nz, n : int
@@ -30,10 +28,10 @@ class Convolution(Operator):
     psi : (ntheta, nz, n) complex64
         The complex wavefront modulation of the object.
     probe : complex64
-        The (ntheta, nscan // fly, fly, nmode, probe_shape, probe_shape)
+        The (ntheta, nscan // fly, fly, 1, probe_shape, probe_shape)
         complex illumination function.
     nearplane: complex64
-        The (ntheta, nscan // fly, fly, nmode, probe_shape, probe_shape)
+        The (ntheta, nscan // fly, fly, 1, probe_shape, probe_shape)
         wavefronts after exiting the object.
     scan : (ntheta, nscan, 2) float32
         Coordinates of the minimum corner of the probe grid for each
@@ -42,14 +40,12 @@ class Convolution(Operator):
 
     """
 
-    def __init__(self, probe_shape, nscan, nz, n, ntheta, nmode=1, fly=1,
+    def __init__(self, probe_shape, nz, n, ntheta, fly=1,
                  detector_shape=None, **kwargs):  # yapf: disable
         self.probe_shape = probe_shape
-        self.nscan = nscan
         self.nz = nz
         self.n = n
         self.ntheta = ntheta
-        self.nmode = nmode
         self.fly = fly
         if detector_shape is None:
             self.detector_shape = probe_shape
@@ -65,96 +61,102 @@ class Convolution(Operator):
         indices outside the bounds of psi are not allowed.
         """
         psi = psi.reshape(self.ntheta, self.nz, self.n)
-        self._check_shape_probe(probe)
+        self._check_shape_probe(probe, scan.shape[-2])
         patches = self.xp.zeros(
-            (self.ntheta, self.nscan, self.detector_shape, self.detector_shape),
+            (self.ntheta, scan.shape[-2], self.detector_shape,
+             self.detector_shape),
             dtype='complex64',
         )
-        patches[..., self.pad:self.end, self.pad:self.end] = _patch_iterator(
-            scan,
-            self.probe_shape,
-            psi.shape,
-            _extract_patches,
-            output=patches[..., self.pad:self.end, self.pad:self.end],
-            input=psi,
-        )
-        patches = patches.reshape(self.ntheta, self.nscan // self.fly, self.fly,
-                                  1, self.detector_shape, self.detector_shape)
+        patches = self._patch(patches, psi, scan, fwd=True)
+        patches = patches.reshape(self.ntheta, scan.shape[-2] // self.fly,
+                                  self.fly, 1, self.detector_shape,
+                                  self.detector_shape)
         patches[..., self.pad:self.end, self.pad:self.end] *= probe
         return patches
 
-    def adj(self, nearplane, scan, probe, obj=None, overwrite=False):
+    def adj(self, nearplane, scan, probe, psi=None, overwrite=False):
         """Combine probe shaped patches into a psi shaped grid by addition."""
-        self._check_shape_nearplane(nearplane)
-        self._check_shape_probe(probe)
+        self._check_shape_nearplane(nearplane, scan.shape[-2])
+        self._check_shape_probe(probe, scan.shape[-2])
         if not overwrite:
             nearplane = nearplane.copy()
-        nearplane[..., self.pad:self.end, self.pad:self.end] *= np.conj(probe)
-        nearplane = nearplane.reshape(self.ntheta, self.nscan,
+        nearplane[..., self.pad:self.end, self.pad:self.end] *= probe.conj()
+        nearplane = nearplane.reshape(self.ntheta, scan.shape[-2],
                                       self.detector_shape, self.detector_shape)
-        if obj is None:
-            obj = self.xp.zeros((self.ntheta, self.nz, self.n),
+        if psi is None:
+            psi = self.xp.zeros((self.ntheta, self.nz, self.n),
                                 dtype='complex64')
-        obj = _patch_iterator(
-            scan,
-            self.probe_shape,
-            obj.shape,
-            _combine_patches,
-            output=obj,
-            input=nearplane[..., self.pad:self.end, self.pad:self.end],
-        )
-        return obj
+        return self._patch(nearplane, psi, scan, fwd=False)
 
     def adj_probe(self, nearplane, scan, psi, overwrite=False):
         """Combine probe shaped patches into a probe."""
-        self._check_shape_nearplane(nearplane)
+        self._check_shape_nearplane(nearplane, scan.shape[-2])
         patches = self.xp.zeros(
-            (self.ntheta, self.nscan, self.probe_shape, self.probe_shape),
+            (self.ntheta, scan.shape[-2], self.probe_shape, self.probe_shape),
             dtype='complex64',
         )
-        patches = _patch_iterator(
-            scan,
-            self.probe_shape,
-            psi.shape,
-            _extract_patches,
-            output=patches,
-            input=psi,
-        )
-        patches = patches.reshape(self.ntheta, self.nscan // self.fly, self.fly,
-                                  1, self.probe_shape, self.probe_shape)
-        return (nearplane[..., self.pad:self.end, self.pad:self.end] *
-                np.conj(patches))
+        patches = self._patch(patches, psi, scan, fwd=True)
+        patches = patches.reshape(self.ntheta, scan.shape[-2] // self.fly,
+                                  self.fly, 1, self.probe_shape,
+                                  self.probe_shape)
+        patches = patches.conj()
+        patches *= nearplane[..., self.pad:self.end, self.pad:self.end]
+        return patches
 
-    def _check_shape_probe(self, x):
+    def _check_shape_probe(self, x, nscan):
         """Check that the probe is correctly shaped."""
         assert type(x) is self.xp.ndarray, type(x)
         # unique probe for each position
-        shape1 = (self.ntheta, self.nscan // self.fly, self.fly, 1,
-                  self.probe_shape, self.probe_shape)
+        shape1 = (self.ntheta, nscan // self.fly, self.fly, 1, self.probe_shape,
+                  self.probe_shape)
         # one probe for all positions
         shape2 = (self.ntheta, 1, 1, 1, self.probe_shape, self.probe_shape)
         if __debug__ and x.shape != shape2 and x.shape != shape1:
             raise ValueError(
                 f"probe must have shape {shape1} or {shape2} not {x.shape}")
 
-    def _check_shape_nearplane(self, x):
+    def _check_shape_nearplane(self, x, nscan):
         """Check that nearplane is correctly shaped."""
         assert type(x) is self.xp.ndarray, type(x)
-        shape1 = (self.ntheta, self.nscan // self.fly, self.fly, 1,
+        shape1 = (self.ntheta, nscan // self.fly, self.fly, 1,
                   self.detector_shape, self.detector_shape)
         if __debug__ and x.shape != shape1:
             raise ValueError(
                 f"nearplane must have shape {shape1} not {x.shape}")
 
+    def _patch(self, patches, psi, scan, fwd=True):
+        """Reimplement this wrapper to switch the patch getting function."""
+        pad = (patches.shape[-1] - self.probe_shape) // 2
+        end = self.probe_shape + pad
+        if fwd:
+            patches[..., pad:end, pad:end] = _patch_iterator(
+                scan,
+                self.probe_shape,
+                psi.shape,
+                _extract_patches,
+                patches[..., pad:end, pad:end],
+                psi,
+            )
+            return patches
+        else:
+            return _patch_iterator(
+                scan,
+                self.probe_shape,
+                psi.shape,
+                _combine_patches,
+                psi,
+                patches[..., pad:end, pad:end],
+            )
 
-def _combine_patches(psi, nearplane, view_angle, position, i, j, probe_shape,
+
+def _combine_patches(psi, patches, view_angle, position, i, j, probe_shape,
                      weight):
     """Add patches to psi at given positions."""
     psi[
         view_angle,
         i:i + probe_shape,
         j:j + probe_shape,
-    ] += weight * nearplane[view_angle, position]  # yapf: disable
+    ] += weight * patches[view_angle, position]  # yapf: disable
     return psi
 
 

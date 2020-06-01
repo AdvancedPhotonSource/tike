@@ -10,48 +10,27 @@ class Propagation(Operator, numpy.Propagation):
     """A Fourier-based free-space propagation using CuPy."""
 
     def __enter__(self):
-        farplane = cp.empty(
-            (self.nwaves, self.detector_shape, self.detector_shape),
-            dtype='complex64')
-        self.plan = get_fft_plan(farplane, axes=(-2, -1))
-        del farplane
+        self.plan_cache = {}
         return self
 
     def __exit__(self, type, value, traceback):
-        del self.plan
-        pass
+        self.plan_cache.clear()
+        del self.plan_cache
 
-    def fwd(self, nearplane, overwrite=False, **kwargs):
-        self._check_shape(nearplane)
-        if not overwrite:
-            nearplane = cp.copy(nearplane)
-        shape = nearplane.shape
-        with self.plan:
-            return fftn(
-                nearplane.reshape(self.nwaves, self.detector_shape,
-                                  self.detector_shape),
-                norm='ortho',
-                axes=(-2, -1),
-                overwrite_x=True,
-            ).reshape(shape)
+    def _get_fft_plan(self, a, axes, **kwargs):
+        """Cache multiple FFT plans at the same time."""
+        key = (*a.shape, *axes)
+        if key in self.plan_cache:
+            plan = self.plan_cache[key]
+        else:
+            plan = get_fft_plan(a, axes=axes)
+            self.plan_cache[key] = plan
+        return plan
 
-    def adj(self, farplane, overwrite=False, **kwargs):
-        self._check_shape(farplane)
-        if not overwrite:
-            farplane = cp.copy(farplane)
-        shape = farplane.shape
-        with self.plan:
-            return ifftn(
-                farplane.reshape(self.nwaves, self.detector_shape,
-                                 self.detector_shape),
-                norm='ortho',
-                axes=(-2, -1),
-                overwrite_x=True,
-            ).reshape(shape)
+    def _fft2(self, a, *args, overwrite=False, **kwargs):
+        with self._get_fft_plan(a, **kwargs):
+            return fftn(a, *args, overwrite_x=overwrite, **kwargs)
 
-    def _check_shape(self, x):
-        assert type(x) is cp.ndarray, type(x)
-        shape = (self.nwaves, self.detector_shape, self.detector_shape)
-        if (__debug__ and x.shape[-2:] != shape[-2:]
-                and cp.prod(x.shape[:-2]) != self.nwaves):
-            raise ValueError(f'waves must have shape {shape} not {x.shape}.')
+    def _ifft2(self, a, *args, overwrite=False, **kwargs):
+        with self._get_fft_plan(a, **kwargs):
+            return ifftn(a, *args, overwrite_x=overwrite, **kwargs)
