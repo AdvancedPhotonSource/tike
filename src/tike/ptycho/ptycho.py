@@ -109,7 +109,6 @@ def simulate(
     assert psi.ndim == 3
     check_allowed_positions(scan, psi, probe)
     with Ptycho(
-            nscan=scan.shape[-2],
             probe_shape=probe.shape[-1],
             detector_shape=int(detector_shape),
             nz=psi.shape[-2],
@@ -128,7 +127,7 @@ def simulate(
             data += np.square(
                 np.linalg.norm(
                     farplane.reshape(operator.ntheta,
-                                     operator.nscan // operator.fly, -1,
+                                     scan.shape[-2] // operator.fly, -1,
                                      detector_shape, detector_shape),
                     ord=2,
                     axis=2,
@@ -157,7 +156,6 @@ def reconstruct(
     if algorithm in solvers.__all__:
         # Initialize an operator.
         with Ptycho(
-                nscan=scan.shape[1],
                 probe_shape=probe.shape[-1],
                 detector_shape=data.shape[-1],
                 nz=psi.shape[-2],
