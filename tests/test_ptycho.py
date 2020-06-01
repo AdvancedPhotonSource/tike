@@ -169,12 +169,12 @@ class TestPtychoRecon(unittest.TestCase):
         """Check ptycho.solver.algorithm for consistency."""
         result = {
             'psi': np.ones_like(self.original),
-            'probe': self.probe,
+            'probe': np.ones_like(self.probe),
             'scan': self.scan,
         }
-        # error0 = self.error_metric(self.error_metric(result['psi']))
-        # print('\n', error0)
-        for _ in range(5):
+        error0 = np.inf
+        print()
+        for _ in range(16):
             result['scan'] = self.scan
             result = tike.ptycho.reconstruct(
                 **result,
@@ -186,23 +186,23 @@ class TestPtychoRecon(unittest.TestCase):
                 recover_probe=True,
                 recover_psi=True,
             )
-            # error1 = self.error_metric(result['psi'])
-            # print(error1)
-            # assert error1 < error0
-            # error0 = error1
+            error1 = result['cost']
+            print(error1)
+            assert error1 < error0
+            error0 = error1
 
-        recon_file = os.path.join(testdir,
-                                  f'data/ptycho_{algorithm}.pickle.lzma')
-        if os.path.isfile(recon_file):
-            with lzma.open(recon_file, 'rb') as file:
-                standard = pickle.load(file)
-        else:
-            with lzma.open(recon_file, 'wb') as file:
-                pickle.dump(result['psi'], file)
-            raise FileNotFoundError(
-                f"ptycho '{algorithm}' standard not initialized.")
-        np.testing.assert_array_equal(result['psi'].shape, self.original.shape)
-        np.testing.assert_allclose(result['psi'], standard, atol=1e-3)
+        # recon_file = os.path.join(testdir,
+        #                           f'data/ptycho_{algorithm}.pickle.lzma')
+        # if os.path.isfile(recon_file):
+        #     with lzma.open(recon_file, 'rb') as file:
+        #         standard = pickle.load(file)
+        # else:1
+        #     with lzma.open(recon_file, 'wb') as file:
+        #         pickle.dump(result['psi'], file)
+        #     raise FileNotFoundError(
+        #         f"ptycho '{algorithm}' standard not initialized.")
+        # np.testing.assert_array_equal(result['psi'].shape, self.original.shape)
+        # np.testing.assert_allclose(result['psi'], standard, atol=1e-3)
 
     def test_consistent_combined(self):
         """Check ptycho.solver.combined for consistency."""

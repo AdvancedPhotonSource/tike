@@ -87,6 +87,7 @@ def update_probe(op, pool, data, psi, scan, probe, num_iter=1):
             cost_function=cost_function,
             grad=grad,
             num_iter=num_iter,
+            step_length=4,
         )
 
     logger.info('%10s cost is %+12.5e', 'probe', cost)
@@ -134,6 +135,7 @@ def update_object(op, pool, data, psi, scan, probe, num_iter=1):
         dir_multi=dir_multi,
         update_multi=update_multi,
         num_iter=num_iter,
+        step_length=8e-5,
     )
 
     logger.info('%10s cost is %+12.5e', 'object', cost)

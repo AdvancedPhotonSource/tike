@@ -99,6 +99,7 @@ def conjugate_gradient(
     dir_multi=dir_single,
     update_multi=update_single,
     num_iter=1,
+    step_length=1,
 ):
     """Use conjugate gradient to estimate `x`.
 
@@ -136,6 +137,7 @@ def conjugate_gradient(
             x=x,
             d=dir_list,
             update_multi=update_multi,
+            step_length=step_length,
         )
 
         x = update_multi(x, gamma, dir_list)
