@@ -140,6 +140,7 @@ def conjugate_gradient(
 
         x = update_multi(x, gamma, dir_list)
 
-        logger.debug("%4d, %.3e, %.7e", (i + 1), gamma, cost)
+        logger.debug("step %d; length %.3e -> %.3e; cost %.6e", i, step_length,
+                     gamma, cost)
 
     return x, cost
