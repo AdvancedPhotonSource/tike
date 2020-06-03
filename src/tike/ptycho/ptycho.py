@@ -179,10 +179,20 @@ def reconstruct(
                 logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                             "iterations.".format(algorithm, *data.shape[1:],
                                                  num_iter))
-
-                cost = 0
             else:
-                pass
+                scan, data = operator.asarray_multi_split(num_gpu, scan, data)
+                result = {
+                    'psi': operator.asarray_multi(num_gpu, psi, dtype='complex64'),
+                    'probe': operator.asarray_multi(num_gpu, probe, dtype='complex64'),
+                    'scan': scan,
+                }
+                for key, value in kwargs.items():
+                    if np.ndim(value) > 0:
+                        kwargs[key] = operator.asarray_multi(num_gpu, value)
+                print('data', type(data), data[0].dtype, data[1].shape)
+            exit()
+
+            cost = 0
             for i in range(num_iter):
                 result['probe'] = _rescale_obj_probe(operator, num_gpu, data,
                                                      result['psi'],
@@ -213,6 +223,7 @@ def _rescale_obj_probe(operator, num_gpu, data, psi, scan, probe):
     if (num_gpu<=1):
         intensity = operator._compute_intensity(data, psi, scan, probe)
 
+        print('test', type(data))
         rescale = (np.linalg.norm(np.ravel(np.sqrt(data))) /
                    np.linalg.norm(np.ravel(np.sqrt(intensity))))
 
