@@ -71,11 +71,14 @@ class TestLaminoRecon(unittest.TestCase):
         """
         import dxchange
 
-        delta = dxchange.read_tiff('data/delta-chip-128.tiff')[::4, ::4, ::4]
-        beta = dxchange.read_tiff('data/beta-chip-128.tiff')[::4, ::4, ::4]
-        self.original = delta + 1j * beta
+        delta = dxchange.read_tiff(
+            os.path.join(testdir, 'data/delta-chip-128.tiff'))[::4, ::4, ::4]
+        beta = dxchange.read_tiff(
+            os.path.join(testdir, 'data/beta-chip-128.tiff'))[::4, ::4, ::4]
+        self.original = (delta + 1j * beta).astype('complex64')
 
-        self.theta = np.linspace(0, 2 * np.pi, 16, endpoint=False)
+        self.theta = np.linspace(0, 2 * np.pi, 16,
+                                 endpoint=False).astype('float32')
         self.tilt = np.pi / 3
 
         self.data = tike.lamino.simulate(self.original, self.theta, self.tilt)
@@ -104,6 +107,13 @@ class TestLaminoRecon(unittest.TestCase):
                 self.theta,
                 self.tilt,
             ] = pickle.load(file)
+
+    def test_consistent_simulate(self):
+        """Check lamino.simulate for consistency."""
+        data = tike.lamino.simulate(self.original, self.theta, self.tilt)
+        assert data.dtype == 'complex64', data.dtype
+        np.testing.assert_array_equal(data.shape, self.data.shape)
+        np.testing.assert_allclose(data, self.data, atol=1e-6)
 
     def error_metric(self, x):
         """Return the error between two arrays."""
