@@ -57,6 +57,7 @@ __all__ = [
 
 import logging
 import numpy as np
+import cupy as cp
 
 from tike.operators import Ptycho
 from tike.ptycho import solvers
@@ -138,7 +139,7 @@ def reconstruct(
         data,
         probe, scan,
         algorithm,
-        psi=None, num_iter=1, rtol=-1, **kwargs
+        psi=None, num_gpu=0, num_iter=1, rtol=-1, **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
 
@@ -163,24 +164,27 @@ def reconstruct(
                 ntheta=scan.shape[0],
                 **kwargs,
         ) as operator:
+            if (num_gpu<=1):
             # send any array-likes to device
-            data = operator.asarray(data, dtype='float32')
-            result = {
-                'psi': operator.asarray(psi, dtype='complex64'),
-                'probe': operator.asarray(probe, dtype='complex64'),
-                'scan': operator.asarray(scan, dtype='float32'),
-            }
-            for key, value in kwargs.items():
-                if np.ndim(value) > 0:
-                    kwargs[key] = operator.asarray(value)
+                data = operator.asarray(data, dtype='float32')
+                result = {
+                    'psi': operator.asarray(psi, dtype='complex64'),
+                    'probe': operator.asarray(probe, dtype='complex64'),
+                    'scan': operator.asarray(scan, dtype='float32'),
+                }
+                for key, value in kwargs.items():
+                    if np.ndim(value) > 0:
+                        kwargs[key] = operator.asarray(value)
 
-            logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
-                        "iterations.".format(algorithm, *data.shape[1:],
-                                             num_iter))
+                logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
+                            "iterations.".format(algorithm, *data.shape[1:],
+                                                 num_iter))
 
-            cost = 0
+                cost = 0
+            else:
+                pass
             for i in range(num_iter):
-                result['probe'] = _rescale_obj_probe(operator, data,
+                result['probe'] = _rescale_obj_probe(operator, num_gpu, data,
                                                      result['psi'],
                                                      result['scan'],
                                                      result['probe'])
@@ -204,14 +208,17 @@ def reconstruct(
             "The '{}' algorithm is not an available.".format(algorithm))
 
 
-def _rescale_obj_probe(operator, data, psi, scan, probe):
+def _rescale_obj_probe(operator, num_gpu, data, psi, scan, probe):
     """Keep the object amplitude around 1 by scaling probe by a constant."""
-    intensity = operator._compute_intensity(data, psi, scan, probe)
+    if (num_gpu<=1):
+        intensity = operator._compute_intensity(data, psi, scan, probe)
 
-    rescale = (np.linalg.norm(np.ravel(np.sqrt(data))) /
-               np.linalg.norm(np.ravel(np.sqrt(intensity))))
+        rescale = (np.linalg.norm(np.ravel(np.sqrt(data))) /
+                   np.linalg.norm(np.ravel(np.sqrt(intensity))))
 
-    logger.info("object and probe rescaled by %f", rescale)
+        logger.info("object and probe rescaled by %f", rescale)
+    else:
+        pass
 
     probe *= rescale
 
