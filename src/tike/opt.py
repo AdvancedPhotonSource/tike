@@ -9,11 +9,12 @@ library.
 
 import logging
 import warnings
+from tike.operators.cupy.operator import Operator
 
 logger = logging.getLogger(__name__)
 
 
-def line_search(f, x, d, step_length=1, step_shrink=0.5):
+def line_search(f, x, d, mGPU, step_length=1, step_shrink=0.5):
     """Return a new `step_length` using a backtracking line search.
 
     Parameters
@@ -46,7 +47,10 @@ def line_search(f, x, d, step_length=1, step_shrink=0.5):
     fx = f(x)  # Save the result of f(x) instead of computing it many times
     # Decrease the step length while the step increases the cost function
     while True:
-        fxsd = f(x + step_length * d)
+        if (not mGPU):
+            fxsd = f(x + step_length * d)
+        else:
+            fxsd = f(x, step_length = step_length, dir = d)
         if fxsd <= fx + step_shrink * m:
             break
         step_length *= step_shrink
@@ -101,8 +105,6 @@ def conjugate_gradient(
         The number of steps to take.
 
     """
-    print('test', mGPU)
-    exit()
     for i in range(num_iter):
         grad1 = grad(x)
         if i == 0:
@@ -110,11 +112,27 @@ def conjugate_gradient(
         else:
             dir = direction_dy(array_module, grad0, grad1, dir)
         grad0 = grad1
-        gamma, cost = line_search(
-            f=cost_function,
-            x=x,
-            d=dir,
-        )
-        x = x + gamma * dir
+        if (not mGPU):
+            gamma, cost = line_search(
+                f=cost_function,
+                x=x,
+                d=dir,
+                mGPU=mGPU,
+            )
+            x = x + gamma * dir
+            print('test', mGPU)
+        else:
+            # scatter dir to all GPUs
+            dir_cpu = Operator.asnumpy(dir)
+            dir = Operator.asarray_multi(dir_cpu)
+
+            gamma, cost = line_search(
+                f=cost_function,
+                x=x,
+                d=dir,
+                mGPU=mGPU,
+            )
+            # update the image
+            x = update(x, gamma, dir)
         logger.debug("%4d, %.3e, %.7e", (i + 1), gamma, cost)
     return x, cost
