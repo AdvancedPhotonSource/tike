@@ -190,17 +190,17 @@ def reconstruct(
                     if np.ndim(value) > 0:
                         kwargs[key] = operator.asarray_multi(num_gpu, value)
                 print('data', type(data), data[0].dtype, data[1].shape)
-            exit()
 
             cost = 0
             for i in range(num_iter):
-                result['probe'] = _rescale_obj_probe(operator, num_gpu, data,
-                                                     result['psi'],
-                                                     result['scan'],
-                                                     result['probe'])
+                #result['probe'] = _rescale_obj_probe(operator, num_gpu, data,
+                #                                     result['psi'],
+                #                                     result['scan'],
+                #                                     result['probe'])
                 kwargs.update(result)
                 result = getattr(solvers, algorithm)(
                     operator,
+                    num_gpu=num_gpu,
                     data=data,
                     **kwargs,
                 )

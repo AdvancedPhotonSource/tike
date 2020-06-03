@@ -81,6 +81,8 @@ def conjugate_gradient(
         x,
         cost_function,
         grad,
+        update=None,
+        mGPU=False,
         num_iter=1,
 ):
     """Use conjugate gradient to estimate `x`.
@@ -99,6 +101,8 @@ def conjugate_gradient(
         The number of steps to take.
 
     """
+    print('test', mGPU)
+    exit()
     for i in range(num_iter):
         grad1 = grad(x)
         if i == 0:
