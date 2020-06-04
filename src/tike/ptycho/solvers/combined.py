@@ -33,7 +33,8 @@ def update_probe(op, num_gpu, data, psi, scan, probe, num_iter=1):
     """Solve the probe recovery problem."""
     # TODO: add multi-GPU support
     if (num_gpu>1):
-        scan, data = op.asarray_multi_fuse(num_gpu, scan, data)
+        scan = op.asarray_multi_fuse(num_gpu, scan)
+        data = op.asarray_multi_fuse(num_gpu, data)
         psi = psi[0]
         probe = probe[0]
 

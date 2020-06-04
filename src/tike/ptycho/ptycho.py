@@ -212,6 +212,16 @@ def reconstruct(
                     break
                 cost = result['cost']
 
+            if (num_gpu>1):
+                result['scan'] = operator.asarray_multi_fuse(num_gpu, result['scan'])
+                print('scan', type(result['scan']), result['scan'].shape)
+                for k, v in result.items():
+                    if isinstance(v, list):
+                        print('list', k)
+                        result[k] = v[0]
+            for k, v in result.items():
+                print('result',k, type(v), v.shape)
+            exit()
         return {k: operator.asnumpy(v) for k, v in result.items()}
     else:
         raise ValueError(
