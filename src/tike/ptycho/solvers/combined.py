@@ -30,6 +30,12 @@ def combined(
 
 def update_probe(op, num_gpu, data, psi, scan, probe, num_iter=1):
     """Solve the probe recovery problem."""
+    # TODO: add multi-GPU support
+    if (num_gpu>1):
+        scan, data = op.asarray_multi_fuse(num_gpu, scan, data)
+        psi = psi[0]
+        probe = probe[0]
+
     # TODO: Cache object patche between mode updates
     for m in range(probe.shape[-3]):
 
@@ -53,6 +59,8 @@ def update_probe(op, num_gpu, data, psi, scan, probe, num_iter=1):
         )
 
     logger.info('%10s cost is %+12.5e', 'probe', cost)
+    print('test', probe.tolist())
+    exit()
     return probe, cost
 
 
