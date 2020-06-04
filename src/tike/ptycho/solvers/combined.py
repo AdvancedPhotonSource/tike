@@ -80,7 +80,7 @@ def update_object(op, num_gpu, data, psi, scan, probe, num_iter=1):
             x=psi,
             cost_function=cost_function,
             grad=grad,
-            mGPU=False,
+            num_gpu=num_gpu,
             num_iter=num_iter,
         )
     else:
@@ -90,7 +90,7 @@ def update_object(op, num_gpu, data, psi, scan, probe, num_iter=1):
             cost_function=cost_function_multi,
             grad=grad_multi,
             update=update_multi,
-            mGPU=True,
+            num_gpu=num_gpu,
             num_iter=num_iter,
         )
 

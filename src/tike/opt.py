@@ -14,7 +14,7 @@ from tike.operators.cupy.operator import Operator
 logger = logging.getLogger(__name__)
 
 
-def line_search(f, x, d, mGPU, step_length=1, step_shrink=0.5):
+def line_search(f, x, d, num_gpu, step_length=1, step_shrink=0.5):
     """Return a new `step_length` using a backtracking line search.
 
     Parameters
@@ -47,7 +47,7 @@ def line_search(f, x, d, mGPU, step_length=1, step_shrink=0.5):
     fx = f(x)  # Save the result of f(x) instead of computing it many times
     # Decrease the step length while the step increases the cost function
     while True:
-        if (not mGPU):
+        if (num_gpu<=1):
             fxsd = f(x + step_length * d)
         else:
             fxsd = f(x, step_length = step_length, dir = d)
@@ -86,7 +86,7 @@ def conjugate_gradient(
         cost_function,
         grad,
         update=None,
-        mGPU=False,
+        num_gpu=1,
         num_iter=1,
 ):
     """Use conjugate gradient to estimate `x`.
@@ -112,27 +112,29 @@ def conjugate_gradient(
         else:
             dir = direction_dy(array_module, grad0, grad1, dir)
         grad0 = grad1
-        if (not mGPU):
+        if (num_gpu<=1):
             gamma, cost = line_search(
                 f=cost_function,
                 x=x,
                 d=dir,
-                mGPU=mGPU,
+                num_gpu=num_gpu,
             )
             x = x + gamma * dir
-            print('test', mGPU)
+            print('test', x.shape, x.tolist())
         else:
             # scatter dir to all GPUs
             dir_cpu = Operator.asnumpy(dir)
-            dir = Operator.asarray_multi(dir_cpu)
+            dir_list = Operator.asarray_multi(num_gpu, dir_cpu)
 
             gamma, cost = line_search(
                 f=cost_function,
                 x=x,
-                d=dir,
-                mGPU=mGPU,
+                d=dir_list,
+                num_gpu=num_gpu,
             )
             # update the image
-            x = update(x, gamma, dir)
+            x = update(x, gamma, dir_list)
+            print('test', type(x), x[1].shape, x[1].tolist())
         logger.debug("%4d, %.3e, %.7e", (i + 1), gamma, cost)
+    exit()
     return x, cost
