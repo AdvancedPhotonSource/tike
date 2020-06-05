@@ -175,6 +175,7 @@ class TestPtychoRecon(unittest.TestCase):
         # error0 = self.error_metric(self.error_metric(result['psi']))
         # print('\n', error0)
         for _ in range(5):
+            result['scan'] = self.scan
             result = tike.ptycho.reconstruct(
                 **result,
                 data=self.data,

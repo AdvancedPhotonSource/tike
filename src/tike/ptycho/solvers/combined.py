@@ -64,9 +64,7 @@ def update_probe(op, num_gpu, data, psi, scan, probe, num_iter=1):
         probe = op.asarray_multi(num_gpu, probe)
         del scan
         del data
-        print('probe',cost,probe[0].shape, probe[0].tolist())
-    else:
-        print('probe',cost,probe.shape, probe.tolist())
+
     logger.info('%10s cost is %+12.5e', 'probe', cost)
     return probe, cost
 
