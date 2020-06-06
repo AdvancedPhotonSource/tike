@@ -29,8 +29,6 @@ class Ptycho(Operator, numpy.Ptycho):
         for i in range(gpu_count):
             if 'step_length' in kwargs and 'dir' in kwargs:
                 with cp.cuda.Device(i):
-                    #print('testpsii:', i, psi[i].tolist())
-                    #print('testdiri:', i,(kwargs.get('step_length')*kwargs.get('dir')[i]).tolist())
                     psi_list[i] = psi[i] + kwargs.get('step_length') * kwargs.get('dir')[i]
             else:
                 psi_list[i] = psi[i]
@@ -67,7 +65,6 @@ class Ptycho(Operator, numpy.Ptycho):
 
     # multi-GPU grad() entry point
     def grad_multi(self, gpu_count, data, psi, scan, probe):  # lists of cupy array
-        #intensity = self._compute_intensity_multi(gpu_id, data, psi, scan, probe) # intensity is a list of cupy arrays
         gpu_list = range(gpu_count)
         with cf.ThreadPoolExecutor(max_workers=gpu_count) as executor:
             grad_out = executor.map(self.grad_device, gpu_list, data, psi, scan, probe)
@@ -86,9 +83,6 @@ class Ptycho(Operator, numpy.Ptycho):
                 grad_list[0] += grad_tmp
 
         return grad_list[0]
-        #print('testgrad2:', grad_tmp.shape)
-        #print('testgrad:', grad_list[0].tolist())
-        #print('testgrad1:', grad_list[1].tolist())
 
     # multi-GPU update()
     def update_multi(self, gpu_count, psi, gamma, dir):  # lists of cupy array

@@ -120,7 +120,6 @@ def conjugate_gradient(
                 num_gpu=num_gpu,
             )
             x = x + gamma * dir
-            #print('test', x.shape, x.tolist())
         else:
             # scatter dir to all GPUs
             dir_cpu = Operator.asnumpy(dir)
@@ -134,6 +133,5 @@ def conjugate_gradient(
             )
             # update the image
             x = update(x, gamma, dir_list)
-            #print('test', type(x), x[1].shape, x[1].tolist())
         logger.debug("%4d, %.3e, %.7e", (i + 1), gamma, cost)
     return x, cost

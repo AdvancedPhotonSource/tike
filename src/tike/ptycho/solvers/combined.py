@@ -24,7 +24,6 @@ def combined(
 
     if recover_positions:
         scan, cost = update_positions_pd(op, data, psi, probe, scan)
-    print('psi',type(probe), type(cost),type(scan), scan[0].shape)
 
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 
@@ -71,7 +70,6 @@ def update_probe(op, num_gpu, data, psi, scan, probe, num_iter=1):
 
 def update_object(op, num_gpu, data, psi, scan, probe, num_iter=1):
     """Solve the object recovery problem."""
-    print('data', data[0].shape)
     def cost_function(psi):
         return op.cost(data, psi, scan, probe)
 
@@ -106,7 +104,6 @@ def update_object(op, num_gpu, data, psi, scan, probe, num_iter=1):
             num_gpu=num_gpu,
             num_iter=num_iter,
         )
-
 
     logger.info('%10s cost is %+12.5e', 'object', cost)
     return psi, cost

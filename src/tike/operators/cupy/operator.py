@@ -58,16 +58,10 @@ class Operator(ABC):
     @classmethod
     def asarray_multi_fuse(cls, gpu_count, *args, **kwargs):
         with cupy.cuda.Device(0):
-            #scanf = scan[0].copy()
-            #dataf = data[0].copy()
             fused = args[0][0].copy()
         for i in range(1, gpu_count):
             with cupy.cuda.Device(i):
-                #scan_cpu = cupy.asnumpy(scan[i])
-                #data_cpu = cupy.asnumpy(data[i])
                 fused_cpu = cupy.asnumpy(args[0][i])
                 with cupy.cuda.Device(0):
-                    #scanf=cupy.concatenate((scanf, cupy.asarray(scan_cpu)), axis=1)
-                    #dataf=cupy.concatenate((dataf, cupy.asarray(data_cpu)), axis=1)
                     fused = cupy.concatenate((fused, cupy.asarray(fused_cpu)), axis=1)
         return fused

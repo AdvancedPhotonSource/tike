@@ -189,7 +189,6 @@ def reconstruct(
                 for key, value in kwargs.items():
                     if np.ndim(value) > 0:
                         kwargs[key] = operator.asarray_multi(num_gpu, value)
-                print('data', type(data), data[0].dtype, data[1].shape)
 
             cost = 0
             for i in range(num_iter):
@@ -197,12 +196,6 @@ def reconstruct(
                                                      result['psi'],
                                                      result['scan'],
                                                      result['probe'])
-                if (num_gpu>1):
-                    print('probe',probe[0].shape, probe[0].tolist())
-                    print(type(data),data[0].shape, type(scan), scan[0].shape)
-                else:
-                    print('probe',probe.shape, probe.tolist())
-                    print(type(data),data.shape, type(scan), scan.shape)
                 kwargs.update(result)
                 result = getattr(solvers, algorithm)(
                     operator,
@@ -220,13 +213,9 @@ def reconstruct(
 
             if (num_gpu>1):
                 result['scan'] = operator.asarray_multi_fuse(num_gpu, result['scan'])
-                print('scan', type(result['scan']), result['scan'].shape)
                 for k, v in result.items():
                     if isinstance(v, list):
-                        print('list', k)
                         result[k] = v[0]
-            for k, v in result.items():
-                print('result',k, type(v), v.shape)
         return {k: operator.asnumpy(v) for k, v in result.items()}
     else:
         raise ValueError(
@@ -244,7 +233,6 @@ def _rescale_obj_probe(operator, num_gpu, data, psi, scan, probe):
 
     intensity = operator._compute_intensity(data, psi, scan, probe)
 
-    print('test', type(data))
     rescale = (np.linalg.norm(np.ravel(np.sqrt(data))) /
                np.linalg.norm(np.ravel(np.sqrt(intensity))))
 
