@@ -57,7 +57,6 @@ __all__ = [
 
 import logging
 import numpy as np
-import cupy as cp
 
 from tike.operators import Ptycho
 from tike.ptycho import solvers

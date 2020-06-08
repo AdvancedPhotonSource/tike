@@ -82,6 +82,9 @@ def update_object(op, num_gpu, data, psi, scan, probe, num_iter=1):
     def grad_multi(psi):
         return op.grad_multi(num_gpu, data, psi, scan, probe)
 
+    def dir_multi(*args):
+        return op.dir_multi(num_gpu, *args)
+
     def update_multi(psi, *args):
         return op.update_multi(num_gpu, psi, *args)
 
@@ -100,6 +103,7 @@ def update_object(op, num_gpu, data, psi, scan, probe, num_iter=1):
             x=psi,
             cost_function=cost_function_multi,
             grad=grad_multi,
+            dir_multi=dir_multi,
             update=update_multi,
             num_gpu=num_gpu,
             num_iter=num_iter,

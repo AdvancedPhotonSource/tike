@@ -9,7 +9,6 @@ library.
 
 import logging
 import warnings
-from tike.operators.cupy.operator import Operator
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +84,7 @@ def conjugate_gradient(
         x,
         cost_function,
         grad,
+        dir_multi=None,
         update=None,
         num_gpu=1,
         num_iter=1,
@@ -121,9 +121,7 @@ def conjugate_gradient(
             )
             x = x + gamma * dir
         else:
-            # scatter dir to all GPUs
-            dir_cpu = Operator.asnumpy(dir)
-            dir_list = Operator.asarray_multi(num_gpu, dir_cpu)
+            dir_list = dir_multi(dir)
 
             gamma, cost = line_search(
                 f=cost_function,
