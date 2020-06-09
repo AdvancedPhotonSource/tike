@@ -154,7 +154,10 @@ class TestLaminoRecon(unittest.TestCase):
 
 
 class TestLaminoRadon(unittest.TestCase):
-    """Test whether the Laminography operator is equal to the Radon operator"""
+    """Test whether the Laminography operator is equal to the Radon operator.
+
+    Compare projections with sums along the three orthogonal axes directly.
+    """
 
     def setUp(self):
         self.original = np.pad(
@@ -184,6 +187,10 @@ class TestLaminoRadon(unittest.TestCase):
 
     @unittest.skip("TODO: Something is wrong with indexing.")
     def test_radon_equal_reverse(self):
+        # This test fails because when we project through the field of view
+        # from the back side, the coords are shifted by one index. In other
+        # words, objects which are zero-padded symmetrically, become
+        # asymmetrically padded. Also expect reflection of the object.
         for tilt, axis, theta in zip(
             [np.pi, -np.pi / 2, np.pi / 2],
             [0, 1, 2],
@@ -195,6 +202,7 @@ class TestLaminoRadon(unittest.TestCase):
                                               eps=1e-6)
             direct_sum = np.sum(self.original, axis=axis)
             try:
+                # TODO: Account for reflection in this test.
                 np.testing.assert_allclose(projection[0], direct_sum, atol=1e-3)
             except AssertionError:
                 print()
