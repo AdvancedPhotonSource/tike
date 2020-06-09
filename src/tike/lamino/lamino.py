@@ -76,7 +76,6 @@ def simulate(
             n=obj.shape[-1],
             theta=theta,
             tilt=tilt,
-            eps=1e-3,
             **kwargs,
     ) as operator:
         data = operator.fwd(u=operator.asarray(obj, dtype='complex64'))
