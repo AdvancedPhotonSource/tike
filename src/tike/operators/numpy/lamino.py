@@ -53,7 +53,6 @@ class Lamino(Operator):
             self.xp.fft.ifft2(
                 checkerboard(self.xp, F, axes=(1, 2)),
                 axes=(1, 2),
-                norm="ortho",
             ),
             axes=(1, 2),
             inverse=True,
@@ -72,7 +71,6 @@ class Lamino(Operator):
                     axes=(1, 2),
                 ),
                 axes=(1, 2),
-                norm="ortho",
             ),
             axes=(1, 2),
             inverse=True,
@@ -80,6 +78,7 @@ class Lamino(Operator):
         # Inverse (x->-x) USFFT from unequally-spaced grid to equally-spaced
         # grid
         u = us2eq(F, -self.xi, self.n, self.eps, self.xp)
+        u /= self.n**2
         return u.astype('complex64')
 
     def cost(self, data, obj):
