@@ -153,5 +153,55 @@ class TestLaminoRecon(unittest.TestCase):
         self.template_consistent_algorithm('cgrad')
 
 
+class TestLaminoRadon(unittest.TestCase):
+    """Test whether the Laminography operator is equal to the Radon operator"""
+
+    def setUp(self):
+        self.original = np.pad(
+            np.random.randint(-5, 5, (2, 2, 2)) +
+            1j * np.random.randint(-5, 5, (2, 2, 2)),
+            2,
+        )
+
+    def test_radon_equal(self):
+        for tilt, axis, theta in zip(
+            [0, np.pi / 2, np.pi / 2],
+            [0, 1, 2],
+            [0, 0, -np.pi / 2],
+        ):
+            projection = tike.lamino.simulate(obj=self.original,
+                                              theta=np.array([theta]),
+                                              tilt=tilt,
+                                              eps=1e-6)
+            direct_sum = np.sum(self.original, axis=axis)
+            try:
+                np.testing.assert_allclose(projection[0], direct_sum, atol=1e-3)
+            except AssertionError:
+                print()
+                print(tilt, axis, theta)
+                print(direct_sum)
+                print(np.round(projection))
+
+    @unittest.skip("TODO: Something is wrong with indexing.")
+    def test_radon_equal_reverse(self):
+        for tilt, axis, theta in zip(
+            [np.pi, -np.pi / 2, np.pi / 2],
+            [0, 1, 2],
+            [0, 0, -np.pi / 2],
+        ):
+            projection = tike.lamino.simulate(obj=self.original,
+                                              theta=np.array([theta]),
+                                              tilt=tilt,
+                                              eps=1e-6)
+            direct_sum = np.sum(self.original, axis=axis)
+            try:
+                np.testing.assert_allclose(projection[0], direct_sum, atol=1e-3)
+            except AssertionError:
+                print()
+                print(tilt, axis, theta)
+                print(direct_sum)
+                print(np.round(projection))
+
+
 if __name__ == '__main__':
     unittest.main()

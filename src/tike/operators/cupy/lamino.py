@@ -51,7 +51,6 @@ class Lamino(Operator, numpy.Lamino):
                     axes=(1, 2),
                 ),
                 axes=(1, 2),
-                norm="ortho",
                 overwrite_x=True,
             ),
             axes=(1, 2),
@@ -75,7 +74,6 @@ class Lamino(Operator, numpy.Lamino):
                     axes=(1, 2),
                 ),
                 axes=(1, 2),
-                norm="ortho",
                 overwrite_x=True,
             ),
             axes=(1, 2),
@@ -84,6 +82,7 @@ class Lamino(Operator, numpy.Lamino):
         # Inverse (x->-x) USFFT from unequally-spaced grid to equally-spaced
         # grid
         u = us2eq(F, -self.xi, self.n, self.eps, self.xp, scatter, _fftn)
+        u /= self.n**2
         return u
 
     def scatter(self, f, x, n, m, mu):
