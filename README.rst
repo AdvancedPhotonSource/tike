@@ -14,14 +14,20 @@ variety of reconstruction algorithms, and to provide a common platform for the
 synchrotron research community.
 
 **************************
-Current Features (5d26a94)
+Current Features (1855303)
 **************************
 
 Ptychography
 ============
 
+- FFT-based operator with linear position interpolation
 - single-energy
 - multiple scan positions per diffraction pattern (fly-scans)
 - multiple incoherent modes per diffraction pattern (multi-mode probes)
 - one shared (multi-modal) probe per angular view
 
+Laminography
+============
+
+- USFFT-based operator for cubic field-of-view
+- single tilt angle
