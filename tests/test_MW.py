@@ -7,8 +7,6 @@ from tike.ptycho.probe_MW import MW_probe
 import matplotlib.pyplot as plt
 import h5py
 import numpy as np
-import cupy as cp
-import os
 
 
 def gen_position(steppix_x, steppix_y, N_scan_x, N_scan_y, probe_shape):
