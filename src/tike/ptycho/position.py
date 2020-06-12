@@ -103,20 +103,23 @@ def update_positions_pd(operator, data, psi, probe, scan,
     dI = (data - intensity).reshape(*data.shape[:-2], np.prod(data.shape[-2:]))
 
     dI_dx, dI_dy = 0, 0
+    
+    #update position use the central wavelength only
+    i=1
     for m in range(probe.shape[-3]):
 
         # step 2: the partial derivatives of wavefront respect to position
         farplane = operator.fwd(psi=psi,
                                 scan=scan,
-                                probe=probe[..., m:m + 1, :, :])
+                                probe=probe[...,i:i+1, m:m + 1, :, :])
         dfarplane_dx = (farplane - operator.fwd(
             psi=psi,
-            probe=probe[..., m:m + 1, :, :],
+            probe=probe[..., i:i+1, m:m + 1, :, :],
             scan=scan + operator.xp.array((0, dx), dtype='float32'),
         )) / dx
         dfarplane_dy = (farplane - operator.fwd(
             psi=psi,
-            probe=probe[..., m:m + 1, :, :],
+            probe=probe[..., i:i+1, m:m + 1, :, :],
             scan=scan + operator.xp.array((dx, 0), dtype='float32'),
         )) / dx
 
