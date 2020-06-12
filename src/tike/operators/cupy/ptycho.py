@@ -3,8 +3,6 @@ from .convolution import Convolution
 from .propagation import Propagation
 from .operator import Operator
 import concurrent.futures as cf
-import threading
-from functools import partial
 import cupy as cp
 import numpy as np
 
@@ -18,24 +16,29 @@ class Ptycho(Operator, numpy.Ptycho):
             **kwargs,
         )
 
-    def cost_device(self, gpu_id, data, psi, scan, probe, n=-1, mode=None): # cupy arrays
+    def cost_device(self, gpu_id, data, psi, scan, probe,
+                    n=-1, mode=None):  # cupy arrays
         with cp.cuda.Device(gpu_id):
-            intensity = self._compute_intensity(data, psi, scan, probe, n, mode)
-            return self.propagation.cost(data, intensity)
+            return self.cost(data, psi, scan, probe)
 
     # multi-GPU cost() entry point
-    def cost_multi(self, gpu_count, data, psi, scan, probe, n=-1, mode=None, **kwargs):  # lists of cupy array
+    def cost_multi(self, gpu_count, data, psi, scan, probe,
+                   n=-1, mode=None,
+                   **kwargs):  # lists of cupy array
         psi_list = [None] * gpu_count
         for i in range(gpu_count):
             if 'step_length' in kwargs and 'dir' in kwargs:
                 with cp.cuda.Device(i):
-                    psi_list[i] = psi[i] + kwargs.get('step_length') * kwargs.get('dir')[i]
+                    psi_list[i] = psi[i] + (
+                        kwargs.get('step_length') * kwargs.get('dir')[i])
             else:
                 psi_list[i] = psi[i]
 
         gpu_list = range(gpu_count)
         with cf.ThreadPoolExecutor(max_workers=gpu_count) as executor:
-            cost_out = executor.map(self.cost_device, gpu_list, data, psi_list, scan, probe)
+            cost_out = executor.map(self.cost_device, gpu_list,
+                data, psi_list, scan, probe,
+            )
         cost_list = list(cost_out)
 
         cost_cpu = np.zeros(cost_list[0].shape, cost_list[0].dtype)
@@ -45,29 +48,19 @@ class Ptycho(Operator, numpy.Ptycho):
 
         return cost_cpu
 
-    def grad_device(self, gpu_id, data, psi, scan, probe):  # cupy arrays
+    def grad_device(self, gpu_id,
+                    data, psi, scan, probe):  # cupy arrays
         with cp.cuda.Device(gpu_id):
-            intensity = self._compute_intensity(data, psi, scan, probe)
-            grad_obj = self.xp.zeros_like(psi)
-            for mode in cp.split(probe, probe.shape[-3], axis=-3):
-                # TODO: Pass obj through adj() instead of making new obj inside
-                grad_obj += self.adj(
-                    farplane=self.propagation.grad(
-                        data,
-                        self.fwd(psi=psi, scan=scan, probe=mode),
-                        intensity,
-                    ),
-                    probe=mode,
-                    scan=scan,
-                    overwrite=True,
-                )
-            return grad_obj
+            return self.grad(data, psi, scan, probe)
 
     # multi-GPU grad() entry point
-    def grad_multi(self, gpu_count, data, psi, scan, probe):  # lists of cupy array
+    def grad_multi(self, gpu_count,
+                   data, psi, scan, probe):  # lists of cupy array
         gpu_list = range(gpu_count)
         with cf.ThreadPoolExecutor(max_workers=gpu_count) as executor:
-            grad_out = executor.map(self.grad_device, gpu_list, data, psi, scan, probe)
+            grad_out = executor.map(self.grad_device, gpu_list,
+                data, psi, scan, probe,
+            )
         grad_list = list(grad_out)
 
         with cp.cuda.Device(0):
@@ -75,7 +68,9 @@ class Ptycho(Operator, numpy.Ptycho):
             for i in range(1, gpu_count):
                 if cp.cuda.runtime.deviceCanAccessPeer(0, i):
                     cp.cuda.runtime.deviceEnablePeerAccess(i)
-                    grad_tmp.data.copy_from_device(grad_list[i].data, grad_list[0].size*grad_list[0].itemsize)
+                    grad_tmp.data.copy_from_device(grad_list[i].data,
+                        grad_list[0].size*grad_list[0].itemsize,
+                    )
                 else:
                     with cp.cuda.Device(i):
                         grad_cpu_tmp = Operator.asnumpy(grad_list[i])

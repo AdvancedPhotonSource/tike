@@ -138,7 +138,7 @@ def reconstruct(
         data,
         probe, scan,
         algorithm,
-        psi=None, num_gpu=0, num_iter=1, rtol=-1, **kwargs
+        psi=None, num_gpu=1, num_iter=1, rtol=-1, **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
 
@@ -163,7 +163,7 @@ def reconstruct(
                 ntheta=scan.shape[0],
                 **kwargs,
         ) as operator:
-            if (num_gpu<=1):
+            if (num_gpu <= 1):
             # send any array-likes to device
                 data = operator.asarray(data, dtype='float32')
                 result = {
@@ -179,10 +179,22 @@ def reconstruct(
                             "iterations.".format(algorithm, *data.shape[1:],
                                                  num_iter))
             else:
-                scan, data = operator.asarray_multi_split(num_gpu, scan, data)
+                scan, data = operator.asarray_multi_split(
+                    num_gpu,
+                    scan,
+                    data,
+                )
                 result = {
-                    'psi': operator.asarray_multi(num_gpu, psi, dtype='complex64'),
-                    'probe': operator.asarray_multi(num_gpu, probe, dtype='complex64'),
+                    'psi': operator.asarray_multi(
+                        num_gpu,
+                        psi,
+                        dtype='complex64',
+                    ),
+                    'probe': operator.asarray_multi(
+                        num_gpu,
+                        probe,
+                        dtype='complex64',
+                    ),
                     'scan': scan,
                 }
                 for key, value in kwargs.items():
@@ -210,8 +222,11 @@ def reconstruct(
                     break
                 cost = result['cost']
 
-            if (num_gpu>1):
-                result['scan'] = operator.asarray_multi_fuse(num_gpu, result['scan'])
+            if (num_gpu > 1):
+                result['scan'] = operator.asarray_multi_fuse(
+                    num_gpu,
+                    result['scan'],
+                )
                 for k, v in result.items():
                     if isinstance(v, list):
                         result[k] = v[0]
@@ -224,7 +239,7 @@ def reconstruct(
 def _rescale_obj_probe(operator, num_gpu, data, psi, scan, probe):
     """Keep the object amplitude around 1 by scaling probe by a constant."""
     # TODO: add multi-GPU support
-    if (num_gpu>1):
+    if (num_gpu > 1):
         scan = operator.asarray_multi_fuse(num_gpu, scan)
         data = operator.asarray_multi_fuse(num_gpu, data)
         psi = psi[0]
@@ -239,7 +254,7 @@ def _rescale_obj_probe(operator, num_gpu, data, psi, scan, probe):
 
     probe *= rescale
 
-    if (num_gpu>1):
+    if (num_gpu > 1):
         probe = operator.asarray_multi(num_gpu, probe)
         del scan
         del data

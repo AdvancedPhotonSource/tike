@@ -17,10 +17,26 @@ def combined(
 
     """
     if recover_psi:
-        psi, cost = update_object(op, num_gpu, data, psi, scan, probe, num_iter=cg_iter)
+        psi, cost = update_object(
+            op,
+            num_gpu,
+            data,
+            psi,
+            scan,
+            probe,
+            num_iter=cg_iter,
+        )
 
     if recover_probe:
-        probe, cost = update_probe(op, num_gpu, data, psi, scan, probe, num_iter=cg_iter)
+        probe, cost = update_probe(
+            op,
+            num_gpu,
+            data,
+            psi,
+            scan,
+            probe,
+            num_iter=cg_iter,
+        )
 
     if recover_positions:
         scan, cost = update_positions_pd(op, data, psi, probe, scan)
@@ -31,7 +47,7 @@ def combined(
 def update_probe(op, num_gpu, data, psi, scan, probe, num_iter=1):
     """Solve the probe recovery problem."""
     # TODO: add multi-GPU support
-    if (num_gpu>1):
+    if (num_gpu > 1):
         scan = op.asarray_multi_fuse(num_gpu, scan)
         data = op.asarray_multi_fuse(num_gpu, data)
         psi = psi[0]
@@ -59,7 +75,7 @@ def update_probe(op, num_gpu, data, psi, scan, probe, num_iter=1):
             num_iter=num_iter,
         )
 
-    if (num_gpu>1):
+    if (num_gpu > 1):
         probe = op.asarray_multi(num_gpu, probe)
         del scan
         del data
@@ -88,7 +104,7 @@ def update_object(op, num_gpu, data, psi, scan, probe, num_iter=1):
     def update_multi(psi, *args):
         return op.update_multi(num_gpu, psi, *args)
 
-    if (num_gpu<=1):
+    if (num_gpu <= 1):
         psi, cost = conjugate_gradient(
             op.xp,
             x=psi,
@@ -104,7 +120,7 @@ def update_object(op, num_gpu, data, psi, scan, probe, num_iter=1):
             cost_function=cost_function_multi,
             grad=grad_multi,
             dir_multi=dir_multi,
-            update=update_multi,
+            update_multi=update_multi,
             num_gpu=num_gpu,
             num_iter=num_iter,
         )
