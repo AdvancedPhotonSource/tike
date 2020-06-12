@@ -30,7 +30,7 @@ class Propagation(Operator):
     farplane: (..., detector_shape, detector_shape) complex64
         The wavefronts hitting the detector respectively.
         Shape for cost functions and gradients is
-        (ntheta, nscan // fly, fly, 1, detector_shape, detector_shape).
+        (ntheta, nscan // fly, fly, 1, 1, detector_shape, detector_shape).
     data, intensity : (ntheta, nscan, detector_shape, detector_shape) complex64
         data is the square of the absolute value of `farplane`. `data` is the
         intensity of the `farplane`.
@@ -41,7 +41,7 @@ class Propagation(Operator):
         self.detector_shape = detector_shape
         self.cost = getattr(self, f'_{model}_cost')
         self.grad = getattr(self, f'_{model}_grad')
-
+    
     def _fft2(self, *args, overwrite=False, **kwargs):
         """Reimplement this wrapper to switch out the FFT library"""
         return fft2(*args, **kwargs).astype('complex64')
@@ -86,7 +86,7 @@ class Propagation(Operator):
     def _gaussian_grad(self, data, farplane, intensity, overwrite=False):
         return farplane * (
             1 - np.sqrt(data) / (np.sqrt(intensity) + 1e-32)
-        )[:, :, np.newaxis, np.newaxis]  # yapf:disable
+        )[:, :, np.newaxis, np.newaxis, np.newaxis]  # yapf:disable
 
     def _poisson_cost(self, data, intensity):
         return np.sum(intensity - data * np.log(intensity + 1e-32))
@@ -94,4 +94,4 @@ class Propagation(Operator):
     def _poisson_grad(self, data, farplane, intensity, overwrite=False):
         return farplane * (
             1 - data / (intensity + 1e-32)
-        )[:, :, np.newaxis, np.newaxis]  # yapf: disable
+        )[:, :, np.newaxis, np.newaxis, np.newaxis]  # yapf: disable
