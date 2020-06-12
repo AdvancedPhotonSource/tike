@@ -70,7 +70,7 @@ class Convolution(Operator):
         )
         patches = self._patch(patches, psi, scan, fwd=True)
         patches = patches.reshape(self.ntheta, scan.shape[-2] // self.fly,
-                                  self.fly, 1, self.detector_shape,
+                                  self.fly, 1, 1, self.detector_shape,
                                   self.detector_shape)
         patches[..., self.pad:self.end, self.pad:self.end] *= probe
         return patches
@@ -98,7 +98,7 @@ class Convolution(Operator):
         )
         patches = self._patch(patches, psi, scan, fwd=True)
         patches = patches.reshape(self.ntheta, scan.shape[-2] // self.fly,
-                                  self.fly, 1, self.probe_shape,
+                                  self.fly, 1, 1, self.probe_shape,
                                   self.probe_shape)
         patches = patches.conj()
         patches *= nearplane[..., self.pad:self.end, self.pad:self.end]
@@ -125,29 +125,29 @@ class Convolution(Operator):
             raise ValueError(
                 f"nearplane must have shape {shape1} not {x.shape}")
 
-def _patch(self, patches, psi, scan, fwd=True):
-        """Reimplement this wrapper to switch the patch getting function."""
-        pad = (patches.shape[-1] - self.probe_shape) // 2
-        end = self.probe_shape + pad
-        if fwd:
-            patches[..., pad:end, pad:end] = _patch_iterator(
-                scan,
-                self.probe_shape,
-                psi.shape,
-                _extract_patches,
-                patches[..., pad:end, pad:end],
-                psi,
-            )
-            return patches
-        else:
-            return _patch_iterator(
-                scan,
-                self.probe_shape,
-                psi.shape,
-                _combine_patches,
-                psi,
-                patches[..., pad:end, pad:end],
-            )
+    def _patch(self, patches, psi, scan, fwd=True):
+            """Reimplement this wrapper to switch the patch getting function."""
+            pad = (patches.shape[-1] - self.probe_shape) // 2
+            end = self.probe_shape + pad
+            if fwd:
+                patches[..., pad:end, pad:end] = _patch_iterator(
+                    scan,
+                    self.probe_shape,
+                    psi.shape,
+                    _extract_patches,
+                    patches[..., pad:end, pad:end],
+                    psi,
+                )
+                return patches
+            else:
+                return _patch_iterator(
+                    scan,
+                    self.probe_shape,
+                    psi.shape,
+                    _combine_patches,
+                    psi,
+                    patches[..., pad:end, pad:end],
+                )
 
 
 def _combine_patches(psi, patches, view_angle, position, i, j, probe_shape,

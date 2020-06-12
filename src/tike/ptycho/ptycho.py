@@ -118,7 +118,7 @@ def simulate(
     ) as operator:
         data = 0
         for energy in np.split(probe,probe.shape[-4], axis = -4):
-            for mode in np.split(probe, probe.shape[-3], axis=-3):
+            for mode in np.split(energy, probe.shape[-3], axis=-3):
                 farplane = operator.fwd(
                     probe=operator.asarray(mode, dtype='complex64'),
                     scan=operator.asarray(scan, dtype='float32'),

@@ -103,31 +103,32 @@ def update_positions_pd(operator, data, psi, probe, scan,
     dI = (data - intensity).reshape(*data.shape[:-2], np.prod(data.shape[-2:]))
 
     dI_dx, dI_dy = 0, 0
-    # for i in range(probe.shape[-4]):
-    for i in range(1):
-        for m in range(probe.shape[-3]):
+    
+    #update position use the central wavelength only
+    i=1
+    for m in range(probe.shape[-3]):
 
-            # step 2: the partial derivatives of wavefront respect to position
-            farplane = operator.fwd(psi=psi,
-                                    scan=scan,
-                                    probe=probe[...,i:i+1, m:m + 1, :, :])
-            dfarplane_dx = (farplane - operator.fwd(
-                psi=psi,
-                probe=probe[..., i:i+1, m:m + 1, :, :],
-                scan=scan + operator.xp.array((0, dx), dtype='float32'),
-            )) / dx
-            dfarplane_dy = (farplane - operator.fwd(
-                psi=psi,
-                probe=probe[..., i:i+1, m:m + 1, :, :],
-                scan=scan + operator.xp.array((dx, 0), dtype='float32'),
-            )) / dx
+        # step 2: the partial derivatives of wavefront respect to position
+        farplane = operator.fwd(psi=psi,
+                                scan=scan,
+                                probe=probe[...,i:i+1, m:m + 1, :, :])
+        dfarplane_dx = (farplane - operator.fwd(
+            psi=psi,
+            probe=probe[..., i:i+1, m:m + 1, :, :],
+            scan=scan + operator.xp.array((0, dx), dtype='float32'),
+        )) / dx
+        dfarplane_dy = (farplane - operator.fwd(
+            psi=psi,
+            probe=probe[..., i:i+1, m:m + 1, :, :],
+            scan=scan + operator.xp.array((dx, 0), dtype='float32'),
+        )) / dx
 
-            # step 3: the partial derivatives of intensity respect to position
-            dI_dx += 2 * np.real(dfarplane_dx * farplane.conj()).reshape(
-                *data.shape[:2], -1, *data.shape[2:])
+        # step 3: the partial derivatives of intensity respect to position
+        dI_dx += 2 * np.real(dfarplane_dx * farplane.conj()).reshape(
+            *data.shape[:2], -1, *data.shape[2:])
 
-            dI_dy += 2 * np.real(dfarplane_dy * farplane.conj()).reshape(
-                *data.shape[:2], -1, *data.shape[2:])
+        dI_dy += 2 * np.real(dfarplane_dy * farplane.conj()).reshape(
+            *data.shape[:2], -1, *data.shape[2:])
 
     # step 4: solve for ΔX, ΔY using least squares
     dI_dxdy = np.stack((dI_dy.reshape(*dI.shape), dI_dx.reshape(*dI.shape)),
