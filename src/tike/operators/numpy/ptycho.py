@@ -40,10 +40,10 @@ class Ptycho(Operator):
     psi : (ntheta, nz, n) complex64
         The complex wavefront modulation of the object.
     probe : complex64
-        The complex (ntheta, nscan // fly, fly, 1, probe_shape,
+        The complex (ntheta, nscan // fly, fly, 1, 1, probe_shape,
         probe_shape) illumination function.
     mode : complex64
-        A single (ntheta, nscan // fly, fly, 1, probe_shape, probe_shape)
+        A single (ntheta, nscan // fly, fly,1, 1, probe_shape, probe_shape)
         probe mode.
     nearplane, farplane: complex64
         The (ntheta, nscan // fly, fly, 1, detector_shape, detector_shape)
@@ -128,43 +128,46 @@ class Ptycho(Operator):
             overwrite=True,
         )
 
-    def _compute_intensity(self, data, psi, scan, probe, n=-1, mode=None):
+    def _compute_intensity(self, data, psi, scan, probe, t=-1, n=-1, mode=None):
         """Compute detector intensities replacing the nth probe mode"""
         intensity = 0
-        for m in range(probe.shape[-3]):
-            intensity += np.sum(
-                np.square(np.abs(self.fwd(
-                    psi=psi,
-                    scan=scan,
-                    probe=mode if m == n else probe[..., m:m + 1, :, :],
-                ).reshape(*data.shape[:2], -1, *data.shape[2:]))),
-                axis=2,
-            )  # yapf: disable
+        for w in range(probe.shape[-4]):
+            for m in range(probe.shape[-3]):
+                intensity += np.sum(
+                    np.square(np.abs(self.fwd(
+                        psi=psi,
+                        scan=scan,
+                        probe = mode if (w == t and m == n) else probe[..., w:w+1, m:m + 1, :, :],
+                    ).reshape(*data.shape[:2], -1, *data.shape[2:]))),
+                    axis=2,
+                )  # yapf: disable
         return intensity
 
-    def cost(self, data, psi, scan, probe, n=-1, mode=None):
-        intensity = self._compute_intensity(data, psi, scan, probe, n, mode)
+    def cost(self, data, psi, scan, probe, t=-1, n=-1, mode=None):
+        intensity = self._compute_intensity(data, psi, scan, probe, t, n, mode)
         return self.propagation.cost(data, intensity)
 
     def grad(self, data, psi, scan, probe):
         intensity = self._compute_intensity(data, psi, scan, probe)
         grad_obj = self.xp.zeros_like(psi)
-        for mode in np.split(probe, probe.shape[-3], axis=-3):
-            # TODO: Pass obj through adj() instead of making new obj inside
-            grad_obj += self.adj(
-                farplane=self.propagation.grad(
-                    data,
-                    self.fwd(psi=psi, scan=scan, probe=mode),
-                    intensity,
-                ),
-                probe=mode,
-                scan=scan,
-                overwrite=True,
-            )
+        for i in range(probe.shape[-4]):
+        # for i in range(1):
+            for mode in np.split(probe[...,i:i+1,:,:,:], probe[...,i:i+1,:,:,:].shape[-3], axis=-3):
+                # TODO: Pass obj through adj() instead of making new obj inside
+                grad_obj += self.adj(
+                    farplane=self.propagation.grad(
+                        data,
+                        self.fwd(psi=psi, scan=scan, probe=mode),
+                        intensity,
+                    ),
+                    probe=mode,
+                    scan=scan,
+                    overwrite=True,
+                )
         return grad_obj
 
-    def grad_probe(self, data, psi, scan, probe, n=-1, mode=None):
-        intensity = self._compute_intensity(data, psi, scan, probe, n, mode)
+    def grad_probe(self, data, psi, scan, probe, t=-1, n=-1, mode=None):
+        intensity = self._compute_intensity(data, psi, scan, probe, t, n, mode)
         return self.adj_probe(
             farplane=self.propagation.grad(
                 data,
