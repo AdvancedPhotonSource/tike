@@ -28,10 +28,10 @@ class Convolution(Operator):
     psi : (ntheta, nz, n) complex64
         The complex wavefront modulation of the object.
     probe : complex64
-        The (ntheta, nscan // fly, fly, 1, probe_shape, probe_shape)
+        The (ntheta, nscan // fly, fly, energy, 1, probe_shape, probe_shape)
         complex illumination function.
     nearplane: complex64
-        The (ntheta, nscan // fly, fly, 1, probe_shape, probe_shape)
+        The (ntheta, nscan // fly, fly, energy, 1, probe_shape, probe_shape)
         wavefronts after exiting the object.
     scan : (ntheta, nscan, 2) float32
         Coordinates of the minimum corner of the probe grid for each
@@ -40,12 +40,13 @@ class Convolution(Operator):
 
     """
 
-    def __init__(self, probe_shape, nz, n, ntheta, fly=1,
+    def __init__(self, probe_shape, nz, n, ntheta, energy=1, fly=1,
                  detector_shape=None, **kwargs):  # yapf: disable
         self.probe_shape = probe_shape
         self.nz = nz
         self.n = n
         self.ntheta = ntheta
+        self.energy = energy
         self.fly = fly
         if detector_shape is None:
             self.detector_shape = probe_shape
@@ -107,10 +108,10 @@ class Convolution(Operator):
         """Check that the probe is correctly shaped."""
         assert type(x) is self.xp.ndarray, type(x)
         # unique probe for each position
-        shape1 = (self.ntheta, nscan // self.fly, self.fly, 1, self.probe_shape,
-                  self.probe_shape)
+        shape1 = (self.ntheta, nscan // self.fly, self.fly, 1, 1,
+                  self.probe_shape, self.probe_shape)
         # one probe for all positions
-        shape2 = (self.ntheta, 1, 1, 1, self.probe_shape, self.probe_shape)
+        shape2 = (self.ntheta, 1, 1, 1, 1, self.probe_shape, self.probe_shape)
         if __debug__ and x.shape != shape2 and x.shape != shape1:
             raise ValueError(
                 f"probe must have shape {shape1} or {shape2} not {x.shape}")
@@ -118,13 +119,13 @@ class Convolution(Operator):
     def _check_shape_nearplane(self, x, nscan):
         """Check that nearplane is correctly shaped."""
         assert type(x) is self.xp.ndarray, type(x)
-        shape1 = (self.ntheta, nscan // self.fly, self.fly, 1,
+        shape1 = (self.ntheta, nscan // self.fly, self.fly, 1, 1,
                   self.detector_shape, self.detector_shape)
         if __debug__ and x.shape != shape1:
             raise ValueError(
                 f"nearplane must have shape {shape1} not {x.shape}")
 
-    def _patch(self, patches, psi, scan, fwd=True):
+def _patch(self, patches, psi, scan, fwd=True):
         """Reimplement this wrapper to switch the patch getting function."""
         pad = (patches.shape[-1] - self.probe_shape) // 2
         end = self.probe_shape + pad
