@@ -36,7 +36,8 @@ class Ptycho(Operator, numpy.Ptycho):
 
         gpu_list = range(gpu_count)
         with cf.ThreadPoolExecutor(max_workers=gpu_count) as executor:
-            cost_out = executor.map(self.cost_device, gpu_list,
+            cost_out = executor.map(
+                self.cost_device, gpu_list,
                 data, psi_list, scan, probe,
             )
         cost_list = list(cost_out)
@@ -58,7 +59,8 @@ class Ptycho(Operator, numpy.Ptycho):
                    data, psi, scan, probe):  # lists of cupy array
         gpu_list = range(gpu_count)
         with cf.ThreadPoolExecutor(max_workers=gpu_count) as executor:
-            grad_out = executor.map(self.grad_device, gpu_list,
+            grad_out = executor.map(
+                self.grad_device, gpu_list,
                 data, psi, scan, probe,
             )
         grad_list = list(grad_out)
@@ -68,7 +70,8 @@ class Ptycho(Operator, numpy.Ptycho):
             for i in range(1, gpu_count):
                 if cp.cuda.runtime.deviceCanAccessPeer(0, i):
                     cp.cuda.runtime.deviceEnablePeerAccess(i)
-                    grad_tmp.data.copy_from_device(grad_list[i].data,
+                    grad_tmp.data.copy_from_device(
+                        grad_list[i].data,
                         grad_list[0].size*grad_list[0].itemsize,
                     )
                 else:

@@ -48,12 +48,12 @@ class Operator(ABC):
         xmax = numpy.amax(scan_cpu[:, :, 0])
         ymax = numpy.amax(scan_cpu[:, :, 1])
         for e in range(nscan):
-            xgpuid = scan_cpu[0, e, 0] // (
-                xmax/(gpu_count//2)) - int(scan_cpu[0, e, 0] != 0 and
-                scan_cpu[0, e, 0] % (xmax/(gpu_count//2)) == 0)
-            ygpuid = scan_cpu[0, e, 1] // (
-                ymax/2) - int(scan_cpu[0, e, 1] != 0 and
-                scan_cpu[0, e, 1] % (ymax/2) == 0)
+            xgpuid = scan_cpu[0, e, 0] // (xmax/(gpu_count//2)) - int(
+                        scan_cpu[0, e, 0] != 0 and
+                        scan_cpu[0, e, 0] % (xmax/(gpu_count//2)) == 0)
+            ygpuid = scan_cpu[0, e, 1] // (ymax/2) - int(
+                        scan_cpu[0, e, 1] != 0 and
+                        scan_cpu[0, e, 1] % (ymax/2) == 0)
             idx = int(xgpuid*2+ygpuid)
             tmplist[e] = idx
             counter[idx] += 1
@@ -64,8 +64,7 @@ class Operator(ABC):
             )
             tmpdata = numpy.zeros(
                 [data_cpu.shape[0], counter[i],
-                 data_cpu.shape[2], data_cpu.shape[3],
-                ],
+                 data_cpu.shape[2], data_cpu.shape[3]],
                 dtype=data_cpu.dtype,
             )
             c = 0
