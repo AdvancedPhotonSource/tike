@@ -13,7 +13,7 @@ import warnings
 logger = logging.getLogger(__name__)
 
 
-def line_search(f, x, d, step_length=1, step_shrink=0.5):
+def line_search(f, x, d, num_gpu, step_length=1, step_shrink=0.5):
     """Return a new `step_length` using a backtracking line search.
 
     Parameters
@@ -46,7 +46,10 @@ def line_search(f, x, d, step_length=1, step_shrink=0.5):
     fx = f(x)  # Save the result of f(x) instead of computing it many times
     # Decrease the step length while the step increases the cost function
     while True:
-        fxsd = f(x + step_length * d)
+        if (num_gpu <= 1):
+            fxsd = f(x + step_length * d)
+        else:
+            fxsd = f(x, step_length=step_length, dir=d)
         if fxsd <= fx + step_shrink * m:
             break
         step_length *= step_shrink
@@ -81,6 +84,9 @@ def conjugate_gradient(
         x,
         cost_function,
         grad,
+        dir_multi=None,
+        update_multi=None,
+        num_gpu=1,
         num_iter=1,
 ):
     """Use conjugate gradient to estimate `x`.
@@ -95,6 +101,10 @@ def conjugate_gradient(
         The function being minimized to recover x.
     grad : func(x) -> array_like
         The gradient of cost_function.
+    dir_multi : func(x) -> list_of_array
+        The dir in all GPUs.
+    update_multi : func(x) -> list_of_array
+        The updated subimages in all GPUs.
     num_iter : int
         The number of steps to take.
 
@@ -106,11 +116,24 @@ def conjugate_gradient(
         else:
             dir = direction_dy(array_module, grad0, grad1, dir)
         grad0 = grad1
-        gamma, cost = line_search(
-            f=cost_function,
-            x=x,
-            d=dir,
-        )
-        x = x + gamma * dir
+        if (num_gpu <= 1):
+            gamma, cost = line_search(
+                f=cost_function,
+                x=x,
+                d=dir,
+                num_gpu=num_gpu,
+            )
+            x = x + gamma * dir
+        else:
+            dir_list = dir_multi(dir)
+
+            gamma, cost = line_search(
+                f=cost_function,
+                x=x,
+                d=dir_list,
+                num_gpu=num_gpu,
+            )
+            # update the image
+            x = update_multi(x, gamma, dir_list)
         logger.debug("%4d, %.3e, %.7e", (i + 1), gamma, cost)
     return x, cost

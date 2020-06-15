@@ -138,7 +138,7 @@ def reconstruct(
         data,
         probe, scan,
         algorithm,
-        psi=None, num_iter=1, rtol=-1, **kwargs
+        psi=None, num_gpu=1, num_iter=1, rtol=-1, **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
 
@@ -163,30 +163,53 @@ def reconstruct(
                 ntheta=scan.shape[0],
                 **kwargs,
         ) as operator:
-            # send any array-likes to device
-            data = operator.asarray(data, dtype='float32')
-            result = {
-                'psi': operator.asarray(psi, dtype='complex64'),
-                'probe': operator.asarray(probe, dtype='complex64'),
-                'scan': operator.asarray(scan, dtype='float32'),
-            }
-            for key, value in kwargs.items():
-                if np.ndim(value) > 0:
-                    kwargs[key] = operator.asarray(value)
-
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[1:],
-                                             num_iter))
+                                                num_iter))
+            # send any array-likes to device
+            if (num_gpu <= 1):
+                data = operator.asarray(data, dtype='float32')
+                result = {
+                    'psi': operator.asarray(psi, dtype='complex64'),
+                    'probe': operator.asarray(probe, dtype='complex64'),
+                    'scan': operator.asarray(scan, dtype='float32'),
+                }
+                for key, value in kwargs.items():
+                    if np.ndim(value) > 0:
+                        kwargs[key] = operator.asarray(value)
+            else:
+                scan, data = operator.asarray_multi_split(
+                    num_gpu,
+                    scan,
+                    data,
+                )
+                result = {
+                    'psi': operator.asarray_multi(
+                        num_gpu,
+                        psi,
+                        dtype='complex64',
+                    ),
+                    'probe': operator.asarray_multi(
+                        num_gpu,
+                        probe,
+                        dtype='complex64',
+                    ),
+                    'scan': scan,
+                }
+                for key, value in kwargs.items():
+                    if np.ndim(value) > 0:
+                        kwargs[key] = operator.asarray_multi(num_gpu, value)
 
             cost = 0
             for i in range(num_iter):
-                result['probe'] = _rescale_obj_probe(operator, data,
+                result['probe'] = _rescale_obj_probe(operator, num_gpu, data,
                                                      result['psi'],
                                                      result['scan'],
                                                      result['probe'])
                 kwargs.update(result)
                 result = getattr(solvers, algorithm)(
                     operator,
+                    num_gpu=num_gpu,
                     data=data,
                     **kwargs,
                 )
@@ -198,14 +221,29 @@ def reconstruct(
                     break
                 cost = result['cost']
 
+            if (num_gpu > 1):
+                result['scan'] = operator.asarray_multi_fuse(
+                    num_gpu,
+                    result['scan'],
+                )
+                for k, v in result.items():
+                    if isinstance(v, list):
+                        result[k] = v[0]
         return {k: operator.asnumpy(v) for k, v in result.items()}
     else:
         raise ValueError(
             "The '{}' algorithm is not an available.".format(algorithm))
 
 
-def _rescale_obj_probe(operator, data, psi, scan, probe):
+def _rescale_obj_probe(operator, num_gpu, data, psi, scan, probe):
     """Keep the object amplitude around 1 by scaling probe by a constant."""
+    # TODO: add multi-GPU support
+    if (num_gpu > 1):
+        scan = operator.asarray_multi_fuse(num_gpu, scan)
+        data = operator.asarray_multi_fuse(num_gpu, data)
+        psi = psi[0]
+        probe = probe[0]
+
     intensity = operator._compute_intensity(data, psi, scan, probe)
 
     rescale = (np.linalg.norm(np.ravel(np.sqrt(data))) /
@@ -214,5 +252,10 @@ def _rescale_obj_probe(operator, data, psi, scan, probe):
     logger.info("object and probe rescaled by %f", rescale)
 
     probe *= rescale
+
+    if (num_gpu > 1):
+        probe = operator.asarray_multi(num_gpu, probe)
+        del scan
+        del data
 
     return probe
