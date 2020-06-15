@@ -86,6 +86,7 @@ def update_probe(op, num_gpu, data, psi, scan, probe, num_iter=1):
 
 def update_object(op, num_gpu, data, psi, scan, probe, num_iter=1):
     """Solve the object recovery problem."""
+
     def cost_function(psi):
         return op.cost(data, psi, scan, probe)
 

@@ -8,6 +8,7 @@ import numpy as np
 
 
 class Ptycho(Operator, numpy.Ptycho):
+
     def __init__(self, *args, **kwargs):
         super(Ptycho, self).__init__(
             *args,
@@ -29,16 +30,20 @@ class Ptycho(Operator, numpy.Ptycho):
         for i in range(gpu_count):
             if 'step_length' in kwargs and 'dir' in kwargs:
                 with cp.cuda.Device(i):
-                    psi_list[i] = psi[i] + (
-                        kwargs.get('step_length') * kwargs.get('dir')[i])
+                    psi_list[i] = psi[i] + (kwargs.get('step_length') *
+                                            kwargs.get('dir')[i])
             else:
                 psi_list[i] = psi[i]
 
         gpu_list = range(gpu_count)
         with cf.ThreadPoolExecutor(max_workers=gpu_count) as executor:
             cost_out = executor.map(
-                self.cost_device, gpu_list,
-                data, psi_list, scan, probe,
+                self.cost_device,
+                gpu_list,
+                data,
+                psi_list,
+                scan,
+                probe,
             )
         cost_list = list(cost_out)
 
@@ -49,19 +54,22 @@ class Ptycho(Operator, numpy.Ptycho):
 
         return cost_cpu
 
-    def grad_device(self, gpu_id,
-                    data, psi, scan, probe):  # cupy arrays
+    def grad_device(self, gpu_id, data, psi, scan, probe):  # cupy arrays
         with cp.cuda.Device(gpu_id):
             return self.grad(data, psi, scan, probe)
 
     # multi-GPU grad() entry point
-    def grad_multi(self, gpu_count,
-                   data, psi, scan, probe):  # lists of cupy array
+    def grad_multi(self, gpu_count, data, psi, scan,
+                   probe):  # lists of cupy array
         gpu_list = range(gpu_count)
         with cf.ThreadPoolExecutor(max_workers=gpu_count) as executor:
             grad_out = executor.map(
-                self.grad_device, gpu_list,
-                data, psi, scan, probe,
+                self.grad_device,
+                gpu_list,
+                data,
+                psi,
+                scan,
+                probe,
             )
         grad_list = list(grad_out)
 
@@ -72,7 +80,7 @@ class Ptycho(Operator, numpy.Ptycho):
                     cp.cuda.runtime.deviceEnablePeerAccess(i)
                     grad_tmp.data.copy_from_device(
                         grad_list[i].data,
-                        grad_list[0].size*grad_list[0].itemsize,
+                        grad_list[0].size * grad_list[0].itemsize,
                     )
                 else:
                     with cp.cuda.Device(i):

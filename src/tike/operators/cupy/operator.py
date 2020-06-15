@@ -25,19 +25,16 @@ class Operator(ABC):
         return mlist
 
     @classmethod
-    def asarray_multi_split(cls, gpu_count,
-                            scan_cpu, data_cpu,
-                            *args, **kwargs):
-        """Split scan&data and distribute to multiple GPUs.
+    def asarray_multi_split(cls, gpu_count, scan_cpu, data_cpu, *args,
+                            **kwargs):
+        """Split scan and data and distribute to multiple GPUs.
 
-        Instead of spliting the arrays based on the scanning
-        order, we split them in accordance with the scan
-        positions corresponding to the object sub-images.
-        For example, if we divide a square object image
-        into four sub-images, then the scan positions on
-        the top-left sub-image and their corresponding
-        diffraction patterns will be grouped into the first
-        chunk of scan and data.
+        Instead of spliting the arrays based on the scanning order, we split
+        them in accordance with the scan positions corresponding to the object
+        sub-images. For example, if we divide a square object image into four
+        sub-images, then the scan positions on the top-left sub-image and their
+        corresponding diffraction patterns will be grouped into the first chunk
+        of scan and data.
 
         """
         scanmlist = [None] * gpu_count
@@ -48,13 +45,15 @@ class Operator(ABC):
         xmax = numpy.amax(scan_cpu[:, :, 0])
         ymax = numpy.amax(scan_cpu[:, :, 1])
         for e in range(nscan):
-            xgpuid = scan_cpu[0, e, 0] // (xmax/(gpu_count//2)) - int(
-                        scan_cpu[0, e, 0] != 0 and
-                        scan_cpu[0, e, 0] % (xmax/(gpu_count//2)) == 0)
-            ygpuid = scan_cpu[0, e, 1] // (ymax/2) - int(
-                        scan_cpu[0, e, 1] != 0 and
-                        scan_cpu[0, e, 1] % (ymax/2) == 0)
-            idx = int(xgpuid*2+ygpuid)
+            xgpuid = scan_cpu[0, e, 0] // (xmax / (gpu_count // 2)) - int(
+                scan_cpu[0, e, 0] != 0
+                and scan_cpu[0, e, 0] % (xmax / (gpu_count // 2)) == 0
+            )
+            ygpuid = scan_cpu[0, e, 1] // (ymax / 2) - int(
+                scan_cpu[0, e, 1] != 0
+                and scan_cpu[0, e, 1] % (ymax / 2) == 0
+            )
+            idx = int(xgpuid * 2 + ygpuid)
             tmplist[e] = idx
             counter[idx] += 1
         for i in range(gpu_count):
@@ -63,8 +62,10 @@ class Operator(ABC):
                 dtype=scan_cpu.dtype,
             )
             tmpdata = numpy.zeros(
-                [data_cpu.shape[0], counter[i],
-                 data_cpu.shape[2], data_cpu.shape[3]],
+                [
+                    data_cpu.shape[0], counter[i], data_cpu.shape[2],
+                    data_cpu.shape[3]
+                ],
                 dtype=data_cpu.dtype,
             )
             c = 0
@@ -84,10 +85,8 @@ class Operator(ABC):
     def asarray_multi_fuse(cls, gpu_count, *args, **kwargs):
         """Collect and fuse the data into one GPU.
 
-        Each element of the args, e.g., args[0] is
-        expected to be a list of cupy array.
-        The size of each list is the same as
-        gpu_count.
+        Each element of the args, e.g., args[0] is expected to be a list of
+        cupy array. The size of each list is the same as gpu_count.
 
         """
         with cupy.cuda.Device(0):
