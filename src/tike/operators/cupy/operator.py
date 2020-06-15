@@ -9,7 +9,8 @@ class Operator(ABC):
     xp = cupy
 
     @classmethod
-    def asarray(cls, *args, **kwargs):
+    def asarray(cls, *args, device=None, **kwargs):
+        with cupy.cuda.Device(device):
         return cupy.asarray(*args, **kwargs)
 
     @classmethod
@@ -18,11 +19,9 @@ class Operator(ABC):
 
     @classmethod
     def asarray_multi(cls, gpu_count, *args, **kwargs):
-        mlist = [None] * gpu_count
-        for i in range(gpu_count):
-            with cupy.cuda.Device(i):
-                mlist[i] = cupy.asarray(*args, **kwargs)
-        return mlist
+        return [
+            cls.asarray(*args, device=i, **kwargs) for i in range(gpu_count)
+        ]
 
     @classmethod
     def asarray_multi_split(cls, gpu_count, scan_cpu, data_cpu, *args,
