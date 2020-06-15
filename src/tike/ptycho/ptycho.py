@@ -163,8 +163,11 @@ def reconstruct(
                 ntheta=scan.shape[0],
                 **kwargs,
         ) as operator:
-            if (num_gpu <= 1):
+            logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
+                        "iterations.".format(algorithm, *data.shape[1:],
+                                                num_iter))
             # send any array-likes to device
+            if (num_gpu <= 1):
                 data = operator.asarray(data, dtype='float32')
                 result = {
                     'psi': operator.asarray(psi, dtype='complex64'),
@@ -174,10 +177,6 @@ def reconstruct(
                 for key, value in kwargs.items():
                     if np.ndim(value) > 0:
                         kwargs[key] = operator.asarray(value)
-
-                logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
-                            "iterations.".format(algorithm, *data.shape[1:],
-                                                 num_iter))
             else:
                 scan, data = operator.asarray_multi_split(
                     num_gpu,
