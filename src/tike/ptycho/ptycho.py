@@ -117,7 +117,7 @@ def simulate(
             **kwargs,
     ) as operator:
         data = 0
-        for energy in np.split(probe,probe.shape[-4], axis = -4):
+        for energy in np.split(probe, probe.shape[-4], axis=-4):
             for mode in np.split(energy, probe.shape[-3], axis=-3):
                 farplane = operator.fwd(
                     probe=operator.asarray(mode, dtype='complex64'),
@@ -128,12 +128,13 @@ def simulate(
                 data += np.square(
                     np.linalg.norm(
                         farplane.reshape(operator.ntheta,
-                                        scan.shape[-2] // operator.fly, -1,
-                                        detector_shape, detector_shape),
+                                         scan.shape[-2] // operator.fly, -1,
+                                         detector_shape, detector_shape),
                         ord=2,
                         axis=2,
                     ))
         return operator.asnumpy(data)
+
 
 def reconstruct(
         data,

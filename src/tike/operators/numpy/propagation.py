@@ -41,7 +41,7 @@ class Propagation(Operator):
         self.detector_shape = detector_shape
         self.cost = getattr(self, f'_{model}_cost')
         self.grad = getattr(self, f'_{model}_grad')
-    
+
     def _fft2(self, *args, overwrite=False, **kwargs):
         """Reimplement this wrapper to switch out the FFT library"""
         return fft2(*args, **kwargs).astype('complex64')

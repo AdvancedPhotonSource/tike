@@ -45,9 +45,9 @@ def update_probe(op, data, psi, scan, probe, num_iter=1):
                     keepdims=True,
                 )
 
-            probe[...,i:i+1, m:m + 1, :, :], cost = conjugate_gradient(
+            probe[..., i:i + 1, m:m + 1, :, :], cost = conjugate_gradient(
                 op.xp,
-                x=probe[...,i:i+1, m:m + 1, :, :],
+                x=probe[..., i:i + 1, m:m + 1, :, :],
                 cost_function=cost_function,
                 grad=grad,
                 num_iter=num_iter,

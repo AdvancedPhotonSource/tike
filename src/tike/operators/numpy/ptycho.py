@@ -151,7 +151,9 @@ class Ptycho(Operator):
         intensity = self._compute_intensity(data, psi, scan, probe)
         grad_obj = self.xp.zeros_like(psi)
         for i in range(probe.shape[-4]):
-            for mode in np.split(probe[...,i:i+1,:,:,:], probe[...,i:i+1,:,:,:].shape[-3], axis=-3):
+            for mode in np.split(probe[..., i:i + 1, :, :, :],
+                                 probe[..., i:i + 1, :, :, :].shape[-3],
+                                 axis=-3):
                 # TODO: Pass obj through adj() instead of making new obj inside
                 grad_obj += self.adj(
                     farplane=self.propagation.grad(
