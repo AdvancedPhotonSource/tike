@@ -6,15 +6,17 @@ able to use this implementation as a base.
 """
 
 from .convolution import *
+from .lamino import *
 from .operator import *
 from .propagation import *
 from .ptycho import *
-from .lamino import *
+from .shift import *
 
 __all__ = (
     'Convolution',
+    'Lamino',
     'Operator',
     'Propagation',
     'Ptycho',
-    'Lamino',
+    'Shift',
 )
