@@ -81,8 +81,7 @@ def simulate(
     ) as operator:
         data = operator.fwd(obj=operator.asarray(obj, dtype='complex64'))
         assert data.dtype == 'complex64', data.dtype
-        data = operator.asnumpy(data)
-    return operator.asnumpy(data)
+        return operator.asnumpy(data)
 
 
 def reconstruct(
