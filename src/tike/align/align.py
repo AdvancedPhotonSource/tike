@@ -14,12 +14,13 @@ from tike.align.solvers import direct
 
 logger = logging.getLogger(__name__)
 
+
 def simulate(
         unaligned,
         shift,
         **kwargs
 ):  # yapf: disable
-    """Return complex values of simulated laminography data."""
+    """Return unaligned shifted by shift."""
     assert unaligned.ndim > 2
     assert shift.ndim > 1
     with Shift() as operator:
@@ -29,6 +30,7 @@ def simulate(
         )
         assert data.dtype == 'complex64', data.dtype
         return operator.asnumpy(data)
+
 
 def reconstruct(
         data,
@@ -66,21 +68,12 @@ def reconstruct(
         logger.info("{} on {:,d} - {:,d} by {:,d} images for {:,d} "
                     "iterations.".format('direct', *data.shape, num_iter))
 
-        cost = 0
-        for i in [0]: #range(num_iter):
-            kwargs.update(result)
-            result = direct(
-                operator,
-                data=data,
-                unaligned=unaligned,
-                **kwargs,
-            )
-            # Check for early termination
-            if i > 0 and abs((result['cost'] - cost) / cost) < rtol:
-                logger.info(
-                    "Cost function rtol < %g reached at %d "
-                    "iterations.", rtol, i)
-                break
-            cost = result['cost']
+        kwargs.update(result)
+        result = direct(
+            operator,
+            data=data,
+            unaligned=unaligned,
+            **kwargs,
+        )
 
     return {k: operator.asnumpy(v) for k, v in result.items()}

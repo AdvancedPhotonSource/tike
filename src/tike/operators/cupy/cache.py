@@ -2,6 +2,7 @@ import cupy as cp
 from cupyx.scipy.fft import fftn, ifftn
 from cupyx.scipy.fftpack import get_fft_plan
 
+
 class CachedFFT():
     """A multi-plan cache for CuPy FFT."""
 
