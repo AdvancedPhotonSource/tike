@@ -144,7 +144,7 @@ class Ptycho(Operator):
             )  # yapf: disable
         return intensity
 
-    def cost(self, data, psi, scan, probe, n=-1, mode=None):
+    def cost(self, data, psi, scan, probe, n=-1, mode=None) -> float:
         intensity = self._compute_intensity(data, psi, scan, probe, n, mode)
         return self.propagation.cost(data, intensity)
 
@@ -182,18 +182,7 @@ class Ptycho(Operator):
             overwrite=True,
         )
 
-    # Multi-GPU related functions
-
-    def dir_multi(self, gpu_count, dir):
-        """Scatter dir to all GPUs"""
-        dir_cpu = self.asnumpy(dir)
-        return self.asarray_multi(gpu_count, dir_cpu)
-
-    def update_multi(self, gpu_count, psi, gamma, dir):
-        psi_list = [None] * gpu_count
-        for i in range(gpu_count):
-            psi_list[i] = psi[i] + gamma * dir[i]
-        return psi_list
+    # Multi-GPU related
 
     def grad_device(self, gpu_id, data, psi, scan, probe):
         return self.grad(data, psi, scan, probe)
@@ -201,64 +190,5 @@ class Ptycho(Operator):
     def cost_device(self, gpu_id, data, psi, scan, probe, n=-1, mode=None):
         return self.cost(data, psi, scan, probe)
 
-    # multi-GPU cost() entry point
-    def cost_multi(
-        self,
-        gpu_count,
-        data,
-        psi_list,
-        scan,
-        probe,
-        n=-1,
-        mode=None,
-        step_length=None,
-        dir=None,
-        **kwargs,
-    ):
-        gpu_list = range(gpu_count)
-        with cf.ThreadPoolExecutor(max_workers=gpu_count) as executor:
-            cost_out = executor.map(
-                self.cost_device,
-                gpu_list,
-                data,
-                psi_list,
-                scan,
-                probe,
-            )
-        cost_list = list(cost_out)
-
-        cost_cpu = np.zeros(cost_list[0].shape, cost_list[0].dtype)
-        for i in range(gpu_count):
-            cost_cpu += self.asnumpy(cost_list[i])
-
-        return cost_cpu
-
-    # multi-GPU grad() entry point
-    def grad_multi(self, gpu_count, data, psi, scan,
-                   probe):  # lists of cupy array
-        gpu_list = range(gpu_count)
-        with cf.ThreadPoolExecutor(max_workers=gpu_count) as executor:
-            grad_out = executor.map(
-                self.grad_device,
-                gpu_list,
-                data,
-                psi,
-                scan,
-                probe,
-            )
-        grad_list = list(grad_out)
-
-        # grad_tmp = np.empty_like(grad_list[0])
-        for i in range(1, gpu_count):
-            # if cp.cuda.runtime.deviceCanAccessPeer(0, i):
-            #     cp.cuda.runtime.deviceEnablePeerAccess(i)
-            #     grad_tmp.data.copy_from_device(
-            #         grad_list[i].data,
-            #         grad_list[0].size * grad_list[0].itemsize,
-            #     )
-            # else:
-            grad_cpu_tmp = self.asnumpy(grad_list[i])
-            grad_tmp = self.asarray(grad_cpu_tmp)
-            grad_list[0] += grad_tmp
-
-        return grad_list[0]
+    def update_device(self, gpu_id, psi, gamma, dir):
+        return psi + gamma * dir

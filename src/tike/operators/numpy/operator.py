@@ -51,12 +51,6 @@ class Operator(ABC):
         raise NotImplementedError("The adjoint operator was not implemented!")
 
     @classmethod
-    def asarray_multi(cls, gpu_count, *args, **kwargs):
-        return [
-            cls.asarray(*args, device=i, **kwargs) for i in range(gpu_count)
-        ]
-
-    @classmethod
     def asarray_multi_split(cls, gpu_count, scan_cpu, data_cpu, *args,
                             **kwargs):
         """Split scan and data and distribute to multiple GPUs.
@@ -108,20 +102,3 @@ class Operator(ABC):
             del tmpscan
             del tmpdata
         return scanmlist, datamlist
-
-    @classmethod
-    def asarray_multi_fuse(cls, gpu_count, *args, **kwargs):
-        """Collect and fuse the data into one GPU.
-
-        Each element of the args, e.g., args[0] is expected to be a list of
-        cupy array. The size of each list is the same as gpu_count.
-
-        """
-        fused = args[0][0].copy()
-        for i in range(1, gpu_count):
-            fused_cpu = cls.asnumpy(args[0][i])
-            fused = cls.xp.concatenate(
-                (fused, cls.asarray(fused_cpu, device=0)),
-                axis=1,
-            )
-        return fused

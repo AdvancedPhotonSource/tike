@@ -59,6 +59,7 @@ import logging
 import numpy as np
 
 from tike.operators import Ptycho
+from tike.pool import ThreadPool
 from tike.ptycho import solvers
 from .position import check_allowed_positions, get_padded_object
 
@@ -162,10 +163,10 @@ def reconstruct(
                 n=psi.shape[-1],
                 ntheta=scan.shape[0],
                 **kwargs,
-        ) as operator:
+        ) as operator, ThreadPool(num_gpu) as pool:
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[1:],
-                                                num_iter))
+                                             num_iter))
             # send any array-likes to device
             if (num_gpu <= 1):
                 data = operator.asarray(data, dtype='float32')
@@ -184,31 +185,24 @@ def reconstruct(
                     data,
                 )
                 result = {
-                    'psi': operator.asarray_multi(
-                        num_gpu,
-                        psi,
-                        dtype='complex64',
-                    ),
-                    'probe': operator.asarray_multi(
-                        num_gpu,
-                        probe,
-                        dtype='complex64',
-                    ),
+                    'psi': pool.bcast(psi.astype('complex64')),
+                    'probe': pool.bcast(probe.astype('complex64')),
                     'scan': scan,
                 }
                 for key, value in kwargs.items():
                     if np.ndim(value) > 0:
-                        kwargs[key] = operator.asarray_multi(num_gpu, value)
+                        kwargs[key] = pool.bcast(value)
 
             cost = 0
             for i in range(num_iter):
-                result['probe'] = _rescale_obj_probe(operator, num_gpu, data,
-                                                     result['psi'],
+                result['probe'] = _rescale_obj_probe(operator, pool, num_gpu,
+                                                     data, result['psi'],
                                                      result['scan'],
                                                      result['probe'])
                 kwargs.update(result)
                 result = getattr(solvers, algorithm)(
                     operator,
+                    pool,
                     num_gpu=num_gpu,
                     data=data,
                     **kwargs,
@@ -222,10 +216,7 @@ def reconstruct(
                 cost = result['cost']
 
             if (num_gpu > 1):
-                result['scan'] = operator.asarray_multi_fuse(
-                    num_gpu,
-                    result['scan'],
-                )
+                result['scan'] = pool.gather(result['scan'], axis=1)
                 for k, v in result.items():
                     if isinstance(v, list):
                         result[k] = v[0]
@@ -235,12 +226,12 @@ def reconstruct(
             "The '{}' algorithm is not an available.".format(algorithm))
 
 
-def _rescale_obj_probe(operator, num_gpu, data, psi, scan, probe):
+def _rescale_obj_probe(operator, pool, num_gpu, data, psi, scan, probe):
     """Keep the object amplitude around 1 by scaling probe by a constant."""
     # TODO: add multi-GPU support
     if (num_gpu > 1):
-        scan = operator.asarray_multi_fuse(num_gpu, scan)
-        data = operator.asarray_multi_fuse(num_gpu, data)
+        scan = pool.gather(scan, axis=1)
+        data = pool.gather(data, axis=1)
         psi = psi[0]
         probe = probe[0]
 
@@ -254,7 +245,7 @@ def _rescale_obj_probe(operator, num_gpu, data, psi, scan, probe):
     probe *= rescale
 
     if (num_gpu > 1):
-        probe = operator.asarray_multi(num_gpu, probe)
+        probe = pool.bcast(probe)
         del scan
         del data
 

@@ -16,6 +16,8 @@ class Ptycho(Operator, numpy.Ptycho):
             **kwargs,
         )
 
+    # Multi-GPU related
+
     def grad_device(self, gpu_id, data, psi, scan, probe):
         with cp.cuda.Device(gpu_id):
             return self.grad(data, psi, scan, probe)
@@ -24,9 +26,6 @@ class Ptycho(Operator, numpy.Ptycho):
         with cp.cuda.Device(gpu_id):
             return self.cost(data, psi, scan, probe)
 
-    def update_multi(self, gpu_count, psi, gamma, dir):
-        psi_list = [None] * gpu_count
-        for i in range(gpu_count):
-            with cp.cuda.Device(i):
-                psi_list[i] = psi[i] + gamma * dir[i]
-        return psi_list
+    def update_device(self, gpu_id, psi, gamma, dir):
+        with cp.cuda.Device(gpu_id):
+            return psi + gamma * dir
