@@ -9,6 +9,4 @@ solvers
    .. autosummary::
       :nosignatures:
 
-      admm
       combined
-      divided
