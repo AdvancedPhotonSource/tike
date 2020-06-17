@@ -12,4 +12,4 @@ from other packages.
    # examples/admm
    examples/ptycho
    examples/scan
-   # examples/tomo
+   examples/tomo
