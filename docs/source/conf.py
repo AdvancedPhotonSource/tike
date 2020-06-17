@@ -46,8 +46,14 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.imgmath',
               'sphinx.ext.viewcode',
               'sphinxcontrib.bibtex',
+              'sphinx.ext.extlinks',
               'nbsphinx',
               ]
+
+# extlinks settings
+extlinks = {
+    'doi': ('https://dx.doi.org/%s', 'doi:'),
+}
 
 # Napoleon settings.
 napoleon_google_docstring = True

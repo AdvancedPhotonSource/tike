@@ -29,7 +29,8 @@ phase_cross_correlation from skimage.registration."""
 import numpy as np
 
 
-def cross_correlation(op, data, unaligned, upsample_factor=1, space="real", **kwargs):
+def cross_correlation(op, data, unaligned, upsample_factor=1, space="real",
+                      **kwargs):  # yapf: disable
     """Efficient subpixel image translation alignment by cross-correlation.
 
     This code gives the same precision as the FFT upsampled cross-correlation
@@ -40,16 +41,18 @@ def cross_correlation(op, data, unaligned, upsample_factor=1, space="real", **kw
 
     References
     ----------
-    .. [1] Stéfan van der Walt, Johannes L. Schönberger, Juan Nunez-Iglesias,
-           François Boulogne, Joshua D. Warner, Neil Yager, Emmanuelle
-           Gouillart, Tony Yu and the scikit-image contributors. scikit-image:
-           Image processing in Python. PeerJ 2:e453 (2014)
-           https://doi.org/10.7717/peerj.453
-    .. [2] Manuel Guizar-Sicairos, Samuel T. Thurman, and James R. Fienup,
-           "Efficient subpixel image registration algorithms," Optics Letters
-           33, 156-158 (2008). :DOI:`10.1364/OL.33.000156`
-    .. [3] James R. Fienup, "Invariant error metrics for image reconstruction"
-           Optics Letters 36, 8352-8357 (1997). :DOI:`10.1364/AO.36.008352`
+    Stéfan van der Walt, Johannes L. Schönberger, Juan Nunez-Iglesias,
+    François Boulogne, Joshua D. Warner, Neil Yager, Emmanuelle
+    Gouillart, Tony Yu and the scikit-image contributors. scikit-image:
+    Image processing in Python. PeerJ 2:e453 (2014)
+    :doi:`10.7717/peerj.453`
+
+    Manuel Guizar-Sicairos, Samuel T. Thurman, and James R. Fienup,
+    "Efficient subpixel image registration algorithms," Optics Letters
+    33, 156-158 (2008). :doi:`10.1364/OL.33.000156`
+
+    James R. Fienup, "Invariant error metrics for image reconstruction"
+    Optics Letters 36, 8352-8357 (1997). :doi:`10.1364/AO.36.008352`
     """
     # assume complex data is already in Fourier space
     if space.lower() == 'fourier':
@@ -108,15 +111,11 @@ def cross_correlation(op, data, unaligned, upsample_factor=1, space="real", **kw
 def _upsampled_dft(op, data, ups, upsample_factor, axis_offsets):
     im2pi = -2j * np.pi
     shape = data.shape
-    kernel = (
-        (op.xp.arange(ups) - axis_offsets[:, 1:2])[:, :, None]
-        * op.xp.fft.fftfreq(shape[2], upsample_factor)
-    )
+    kernel = ((op.xp.arange(ups) - axis_offsets[:, 1:2])[:, :, None] *
+              op.xp.fft.fftfreq(shape[2], upsample_factor))
     kernel = np.exp(im2pi * kernel)
     data = np.einsum('ijk,ipk->ijp', kernel, data)
-    kernel = (
-        (op.xp.arange(ups) - axis_offsets[:, 0:1])[:, :, None]
-        * op.xp.fft.fftfreq(shape[1], upsample_factor)
-    )
+    kernel = ((op.xp.arange(ups) - axis_offsets[:, 0:1])[:, :, None] *
+              op.xp.fft.fftfreq(shape[1], upsample_factor))
     kernel = np.exp(im2pi * kernel)
     return np.einsum('ijk,ipk->ijp', kernel, data)

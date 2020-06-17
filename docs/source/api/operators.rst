@@ -14,6 +14,7 @@ operators
 
       Operator
       Convolution
+      Lamino
       Ptycho
       Propagation
-      Lamino
+      Shift
