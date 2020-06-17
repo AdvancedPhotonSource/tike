@@ -10,7 +10,7 @@ import logging
 import numpy as np
 
 from tike.operators import Shift
-from tike.align.solvers import direct
+from tike.align.solvers import cross_correlation
 
 logger = logging.getLogger(__name__)
 
@@ -66,10 +66,11 @@ def reconstruct(
                 kwargs[key] = operator.asarray(value)
 
         logger.info("{} on {:,d} - {:,d} by {:,d} images for {:,d} "
-                    "iterations.".format('direct', *data.shape, num_iter))
+                    "iterations.".format('cross_correlation', *data.shape,
+                                         num_iter))
 
         kwargs.update(result)
-        result = direct(
+        result = cross_correlation(
             operator,
             data=data,
             unaligned=unaligned,

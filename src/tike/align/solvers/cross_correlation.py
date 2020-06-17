@@ -23,13 +23,13 @@
 # WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-"""Implements a direct 2D alignment algorithm based on phase_cross_correlation
-from skimage.registration."""
+"""Implements a cross_correlation 2D alignment algorithm based on
+phase_cross_correlation from skimage.registration."""
 
 import numpy as np
 
 
-def direct(op, data, unaligned, upsample_factor=1, space="real", **kwargs):
+def cross_correlation(op, data, unaligned, upsample_factor=1, space="real", **kwargs):
     """Efficient subpixel image translation alignment by cross-correlation.
 
     This code gives the same precision as the FFT upsampled cross-correlation

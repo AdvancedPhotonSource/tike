@@ -1,7 +1,7 @@
 """Contains different solver implementations."""
 
-from .direct import direct
+from .cross_correlation import cross_correlation
 
 __all__ = [
-    "direct",
+    "cross_correlation",
 ]
