@@ -48,7 +48,7 @@ class Ptycho(Operator):
     nearplane, farplane: complex64
         The (ntheta, nscan // fly, fly, 1, detector_shape, detector_shape)
         wavefronts exiting the object and hitting the detector respectively.
-    intensity, data : (ntheta, nscan, detector_shape, detector_shape) complex64
+    data : (ntheta, nscan // fly, detector_shape, detector_shape) float32
         The square of the absolute value of `farplane` summed over `fly` and
         `modes`.
     scan : (ntheta, nscan, 2) float32
