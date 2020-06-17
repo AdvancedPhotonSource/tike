@@ -1,12 +1,12 @@
-tomo
-====
-.. automodule:: tike.tomo
+lamino
+======
+.. automodule:: tike.lamino
    :inherited-members:
    :members:
    :show-inheritance:
    :undoc-members:
 
-.. automodule:: tike.tomo.tomo
+.. automodule:: tike.lamino.lamino
    :inherited-members:
    :members:
    :show-inheritance:
@@ -16,6 +16,6 @@ tomo
    :maxdepth: 3
    :hidden:
 
-   tomo.solvers
+   lamino.solvers
 
 
