@@ -32,4 +32,5 @@ The modules in Tike are as follows:
    operators
    opt
    ptycho
+   lamino
    view
