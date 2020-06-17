@@ -45,9 +45,3 @@ class Shift(Operator):
         padded = self._ifft2(padded, axes=(-2, -1), overwrite=overwrite)
         return padded[..., pz:-pz, pn:-pn].reshape(shape)
 
-    def adj(self, a, shift):
-        """Apply inverse shifts along last two dimensions of a.
-
-        seealso: fwd
-        """
-        return self.fwd(a, -shift)
