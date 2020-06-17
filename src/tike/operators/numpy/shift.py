@@ -44,4 +44,3 @@ class Shift(Operator):
         padded *= shift
         padded = self._ifft2(padded, axes=(-2, -1), overwrite=overwrite)
         return padded[..., pz:-pz, pn:-pn].reshape(shape)
-
