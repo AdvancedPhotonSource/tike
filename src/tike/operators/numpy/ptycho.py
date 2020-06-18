@@ -232,7 +232,7 @@ class Ptycho(Operator):
 
         cost_cpu = np.zeros(cost_list[0].shape, cost_list[0].dtype)
         for i in range(gpu_count):
-            cost_cpu += Operator.asnumpy(cost_list[i])
+            cost_cpu += self.asnumpy(cost_list[i])
 
         return cost_cpu
 
