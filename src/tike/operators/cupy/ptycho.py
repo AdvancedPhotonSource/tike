@@ -5,6 +5,7 @@ from .operator import Operator
 
 import cupy as cp
 
+
 class Ptycho(Operator, numpy.Ptycho):
 
     def __init__(self, *args, **kwargs):
@@ -15,11 +16,17 @@ class Ptycho(Operator, numpy.Ptycho):
             **kwargs,
         )
 
-    def grad_device(self, gpu_id, data, psi, scan, probe):  # cupy arrays
+    def grad_device(self, gpu_id, data, psi, scan, probe):
         with cp.cuda.Device(gpu_id):
             return self.grad(data, psi, scan, probe)
 
-    def cost_device(self, gpu_id, data, psi, scan, probe,
-                    n=-1, mode=None):  # cupy arrays
+    def cost_device(self, gpu_id, data, psi, scan, probe, n=-1, mode=None):
         with cp.cuda.Device(gpu_id):
             return self.cost(data, psi, scan, probe)
+
+    def update_multi(self, gpu_count, psi, gamma, dir):
+        psi_list = [None] * gpu_count
+        for i in range(gpu_count):
+            with cp.cuda.Device(i):
+                psi_list[i] = psi[i] + gamma * dir[i]
+        return psi_list

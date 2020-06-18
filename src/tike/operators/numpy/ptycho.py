@@ -182,42 +182,39 @@ class Ptycho(Operator):
             overwrite=True,
         )
 
-    # scatter dir to all GPUs
-    def dir_multi(self, gpu_count, dir):  # lists of cupy array
+    # Multi-GPU related functions
+
+    def dir_multi(self, gpu_count, dir):
+        """Scatter dir to all GPUs"""
         dir_cpu = self.asnumpy(dir)
         return self.asarray_multi(gpu_count, dir_cpu)
 
-    # multi-GPU update()
-    def update_multi(self, gpu_count, psi, gamma, dir):  # lists of cupy array
+    def update_multi(self, gpu_count, psi, gamma, dir):
+        psi_list = [None] * gpu_count
         for i in range(gpu_count):
-            psi[i] = psi[i] + gamma * dir[i]
-        return psi
+            psi_list[i] = psi[i] + gamma * dir[i]
+        return psi_list
 
-    def grad_device(self, gpu_id, data, psi, scan, probe):  # cupy arrays
+    def grad_device(self, gpu_id, data, psi, scan, probe):
         return self.grad(data, psi, scan, probe)
 
-    def cost_device(self, gpu_id, data, psi, scan, probe,
-                    n=-1, mode=None):  # cupy arrays
+    def cost_device(self, gpu_id, data, psi, scan, probe, n=-1, mode=None):
         return self.cost(data, psi, scan, probe)
 
     # multi-GPU cost() entry point
-    def cost_multi(self,
-                   gpu_count,
-                   data,
-                   psi,
-                   scan,
-                   probe,
-                   n=-1,
-                   mode=None,
-                   **kwargs):  # lists of cupy array
-        psi_list = [None] * gpu_count
-        for i in range(gpu_count):
-            if 'step_length' in kwargs and 'dir' in kwargs:
-                psi_list[i] = psi[i] + (kwargs.get('step_length') *
-                                        kwargs.get('dir')[i])
-            else:
-                psi_list[i] = psi[i]
-
+    def cost_multi(
+        self,
+        gpu_count,
+        data,
+        psi_list,
+        scan,
+        probe,
+        n=-1,
+        mode=None,
+        step_length=None,
+        dir=None,
+        **kwargs,
+    ):
         gpu_list = range(gpu_count)
         with cf.ThreadPoolExecutor(max_workers=gpu_count) as executor:
             cost_out = executor.map(
