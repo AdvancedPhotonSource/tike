@@ -19,45 +19,36 @@ class NumPyThreadPool(ThreadPoolExecutor):
 
     """
 
-    def __init__(self, num_workers):
+    def __init__(self, num_workers: int):
         super().__init__(num_workers)
         self.num_workers = num_workers
         self.workers = list(range(num_workers))
         self.xp = np
 
-    def _copy_to(self, x, worker):
+    def _copy_to(self, x: np.array, worker: int) -> np.array:
         """Copy x to the given worker."""
         return self.xp.array(x, copy=True)
 
-    def bcast(self, x) -> list:
-        """Send a copy of x to all workers.
-
-        Return a list of the copies of x on each worker.
-        """
+    def bcast(self, x: np.array) -> list:
+        """Send a copy of x to all workers."""
 
         def f(worker):
             return self._copy_to(x, worker)
 
         return list(self.map(f, self.workers))
 
-    def scatter(self, x) -> list:
-        """Divide x amongst all workers along the 0th dimension.
-
-        Return a list of the parts of x on each worker.
-        """
+    def scatter(self, x: np.array) -> list:
+        """Divide x amongst all workers along the 0th dimension."""
         return list(self.map(self._copy_to, x, self.workers))
 
-    def gather(self, x: list, worker=0, axis=0):
-        """Concatenate x on a single worker along the 0th dimension.
-
-        Return the concatenated x.
-        """
+    def gather(self, x: list, worker=0, axis=0) -> np.array:
+        """Concatenate x on a single worker along the given axis."""
         return self.xp.concatenate(
             [self._copy_to(part, worker) for part in x],
             axis,
         )
 
-    def all_gather(self, x) -> list:
+    def all_gather(self, x: list) -> list:
         """Copy a scattered x to all workers."""
 
         def f(worker):
@@ -72,8 +63,7 @@ class CuPyThreadPool(NumPyThreadPool):
         super().__init__(num_workers)
         self.xp = cp
 
-    def _copy_to(self, x, worker):
-        """Copy x to the given worker."""
+    def _copy_to(self, x: np.array, worker: int) -> np.array:
         with cp.cuda.Device(worker):
             return self.xp.asarray(x)
 
@@ -87,10 +77,9 @@ class CuPyThreadPool(NumPyThreadPool):
         return super().map(f, self.workers, *iterables, **kwargs)
 
 
-# Search available entry points for requested backend.
+# Provide the correct ThreadPool implementaiton based the environment variable
 if f"TIKE_BACKEND" in os.environ and os.environ["TIKE_BACKEND"] == 'cupy':
     ThreadPool = CuPyThreadPool
     import cupy as cp
-
 else:
     ThreadPool = NumPyThreadPool
