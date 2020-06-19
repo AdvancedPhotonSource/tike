@@ -77,6 +77,15 @@ class CuPyThreadPool(NumPyThreadPool):
         with cp.cuda.Device(worker):
             return self.xp.asarray(x)
 
+    def map(self, func, *iterables, **kwargs):
+        """ThreadPoolExecutor.map, but wraps call in a cuda.Device context."""
+
+        def f(worker, *args):
+            with cp.cuda.Device(worker):
+                return func(*args)
+
+        return super().map(f, self.workers, *iterables, **kwargs)
+
 
 # Search available entry points for requested backend.
 if f"TIKE_BACKEND" in os.environ and os.environ["TIKE_BACKEND"] == 'cupy':
