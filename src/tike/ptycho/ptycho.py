@@ -179,7 +179,8 @@ def reconstruct(
                     if np.ndim(value) > 0:
                         kwargs[key] = operator.asarray(value)
             else:
-                scan, data = operator.asarray_multi_split(
+                scan, data = asarray_multi_split(
+                    operator,
                     num_gpu,
                     scan,
                     data,
@@ -250,3 +251,55 @@ def _rescale_obj_probe(operator, pool, num_gpu, data, psi, scan, probe):
         del data
 
     return probe
+
+
+def asarray_multi_split(op, gpu_count, scan_cpu, data_cpu, *args, **kwargs):
+    """Split scan and data and distribute to multiple GPUs.
+
+    Instead of spliting the arrays based on the scanning order, we split
+    them in accordance with the scan positions corresponding to the object
+    sub-images. For example, if we divide a square object image into four
+    sub-images, then the scan positions on the top-left sub-image and their
+    corresponding diffraction patterns will be grouped into the first chunk
+    of scan and data.
+
+    """
+    scanmlist = [None] * gpu_count
+    datamlist = [None] * gpu_count
+    nscan = scan_cpu.shape[1]
+    tmplist = [0] * nscan
+    counter = [0] * gpu_count
+    xmax = np.amax(scan_cpu[:, :, 0])
+    ymax = np.amax(scan_cpu[:, :, 1])
+    for e in range(nscan):
+        xgpuid = scan_cpu[0, e, 0] // (xmax / (gpu_count // 2)) - int(
+            scan_cpu[0, e, 0] != 0 and scan_cpu[0, e, 0] %
+            (xmax / (gpu_count // 2)) == 0)
+        ygpuid = scan_cpu[0, e, 1] // (ymax / 2) - int(
+            scan_cpu[0, e, 1] != 0 and scan_cpu[0, e, 1] % (ymax / 2) == 0)
+        idx = int(xgpuid * 2 + ygpuid)
+        tmplist[e] = idx
+        counter[idx] += 1
+    for i in range(gpu_count):
+        tmpscan = np.zeros(
+            [scan_cpu.shape[0], counter[i], scan_cpu.shape[2]],
+            dtype=scan_cpu.dtype,
+        )
+        tmpdata = np.zeros(
+            [
+                data_cpu.shape[0], counter[i], data_cpu.shape[2],
+                data_cpu.shape[3]
+            ],
+            dtype=data_cpu.dtype,
+        )
+        c = 0
+        for e in range(nscan):
+            if tmplist[e] == i:
+                tmpscan[:, c, :] = scan_cpu[:, e, :]
+                tmpdata[:, c] = data_cpu[:, e]
+                c += 1
+            scanmlist[i] = op.asarray(tmpscan, device=i)
+            datamlist[i] = op.asarray(tmpdata, device=i)
+        del tmpscan
+        del tmpdata
+    return scanmlist, datamlist
