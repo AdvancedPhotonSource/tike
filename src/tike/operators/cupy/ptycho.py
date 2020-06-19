@@ -15,17 +15,3 @@ class Ptycho(Operator, numpy.Ptycho):
             diffraction=Convolution,
             **kwargs,
         )
-
-    # Multi-GPU related
-
-    # def grad_device(self, gpu_id, data, psi, scan, probe):
-    #     with cp.cuda.Device(gpu_id):
-    #         return self.grad(data, psi, scan, probe)
-
-    # def cost_device(self, gpu_id, data, psi, scan, probe, n=-1, mode=None):
-    #     with cp.cuda.Device(gpu_id):
-    #         return self.cost(data, psi, scan, probe)
-
-    # def update_device(self, gpu_id, psi, gamma, dir):
-    #     with cp.cuda.Device(gpu_id):
-    #         return psi + gamma * dir

@@ -97,14 +97,7 @@ def update_object(op, pool, num_gpu, data, psi, scan, probe, num_iter=1):
         return op.grad(data, psi, scan, probe)
 
     def cost_function_multi(psi, **kwargs):
-        cost_out = pool.map(
-            op.cost_device,
-            range(num_gpu),
-            data,
-            psi,
-            scan,
-            probe,
-        )
+        cost_out = pool.map(op.cost, data, psi, scan, probe)
         # TODO: Implement reduce function for ThreadPool
         cost_cpu = 0
         for c in cost_out:
@@ -112,14 +105,7 @@ def update_object(op, pool, num_gpu, data, psi, scan, probe, num_iter=1):
         return cost_cpu
 
     def grad_multi(psi):
-        grad_out = pool.map(
-            op.grad_device,
-            range(num_gpu),
-            data,
-            psi,
-            scan,
-            probe,
-        )
+        grad_out = pool.map(op.grad, data, psi, scan, probe)
         grad_list = list(grad_out)
         # TODO: Implement reduce function for ThreadPool
         for i in range(1, num_gpu):
@@ -143,10 +129,10 @@ def update_object(op, pool, num_gpu, data, psi, scan, probe, num_iter=1):
 
     def update_multi(psi, gamma, dir):
 
-        def f(gpu_id, psi, dir):
-            return op.update_device(gpu_id, psi, gamma, dir)
+        def f(psi, dir):
+            return psi + gamma * dir
 
-        return list(pool.map(f, range(num_gpu), psi, dir))
+        return list(pool.map(f, psi, dir))
 
     if (num_gpu <= 1):
         psi, cost = conjugate_gradient(

@@ -181,14 +181,3 @@ class Ptycho(Operator):
             scan=scan,
             overwrite=True,
         )
-
-    # Multi-GPU related
-
-    def grad_device(self, gpu_id, data, psi, scan, probe):
-        return self.grad(data, psi, scan, probe)
-
-    def cost_device(self, gpu_id, data, psi, scan, probe, n=-1, mode=None):
-        return self.cost(data, psi, scan, probe)
-
-    def update_device(self, gpu_id, psi, gamma, dir):
-        return psi + gamma * dir
