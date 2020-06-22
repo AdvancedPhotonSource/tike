@@ -48,11 +48,11 @@ class NumPyThreadPool(ThreadPoolExecutor):
             axis,
         )
 
-    def all_gather(self, x: list) -> list:
-        """Copy a scattered x to all workers."""
+    def all_gather(self, x: list, axis=0) -> list:
+        """Concatenate x on all worker along the given axis."""
 
         def f(worker):
-            return self.gather(x, worker)
+            return self.gather(x, worker, axis)
 
         return list(self.map(f, self.workers))
 
