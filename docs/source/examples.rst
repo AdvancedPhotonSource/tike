@@ -10,6 +10,7 @@ from other packages.
    :hidden:
 
    # examples/admm
+   examples/align
    examples/ptycho
    examples/scan
-   # examples/tomo
+   examples/tomo

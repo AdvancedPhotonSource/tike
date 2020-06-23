@@ -59,6 +59,7 @@ import logging
 import numpy as np
 
 from tike.operators import Ptycho
+from tike.pool import ThreadPool
 from tike.ptycho import solvers
 from .position import check_allowed_positions, get_padded_object
 
@@ -138,7 +139,7 @@ def reconstruct(
         data,
         probe, scan,
         algorithm,
-        psi=None, num_iter=1, rtol=-1, **kwargs
+        psi=None, num_gpu=1, num_iter=1, rtol=-1, **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
 
@@ -162,31 +163,48 @@ def reconstruct(
                 n=psi.shape[-1],
                 ntheta=scan.shape[0],
                 **kwargs,
-        ) as operator:
-            # send any array-likes to device
-            data = operator.asarray(data, dtype='float32')
-            result = {
-                'psi': operator.asarray(psi, dtype='complex64'),
-                'probe': operator.asarray(probe, dtype='complex64'),
-                'scan': operator.asarray(scan, dtype='float32'),
-            }
-            for key, value in kwargs.items():
-                if np.ndim(value) > 0:
-                    kwargs[key] = operator.asarray(value)
-
+        ) as operator, ThreadPool(num_gpu) as pool:
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[1:],
                                              num_iter))
+            # send any array-likes to device
+            if (num_gpu <= 1):
+                data = operator.asarray(data, dtype='float32')
+                result = {
+                    'psi': operator.asarray(psi, dtype='complex64'),
+                    'probe': operator.asarray(probe, dtype='complex64'),
+                    'scan': operator.asarray(scan, dtype='float32'),
+                }
+                for key, value in kwargs.items():
+                    if np.ndim(value) > 0:
+                        kwargs[key] = operator.asarray(value)
+            else:
+                scan, data = asarray_multi_split(
+                    operator,
+                    num_gpu,
+                    scan,
+                    data,
+                )
+                result = {
+                    'psi': pool.bcast(psi.astype('complex64')),
+                    'probe': pool.bcast(probe.astype('complex64')),
+                    'scan': scan,
+                }
+                for key, value in kwargs.items():
+                    if np.ndim(value) > 0:
+                        kwargs[key] = pool.bcast(value)
 
             cost = 0
             for i in range(num_iter):
-                result['probe'] = _rescale_obj_probe(operator, data,
-                                                     result['psi'],
+                result['probe'] = _rescale_obj_probe(operator, pool, num_gpu,
+                                                     data, result['psi'],
                                                      result['scan'],
                                                      result['probe'])
                 kwargs.update(result)
                 result = getattr(solvers, algorithm)(
                     operator,
+                    pool,
+                    num_gpu=num_gpu,
                     data=data,
                     **kwargs,
                 )
@@ -198,14 +216,26 @@ def reconstruct(
                     break
                 cost = result['cost']
 
+            if (num_gpu > 1):
+                result['scan'] = pool.gather(result['scan'], axis=1)
+                for k, v in result.items():
+                    if isinstance(v, list):
+                        result[k] = v[0]
         return {k: operator.asnumpy(v) for k, v in result.items()}
     else:
         raise ValueError(
             "The '{}' algorithm is not an available.".format(algorithm))
 
 
-def _rescale_obj_probe(operator, data, psi, scan, probe):
+def _rescale_obj_probe(operator, pool, num_gpu, data, psi, scan, probe):
     """Keep the object amplitude around 1 by scaling probe by a constant."""
+    # TODO: add multi-GPU support
+    if (num_gpu > 1):
+        scan = pool.gather(scan, axis=1)
+        data = pool.gather(data, axis=1)
+        psi = psi[0]
+        probe = probe[0]
+
     intensity = operator._compute_intensity(data, psi, scan, probe)
 
     rescale = (np.linalg.norm(np.ravel(np.sqrt(data))) /
@@ -215,4 +245,61 @@ def _rescale_obj_probe(operator, data, psi, scan, probe):
 
     probe *= rescale
 
+    if (num_gpu > 1):
+        probe = pool.bcast(probe)
+        del scan
+        del data
+
     return probe
+
+
+def asarray_multi_split(op, gpu_count, scan_cpu, data_cpu, *args, **kwargs):
+    """Split scan and data and distribute to multiple GPUs.
+
+    Instead of spliting the arrays based on the scanning order, we split
+    them in accordance with the scan positions corresponding to the object
+    sub-images. For example, if we divide a square object image into four
+    sub-images, then the scan positions on the top-left sub-image and their
+    corresponding diffraction patterns will be grouped into the first chunk
+    of scan and data.
+
+    """
+    scanmlist = [None] * gpu_count
+    datamlist = [None] * gpu_count
+    nscan = scan_cpu.shape[1]
+    tmplist = [0] * nscan
+    counter = [0] * gpu_count
+    xmax = np.amax(scan_cpu[:, :, 0])
+    ymax = np.amax(scan_cpu[:, :, 1])
+    for e in range(nscan):
+        xgpuid = scan_cpu[0, e, 0] // (xmax / (gpu_count // 2)) - int(
+            scan_cpu[0, e, 0] != 0 and scan_cpu[0, e, 0] %
+            (xmax / (gpu_count // 2)) == 0)
+        ygpuid = scan_cpu[0, e, 1] // (ymax / 2) - int(
+            scan_cpu[0, e, 1] != 0 and scan_cpu[0, e, 1] % (ymax / 2) == 0)
+        idx = int(xgpuid * 2 + ygpuid)
+        tmplist[e] = idx
+        counter[idx] += 1
+    for i in range(gpu_count):
+        tmpscan = np.zeros(
+            [scan_cpu.shape[0], counter[i], scan_cpu.shape[2]],
+            dtype=scan_cpu.dtype,
+        )
+        tmpdata = np.zeros(
+            [
+                data_cpu.shape[0], counter[i], data_cpu.shape[2],
+                data_cpu.shape[3]
+            ],
+            dtype=data_cpu.dtype,
+        )
+        c = 0
+        for e in range(nscan):
+            if tmplist[e] == i:
+                tmpscan[:, c, :] = scan_cpu[:, e, :]
+                tmpdata[:, c] = data_cpu[:, e]
+                c += 1
+            scanmlist[i] = op.asarray(tmpscan, device=i)
+            datamlist[i] = op.asarray(tmpdata, device=i)
+        del tmpscan
+        del tmpdata
+    return scanmlist, datamlist

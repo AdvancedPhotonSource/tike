@@ -30,7 +30,12 @@ def _set_backend(requested_backend):
     provide the reason why and show the backends that did not fail.
     """
     for operator in [
-            'Operator', 'Ptycho', 'Convolution', 'Propagation', 'Lamino'
+            'Convolution',
+            'Lamino',
+            'Operator',
+            'Propagation',
+            'Ptycho',
+            'Shift',
     ]:
         if requested_backend == default_backend:
             globals()[operator] = getattr(default, operator)

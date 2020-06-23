@@ -2,6 +2,7 @@ from abc import ABC
 
 import numpy
 
+
 class Operator(ABC):
     """A base class for Operators.
 
@@ -11,17 +12,12 @@ class Operator(ABC):
     Operators may be composed into other operators and inherited from to
     provide additional implementations to the ones provided in this library.
 
-    Attributes
-    ----------
-    xp : module
-        Provides the array implementation that this operator uses i.e. NumPy,
-        Cupy
-
     """
     xp = numpy
+    """The module of the array type used by this operator i.e. NumPy, Cupy."""
 
     @classmethod
-    def asarray(cls, *args, **kwargs):
+    def asarray(cls, *args, device=None, **kwargs):
         """Convert NumPy arrays into the array-type of this operator."""
         return numpy.asarray(*args, **kwargs)
 

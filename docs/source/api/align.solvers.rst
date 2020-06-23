@@ -1,6 +1,6 @@
 solvers
 -------
-.. automodule:: tike.tomo.solvers
+.. automodule:: tike.align.solvers
    :inherited-members:
    :members:
    :show-inheritance:

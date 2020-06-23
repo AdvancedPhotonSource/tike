@@ -3,8 +3,11 @@ from .convolution import Convolution
 from .propagation import Propagation
 from .operator import Operator
 
+import cupy as cp
+
 
 class Ptycho(Operator, numpy.Ptycho):
+
     def __init__(self, *args, **kwargs):
         super(Ptycho, self).__init__(
             *args,
