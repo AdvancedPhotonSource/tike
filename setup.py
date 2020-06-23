@@ -47,5 +47,9 @@ setuptools.setup(
             'cupy = tike.operators.cupy:Lamino',
             'numpy = tike.operators.numpy:Lamino',
         ],
+        'tike.Shift': [
+            'cupy = tike.operators.cupy:Shift',
+            'numpy = tike.operators.numpy:Shift',
+        ],
     },
 )
