@@ -1,5 +1,7 @@
 """Defines a ptychography operator based on the NumPy FFT module."""
 
+import concurrent.futures as cf
+
 import numpy as np
 
 from .operator import Operator
@@ -48,7 +50,7 @@ class Ptycho(Operator):
     nearplane, farplane: complex64
         The (ntheta, nscan // fly, fly, 1, detector_shape, detector_shape)
         wavefronts exiting the object and hitting the detector respectively.
-    intensity, data : (ntheta, nscan, detector_shape, detector_shape) complex64
+    data : (ntheta, nscan // fly, detector_shape, detector_shape) float32
         The square of the absolute value of `farplane` summed over `fly` and
         `modes`.
     scan : (ntheta, nscan, 2) float32
@@ -142,7 +144,7 @@ class Ptycho(Operator):
             )  # yapf: disable
         return intensity
 
-    def cost(self, data, psi, scan, probe, n=-1, mode=None):
+    def cost(self, data, psi, scan, probe, n=-1, mode=None) -> float:
         intensity = self._compute_intensity(data, psi, scan, probe, n, mode)
         return self.propagation.cost(data, intensity)
 

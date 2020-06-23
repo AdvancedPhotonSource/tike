@@ -17,7 +17,7 @@ class Operator(ABC):
     """The module of the array type used by this operator i.e. NumPy, Cupy."""
 
     @classmethod
-    def asarray(cls, *args, **kwargs):
+    def asarray(cls, *args, device=None, **kwargs):
         """Convert NumPy arrays into the array-type of this operator."""
         return numpy.asarray(*args, **kwargs)
 
