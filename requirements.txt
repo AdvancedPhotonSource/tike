@@ -3,5 +3,6 @@ importlib_resources
 matplotlib-base
 numpy>=1.17
 python>=3.6
+scipy
 setuptools
 setuptools_scm_git_archive

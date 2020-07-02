@@ -22,6 +22,7 @@ requirements:
     - matplotlib-base
     - numpy>=1.17
     - python={{ python }}
+    - scipy
     - setuptools
 
 test:
