@@ -6,10 +6,23 @@ from cv2 import calcOpticalFlowFarneback
 
 def _rescale_8bit(a, b):
     """Return a, b rescaled into the same 8-bit range"""
-    hi = max(a.max(), b.max())
-    lo = min(a.min(), b.min())
-    a = (255 * (a - lo) / (hi - lo)).astype('uint8')
-    b = (255 * (b - lo) / (hi - lo)).astype('uint8')
+
+    h, e = np.histogram(a, 1000)
+    stend = np.where(h > np.max(h) * 0.005)
+    st = stend[0][0]
+    end = stend[0][-1]
+    lo = e[st]
+    hi = e[end + 1]
+
+    # Force all values into range [0, 255]
+    a = (255 * (a - lo) / (hi - lo))
+    b = (255 * (b - lo) / (hi - lo))
+    a[a < 0] = 0
+    a[a > 255] = 255
+    b[b < 0] = 0
+    b[b > 255] = 255
+    assert np.all(a >= 0), np.all(b >= 0)
+    assert np.all(a <= 255), np.all(b <= 255)
     return a, b
 
 
@@ -18,12 +31,12 @@ def farneback(
     data,
     unaligned,
     pyr_scale=0.5,
-    levels=3,
+    levels=5,
     winsize=19,
     iterations=16,
     poly_n=5,
-    poly_sigma=4,
-    flags=4,
+    poly_sigma=1.1,
+    flags=0,
     flow=None,
     **kwargs,
 ):
@@ -44,18 +57,16 @@ def farneback(
     Farneback, Gunnar "Two-Frame Motion Estimation Based on Polynomial
     Expansion" 2003.
     """
-    # Reshape inputs into stack of 2D slices
     shape = data.shape
-    h, w = shape[-2:]
-    data = data.reshape(-1, h, w)
-    unaligned = data.reshape(-1, h, w)
+
     if flow is None:
-        flow = op.xp.zeros((*shape, 2), dtype='float32')
-    flow = flow.reshape(-1, h, w, 2)
+        flow = np.zeros((*shape, 2), dtype='float32')
+    else:
+        flow = np.copy(np.flip(flow, axis=-1))
 
     for i in range(len(data)):
         flow[i] = calcOpticalFlowFarneback(
-            *_rescale_8bit(np.angle(data[i]), np.angle(unaligned[i])),
+            *_rescale_8bit(np.abs(unaligned[i]), np.abs(data[i])),
             flow=flow[i],
             pyr_scale=pyr_scale,
             levels=levels,
@@ -64,5 +75,5 @@ def farneback(
             poly_n=poly_n,
             poly_sigma=poly_sigma,
             flags=flags,
-        )
-    return {'shift': flow.reshape(*shape, 2), 'cost': -1}
+        )[..., ::-1]
+    return {'shift': flow, 'cost': -1}
