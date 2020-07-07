@@ -47,9 +47,9 @@ def farneback(
 
     Parameters
     ----------
-    data, unaligned (..., M, N)
+    data, unaligned (L, M, N)
         The images to be aligned.
-    flow : (..., M, N, 2) float32
+    flow : (L, M, N, 2) float32
         The inital guess for the displacement field.
 
     References
@@ -64,6 +64,8 @@ def farneback(
     else:
         flow = np.copy(np.flip(flow, axis=-1))
 
+    # NOTE: Passing a reshaped view as any of the parameters breaks OpenCV's
+    # Farneback implementation.
     for i in range(len(data)):
         flow[i] = calcOpticalFlowFarneback(
             *_rescale_8bit(np.abs(unaligned[i]), np.abs(data[i])),
