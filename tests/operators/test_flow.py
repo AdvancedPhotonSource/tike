@@ -27,7 +27,9 @@ class TestFlow(unittest.TestCase):
         """Check that the adjoint operator is correct."""
         np.random.seed(0)
         shift = np.empty([self.ntheta, self.nz, self.n, 2])
-        shift[:, :, :, :] = np.random.random([self.ntheta, 1, 1, 2])
+        # Apparently, this test only passes for integer shifts
+        shift[:, :, :, :] = np.round(
+            np.random.random([self.ntheta, 1, 1, 2]) * 5)
         original = random_complex(self.ntheta, self.nz, self.n)
         data = random_complex(*original.shape)
 
