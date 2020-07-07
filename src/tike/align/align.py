@@ -74,8 +74,7 @@ def reconstruct(
                     kwargs[key] = operator.asarray(value)
 
             logger.info("{} on {:,d} - {:,d} by {:,d} images for {:,d} "
-                        "iterations.".format(algorithm, *data.shape,
-                                                num_iter))
+                        "iterations.".format(algorithm, *data.shape, num_iter))
 
             kwargs.update(result)
             result = getattr(solvers, algorithm)(
