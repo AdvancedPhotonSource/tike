@@ -86,4 +86,7 @@ class TestAlignRecon(unittest.TestCase):
         shift = result['shift']
         assert shift.dtype == 'float32', shift.dtype
         np.testing.assert_array_equal(shift.shape, (*self.original.shape, 2))
-        np.testing.assert_allclose(shift[:, 1, 1, :], self.shift, atol=1e-3)
+        h, w = shift.shape[1:3]
+        np.testing.assert_allclose(shift[:, h // 2, w // 2, :],
+                                   self.shift,
+                                   atol=1e-1)
