@@ -36,7 +36,7 @@ def farneback(
     iterations=16,
     poly_n=5,
     poly_sigma=1.1,
-    flags=0,
+    flags=4,
     flow=None,
     **kwargs,
 ):
