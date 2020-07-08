@@ -36,7 +36,6 @@ def farneback(
     iterations=16,
     poly_n=5,
     poly_sigma=1.1,
-    flags=4,
     flow=None,
     **kwargs,
 ):
@@ -76,6 +75,6 @@ def farneback(
             iterations=iterations,
             poly_n=poly_n,
             poly_sigma=poly_sigma,
-            flags=flags,
+            flags=4,
         )[..., ::-1]
     return {'shift': flow, 'cost': -1}
