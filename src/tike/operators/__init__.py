@@ -31,6 +31,7 @@ def _set_backend(requested_backend):
     """
     for operator in [
             'Convolution',
+            'Flow',
             'Lamino',
             'Operator',
             'Propagation',

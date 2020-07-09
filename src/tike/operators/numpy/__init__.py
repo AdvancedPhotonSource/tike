@@ -6,6 +6,7 @@ able to use this implementation as a base.
 """
 
 from .convolution import *
+from .flow import *
 from .lamino import *
 from .operator import *
 from .propagation import *
@@ -14,6 +15,7 @@ from .shift import *
 
 __all__ = (
     'Convolution',
+    'Flow',
     'Lamino',
     'Operator',
     'Propagation',
