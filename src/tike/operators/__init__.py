@@ -45,16 +45,22 @@ def _set_operators(requested_backend):
                 f"'{requested_backend}'.", ImportWarning)
 
 
-_backend_options = {}
-for backend in pkg_resources.iter_entry_points(f'tike.operators'):
-    _backend_options[backend.name] = backend.load()
+def _set_backend(requested_backend):
+    """Search through entry points for the requested_backend."""
 
-requested_backend = 'numpy'
-if "TIKE_BACKEND" in os.environ:
-    requested_backend = os.environ["TIKE_BACKEND"]
+    if "TIKE_BACKEND" in os.environ:
+        requested_backend = os.environ["TIKE_BACKEND"]
 
-if requested_backend in _backend_options:
-    _set_operators(_backend_options[requested_backend])
-else:
+    _backend_options = []
+    for backend in pkg_resources.iter_entry_points('tike.operators'):
+        if backend.name == requested_backend:
+            _set_operators(backend.load())
+            return
+        else:
+            _backend_options.append(backend)
+
     raise ImportError(f"Cannot set backend as '{requested_backend}'. "
-                      f"Available backends: {list(_backend_options.keys())}.")
+                      f"Available backends: {_backend_options}.")
+
+
+_set_backend('numpy')
