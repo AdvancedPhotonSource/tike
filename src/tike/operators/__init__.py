@@ -23,7 +23,7 @@ import warnings
 
 def _set_operators(requested_backend):
     """Set the operators from the requested_backend.
-    
+
     requested_backend is a python module which has some of the operators
     implemented.
     """
