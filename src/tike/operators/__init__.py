@@ -18,17 +18,16 @@ asarray() method.
 
 import os
 import pkg_resources
-
-from tike.operators import numpy as default
-default_backend = "numpy"
+import warnings
 
 
-def _set_backend(requested_backend):
-    """Set the operators to the requested_backend.
+def _set_operators(requested_backend):
+    """Set the operators from the requested_backend.
 
-    Try loading all of the entry points. If the requested_backend fails,
-    provide the reason why and show the backends that did not fail.
+    requested_backend is a python module which has some of the operators
+    implemented.
     """
+    module_attributes = dir(requested_backend)
     for operator in [
             'Convolution',
             'Flow',
@@ -38,28 +37,30 @@ def _set_backend(requested_backend):
             'Ptycho',
             'Shift',
     ]:
-        if requested_backend == default_backend:
-            globals()[operator] = getattr(default, operator)
-            continue
-
-        backend_options = {}
-        failed_import = []
-        for entry_point in pkg_resources.iter_entry_points(f'tike.{operator}'):
-            try:
-                backend_options[entry_point.name] = entry_point.load()
-            except ImportError as error:
-                failed_import.append(f"{entry_point.name}: {error}")
-        if requested_backend in backend_options:
-            globals()[operator] = backend_options[requested_backend]
+        if operator in module_attributes:
+            globals()[operator] = getattr(requested_backend, operator)
         else:
-            raise ImportError(
-                f"Cannot set {operator} operator as '{requested_backend}'. "
-                f"Available backends: {list(backend_options.keys())}. "
-                f"Unavailable backends: {failed_import}.")
+            warnings.warn(
+                f"The {operator} operator is not implemented in "
+                f"'{requested_backend}'.", ImportWarning)
 
 
-# Search available entry points for requested backend.
-if f"TIKE_BACKEND" in os.environ:
-    _set_backend(os.environ["TIKE_BACKEND"])
-else:
-    _set_backend(default_backend)
+def _set_backend(requested_backend):
+    """Search through entry points for the requested_backend."""
+
+    if "TIKE_BACKEND" in os.environ:
+        requested_backend = os.environ["TIKE_BACKEND"]
+
+    _backend_options = []
+    for backend in pkg_resources.iter_entry_points('tike.operators'):
+        if backend.name == requested_backend:
+            _set_operators(backend.load())
+            return
+        else:
+            _backend_options.append(backend)
+
+    raise ImportError(f"Cannot set backend as '{requested_backend}'. "
+                      f"Available backends: {_backend_options}.")
+
+
+_set_backend('numpy')
