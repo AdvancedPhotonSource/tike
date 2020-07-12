@@ -28,6 +28,3 @@ class Reg(Operator):
         res[1:, :, :] += gr[2, 1:, :, :]-gr[2, :-1, :, :]
         res[0, :, :] += gr[2, 0, :, :]
         return -res
-        
-    
-    
