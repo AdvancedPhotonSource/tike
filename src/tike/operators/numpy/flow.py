@@ -14,6 +14,10 @@ class Flow(Operator):
     deformation of a series of 2D images.
     """
 
+    @classmethod
+    def _map_coordinates(cls, *args, **kwargs):
+        return map_coordinates(*args, **kwargs)
+
     def fwd(self, f, flow):
         """Apply arbitary shifts to individuals pixels of f.
 
@@ -39,12 +43,12 @@ class Flow(Operator):
 
         for i in range(len(f)):
             # Move flow dimension to front for map_coordinates API
-            g.real[i] = map_coordinates(
+            g.real[i] = self._map_coordinates(
                 input=f.real[i],
                 coordinates=self.xp.moveaxis(coords[i], -1, 0),
                 output=g.real[i],
             )
-            g.imag[i] = map_coordinates(
+            g.imag[i] = self._map_coordinates(
                 input=f.imag[i],
                 coordinates=self.xp.moveaxis(coords[i], -1, 0),
                 output=g.imag[i],
