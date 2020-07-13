@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import time
 import unittest
 
 import numpy as np
@@ -21,7 +22,6 @@ class TestShift(unittest.TestCase):
         self.n = n
         self.nz = nz
         self.ntheta = ntheta
-        print(Shift)
 
     def test_adjoint(self):
         """Check that the adjoint operator is correct."""
@@ -36,7 +36,9 @@ class TestShift(unittest.TestCase):
             original = op.asarray(original, dtype='complex64')
             data = op.asarray(data, dtype='complex64')
 
+            start = time.perf_counter()
             d = op.fwd(original, shift)
+            fwd_time = time.perf_counter() - start
             o = op.fwd(data, -shift)
             original1 = op.fwd(d, -shift)
 
@@ -44,6 +46,8 @@ class TestShift(unittest.TestCase):
             b = inner_complex(original, o)
             e = np.linalg.norm(original - original1) / np.linalg.norm(original)
             print()
+            print(Shift)
+            print(f"{fwd_time:1.3e} seconds for fwd")
             print('<Su,   a> = {:.6f}{:+.6f}j'.format(a.real.item(),
                                                       a.imag.item()))
             print('< u, S*a> = {:.6f}{:+.6f}j'.format(b.real.item(),

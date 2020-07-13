@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import time
+import os
 import unittest
 
 import numpy as np
 
-from tike.operators import Flow
 from .util import random_complex, inner_complex
 
 __author__ = "Daniel Ching, Viktor Nikitin"
@@ -21,10 +22,14 @@ class TestFlow(unittest.TestCase):
         self.n = n
         self.nz = nz
         self.ntheta = ntheta
-        print(Flow)
 
+    @unittest.skipIf('TIKE_BACKEND' in os.environ
+                     and os.environ['TIKE_BACKEND'] == 'cupy',
+                     'Flow not implemented for CuPy.')
     def test_adjoint(self):
         """Check that the adjoint operator is correct."""
+        from tike.operators import Flow
+
         np.random.seed(0)
         shift = np.empty([self.ntheta, self.nz, self.n, 2])
         # Apparently, this test only passes for integer shifts
@@ -39,7 +44,9 @@ class TestFlow(unittest.TestCase):
             original = op.asarray(original, dtype='complex64')
             data = op.asarray(data, dtype='complex64')
 
+            start = time.perf_counter()
             d = op.fwd(original, shift)
+            fwd_time = time.perf_counter() - start
             o = op.fwd(data, -shift)
             original1 = op.fwd(d, -shift)
 
@@ -47,6 +54,8 @@ class TestFlow(unittest.TestCase):
             b = inner_complex(original, o)
             e = np.linalg.norm(original - original1) / np.linalg.norm(original)
             print()
+            print(Flow)
+            print(f"{fwd_time:1.3e} seconds for fwd")
             print('<Su,   a> = {:.6f}{:+.6f}j'.format(a.real.item(),
                                                       a.imag.item()))
             print('< u, S*a> = {:.6f}{:+.6f}j'.format(b.real.item(),

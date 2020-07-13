@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import time
 import unittest
 
 import numpy as np
@@ -24,7 +25,6 @@ class TestConvolution(unittest.TestCase):
         self.probe_shape = 15
         self.detector_shape = self.probe_shape * 3
         self.fly = 9
-        print(Convolution)
 
     def test_adjoint(self):
         """Check that the diffraction adjoint operator is correct."""
@@ -51,24 +51,34 @@ class TestConvolution(unittest.TestCase):
             nearplane = op.asarray(nearplane.astype('complex64'))
             kernel = op.asarray(kernel.astype('complex64'))
 
+            start = time.perf_counter()
             d = op.fwd(scan=scan, psi=original, probe=kernel)
+            fwd_time = time.perf_counter() - start
             assert nearplane.shape == d.shape
+            start = time.perf_counter()
             o = op.adj(
                 nearplane=nearplane,
                 scan=scan,
                 probe=kernel,
             )
+            adj_time = time.perf_counter() - start
             assert original.shape == o.shape
+            start = time.perf_counter()
             k = op.adj_probe(
                 scan=scan,
                 psi=original,
                 nearplane=nearplane,
             )
+            adj_prb_time = time.perf_counter() - start
             assert kernel.shape == k.shape
             a = inner_complex(original, o)
             b = inner_complex(d, nearplane)
             c = inner_complex(kernel, k)
             print()
+            print(Convolution)
+            print(f"{fwd_time:1.3e} seconds for fwd")
+            print(f"{adj_time:1.3e} seconds for adj")
+            print(f"{adj_prb_time:1.3e} seconds for adj_prb")
             print('<Q , P*ψ> = {:.6f}{:+.6f}j'.format(a.real.item(),
                                                       a.imag.item()))
             print('<QP,   ψ> = {:.6f}{:+.6f}j'.format(b.real.item(),

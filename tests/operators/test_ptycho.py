@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import time
 import unittest
 
 import numpy as np
@@ -25,7 +26,6 @@ class TestPtycho(unittest.TestCase):
         self.original_shape = (ntheta, 128, 128)
         self.scan_shape = (ntheta, nscan, 2)
         self.fly = fly
-        print(Ptycho)
 
     def test_adjoint(self):
         """Check that the adjoint operator is correct."""
@@ -50,28 +50,39 @@ class TestPtycho(unittest.TestCase):
             farplane = op.asarray(farplane.astype('complex64'))
             scan = op.asarray(scan.astype('float32'))
 
+            start = time.perf_counter()
             d = op.fwd(
                 probe=probe,
                 scan=scan,
                 psi=original,
             )
+            fwd_time = time.perf_counter() - start
             assert d.shape == farplane.shape
+            start = time.perf_counter()
             o = op.adj(
                 farplane=farplane,
                 probe=probe,
                 scan=scan,
             )
+            adj_time = time.perf_counter() - start
             assert original.shape == o.shape
+            start = time.perf_counter()
+            start = time.perf_counter()
             p = op.adj_probe(
                 farplane=farplane,
                 scan=scan,
                 psi=original,
             )
+            adj_prb_time = time.perf_counter() - start
             assert probe.shape == p.shape
             a = inner_complex(d, farplane)
             b = inner_complex(probe, p)
             c = inner_complex(original, o)
             print()
+            print(Ptycho)
+            print(f"{fwd_time:1.3e} seconds for fwd")
+            print(f"{adj_time:1.3e} seconds for adj")
+            print(f"{adj_prb_time:1.3e} seconds for adj_prb")
             print('<FQP,     Ψ> = {:.6f}{:+.6f}j'.format(
                 a.real.item(), a.imag.item()))
             print('<P  , Q*F*Ψ> = {:.6f}{:+.6f}j'.format(

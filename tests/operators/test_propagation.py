@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import time
 import unittest
 
 import numpy as np
@@ -21,7 +22,6 @@ class TestPropagation(unittest.TestCase):
         self.nwaves = 13
         self.probe_shape = 127
         self.detector_shape = self.probe_shape
-        print(Propagation)
 
     def test_adjoint(self):
         """Check that the adjoint operator is correct."""
@@ -39,13 +39,20 @@ class TestPropagation(unittest.TestCase):
             nearplane = op.asarray(nearplane, dtype='complex64')
             farplane = op.asarray(farplane, dtype='complex64')
 
+            start = time.perf_counter()
             f = op.fwd(nearplane=nearplane,)
+            fwd_time = time.perf_counter() - start
             assert f.shape == farplane.shape
+            start = time.perf_counter()
             n = op.adj(farplane=farplane,)
+            adj_time = time.perf_counter() - start
             assert nearplane.shape == n.shape
             a = inner_complex(nearplane, n)
             b = inner_complex(f, farplane)
             print()
+            print(Propagation)
+            print(f"{fwd_time:1.3e} seconds for fwd")
+            print(f"{adj_time:1.3e} seconds for adj")
             print('<ψ , F*Ψ> = {:.6f}{:+.6f}j'.format(a.real.item(),
                                                       a.imag.item()))
             print('<Fψ,   Ψ> = {:.6f}{:+.6f}j'.format(b.real.item(),
