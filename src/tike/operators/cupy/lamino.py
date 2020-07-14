@@ -86,7 +86,7 @@ class Lamino(Operator, numpy.Lamino):
         return u
 
     def scatter(self, f, x, n, m, mu):
-        G = cp.zeros([2 * (n + m)] * 3, dtype="complex64")
+        G = cp.zeros([2 * n] * 3, dtype="complex64")
         const = cp.array([cp.sqrt(cp.pi / mu)**3, -cp.pi**2 / mu],
                          dtype='float32')
         block = (min(self.scatter_kernel.max_threads_per_block, (2 * m)**3),)
