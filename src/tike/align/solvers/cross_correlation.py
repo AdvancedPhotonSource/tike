@@ -29,7 +29,7 @@ phase_cross_correlation from skimage.registration."""
 import numpy as np
 
 
-def cross_correlation(op, data, unaligned, upsample_factor=1, space="real",
+def cross_correlation(op, original, unaligned, upsample_factor=1, space="real",
                       **kwargs):  # yapf: disable
     """Efficient subpixel image translation alignment by cross-correlation.
 
@@ -56,12 +56,12 @@ def cross_correlation(op, data, unaligned, upsample_factor=1, space="real",
     """
     # assume complex data is already in Fourier space
     if space.lower() == 'fourier':
-        src_freq = data
-        target_freq = unaligned
+        src_freq = unaligned
+        target_freq = original
     # real data needs to be fft'd.
     elif space.lower() == 'real':
-        src_freq = op.xp.fft.fft2(data)
-        target_freq = op.xp.fft.fft2(unaligned)
+        src_freq = op.xp.fft.fft2(unaligned)
+        target_freq = op.xp.fft.fft2(original)
     else:
         raise ValueError(f"space must be 'fourier' or 'real' not '{space}'.")
 

@@ -66,8 +66,8 @@ class TestAlignRecon(unittest.TestCase):
     def test_align_cross_correlation(self):
         """Check that align.solvers.cross_correlation works."""
         result = tike.align.reconstruct(
-            self.data,
-            self.original,
+            unaligned=self.data,
+            original=self.original,
             algorithm='cross_correlation',
             upsample_factor=1e3,
         )
@@ -82,8 +82,8 @@ class TestAlignRecon(unittest.TestCase):
     def test_align_farneback(self):
         """Check that align.solvers.farneback works."""
         result = tike.align.reconstruct(
-            self.data,
-            self.original,
+            unaligned=self.data,
+            original=self.original,
             algorithm='farneback',
         )
         shift = result['shift']
