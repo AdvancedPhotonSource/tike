@@ -1,6 +1,12 @@
 // Cannot use complex types because of atomicAdd()
 // #include <cupy/complex.cuh>
 
+// n % d, but the sign always matches the divisor (d)
+__device__ int
+mod(int n, int d) {
+  return ((n % d) + d) % d;
+}
+
 // power function for integers and exponents >= 0
 __device__ int
 pow(int b, int e) {
@@ -12,13 +18,14 @@ pow(int b, int e) {
   return result;
 }
 
-// convert 1d coordinates (d) to nd coordinates (nd) for grid with diameter
-// s is the max 1d coordinate.
+// Convert a 1d coordinate (d) where s is the max 1d coordinate to nd
+// coordinates (nd) for a grid with diameter along all dimensions and centered
+// on the origin.
 __device__ void
-_1d_to_nd(int d, int s, int* nd, int ndim, int diameter) {
+_1d_to_nd(int d, int s, int* nd, int ndim, int diameter, int radius) {
   for (int dim = 0; dim < ndim; dim++) {
     s /= diameter;
-    nd[dim] = d / s;
+    nd[dim] = d / s - radius;
     assert(nd[dim] < diameter);
     d = d % s;
   }
@@ -41,7 +48,7 @@ _loop_over_kernels(bool eq2us, float2* gathered, const float2* scattered,
   const int ndim = 3;
   const int diameter = 2 * radius;  // kernel width
   const int nk = pow(diameter, ndim);
-  const int gw = 2 * (n + radius);  // width of G along each dimension
+  const int gw = 2 * n;  // width of G along each dimension
 
   // non-uniform frequency index (fi)
   for (int fi = blockIdx.z; fi < nf; fi += gridDim.z) {
@@ -59,13 +66,13 @@ _loop_over_kernels(bool eq2us, float2* gathered, const float2* scattered,
       // clang-format on
       // Convert linear index to 3D intra-kernel index
       int k[ndim];  // ND kernel coord
-      _1d_to_nd(ki, nk, k, ndim, diameter);
+      _1d_to_nd(ki, nk, k, ndim, diameter, radius);
 
       // Compute sum square value for kernel
       float ssdelta = 0;
       float delta;
       for (int dim = 0; dim < ndim; dim++) {
-        delta = (float)(center[dim] - radius + k[dim]) / (2 * n)
+        delta = (float)(center[dim] + k[dim]) / (2 * n)
                 - x[3 * fi + dim];
         ssdelta += delta * delta;
       }
@@ -73,9 +80,9 @@ _loop_over_kernels(bool eq2us, float2* gathered, const float2* scattered,
 
       // clang-format off
       int gi = (  // equally-spaced grid index (gi)
-        + (n + center[0] + k[0]) * gw * gw
-        + (n + center[1] + k[1]) * gw
-        + (n + center[2] + k[2])
+        + mod((n + center[0] + k[0]), gw) * gw * gw
+        + mod((n + center[1] + k[1]), gw) * gw
+        + mod((n + center[2] + k[2]), gw)
       );
       // clang-format on
       if (eq2us) {
