@@ -37,9 +37,9 @@ class Lamino(Operator):
         """Please see help(Lamino) for more info."""
         self.n = n
         self.ntheta = len(theta)
-        self.tilt = tilt
+        self.tilt = self.asarray(tilt)
         self.eps = eps
-        self.xi = self._make_grids(theta)
+        self.xi = self._make_grids(self.asarray(theta))
 
     def fwd(self, u, **kwargs):
         """Perform the forward Laminography transform."""
