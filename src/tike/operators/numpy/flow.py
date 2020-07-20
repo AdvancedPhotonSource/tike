@@ -2,19 +2,18 @@ __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
 import numpy as np
-from scipy.ndimage import map_coordinates
 
 from .operator import Operator
 
 
-def _lanzcos(xp, x, a):
+def _lanczos(xp, x, a):
     return xp.sinc(x) * xp.sinc(x / a)
 
 
-def _remap_lanzcos(xp, Fe, x, m, F=None):
-    """Lanzcos resampling from grid Fe to points x.
+def _remap_lanczos(xp, Fe, x, m, F=None):
+    """Lanczos resampling from grid Fe to points x.
 
-    At the edges, the Lanzcos filter wraps around.
+    At the edges, the Lanczos filter wraps around.
 
     Parameters
     ----------
@@ -25,7 +24,7 @@ def _remap_lanzcos(xp, Fe, x, m, F=None):
     x : (N, 2) float32
         The non-uniform sample positions on the grid.
     m : int > 0
-        The lanzcos filter is 2m + 1 wide.
+        The Lanczos filter is 2m + 1 wide.
 
     Returns
     -------
@@ -43,9 +42,9 @@ def _remap_lanzcos(xp, Fe, x, m, F=None):
     # ell is the integer center of the kernel
     ell = xp.floor(x).astype('int32')
     for i0 in range(-m, m + 1):
-        kern0 = _lanzcos(xp, ell[..., 0] + i0 - x[..., 0], m)
+        kern0 = _lanczos(xp, ell[..., 0] + i0 - x[..., 0], m)
         for i1 in range(-m, m + 1):
-            kern1 = _lanzcos(xp, ell[..., 1] + i1 - x[..., 1], m)
+            kern1 = _lanczos(xp, ell[..., 1] + i1 - x[..., 1], m)
             # Indexing Fe here causes problems for a stack of images
             F += Fe[(ell[..., 0] + i0) % n[0],
                     (ell[..., 1] + i1) % n[1]] * kern0 * kern1
@@ -53,18 +52,14 @@ def _remap_lanzcos(xp, Fe, x, m, F=None):
 
 
 class Flow(Operator):
-    """Map input 2D array to new coordinates by interpolation.
+    """Map input 2D array to new coordinates by Lanczos interpolation.
 
-    This operator is based on scipy's map_coordinates and peforms a non-affine
-    deformation of a series of 2D images.
+    Uses Lanczos interpolation for a non-affine deformation of a series of 2D
+    images.
     """
 
-    @classmethod
-    def _map_coordinates(cls, *args, **kwargs):
-        return map_coordinates(*args, **kwargs)
-
     def fwd(self, f, flow, filter_size=5):
-        """Remap individual pixels of f with Lanzcos filtering.
+        """Remap individual pixels of f with Lanczos filtering.
 
         Parameters
         ----------
@@ -74,7 +69,7 @@ class Flow(Operator):
             The displacements to be applied to each pixel along the last two
             dimensions.
         filter_size : int
-            The width of the Lanzcos filter. Automatically rounded up to an
+            The width of the Lanczos filter. Automatically rounded up to an
             odd positive integer.
         """
         # Convert from displacements to coordinates
@@ -91,6 +86,6 @@ class Flow(Operator):
 
         a = max(0, (filter_size) // 2)
         for i in range(len(f)):
-            _remap_lanzcos(self.xp, f[i], coords[i], a, g[i])
+            _remap_lanczos(self.xp, f[i], coords[i], a, g[i])
 
         return g.reshape(shape)
