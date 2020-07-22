@@ -4,20 +4,15 @@ __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 from importlib_resources import files
 
 import cupy as cp
-from cupyx.scipy.fft import fft2, ifft2, fftn
 
+from .cache import CachedFFT
 from .usfft import eq2us, us2eq, checkerboard
 from .operator import Operator
 
 _cu_source = files('tike.operators.cupy').joinpath('usfft.cu').read_text()
 
 
-def _fftn(*args, **kwargs):
-    """Partial function so in-place fft is used in usfft."""
-    return fftn(*args, **kwargs, overwrite_x=True)
-
-
-class Lamino(Operator):
+class Lamino(CachedFFT, Operator):
     """A Laminography operator.
 
     Laminography operators to simulate propagation of the beam through the
@@ -56,6 +51,7 @@ class Lamino(Operator):
 
     def __enter__(self):
         """Return self at start of a with-block."""
+        CachedFFT.__enter__(self)
         # Call the __enter__ methods for any composed operators.
         # Allocate special memory objects.
         self.scatter_kernel = cp.RawKernel(_cu_source, "scatter")
@@ -68,21 +64,24 @@ class Lamino(Operator):
         def gather(xp, Fe, x, n, m, mu):
             return self.gather(Fe, x, n, m, mu)
 
+        def fftn(*args, **kwargs):
+            return self._fftn(*args, overwrite=True, **kwargs)
+
         # USFFT from equally-spaced grid to unequally-spaced grid
         F = eq2us(u, self.xi, self.n, self.eps, self.xp, gather,
-                  _fftn).reshape([self.ntheta, self.n, self.n])
+                  fftn).reshape([self.ntheta, self.n, self.n])
 
         # Inverse 2D FFT
         data = checkerboard(
             self.xp,
-            ifft2(
+            self._ifft2(
                 checkerboard(
                     self.xp,
                     F,
                     axes=(1, 2),
                 ),
                 axes=(1, 2),
-                overwrite_x=True,
+                overwrite=True,
             ),
             axes=(1, 2),
             inverse=True,
@@ -95,24 +94,27 @@ class Lamino(Operator):
         def scatter(xp, f, x, n, m, mu):
             return self.scatter(f, x, n, m, mu)
 
+        def fftn(*args, **kwargs):
+            return self._fftn(*args, overwrite=True, **kwargs)
+
         # Forward 2D FFT
         F = checkerboard(
             self.xp,
-            fft2(
+            self._fft2(
                 checkerboard(
                     self.xp,
                     data.copy() if not overwrite else data,
                     axes=(1, 2),
                 ),
                 axes=(1, 2),
-                overwrite_x=True,
+                overwrite=True,
             ),
             axes=(1, 2),
             inverse=True,
         ).ravel()
         # Inverse (x->-x) USFFT from unequally-spaced grid to equally-spaced
         # grid
-        u = us2eq(F, -self.xi, self.n, self.eps, self.xp, scatter, _fftn)
+        u = us2eq(F, -self.xi, self.n, self.eps, self.xp, scatter, fftn)
         u /= self.n**2
         return u
 
