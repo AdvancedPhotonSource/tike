@@ -7,7 +7,7 @@ from cv2 import calcOpticalFlowFarneback
 def _rescale_8bit(a, b):
     """Return a, b rescaled into the same 8-bit range"""
 
-    h, e = np.histogram(a, 1000)
+    h, e = np.histogram(b, 1000)
     stend = np.where(h > np.max(h) * 0.005)
     st = stend[0][0]
     end = stend[0][-1]
