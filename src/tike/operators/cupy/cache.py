@@ -14,8 +14,9 @@ class CachedFFT():
         self.plan_cache.clear()
         del self.plan_cache
 
-    def _get_fft_plan(self, a, axes, **kwargs):
+    def _get_fft_plan(self, a, axes=None, **kwargs):
         """Cache multiple FFT plans at the same time."""
+        axes = tuple(range(a.ndim)) if axes is None else axes
         key = (*a.shape, *axes)
         if key in self.plan_cache:
             plan = self.plan_cache[key]
@@ -31,3 +32,7 @@ class CachedFFT():
     def _ifft2(self, a, *args, overwrite=False, **kwargs):
         with self._get_fft_plan(a, **kwargs):
             return ifftn(a, *args, overwrite_x=overwrite, **kwargs)
+
+    def _fftn(self, a, *args, overwrite=False, **kwargs):
+        with self._get_fft_plan(a, **kwargs):
+            return fftn(a, *args, overwrite_x=overwrite, **kwargs)
