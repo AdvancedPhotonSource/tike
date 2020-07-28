@@ -40,6 +40,7 @@ jobs:
       conda-build
     displayName: Install conda-build
   - script: >
-      conda build . --no-anaconda-upload -c conda-forge
+      conda build . --no-anaconda-upload
+      -c conda-forge -c defaults
       --python $(python.version)
     displayName: Build with conda-build
