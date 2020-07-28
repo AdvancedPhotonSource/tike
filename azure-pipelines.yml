@@ -44,3 +44,5 @@ jobs:
       -c conda-forge -c defaults
       --python $(python.version)
     displayName: Build with conda-build
+  - script: conda build purge
+    displayName: Purge old builds
