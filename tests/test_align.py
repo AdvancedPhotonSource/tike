@@ -76,6 +76,9 @@ class TestAlignRecon(unittest.TestCase):
         np.testing.assert_array_equal(shift.shape, self.shift.shape)
         np.testing.assert_allclose(shift, self.shift, atol=1e-3)
 
+    @unittest.skipUnless('TIKE_BACKEND' in os.environ
+                         and os.environ['TIKE_BACKEND'] == 'numpy',
+                         "Farneback method only available on CPU.")
     def test_align_farneback(self):
         """Check that align.solvers.farneback works."""
         result = tike.align.reconstruct(

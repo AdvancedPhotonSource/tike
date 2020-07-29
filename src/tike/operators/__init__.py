@@ -63,4 +63,4 @@ def _set_backend(requested_backend):
                       f"Available backends: {_backend_options}.")
 
 
-_set_backend('numpy')
+_set_backend('cupy')
