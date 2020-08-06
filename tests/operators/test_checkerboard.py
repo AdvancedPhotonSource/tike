@@ -1,7 +1,7 @@
 """Check whether the checkerboard algorithm is equivalent to fftshift."""
 import numpy as xp
 
-from tike.operators.numpy.usfft import checkerboard
+from tike.operators.cupy.usfft import checkerboard
 
 
 def shifted_fft_two(a, xp):

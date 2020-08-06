@@ -6,16 +6,20 @@ launches and memory management may by accessed from Python.
 """
 
 from .convolution import *
+from .flow import *
+from .lamino import *
 from .operator import *
 from .propagation import *
 from .ptycho import *
-from .lamino import *
+from .shift import *
 
 __all__ = (
     'Convolution',
+    'Flow',
+    'Lamino',
     'Operator',
     'Propagation',
     'Ptycho',
-    'Lamino',
+    'Shift',
     # 'Tomo',
 )

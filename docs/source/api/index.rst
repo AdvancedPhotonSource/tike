@@ -30,6 +30,7 @@ The modules in Tike are as follows:
    :maxdepth: 1
 
    operators
+   align
    opt
    ptycho
    lamino

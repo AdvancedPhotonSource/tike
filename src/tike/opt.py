@@ -13,7 +13,15 @@ import warnings
 logger = logging.getLogger(__name__)
 
 
-def line_search(f, x, d, num_gpu, step_length=1, step_shrink=0.5):
+def line_search(
+    f,
+    x,
+    d,
+    num_gpu,
+    update_multi=None,
+    step_length=1,
+    step_shrink=0.5,
+):
     """Return a new `step_length` using a backtracking line search.
 
     Parameters
@@ -49,7 +57,7 @@ def line_search(f, x, d, num_gpu, step_length=1, step_shrink=0.5):
         if (num_gpu <= 1):
             fxsd = f(x + step_length * d)
         else:
-            fxsd = f(x, step_length=step_length, dir=d)
+            fxsd = f(update_multi(x, step_length, d))
         if fxsd <= fx + step_shrink * m:
             break
         step_length *= step_shrink
@@ -76,18 +84,18 @@ def direction_dy(xp, grad0, grad1, dir):
         - grad1
         + dir * xp.linalg.norm(grad1.ravel())**2
         / (xp.sum(dir.conj() * (grad1 - grad0)) + 1e-32)
-    )
+    )  # yapf: disable
 
 
 def conjugate_gradient(
-        array_module,
-        x,
-        cost_function,
-        grad,
-        dir_multi=None,
-        update_multi=None,
-        num_gpu=1,
-        num_iter=1,
+    array_module,
+    x,
+    cost_function,
+    grad,
+    dir_multi=None,
+    update_multi=None,
+    num_gpu=1,
+    num_iter=1,
 ):
     """Use conjugate gradient to estimate `x`.
 
@@ -132,6 +140,7 @@ def conjugate_gradient(
                 x=x,
                 d=dir_list,
                 num_gpu=num_gpu,
+                update_multi=update_multi,
             )
             # update the image
             x = update_multi(x, gamma, dir_list)
