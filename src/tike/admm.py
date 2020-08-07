@@ -5,6 +5,7 @@ import numpy as np
 import tike.align
 import tike.lamino
 
+import dxchange
 
 def update_penalty(psi, h, h0, rho):
     r = np.linalg.norm(psi - h)**2
@@ -14,6 +15,21 @@ def update_penalty(psi, h, h0, rho):
     elif (s > 10 * r):
         rho *= 0.5
     return rho
+
+
+def find_min_max(data):
+    mmin = np.zeros(data.shape[0], dtype='float32')
+    mmax = np.zeros(data.shape[0], dtype='float32')
+
+    for k in range(data.shape[0]):
+        h, e = np.histogram(data[k][:], 1000)
+        stend = np.where(h > np.max(h) * 0.005)
+        st = stend[0][0]
+        end = stend[0][-1]
+        mmin[k] = e[st]
+        mmax[k] = e[end + 1]
+
+    return mmin, mmax
 
 
 def lamino_align(data, tilt, theta, u=None, flow=None, niter=8, rho=0.5):
@@ -42,7 +58,8 @@ def lamino_align(data, tilt, theta, u=None, flow=None, niter=8, rho=0.5):
     h0 = psi.copy()
     # Start with large winsize and decrease each ADMM iteration.
     winsize = min(*data.shape[1:])
-    error0 = np.inf
+    mmin, mmax = find_min_max(data.real)
+
     for k in range(niter):
 
         logging.info("Find flow using farneback.")
@@ -52,17 +69,13 @@ def lamino_align(data, tilt, theta, u=None, flow=None, niter=8, rho=0.5):
             original=psi,
             flow=flow,
             pyr_scale=0.5,
-            levels=3,
+            levels=1,
             winsize=winsize,
             num_iter=4,
+            hi=mmax,
+            lo=mmin,
         )
-        # flow = result['shift']
-        #TODO: Only accept flow updates that reduce the error
-        error1 = np.linalg.norm(
-            (tike.align.simulate(psi, result['shift']) - data), axis=(1, 2))**2
-        keep = np.where(error1 < error0)
-        flow[keep] = result['shift'][keep]
-        error0 = error1
+        flow = result['shift']
 
         logging.info("Recover original/aligned projections.")
         result = tike.align.reconstruct(
@@ -97,6 +110,9 @@ def lamino_align(data, tilt, theta, u=None, flow=None, niter=8, rho=0.5):
         rho = update_penalty(psi, h, h0, rho)
         h0 = h
 
+        np.save(f"flow-tike-{(k+1):03d}", flow)
+        # np.save(f"flow-tike-v-{(k+1):03d}", vflow[..., ::-1])
+
         # checking intermediate results
         lagr = [
             np.linalg.norm((tike.align.simulate(psi, flow) - data))**2,
@@ -118,6 +134,13 @@ def lamino_align(data, tilt, theta, u=None, flow=None, niter=8, rho=0.5):
 
         # Limit winsize to larger value. 20?
         if winsize > 20:
-            winsize -= 2
+            winsize -= 1
+
+        if (k+1) % 10 == 0:
+            dxchange.write_tiff(
+                u.real,
+                f'particle-{(k+1):03d}.tiff',
+                dtype='float32',
+            )
 
     return u
