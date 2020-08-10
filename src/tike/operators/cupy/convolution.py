@@ -130,6 +130,11 @@ class Convolution(Operator):
                 f"nearplane must have shape {shape1} not {x.shape}")
 
     def _patch(self, patches, psi, scan, fwd=True):
+        """Extract or combine patches.
+
+        When fwd is True, the regions are copied from psi into patches.
+        When fwd is False, patches are added to psi.
+        """
         _patch_kernel = cp.RawKernel(_cu_source, "patch")
         max_thread = min(self.probe_shape,
                          _patch_kernel.attributes['max_threads_per_block'])
