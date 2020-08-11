@@ -22,29 +22,51 @@ def divided(
     Optics Express. 2018.
 
     """
-    farplane = op.fwd(psi=psi, scan=scan, probe=probe)
+    # Compute the diffraction patterns for all of the modes at once.
+    # The Ptycho operator doesn't do this natively, so it's messy.
+    patches = op.xp.zeros((*scan.shape[:2], *data.shape[-2:]),
+                          dtype='complex64')
+    patches = op.diffraction._patch(patches=patches,
+                                    psi=psi,
+                                    scan=scan,
+                                    fwd=True)
+    patches = patches.reshape(op.ntheta, scan.shape[-2] // op.fly, op.fly, 1,
+                              op.detector_shape, op.detector_shape)
+    nearplane = op.xp.tile(patches, reps=(1, 1, 1, probe.shape[-3], 1, 1))
+    pad, end = op.diffraction.pad, op.diffraction.end
+    nearplane[..., pad:end, pad:end] *= probe
+    farplane = op.propagation.fwd(nearplane, overwrite=True)
     farplane, cost = update_phase(op, data, farplane, num_iter=cg_iter)
-    nearplane = op.propagation.adj(farplane)
-    if recover_psi:
-        psi, cost = update_object(
-            op,
-            nearplane,
-            probe,
-            scan,
-            psi,
-            num_iter=cg_iter,
-        )
-    if recover_probe:
-        probe, cost = update_probe(
-            op,
-            nearplane,
-            probe,
-            scan,
-            psi,
-            num_iter=cg_iter,
-        )
+    nearplane = op.propagation.adj(farplane, overwrite=True)
+
+    # TODO: Could move this loop over modes into update_object and
+    # update_probe to reuse cached values.
+    for mode in range(probe.shape[-3]):
+        end = mode + 1
+
+        if recover_psi:
+            psi, cost = update_object(
+                op,
+                nearplane[..., mode:end, :, :],
+                probe[..., mode:end, :, :],
+                scan,
+                psi,
+                num_iter=cg_iter,
+            )
+
+        if recover_probe:
+            probe[..., mode:end, :, :], cost = update_probe(
+                op,
+                nearplane[..., mode:end, :, :],
+                probe[..., mode:end, :, :],
+                scan,
+                psi,
+                num_iter=cg_iter,
+            )
+
     # if recover_positions:
     #     scan, cost = update_positions_pd(op, data, psi, probe, scan)
+
     return {
         'psi': psi,
         'probe': probe,
@@ -56,17 +78,18 @@ def divided(
 
 def update_phase(op, data, farplane, num_iter=1):
     """Solve the farplane phase problem."""
+    xp = op.xp
 
     def grad(farplane):
-        intensity = op.xp.square(op.xp.abs(farplane))[:, :, 0, 0]
+        intensity = xp.sum(xp.square(xp.abs(farplane)), axis=(2, 3))
         return op.propagation.grad(data, farplane, intensity)
 
     def cost_function(farplane):
-        intensity = op.xp.square(op.xp.abs(farplane))[:, :, 0, 0]
+        intensity = xp.sum(xp.square(xp.abs(farplane)), axis=(2, 3))
         return op.propagation.cost(data, intensity)
 
     farplane, cost = conjugate_gradient(
-        op.xp,
+        xp,
         x=farplane,
         cost_function=cost_function,
         grad=grad,
