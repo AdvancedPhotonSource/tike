@@ -92,14 +92,20 @@ def update_probe(
     """Solve the nearplane single probe recovery problem."""
     xp = op.xp
     pad, end = op.diffraction.pad, op.diffraction.end
-    obj_patches = op.diffraction.fwd(psi=psi,
-                                     scan=scan,
-                                     probe=xp.ones_like(probe))[..., pad:end,
-                                                                pad:end]
+    obj_patches = op.diffraction._patch(
+        patches=xp.zeros(
+            shape=(*scan.shape[:2], 1, 1, *probe.shape[-2:]),
+            dtype='complex64',
+        ),
+        psi=psi,
+        scan=scan,
+        fwd=True,
+    )
 
     norm_patches = xp.sum(
         xp.square(xp.abs(obj_patches)),
         axis=position,
+        keepdims=True,
     ) + eps
 
     def cost_function(probe):
@@ -107,16 +113,13 @@ def update_probe(
             xp.ravel(probe * obj_patches - nearplane[..., pad:end, pad:end]))**2
 
     def chi(probe):
-        return (nearplane -
-                op.diffraction.fwd(psi=psi, scan=scan, probe=probe))[...,
-                                                                     pad:end,
-                                                                     pad:end]
+        return nearplane[..., pad:end, pad:end] - probe * obj_patches
 
     def grad(probe):
         return chi(probe) * xp.conj(obj_patches)
 
     def common_dir_(dir_):
-        return xp.sum(dir_, axis=position) / norm_patches
+        return xp.sum(dir_, axis=position, keepdims=True) / norm_patches
 
     def step(probe, dir_):
         return xp.sum(
@@ -129,22 +132,22 @@ def update_probe(
             keepdims=True,
         ) + eps)
 
-    x = probe
     for i in range(num_iter):
-        grad1 = grad(x)
+        grad1 = grad(probe)
         if i == 0:
             dir_ = -grad1
         else:
             dir_ = direction_dy(xp, grad0, grad1, dir_)
         grad0 = grad1
 
-        weighted_patches = xp.sum(step(probe, dir_) *
-                                  xp.square(xp.abs(obj_patches)),
-                                  axis=position)
+        weighted_patches = xp.sum(
+            step(probe, dir_) * xp.square(xp.abs(obj_patches)),
+            axis=position,
+            keepdims=True,
+        )
 
-        x = x + common_dir_(dir_) * weighted_patches / norm_patches
+        probe = probe + common_dir_(dir_) * weighted_patches / norm_patches
 
-    probe = x
     cost = cost_function(probe)
     logger.info('%10s cost is %+12.5e', 'probe', cost)
     return probe, cost
