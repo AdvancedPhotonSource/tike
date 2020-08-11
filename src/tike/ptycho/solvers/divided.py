@@ -183,29 +183,26 @@ def update_object(
     def grad(psi):
         return chi(psi) * xp.conj(probe)
 
-    norm_probe = xp.zeros_like(nearplane)
-    norm_probe[..., pad:end, pad:end] = 1
-    norm_probe = op.diffraction.adj(
-        nearplane=norm_probe,
+    norm_probe = op.diffraction._patch(
+        patches=xp.square(xp.abs(probe)) * xp.ones(
+            (*scan.shape[:2], 1, 1, 1, 1),
+            dtype='complex64',
+        ),
+        psi=xp.zeros_like(psi),
         scan=scan,
-        probe=xp.square(xp.abs(probe)),
-        overwrite=True,
+        fwd=False,
     ) + eps
 
     def common_dir_(dir_):
-        d = xp.zeros_like(nearplane)
-        d[..., pad:end, pad:end] = dir_
-        assert d.shape == nearplane.shape
-        result = op.diffraction.adj(
-            nearplane=d,
+        return op.diffraction._patch(
+            patches=dir_,
             scan=scan,
-            probe=xp.ones_like(probe),
-            overwrite=True,
+            psi=xp.zeros_like(psi),
+            fwd=False,
         ) / norm_probe
-        assert result.shape == psi.shape
-        return result
 
     def step(psi, dir_):
+        # TODO: Figure out if steps should be complex instead of real
         result = xp.sum(
             xp.real(chi(psi) * xp.conj(dir_ * probe)),
             axis=pixels,
@@ -217,53 +214,23 @@ def update_object(
         ) + eps)
         return result
 
-    x = psi
-
     for i in range(num_iter):
-        grad1 = grad(x)
+        grad1 = grad(psi)
         if i == 0:
             dir_ = -grad1
         else:
             dir_ = direction_dy(xp, grad0, grad1, dir_)
         grad0 = grad1
 
-        weight_probe = xp.zeros_like(nearplane)
-        weight_probe[..., pad:end,
-                     pad:end] = step(x, dir_) * xp.square(xp.abs(probe))
-        weight_probe = op.diffraction.adj(
-            nearplane=weight_probe,
-            overwrite=True,
+        weight_probe = op.diffraction._patch(
+            patches=(step(psi, dir_) *
+                     xp.square(xp.abs(probe))).astype('complex64'),
+            psi=xp.zeros_like(psi),
             scan=scan,
-            probe=xp.ones_like(probe),
+            fwd=False,
         )
-        x = x + common_dir_(dir_) * weight_probe / norm_probe
+        psi = psi + common_dir_(dir_) * weight_probe / norm_probe
 
-    psi = x
     cost = cost_function(psi)
-
     logger.info('%10s cost is %+12.5e', 'object', cost)
     return psi, cost
-
-
-def least_squares_update(xp,
-                         chi,
-                         x,
-                         y,
-                         position=1,
-                         pixels=(-2, -1),
-                         eps=1e-16,
-                         num_iter=1):
-    """Compute real space updates for probe or object using least squares step.
-
-    Parameters
-    ----------
-    chi: array_like
-        The difference between current wavefronts and desired wavefronts
-    x : array_like
-        object or probe: the one being updated
-    y : array_like
-        object or probe : the one not being updated
-    grad : func(x) -> array_like
-        The gradient of x
-    """
-    return x
