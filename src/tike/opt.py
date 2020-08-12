@@ -98,7 +98,6 @@ def conjugate_gradient(
     grad,
     dir_multi=dir_single,
     update_multi=update_single,
-    num_gpu=1,
     num_iter=1,
 ):
     """Use conjugate gradient to estimate `x`.
