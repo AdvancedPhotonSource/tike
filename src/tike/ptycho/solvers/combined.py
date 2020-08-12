@@ -45,7 +45,7 @@ def combined(
         )
         probe = pool.bcast(probe)
 
-    if recover_positions:
+    if recover_positions and pool.num_workers == 1:
         scan, cost = update_positions_pd(
             op,
             pool.gather(data, axis=1),

@@ -169,7 +169,7 @@ def reconstruct(
                                              num_iter))
             scan, data = asarray_multi_split(
                 operator,
-                pool.device_count,
+                pool.num_workers,
                 scan,
                 data,
             )
