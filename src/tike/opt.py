@@ -63,7 +63,7 @@ def line_search(
     return step_length, fxsd
 
 
-def direction_dy(xp, grad0, grad1, dir):
+def direction_dy(xp, grad0, grad1, dir_):
     """Return the Dai-Yuan search direction.
 
     Parameters
@@ -72,14 +72,14 @@ def direction_dy(xp, grad0, grad1, dir):
         The gradient from the previous step.
     grad1 : array_like
         The gradient from this step.
-    dir : array_like
+    dir_ : array_like
         The previous search direction.
 
     """
     return (
         - grad1
-        + dir * xp.linalg.norm(grad1.ravel())**2
-        / (xp.sum(dir.conj() * (grad1 - grad0)) + 1e-32)
+        + dir_ * xp.linalg.norm(grad1.ravel())**2
+        / (xp.sum(dir_.conj() * (grad1 - grad0)) + 1e-32)
     )  # yapf: disable
 
 
@@ -114,7 +114,7 @@ def conjugate_gradient(
     grad : func(x) -> array_like
         The gradient of cost_function.
     dir_multi : func(x) -> list_of_array
-        The dir in all GPUs.
+        The dir_ in all GPUs.
     update_multi : func(x) -> list_of_array
         The updated subimages in all GPUs.
     num_iter : int
@@ -122,14 +122,15 @@ def conjugate_gradient(
 
     """
     for i in range(num_iter):
+
         grad1 = grad(x)
         if i == 0:
-            dir = -grad1
+            dir_ = -grad1
         else:
-            dir = direction_dy(array_module, grad0, grad1, dir)
+            dir_ = direction_dy(array_module, grad0, grad1, dir_)
         grad0 = grad1
 
-        dir_list = dir_multi(dir)
+        dir_list = dir_multi(dir_)
 
         gamma, cost = line_search(
             f=cost_function,
@@ -141,4 +142,5 @@ def conjugate_gradient(
         x = update_multi(x, gamma, dir_list)
 
         logger.debug("%4d, %.3e, %.7e", (i + 1), gamma, cost)
+
     return x, cost
