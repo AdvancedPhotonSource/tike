@@ -2,8 +2,11 @@ __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
 from abc import ABC
+import logging
 
 import cupy
+
+logger = logging.getLogger(__name__)
 
 
 class Operator(ABC):
@@ -21,6 +24,7 @@ class Operator(ABC):
 
     @classmethod
     def asarray(cls, *args, device=None, **kwargs):
+        logger.debug(f"asarray to device {device}")
         with cupy.cuda.Device(device):
             return cupy.asarray(*args, **kwargs)
 
