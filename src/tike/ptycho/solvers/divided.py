@@ -1,16 +1,28 @@
 import logging
 
+import numpy as np
+
 from tike.opt import conjugate_gradient, line_search, direction_dy
 from ..position import update_positions_pd
 
 logger = logging.getLogger(__name__)
 
 
+def random_subset(n, m):
+    """Yield indices [0...n) as groups of at most m indices."""
+    rng = np.random.default_rng()
+    i = np.arange(n)
+    rng.shuffle(i)
+    for s in np.array_split(i, (n + m - 1) // m):
+        yield s
+
+
 def divided(
     op, pool, num_gpu,
     data, probe, scan, psi,
     recover_psi=True, recover_probe=False, recover_positions=False,
-    cg_iter=4,
+    cg_iter=1,
+    batch_size=None,
     **kwargs
 ):  # yapf: disable
     """Solve near- and farfield- ptychography problems separately.
@@ -72,7 +84,6 @@ def divided(
         'probe': probe,
         'cost': cost,
         'scan': scan,
-        'farplane': farplane,
     }
 
 
