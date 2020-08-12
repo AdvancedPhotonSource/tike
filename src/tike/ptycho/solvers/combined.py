@@ -16,6 +16,12 @@ def combined(
 ):  # yapf: disable
     """Solve the ptychography problem using a combined approach.
 
+    Parameters
+    ----------
+    operator : tike.operators.Ptycho
+        A ptychography operator.
+    pool : tike.pool.ThreadPoolExecutor
+        An object which manages communications between GPUs.
     """
     if recover_psi:
         psi, cost = update_object(
