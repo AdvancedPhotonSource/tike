@@ -17,8 +17,7 @@ def line_search(
     f,
     x,
     d,
-    num_gpu,
-    update_multi=None,
+    update_multi,
     step_length=1,
     step_shrink=0.5,
 ):
@@ -54,10 +53,7 @@ def line_search(
     fx = f(x)  # Save the result of f(x) instead of computing it many times
     # Decrease the step length while the step increases the cost function
     while True:
-        if (num_gpu <= 1):
-            fxsd = f(x + step_length * d)
-        else:
-            fxsd = f(update_multi(x, step_length, d))
+        fxsd = f(update_multi(x, step_length, d))
         if fxsd <= fx + step_shrink * m:
             break
         step_length *= step_shrink
@@ -87,13 +83,21 @@ def direction_dy(xp, grad0, grad1, dir):
     )  # yapf: disable
 
 
+def update_single(x, step_length, d):
+    return x + step_length * d
+
+
+def dir_single(x):
+    return x
+
+
 def conjugate_gradient(
     array_module,
     x,
     cost_function,
     grad,
-    dir_multi=None,
-    update_multi=None,
+    dir_multi=dir_single,
+    update_multi=update_single,
     num_gpu=1,
     num_iter=1,
 ):
@@ -124,25 +128,17 @@ def conjugate_gradient(
         else:
             dir = direction_dy(array_module, grad0, grad1, dir)
         grad0 = grad1
-        if (num_gpu <= 1):
-            gamma, cost = line_search(
-                f=cost_function,
-                x=x,
-                d=dir,
-                num_gpu=num_gpu,
-            )
-            x = x + gamma * dir
-        else:
-            dir_list = dir_multi(dir)
 
-            gamma, cost = line_search(
-                f=cost_function,
-                x=x,
-                d=dir_list,
-                num_gpu=num_gpu,
-                update_multi=update_multi,
-            )
-            # update the image
-            x = update_multi(x, gamma, dir_list)
+        dir_list = dir_multi(dir)
+
+        gamma, cost = line_search(
+            f=cost_function,
+            x=x,
+            d=dir_list,
+            update_multi=update_multi,
+        )
+
+        x = update_multi(x, gamma, dir_list)
+
         logger.debug("%4d, %.3e, %.7e", (i + 1), gamma, cost)
     return x, cost
