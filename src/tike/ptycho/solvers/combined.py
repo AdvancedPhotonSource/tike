@@ -33,29 +33,33 @@ def combined(
         )
 
     if recover_probe:
+        # TODO: add multi-GPU support
         probe, cost = update_probe(
             op,
             pool,
-            data,
-            psi,
-            scan,
-            probe,
+            pool.gather(data, axis=1),
+            psi[0],
+            pool.gather(scan, axis=1),
+            probe[0],
             num_iter=cg_iter,
         )
+        probe = pool.bcast(probe)
 
     if recover_positions:
-        scan, cost = update_positions_pd(op, data, psi, probe, scan)
+        scan, cost = update_positions_pd(
+            op,
+            pool.gather(data, axis=1),
+            psi[0],
+            probe[0],
+            pool.gather(scan, axis=1),
+        )
+        scan = pool.bcast(scan)
 
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 
 
 def update_probe(op, pool, data, psi, scan, probe, num_iter=1):
     """Solve the probe recovery problem."""
-    # TODO: add multi-GPU support
-    scan = pool.gather(scan, axis=1)
-    data = pool.gather(data, axis=1)
-    psi = psi[0]
-    probe = probe[0]
 
     # TODO: Cache object patche between mode updates
     for m in range(probe.shape[-3]):
@@ -78,10 +82,6 @@ def update_probe(op, pool, data, psi, scan, probe, num_iter=1):
             grad=grad,
             num_iter=num_iter,
         )
-
-    probe = pool.bcast(probe)
-    del scan
-    del data
 
     logger.info('%10s cost is %+12.5e', 'probe', cost)
     return probe, cost
