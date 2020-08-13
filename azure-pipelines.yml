@@ -30,19 +30,40 @@ jobs:
         python.version: '3.8'
     maxParallel: 4
   steps:
+
   - script: echo "CUDA version is $(CUDA_VERSION)"
     displayName: Print CUDA version
-  - script: >
-      conda update -n base conda --yes --quiet
+
+  - script: conda update -n base conda --yes --quiet
     displayName: Update conda
+
+  - script: conda env remove --yes -n tike
+    displayName: Remove existing build environment
+
   - script: >
-      conda install --yes --quiet
-      conda-build
-    displayName: Install conda-build
-  - script: >
-      conda build . --no-anaconda-upload
-      -c conda-forge -c defaults
-      --python $(python.version)
-    displayName: Build with conda-build
-  - script: conda build purge
-    displayName: Purge old builds
+      conda create --quiet --force --yes
+      -n tike
+      --channel conda-forge
+      pytest
+      python=$(python.version)
+    displayName: Create build environment
+
+  - script: |
+      source activate tike
+      conda install --file requirements.txt --channel conda-forge --yes --quiet
+    displayName: Install dependencies
+
+  - script: conda list -n tike
+    displayName: List build environment
+
+  - script: |
+      source activate tike
+      pip install . --no-deps
+    displayName: Setup and install
+
+  - script: |
+      source activate tike
+      pytest -vs
+    displayName: Run tests
+
+  - script: conda clean -py
