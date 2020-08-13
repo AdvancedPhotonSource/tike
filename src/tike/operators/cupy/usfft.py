@@ -280,7 +280,7 @@ def us2eq(f, x, n, eps, xp, scatter=vector_scatter, fftn=None):
     m = xp.int(xp.ceil(2 * n * Te))
 
     # smearing kernel (ker)
-    kernel = _get_kernel2d(xp, pad, mu)
+    kernel = _get_kernel(xp, pad, mu)
 
     G = scatter(xp, f, x, n, m, mu)
 
@@ -317,7 +317,7 @@ def us2eq2d(f, x, n, eps, xp, scatter=vector_scatter2d, fftn=None):
     m = xp.int(xp.ceil(2 * n * Te))
 
     # smearing kernel (ker)
-    kernel = _get_kernel(xp, pad, mu)
+    kernel = _get_kernel2d(xp, pad, mu)
 
     G = scatter(xp, f, x, n, m, mu)
 
