@@ -167,6 +167,8 @@ def reconstruct(
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[1:],
                                              num_iter))
+            # TODO: Merge code paths num_gpu is not used.
+            num_gpu = pool.device_count
             # send any array-likes to device
             if (num_gpu <= 1):
                 data = operator.asarray(data, dtype='float32')
