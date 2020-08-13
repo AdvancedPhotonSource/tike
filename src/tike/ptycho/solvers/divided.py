@@ -21,7 +21,7 @@ def divided(
     op, pool, num_gpu,
     data, probe, scan, psi,
     recover_psi=True, recover_probe=False, recover_positions=False,
-    cg_iter=1,
+    cg_iter=4,
     batch_size=None,
     **kwargs
 ):  # yapf: disable
@@ -105,6 +105,18 @@ def update_phase(op, data, farplane, num_iter=1):
         cost_function=cost_function,
         grad=grad,
         num_iter=num_iter,
+        step_length=2,
+    )
+
+    def step(intensity, step0):
+        """Analytic step size for Poisson noise model"""
+        ξ = 1 - data / (intensity + 1e-16)
+        return xp.sum(
+            intensity - ξ * (data / (1 - step0 * ξ)),
+            axis=(-1, -2),
+        ) / xp.sum(
+            ξ * ξ * intensity,
+            axis=(-1, -2),
     )
 
     # print cost function for sanity check
