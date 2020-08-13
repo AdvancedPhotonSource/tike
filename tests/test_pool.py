@@ -16,15 +16,15 @@ class TestThreadPool(unittest.TestCase):
             return  # skip test if only one device
         a = self.xp.arange(10)
         result = self.pool.bcast(a)
-        for x in result:
+        for i, x in enumerate(result):
             self.xp.testing.assert_array_equal(a, x)
             # should be copies; not the same array
             if self.xp == np:
                 assert (x.__array_interface__['data'][0] !=
-                        a.__array_interface__['data'][0])
+                        a.__array_interface__['data'][0]) or i == 0
             else:
                 assert (x.__cuda_array_interface__['data'][0] !=
-                        a.__cuda_array_interface__['data'][0])
+                        a.__cuda_array_interface__['data'][0]) or i == 0
 
     def test_gather(self):
         if self.pool.device_count < 2:
