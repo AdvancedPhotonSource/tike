@@ -196,12 +196,12 @@ def reconstruct(
                     if np.ndim(value) > 0:
                         kwargs[key] = pool.bcast(value)
 
+            result['probe'] = _rescale_obj_probe(operator, pool, num_gpu, data,
+                                                 result['psi'], result['scan'],
+                                                 result['probe'])
+
             cost = 0
             for i in range(num_iter):
-                result['probe'] = _rescale_obj_probe(operator, pool, num_gpu,
-                                                     data, result['psi'],
-                                                     result['scan'],
-                                                     result['probe'])
                 kwargs.update(result)
                 result = getattr(solvers, algorithm)(
                     operator,
