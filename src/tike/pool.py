@@ -7,7 +7,9 @@ __all__ = ['ThreadPool']
 
 from concurrent.futures import ThreadPoolExecutor
 import os
+import warnings
 
+import cupy as cp
 import numpy as np
 
 
@@ -19,8 +21,9 @@ class NumPyThreadPool(ThreadPoolExecutor):
 
     """
 
-    def __init__(self, num_workers: int):
+    def __init__(self, num_workers: int, device_count=1):
         super().__init__(num_workers)
+        self.device_count = device_count
         self.num_workers = num_workers
         self.workers = list(range(num_workers))
         self.xp = np
@@ -60,7 +63,11 @@ class NumPyThreadPool(ThreadPoolExecutor):
 class CuPyThreadPool(NumPyThreadPool):
 
     def __init__(self, num_workers):
-        super().__init__(num_workers)
+        device_count = cp.cuda.runtime.getDeviceCount()
+        if num_workers > device_count:
+            warnings.warn("Not enough CUDA devices for workers!")
+            num_workers = device_count
+        super().__init__(num_workers, device_count)
         self.xp = cp
 
     def _copy_to(self, x: np.array, worker: int) -> np.array:
@@ -77,9 +84,4 @@ class CuPyThreadPool(NumPyThreadPool):
         return super().map(f, self.workers, *iterables, **kwargs)
 
 
-# Provide the correct ThreadPool implementaiton based the environment variable
-if f"TIKE_BACKEND" in os.environ and os.environ["TIKE_BACKEND"] == 'cupy':
-    ThreadPool = CuPyThreadPool
-    import cupy as cp
-else:
-    ThreadPool = NumPyThreadPool
+ThreadPool = CuPyThreadPool

@@ -63,14 +63,33 @@ class TestAlignRecon(unittest.TestCase):
         np.testing.assert_array_equal(data.shape, self.data.shape)
         np.testing.assert_allclose(data, self.data, atol=1e-6)
 
-    def test_algin_cross_correlation(self):
+    def test_align_cross_correlation(self):
         """Check that align.solvers.cross_correlation works."""
         result = tike.align.reconstruct(
             self.data,
             self.original,
+            algorithm='cross_correlation',
             upsample_factor=1e3,
         )
         shift = result['shift']
         assert shift.dtype == 'float32', shift.dtype
         np.testing.assert_array_equal(shift.shape, self.shift.shape)
         np.testing.assert_allclose(shift, self.shift, atol=1e-3)
+
+    @unittest.skipUnless('TIKE_BACKEND' in os.environ
+                         and os.environ['TIKE_BACKEND'] == 'numpy',
+                         "Farneback method only available on CPU.")
+    def test_align_farneback(self):
+        """Check that align.solvers.farneback works."""
+        result = tike.align.reconstruct(
+            self.data,
+            self.original,
+            algorithm='farneback',
+        )
+        shift = result['shift']
+        assert shift.dtype == 'float32', shift.dtype
+        np.testing.assert_array_equal(shift.shape, (*self.original.shape, 2))
+        h, w = shift.shape[1:3]
+        np.testing.assert_allclose(shift[:, h // 2, w // 2, :],
+                                   self.shift,
+                                   atol=1e-1)
