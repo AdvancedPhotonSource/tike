@@ -44,7 +44,7 @@ class NumPyThreadPool(ThreadPoolExecutor):
     #     """Divide x amongst all workers along the 0th dimension."""
     #     return list(self.map(self._copy_to, x, self.workers))
 
-    def gather(self, x: list, worker=0, axis=0) -> np.array:
+    def gather(self, x: list, worker=None, axis=0) -> np.array:
         """Concatenate x on a single worker along the given axis."""
         return self.xp.concatenate(
             [self._copy_to(part, worker) for part in x],
