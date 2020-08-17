@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 import os
 import warnings
 
+import cupy as cp
 import numpy as np
 
 
@@ -83,9 +84,4 @@ class CuPyThreadPool(NumPyThreadPool):
         return super().map(f, self.workers, *iterables, **kwargs)
 
 
-# Provide the correct ThreadPool implementaiton based the environment variable
-if f"TIKE_BACKEND" in os.environ and os.environ["TIKE_BACKEND"] == 'cupy':
-    ThreadPool = CuPyThreadPool
-    import cupy as cp
-else:
-    ThreadPool = NumPyThreadPool
+ThreadPool = CuPyThreadPool

@@ -165,7 +165,7 @@ class Ptycho(Operator):
                 probe=mode,
                 scan=scan,
                 overwrite=True,
-            )
+            ) / probe.shape[-3]
         return grad_obj
 
     def grad_probe(self, data, psi, scan, probe, n=-1, mode=None):
