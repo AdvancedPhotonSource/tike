@@ -18,11 +18,11 @@ def random_subset(n, m):
 
 
 def divided(
-    op, pool, num_gpu,
+    op, pool,
     data, probe, scan, psi,
     recover_psi=True, recover_probe=False, recover_positions=False,
     cg_iter=4,
-    batch_size=None,
+    batch_size=40,
     **kwargs
 ):  # yapf: disable
     """Solve near- and farfield- ptychography problems separately.
@@ -34,54 +34,63 @@ def divided(
     Optics Express. 2018.
 
     """
-    # Compute the diffraction patterns for all of the modes at once.
-    # The Ptycho operator doesn't do this natively, so it's messy.
-    patches = op.xp.zeros((*scan.shape[:2], *data.shape[-2:]),
+    probe = probe[0]
+    psi = psi[0]
+
+    for lo in range(0, data[0].shape[1], batch_size):
+        hi = min(data[0].shape[1], lo + batch_size)
+
+        data_ = data[0][:, lo:hi]
+        scan_ = scan[0][:, lo:hi]
+
+        # Compute the diffraction patterns for all of the modes at once.
+        # The Ptycho operator doesn't do this natively, so it's messy.
+        patches = op.xp.zeros((*scan_.shape[:2], *data_.shape[-2:]),
                           dtype='complex64')
-    patches = op.diffraction._patch(patches=patches,
-                                    psi=psi,
-                                    scan=scan,
-                                    fwd=True)
-    patches = patches.reshape(op.ntheta, scan.shape[-2] // op.fly, op.fly, 1,
+        patches = op.diffraction._patch(patches=patches,
+                                        psi=psi,
+                                            scan=scan_,
+                                        fwd=True)
+        patches = patches.reshape(op.ntheta, scan_.shape[-2] // op.fly, op.fly, 1,
                               op.detector_shape, op.detector_shape)
-    nearplane = op.xp.tile(patches, reps=(1, 1, 1, probe.shape[-3], 1, 1))
-    pad, end = op.diffraction.pad, op.diffraction.end
-    nearplane[..., pad:end, pad:end] *= probe
-    farplane = op.propagation.fwd(nearplane, overwrite=True)
-    farplane, cost = update_phase(op, data, farplane, num_iter=cg_iter)
-    nearplane = op.propagation.adj(farplane, overwrite=True)
+        nearplane = op.xp.tile(patches, reps=(1, 1, 1, probe.shape[-3], 1, 1))
+        pad, end = op.diffraction.pad, op.diffraction.end
+        nearplane[..., pad:end, pad:end] *= probe
+        farplane = op.propagation.fwd(nearplane, overwrite=True)
+        farplane, cost = update_phase(op, data_, farplane, num_iter=cg_iter)
+        nearplane = op.propagation.adj(farplane, overwrite=True)
 
-    # TODO: Could move this loop over modes into update_object and
-    # update_probe to reuse cached values.
-    for mode in range(probe.shape[-3]):
-        end = mode + 1
+        # TODO: Could move this loop over modes into update_object and
+        # update_probe to reuse cached values.
+        for mode in range(probe.shape[-3]):
+            end = mode + 1
 
-        if recover_psi:
-            psi, cost = update_object(
-                op,
-                nearplane[..., mode:end, :, :],
-                probe[..., mode:end, :, :],
-                scan,
-                psi,
-                num_iter=cg_iter,
-            )
+            if recover_psi:
+                psi, cost = update_object(
+                    op,
+                    nearplane[..., mode:end, :, :],
+                    probe[..., mode:end, :, :],
+                    scan_,
+                    psi,
+                    num_iter=cg_iter,
+                )
 
-        if recover_probe:
-            probe[..., mode:end, :, :], cost = update_probe(
-                op,
-                nearplane[..., mode:end, :, :],
-                probe[..., mode:end, :, :],
-                scan,
-                psi,
-                num_iter=cg_iter,
-            )
+            if recover_probe:
+                probe[..., mode:end, :, :], cost = update_probe(
+                    op,
+                    nearplane[..., mode:end, :, :],
+                    probe[..., mode:end, :, :],
+                    scan_,
+                    psi,
+                    num_iter=cg_iter,
+                )
 
     # if recover_positions:
     #     scan, cost = update_positions_pd(op, data, psi, probe, scan)
 
     return {
-        'psi': psi,
-        'probe': probe,
+        'psi': [psi],
+        'probe': [probe],
         'cost': cost,
         'scan': scan,
     }
@@ -169,6 +178,7 @@ def update_probe(
 
     def step(probe, dir_):
         return xp.sum(
+            # overflow here
             xp.real(chi(probe) * xp.conj(dir_ * obj_patches)),
             axis=pixels,
             keepdims=True,
