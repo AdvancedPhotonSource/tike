@@ -42,11 +42,10 @@ def divided(
     # Divide the scan positions into smaller batches to be processed
     # sequentially. Otherwise we run out memory processing all of
     # the diffraction patterns at the same time.
-    # for lo in range(0, data[0].shape[1], batch_size):
-    #     hi = min(data[0].shape[1], lo + batch_size)
-    if True:
-        data_ = data[0]  #[:, lo:hi]
-        scan_ = scan[0]  #[:, lo:hi]
+    for lo in range(0, data[0].shape[1], batch_size):
+        hi = min(data[0].shape[1], lo + batch_size)
+        data_ = data[0][:, lo:hi]
+        scan_ = scan[0][:, lo:hi]
 
         # Compute the diffraction patterns for all of the probe modes at once.
         # We need access to all of the modes of a position to solve the phase
@@ -88,7 +87,8 @@ def divided(
             grad_psi = chi.copy()
             grad_psi[..., pad:end, pad:end] *= cp.conj(probe)
 
-            norm_probe = cp.zeros_like(psi)
+            # FIXME: What to do when elements of this norm are zero?
+            norm_probe = cp.ones_like(psi)
             dir_psi = cp.zeros_like(psi)
 
             for m in range(probe.shape[-3]):
@@ -109,7 +109,6 @@ def divided(
                     scan=scan_,
                     fwd=False,
                 )
-            norm_probe += 1e-32
 
             dir_psi /= norm_probe
 
@@ -185,10 +184,11 @@ def divided(
                 axis=(1, 2),
             )
 
+            # FIXME: What to do when elements of this norm are zero?
             norm_psi = cp.sum(
                 cp.square(cp.abs(patches[..., pad:end, pad:end])),
                 axis=(1, 2),
-            )
+            ) + 1
 
             probe += dir_probe * weighted_step / norm_psi
             d += step * dPO
