@@ -3,7 +3,7 @@ operators
 .. automodule:: tike.operators
    :no-members:
 
-.. automodule:: tike.operators.numpy
+.. automodule:: tike.operators.cupy
    :inherited-members:
    :members:
    :show-inheritance:
