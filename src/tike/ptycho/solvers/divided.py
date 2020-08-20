@@ -1,5 +1,6 @@
 import logging
 
+import cupy as cp
 import numpy as np
 
 from tike.opt import conjugate_gradient, line_search, direction_dy
@@ -8,7 +9,7 @@ from ..position import update_positions_pd
 logger = logging.getLogger(__name__)
 
 
-def random_subset(n, m):
+def _random_subset(n, m):
     """Yield indices [0...n) as groups of at most m indices."""
     rng = np.random.default_rng()
     i = np.arange(n)
@@ -34,59 +35,166 @@ def divided(
     Optics Express. 2018.
 
     """
+    xp = op.xp
     probe = probe[0]
     psi = psi[0]
 
-    for lo in range(0, data[0].shape[1], batch_size):
-        hi = min(data[0].shape[1], lo + batch_size)
+    # Divide the scan positions into smaller batches to be processed
+    # sequentially. Otherwise we run out memory processing all of
+    # the diffraction patterns at the same time.
+    # for lo in range(0, data[0].shape[1], batch_size):
+    #     hi = min(data[0].shape[1], lo + batch_size)
+    if True:
+        data_ = data[0]  #[:, lo:hi]
+        scan_ = scan[0]  #[:, lo:hi]
 
-        data_ = data[0][:, lo:hi]
-        scan_ = scan[0][:, lo:hi]
+        # Compute the diffraction patterns for all of the probe modes at once.
+        # We need access to all of the modes of a position to solve the phase
+        # problem. The Ptycho operator doesn't do this natively, so it's messy.
+        patches = cp.zeros(data_.shape, dtype='complex64')
+        patches = op.diffraction._patch(
+            patches=patches,
+            psi=psi,
+            scan=scan_,
+            fwd=True,
+        )
+        patches = patches.reshape(op.ntheta, scan_.shape[-2] // op.fly, op.fly,
+                                  1, op.detector_shape, op.detector_shape)
+        patches = op.xp.tile(patches, reps=(1, 1, 1, probe.shape[-3], 1, 1))
 
-        # Compute the diffraction patterns for all of the modes at once.
-        # The Ptycho operator doesn't do this natively, so it's messy.
-        patches = op.xp.zeros((*scan_.shape[:2], *data_.shape[-2:]),
-                          dtype='complex64')
-        patches = op.diffraction._patch(patches=patches,
-                                        psi=psi,
-                                            scan=scan_,
-                                        fwd=True)
-        patches = patches.reshape(op.ntheta, scan_.shape[-2] // op.fly, op.fly, 1,
-                              op.detector_shape, op.detector_shape)
-        nearplane = op.xp.tile(patches, reps=(1, 1, 1, probe.shape[-3], 1, 1))
         pad, end = op.diffraction.pad, op.diffraction.end
+        nearplane = patches.copy()
         nearplane[..., pad:end, pad:end] *= probe
-        farplane = op.propagation.fwd(nearplane, overwrite=True)
+
+        # Solve the farplane phase problem
+        farplane = op.propagation.fwd(nearplane, overwrite=False)
         farplane, cost = update_phase(op, data_, farplane, num_iter=cg_iter)
-        nearplane = op.propagation.adj(farplane, overwrite=True)
 
-        # TODO: Could move this loop over modes into update_object and
-        # update_probe to reuse cached values.
-        for mode in range(probe.shape[-3]):
-            end = mode + 1
+        # Use χ (chi) to solve the nearplane problem. We use least-squares to
+        # find the update of all the search directions: object, probe,
+        # positions, etc that causes the nearplane wavefront to match the that
+        # we just found by solving the phase problem.
+        chi = op.propagation.adj(farplane, overwrite=True) - nearplane
 
-            if recover_psi:
-                psi, cost = update_object(
-                    op,
-                    nearplane[..., mode:end, :, :],
-                    probe[..., mode:end, :, :],
-                    scan_,
-                    psi,
-                    num_iter=cg_iter,
+        lstsq_shape = (*nearplane.shape[:-2],
+                       nearplane.shape[-2] * nearplane.shape[-1] * 2)
+        updates = []
+
+        logger.info('%10s cost is %+12.5e', 'nearplane',
+                    cp.linalg.norm(cp.ravel(chi)))
+
+        if recover_psi:
+            # FIXME: Implement conjugate gradient
+            grad_psi = chi.copy()
+            grad_psi[..., pad:end, pad:end] *= cp.conj(probe)
+
+            norm_probe = cp.zeros_like(psi)
+            dir_psi = cp.zeros_like(psi)
+
+            for m in range(probe.shape[-3]):
+                # FIXME: Shape changes required for fly scans.
+                intensity = cp.ones(
+                    (*scan_.shape[:2], 1, 1, 1, 1),
+                    dtype='complex64',
+                ) * cp.square(cp.abs(probe[..., m:m + 1, :, :]))
+                norm_probe = op.diffraction._patch(
+                    patches=intensity,
+                    psi=norm_probe,
+                    scan=scan_,
+                    fwd=False,
+                )
+                dir_psi = op.diffraction._patch(
+                    patches=grad_psi[..., m:m + 1, :, :],
+                    psi=dir_psi,
+                    scan=scan_,
+                    fwd=False,
+                )
+            norm_probe += 1e-32
+
+            dir_psi /= norm_probe
+
+            dOP = cp.zeros((*scan_.shape[:2], *data_.shape[-2:]),
+                           dtype='complex64')
+            dOP = op.diffraction._patch(
+                patches=dOP,
+                psi=dir_psi,
+                scan=scan_,
+                fwd=True,
+            )
+            dOP = dOP.reshape(op.ntheta, scan_.shape[-2] // op.fly, op.fly, 1,
+                              op.detector_shape, op.detector_shape)
+            dOP = op.xp.tile(dOP, reps=(1, 1, 1, probe.shape[-3], 1, 1))
+            dOP[..., pad:end, pad:end] *= probe
+
+            updates.append(dOP.view('float32').reshape(lstsq_shape))
+
+        if recover_probe:
+            grad_probe = (chi * xp.conj(patches))[..., pad:end, pad:end]
+            dir_probe = cp.sum(
+                grad_probe,
+                axis=(1, 2),
+                keepdims=True,
+            ) / cp.sum(
+                cp.square(cp.abs(patches[..., pad:end, pad:end])),
+                axis=(1, 2),
+            )
+
+            dPO = patches.copy()
+            dPO[..., pad:end, pad:end] *= dir_probe
+
+            updates.append(dPO.view('float32').reshape(lstsq_shape))
+
+        # Use least-squares to find the optimal step sizes simultaneously for
+        # all search directions.
+        if updates:
+            A = cp.stack(updates, axis=-1)
+            b = chi.view('float32').reshape(lstsq_shape)
+            steps = _lstsq(A, b)
+            num_steps = 0
+        d = 0
+
+        # Update each direction
+        if recover_psi:
+            step = steps[..., num_steps, None, None]
+            # logger.info('%10s step is %+12.5e', 'object', step)
+            num_steps += 1
+
+            weighted_step = cp.zeros_like(psi)
+            for m in range(probe.shape[-3]):
+                # FIXME: Shape changes required for fly scans.
+                intensity = cp.ones(
+                    (*scan_.shape[:2], 1, 1, 1, 1),
+                    dtype='complex64',
+                ) * cp.square(cp.abs(probe[..., m:m + 1, :, :]))
+                weighted_step = op.diffraction._patch(
+                    patches=step * intensity,
+                    psi=weighted_step,
+                    scan=scan_,
+                    fwd=False,
                 )
 
-            if recover_probe:
-                probe[..., mode:end, :, :], cost = update_probe(
-                    op,
-                    nearplane[..., mode:end, :, :],
-                    probe[..., mode:end, :, :],
-                    scan_,
-                    psi,
-                    num_iter=cg_iter,
-                )
+            psi += dir_psi * weighted_step / norm_probe
+            d += step * dOP
 
-    # if recover_positions:
-    #     scan, cost = update_positions_pd(op, data, psi, probe, scan)
+        if recover_probe:
+            step = steps[..., num_steps, None, None]
+            num_steps += 1
+
+            weighted_step = cp.sum(
+                step * cp.square(cp.abs(patches[..., pad:end, pad:end])),
+                axis=(1, 2),
+            )
+
+            norm_psi = cp.sum(
+                cp.square(cp.abs(patches[..., pad:end, pad:end])),
+                axis=(1, 2),
+            )
+
+            probe += dir_probe * weighted_step / norm_psi
+            d += step * dPO
+
+    logger.info('%10s cost is %+12.5e', 'nearplane',
+                cp.linalg.norm(cp.ravel(chi - d)))
 
     return {
         'psi': [psi],
@@ -108,6 +216,8 @@ def update_phase(op, data, farplane, num_iter=1):
         intensity = xp.sum(xp.square(xp.abs(farplane)), axis=(2, 3))
         return op.propagation.cost(data, intensity)
 
+    logger.info('%10s cost is %+12.5e', 'farplane', cost_function(farplane))
+
     farplane, cost = conjugate_gradient(
         xp,
         x=farplane,
@@ -126,7 +236,7 @@ def update_phase(op, data, farplane, num_iter=1):
         ) / xp.sum(
             ξ * ξ * intensity,
             axis=(-1, -2),
-    )
+        )
 
     # print cost function for sanity check
     logger.info('%10s cost is %+12.5e', 'farplane', cost)
@@ -290,3 +400,38 @@ def update_object(
     cost = cost_function(psi)
     logger.info('%10s cost is %+12.5e', 'object', cost)
     return psi, cost
+
+
+def _lstsq(a, b):
+    """Return the least-squares solution for a @ x = b.
+
+    This implementation, unlike cp.linalg.lstsq, allows a stack of matricies to
+    be processed simultaneously. The input sizes of the matricies are as
+    follows:
+        a (..., M, N)
+        b (..., M)
+        x (...,    N)
+
+    ...seealso:: https://github.com/numpy/numpy/issues/8720
+                 https://github.com/cupy/cupy/issues/3062
+    """
+    assert a.shape[:-1] == b.shape, (f"Leading dims of a {a.shape}"
+                                     f"and b {b.shape} must be same!")
+    shape = a.shape[:-2]
+    a = a.reshape(-1, *a.shape[-2:])
+    b = b.reshape(-1, *b.shape[-1:], 1)
+    x = cp.empty((a.shape[0], a.shape[-1], 1), dtype=a.dtype)
+    for i in range(a.shape[0]):
+        x[i], _, _, _ = cp.linalg.lstsq(a[i], b[i])
+    return x.reshape(*shape, a.shape[-1])
+
+
+if __name__ == "__main__":
+    N = (3, 4)
+
+    a = cp.random.rand(*N, 5, 2) + 1j * cp.random.rand(*N, 5, 2)
+    b = cp.random.rand(*N, 5) + 1j * cp.random.rand(*N, 5)
+
+    x = _lstsq(a.astype('complex64'), b.astype('complex64'))
+
+    assert x.shape == (*N, 2)
