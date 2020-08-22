@@ -56,6 +56,23 @@ class Propagation(CachedFFT, Operator):
             overwrite=overwrite,
         ).reshape(shape)
 
+    def _fft2(self, a,  **kwargs):
+        n = a.shape[1]
+        a = self.xp.fft.fftshift(a, axes=(-1,-2))
+        [kv, ku] = self.xp.mgrid[-n // 2:n // 2, -n // 2:n // 2] / n
+        # [kv, ku] = self.xpmgrid[0:n,0:n] / n
+        ku = self.xp.fft.fftshift(ku)
+        kv = self.xp.fft.fftshift(kv)
+        ku = ku.ravel().astype('float32')
+        kv = kv.ravel().astype('float32')  
+        x = self.xp.stack((kv,ku), axis=-1)  
+        F = self.xp.zeros(a.shape, dtype='complex64')
+        print(F.shape, a[5].shape, x.shape)
+
+        for k in range(a.shape[0]):
+            F[k] = eq2us2d(a[k], x, a.shape[1], 1e-6, xp=self.xp).reshape(n,n)
+        return F
+
     def adj(self, farplane, overwrite=False, **kwargs):
         """Adjoint Fourier-based free-space propagation operator."""
         self._check_shape(farplane)
@@ -66,6 +83,21 @@ class Propagation(CachedFFT, Operator):
             axes=(-2, -1),
             overwrite=overwrite,
         ).reshape(shape)
+        
+    def _ifft2(self, a, **kwargs):
+        n = a.shape[1]
+        [kv, ku] = self.xp.mgrid[-n // 2:n // 2, -n // 2:n // 2] / n
+        ku = self.xp.fft.ifftshift(ku)
+        kv = self.xp.fft.ifftshift(kv)
+        ku = ku.ravel().astype('float32')
+        kv = kv.ravel().astype('float32')  
+        x = self.xp.stack((kv,ku), axis=-1)  
+        F = self.xp.zeros(a.shape, dtype='complex64')
+        for k in range(a.shape[0]):
+            F[k] = us2eq2d(a[k], -x, n, 1e-6, xp=self.xp)
+            F[k] /= n**2
+        F = self.xp.fft.ifftshift(F, axes=(-1,-2))    
+        return F    
 
     def _check_shape(self, x):
         assert type(x) is self.xp.ndarray, type(x)
