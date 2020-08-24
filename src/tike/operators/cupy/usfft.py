@@ -8,15 +8,18 @@ by negating the frequencies on the non-uniform grid.
 
 import numpy as np
 
+
 def _get_kernel(xp, pad, mu):
     """Return the interpolation kernel for the USFFT."""
     xeq = xp.mgrid[-pad:pad, -pad:pad, -pad:pad]
     return xp.exp(-mu * xp.sum(xeq**2, axis=0)).astype('float32')
 
+
 def _get_kernel2d(xp, pad, mu):
     """Return the interpolation kernel for the 2d USFFT."""
     xeq = xp.mgrid[-pad:pad, -pad:pad]
     return xp.exp(-mu * xp.sum(xeq**2, axis=0)).astype('float32')
+
 
 def vector_gather(xp, Fe, x, n, m, mu):
     """A faster implementation of sequential_gather"""
@@ -39,6 +42,7 @@ def vector_gather(xp, Fe, x, n, m, mu):
                         (n + ell[:, 2] + i2) % (2 * n)] * Fkernel
     return F
 
+
 def vector_gather2d(xp, Fe, x, n, m, mu):
     """A faster implementation of sequential_gather"""
     cons = [xp.sqrt(xp.pi / mu)**2, -xp.pi**2 / mu]
@@ -56,6 +60,7 @@ def vector_gather2d(xp, Fe, x, n, m, mu):
             F += Fe[(n + ell[:, 0] + i0) % (2 * n),
                     (n + ell[:, 1] + i1) % (2 * n)] * Fkernel
     return F
+
 
 def sequential_gather(xp, Fe, x, n, m, mu):
     """Gather F from the regular grid.
@@ -125,6 +130,7 @@ def eq2us(f, x, n, eps, xp, gather=vector_gather, fftn=None):
 
     return F
 
+
 def eq2us2d(f, x, n, eps, xp, gather=vector_gather2d, fftn=None):
     """2d USFFT from equally-spaced grid to unequally-spaced grid.
     Parameters
@@ -156,6 +162,7 @@ def eq2us2d(f, x, n, eps, xp, gather=vector_gather2d, fftn=None):
     F = gather(xp, Fe, x, n, m, mu)
 
     return F
+
 
 def sequential_scatter(xp, f, x, n, m, mu):
     """Scatter f to the regular grid.
@@ -223,6 +230,7 @@ def vector_scatter(xp, f, x, n, m, mu, ndim=3):
                 G[ids] += vals[ids]
     return G.reshape([2 * n] * ndim)
 
+
 def vector_scatter2d(xp, f, x, n, m, mu):
     """A faster implemenation of sequential_scatter."""
     cons = [xp.sqrt(xp.pi / mu)**2, -xp.pi**2 / mu]
@@ -232,14 +240,15 @@ def vector_scatter2d(xp, f, x, n, m, mu):
 
     G = xp.zeros([(2 * n)**2], dtype="complex64")
     ell = ((2 * n * x) // 1).astype(xp.int32)  # nearest grid to x
-    stride = (2 * n)
+    stride = 2 * n
     for i0 in range(-m, m):
         delta0 = delta(ell[:, 0], i0, x[:, 0])
         for i1 in range(-m, m):
             delta1 = delta(ell[:, 1], i1, x[:, 1])
             Fkernel = cons[0] * xp.exp(cons[1] * (delta0 + delta1))
-            ids = (((n + ell[:, 1] + i1) % (2 * n))
-                + stride[0] * ((n + ell[:, 0] + i0) % (2 * n))
+            ids = (
+                               ((n + ell[:, 1] + i1) % (2 * n))
+                    + stride * ((n + ell[:, 0] + i0) % (2 * n))
             ) # yapf: disable
             vals = f * Fkernel
             # accumulate by indexes (with possible index intersections),
@@ -249,6 +258,7 @@ def vector_scatter2d(xp, f, x, n, m, mu):
             ids = xp.nonzero(vals)[0]
             G[ids] += vals[ids]
     return G.reshape([2 * n] * 2)
+
 
 def us2eq(f, x, n, eps, xp, scatter=vector_scatter, fftn=None):
     """USFFT from unequally-spaced grid to equally-spaced grid.
@@ -286,6 +296,7 @@ def us2eq(f, x, n, eps, xp, scatter=vector_scatter, fftn=None):
 
     return F
 
+
 def us2eq2d(f, x, n, eps, xp, scatter=vector_scatter2d, fftn=None):
     """2d USFFT from unequally-spaced grid to equally-spaced grid.
     Parameters
@@ -320,6 +331,7 @@ def us2eq2d(f, x, n, eps, xp, scatter=vector_scatter2d, fftn=None):
     F = F[pad:end, pad:end] / ((2 * n)**2 * kernel)
 
     return F
+
 
 def _unpad(array, width, mode='wrap'):
     """Remove padding from an array in-place.
