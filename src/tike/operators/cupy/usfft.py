@@ -5,8 +5,54 @@ a non-uniform domain or vice-versa. This module provides forward Fourier
 transforms for those two cased. The inverser Fourier transforms may be created
 by negating the frequencies on the non-uniform grid.
 """
+from importlib_resources import files
 
 import numpy as np
+import cupy as cp
+
+_cu_source = files('tike.operators.cupy').joinpath('usfft.cu').read_text()
+gather_kernel = cp.RawKernel(_cu_source, "gather2")
+scatter_kernel = cp.RawKernel(_cu_source, "scatter2")
+
+def cuda_scatter2(xp, f, x, n, m, mu):
+    const = cp.array([cp.sqrt(cp.pi / mu)**2, -cp.pi**2 / mu], dtype='float32')
+
+    grid = (1, 0, min(f.shape[1], 65535))
+    block = (min(scatter_kernel.max_threads_per_block, (2 * m)**2),)
+
+    G = cp.zeros([x.shape[0]] + [2 * n] * 2, dtype="complex64")
+    scatter_kernel(grid, block, (
+        G,
+        f.astype('complex64'),
+        x.shape[1],
+        x.astype('float32'),
+        n,
+        m,
+        const.astype('float32'),
+        x.shape[0],
+    ))
+    return G
+
+def cuda_gather2(xp, Fe, x, n, m, mu):
+    const = cp.array([cp.sqrt(cp.pi / mu)**2, -cp.pi**2 / mu], dtype='float32')
+
+    grid = (1, 0, min(x.shape[1], 65535))
+    block = (min(gather_kernel.max_threads_per_block, (2 * m)**2),)
+
+    F = cp.zeros(x.shape[:-1], dtype="complex64")
+
+    gather_kernel(grid, block, (
+        F,
+        Fe.astype('complex64'),
+        x.shape[1],
+        x.astype('float32'),
+        n,
+        m,
+        const.astype('float32'),
+        x.shape[0],
+    ))
+    return F
+
 
 
 def _get_kernel(xp, pad, mu):
@@ -132,7 +178,7 @@ def eq2us(f, x, n, eps, xp, gather=vector_gather, fftn=None):
     return F
 
 
-def eq2us2d(f, x, n, eps, xp, gather=vector_gather2d, fftn=None):
+def eq2us2d(f, x, n, eps, xp, gather=cuda_gather2, fftn=None):
     """2D USFFT from equally-spaced grid to unequally-spaced grid.
 
     Parameters
@@ -148,7 +194,10 @@ def eq2us2d(f, x, n, eps, xp, gather=vector_gather2d, fftn=None):
     ndim = 2
     pad = n // 2  # where zero-padding stops
     end = pad + n  # where f stops
+    assert f.shape[:-2] == x.shape[:-2], (f.shape, x.shape)
+    assert x.shape[-1] == 2
     f = f.reshape(-1, n, n)
+    x = x.reshape(-1, *x.shape[-2:])
     M = f.shape[0]
 
     # parameters for the USFFT transform
@@ -306,7 +355,7 @@ def us2eq(f, x, n, eps, xp, scatter=vector_scatter, fftn=None):
     return F
 
 
-def us2eq2d(f, x, n, eps, xp, scatter=vector_scatter2d, fftn=None):
+def us2eq2d(f, x, n, eps, xp, scatter=cuda_scatter2, fftn=None):
     """2D USFFT from unequally-spaced grid to equally-spaced grid.
 
     Parameters

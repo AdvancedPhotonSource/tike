@@ -98,6 +98,15 @@ gather(float2* F, const float2* Fe, int nf, const float* x, int n, int radius,
   _loop_over_kernels(_gather, F, Fe, nf, x, n, radius, cons, 3);
 }
 
+extern "C" __global__ void
+gather2(float2* F, const float2* Fe, int nf, const float* x, int n, int radius,
+        const float* cons, int M) {
+  for (int i = 0; i < M; i++) {
+    _loop_over_kernels(_gather, &F[i * nf], &Fe[i * 4 * n * n], nf,
+                       &x[i * nf * 2], n, radius, cons, 2);
+  }
+}
+
 __device__ void
 _scatter(float2* gather, int si, const float2* scatter, int gi, float kernel) {
   atomicAdd(&gather[gi].x, scatter[si].x * kernel);
@@ -108,4 +117,13 @@ extern "C" __global__ void
 scatter(float2* G, const float2* f, int nf, const float* x, int n, int radius,
         const float* cons) {
   _loop_over_kernels(_scatter, G, f, nf, x, n, radius, cons, 3);
+}
+
+extern "C" __global__ void
+scatter2(float2* G, const float2* f, int nf, const float* x, int n, int radius,
+         const float* cons, int M) {
+  for (int i = 0; i < M; i++) {
+    _loop_over_kernels(_scatter, &G[i * 4 * n * n], &f[i * nf], nf,
+                       &x[i * nf * 2], n, radius, cons, 2);
+  }
 }
