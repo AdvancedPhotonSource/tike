@@ -59,17 +59,16 @@ class Propagation(CachedFFT, Operator):
 
     def _fft2(self, a, norm=None, **kwargs):
         xp = self.xp
+        M = a.shape[0]
         n = a.shape[1]
         a = xp.fft.fftshift(a, axes=(-1, -2))
-        [kv, ku] = xp.mgrid[-n // 2:n // 2, -n // 2:n // 2] / n
-        ku = xp.fft.fftshift(ku)
-        kv = xp.fft.fftshift(kv)
-        ku = ku.ravel().astype('float32')
-        kv = kv.ravel().astype('float32')
+        [_, kv, ku] = xp.mgrid[0:M, -n // 2:n // 2, -n // 2:n // 2] / n
+        ku = xp.fft.fftshift(ku, axes=(-1, -2))
+        kv = xp.fft.fftshift(kv, axes=(-1, -2))
+        ku = ku.reshape(M, -1).astype('float32')
+        kv = kv.reshape(M, -1).astype('float32')
         x = xp.stack((kv, ku), axis=-1)
-        F = xp.zeros(a.shape, dtype='complex64')
-        for k in range(a.shape[0]):
-            F[k] = eq2us2d(a[k], x, a.shape[1], 1e-3, xp=xp).reshape(n, n)
+        F = eq2us2d(a, x, n, 1e-6, xp=xp).reshape(M, n, n)
         if norm == 'ortho':
             F /= n
         return F
@@ -87,17 +86,17 @@ class Propagation(CachedFFT, Operator):
 
     def _ifft2(self, a, norm=None, **kwargs):
         xp = self.xp
+        M = a.shape[0]
         n = a.shape[1]
-        [kv, ku] = xp.mgrid[-n // 2:n // 2, -n // 2:n // 2] / n
-        ku = xp.fft.ifftshift(ku)
-        kv = xp.fft.ifftshift(kv)
-        ku = ku.ravel().astype('float32')
-        kv = kv.ravel().astype('float32')
+        [_, kv, ku] = xp.mgrid[0:M, -n // 2:n // 2, -n // 2:n // 2] / n
+        ku = xp.fft.fftshift(ku, axes=(-1, -2))
+        kv = xp.fft.fftshift(kv, axes=(-1, -2))
+        ku = ku.reshape(M, -1).astype('float32')
+        kv = kv.reshape(M, -1).astype('float32')
         x = xp.stack((kv, ku), axis=-1)
         F = xp.zeros(a.shape, dtype='complex64')
         a = a.reshape(a.shape[0], -1)
-        for k in range(a.shape[0]):
-            F[k] = us2eq2d(a[k], -x, n, 1e-3, xp=xp)
+        F = us2eq2d(a, -x, n, 1e-6, xp=xp)
         if norm == 'ortho':
             F /= n
         else:

@@ -50,15 +50,16 @@ def vector_gather2d(xp, Fe, x, n, m, mu):
     def delta(l, i, x):
         return ((l + i).astype('float32') / (2 * n) - x)**2
 
-    F = xp.zeros(x.shape[0], dtype="complex64")
-    ell = ((2 * n * x) // 1).astype(xp.int32)  # nearest grid to x
-    for i0 in range(-m, m):
-        delta0 = delta(ell[:, 0], i0, x[:, 0])
-        for i1 in range(-m, m):
-            delta1 = delta(ell[:, 1], i1, x[:, 1])
-            Fkernel = cons[0] * xp.exp(cons[1] * (delta0 + delta1))
-            F += Fe[(n + ell[:, 0] + i0) % (2 * n),
-                    (n + ell[:, 1] + i1) % (2 * n)] * Fkernel
+    F = xp.zeros(x.shape[0:2], dtype="complex64")
+    for b in range(F.shape[0]):
+        ell = ((2 * n * x[b]) // 1).astype(xp.int32)  # nearest grid to x
+        for i0 in range(-m, m):
+            delta0 = delta(ell[:, 0], i0, x[b, :, 0])
+            for i1 in range(-m, m):
+                delta1 = delta(ell[:, 1], i1, x[b, :, 1])
+                Fkernel = cons[0] * xp.exp(cons[1] * (delta0 + delta1))
+                F[b] += Fe[b, (n + ell[:, 0] + i0) % (2 * n),
+                           (n + ell[:, 1] + i1) % (2 * n)] * Fkernel
     return F
 
 
@@ -132,20 +133,23 @@ def eq2us(f, x, n, eps, xp, gather=vector_gather, fftn=None):
 
 
 def eq2us2d(f, x, n, eps, xp, gather=vector_gather2d, fftn=None):
-    """2d USFFT from equally-spaced grid to unequally-spaced grid.
+    """2D USFFT from equally-spaced grid to unequally-spaced grid.
+
     Parameters
     ----------
-    f : (n, n) complex64
-        The function to be transformed on a regular-grid of size n.
-    x : (N, 2)
-        The sampled frequencies on unequally-spaced grid.
+    f : (..., n, n) complex64
+        The equally-sampled function on an n by n grid.
+    x : (..., s, 2)
+        The s unequally-spaced frequencies.
     eps : float
         The desired relative accuracy of the USFFT.
     """
-    fftn = xp.fft.fftn if fftn is None else fftn
-    ndim = f.ndim
+    fftn = xp.fft.fft2 if fftn is None else fftn
+    ndim = 2
     pad = n // 2  # where zero-padding stops
     end = pad + n  # where f stops
+    f = f.reshape(-1, n, n)
+    M = f.shape[0]
 
     # parameters for the USFFT transform
     mu = -xp.log(eps) / (2 * n**2)
@@ -156,11 +160,15 @@ def eq2us2d(f, x, n, eps, xp, gather=vector_gather2d, fftn=None):
     kernel = _get_kernel2d(xp, pad, mu)
 
     # FFT and compesantion for smearing
-    fe = xp.zeros([2 * n] * ndim, dtype="complex64")
-    fe[pad:end, pad:end] = f / ((2 * n)**ndim * kernel)
-    Fe = checkerboard(xp, fftn(checkerboard(xp, fe)), inverse=True)
+    fe = xp.zeros([M] + [2 * n] * ndim, dtype="complex64")
+    fe[:, pad:end, pad:end] = f / ((2 * n)**ndim * kernel)
+    Fe = checkerboard(
+        xp,
+        fftn(checkerboard(xp, fe, axes=(-1, -2))),
+        axes=(-1, -2),
+        inverse=True,
+    )
     F = gather(xp, Fe, x, n, m, mu)
-
     return F
 
 
@@ -238,26 +246,27 @@ def vector_scatter2d(xp, f, x, n, m, mu):
     def delta(l, i, x):
         return ((l + i).astype('float32') / (2 * n) - x)**2
 
-    G = xp.zeros([(2 * n)**2], dtype="complex64")
-    ell = ((2 * n * x) // 1).astype(xp.int32)  # nearest grid to x
-    stride = 2 * n
-    for i0 in range(-m, m):
-        delta0 = delta(ell[:, 0], i0, x[:, 0])
-        for i1 in range(-m, m):
-            delta1 = delta(ell[:, 1], i1, x[:, 1])
-            Fkernel = cons[0] * xp.exp(cons[1] * (delta0 + delta1))
-            ids = (
-                               ((n + ell[:, 1] + i1) % (2 * n))
-                    + stride * ((n + ell[:, 0] + i0) % (2 * n))
-            ) # yapf: disable
-            vals = f * Fkernel
-            # accumulate by indexes (with possible index intersections),
-            # TODO acceleration of bincount!!
-            vals = (xp.bincount(ids, weights=vals.real) +
-                    1j * xp.bincount(ids, weights=vals.imag))
-            ids = xp.nonzero(vals)[0]
-            G[ids] += vals[ids]
-    return G.reshape([2 * n] * 2)
+    G = xp.zeros([f.shape[0]] + [(2 * n)**2], dtype="complex64")
+    for b in range(G.shape[0]):
+        ell = ((2 * n * x[b]) // 1).astype(xp.int32)  # nearest grid to x
+        stride = 2 * n
+        for i0 in range(-m, m):
+            delta0 = delta(ell[:, 0], i0, x[b, :, 0])
+            for i1 in range(-m, m):
+                delta1 = delta(ell[:, 1], i1, x[b, :, 1])
+                Fkernel = cons[0] * xp.exp(cons[1] * (delta0 + delta1))
+                ids = (
+                                   ((n + ell[:, 1] + i1) % (2 * n))
+                        + stride * ((n + ell[:, 0] + i0) % (2 * n))
+                ) # yapf: disable
+                vals = f[b] * Fkernel
+                # accumulate by indexes (with possible index intersections),
+                # TODO acceleration of bincount!!
+                vals = (xp.bincount(ids, weights=vals.real) +
+                        1j * xp.bincount(ids, weights=vals.imag))
+                ids = xp.nonzero(vals)[0]
+                G[b, ids] += vals[ids]
+    return G.reshape([-1] + [2 * n] * 2)
 
 
 def us2eq(f, x, n, eps, xp, scatter=vector_scatter, fftn=None):
@@ -298,23 +307,28 @@ def us2eq(f, x, n, eps, xp, scatter=vector_scatter, fftn=None):
 
 
 def us2eq2d(f, x, n, eps, xp, scatter=vector_scatter2d, fftn=None):
-    """2d USFFT from unequally-spaced grid to equally-spaced grid.
+    """2D USFFT from unequally-spaced grid to equally-spaced grid.
+
     Parameters
     ----------
-    f : (n**2) complex64
-        Values of unequally-spaced function on the grid x
-    x : (n**2) float
-        The frequencies on the unequally-spaced grid
+    f : (..., s) complex64
+        Values of unequally-spaced function at frequencies x.
+    x : (..., s, 2) float
+        The s unequally-spaced frequencies.
     n : int
-        The size of the equall spaced grid.
+        The width of the square equally-spaced grid.
     eps : float
-        The accuracy of computing USFFT
-    scatter : function
-        The scatter function to use.
+        The accuracy of computing USFFT.
     """
-    fftn = xp.fft.fftn if fftn is None else fftn
+    fftn = xp.fft.fft2 if fftn is None else fftn
     pad = n // 2  # where zero-padding stops
     end = pad + n  # where f stops
+
+    assert f.shape == x.shape[:-1]
+    assert x.shape[-1] == 2
+    strides = f.shape[:-1]
+    f = f.reshape(-1, f.shape[-1])
+    x = x.reshape(-1, f.shape[-1], 2)
 
     # parameters for the USFFT transform
     mu = -xp.log(eps) / (2 * n**2)
@@ -327,10 +341,15 @@ def us2eq2d(f, x, n, eps, xp, scatter=vector_scatter2d, fftn=None):
     G = scatter(xp, f, x, n, m, mu)
 
     # FFT and compesantion for smearing
-    F = checkerboard(xp, fftn(checkerboard(xp, G)), inverse=True)
-    F = F[pad:end, pad:end] / ((2 * n)**2 * kernel)
+    F = checkerboard(
+        xp,
+        fftn(checkerboard(xp, G, axes=(-1, -2))),
+        axes=(-1, -2),
+        inverse=True,
+    )
+    F = F[..., pad:end, pad:end] / ((2 * n)**2 * kernel)
 
-    return F
+    return F.reshape(*strides, n, n)
 
 
 def _unpad(array, width, mode='wrap'):
