@@ -72,7 +72,7 @@ _loop_over_kernels(scatterOrGather operation, float2* gathered,
       int gi = 0;
       int stride = 1;
       for (int dim = ndim - 1; dim >= 0; dim--) {
-        delta = (float)(center[dim] + k[dim]) / (2 * n) - x[3 * fi + dim];
+        delta = (float)(center[dim] + k[dim]) / (2 * n) - x[ndim * fi + dim];
         ssdelta += delta * delta;
         gi += mod((n + center[dim] + k[dim]), gw) * stride;
         stride *= gw;
