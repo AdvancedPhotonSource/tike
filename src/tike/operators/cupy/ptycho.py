@@ -63,7 +63,7 @@ class Ptycho(Operator):
 
     """
 
-    def __init__(self, detector_shape, probe_shape, nz, n,
+    def __init__(self, detector_shape, probe_shape, nz, n, x,
                  ntheta=1, model='gaussian', fly=1,
                  propagation=Propagation,
                  diffraction=Convolution,
@@ -72,6 +72,7 @@ class Ptycho(Operator):
         self.propagation = propagation(
             detector_shape=detector_shape,
             model=model,
+            x=x,
             **kwargs,
         )
         self.diffraction = diffraction(

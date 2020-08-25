@@ -26,6 +26,7 @@ class Propagation(CachedFFT, Operator):
         The function to be minimized when solving a problem.
     grad : (data-like, farplane-like) -> farplane-like
         The gradient of cost.
+    x : frequency information
 
     Parameters
     ----------
@@ -41,10 +42,11 @@ class Propagation(CachedFFT, Operator):
 
     """
 
-    def __init__(self, detector_shape, model='gaussian', **kwargs):
+    def __init__(self, detector_shape, x, model='gaussian', **kwargs):
         self.detector_shape = detector_shape
         self.cost = getattr(self, f'_{model}_cost')
         self.grad = getattr(self, f'_{model}_grad')
+        self.x = x
 
     def fwd(self, nearplane, overwrite=False, **kwargs):
         """Forward Fourier-based free-space propagation operator."""
@@ -62,13 +64,13 @@ class Propagation(CachedFFT, Operator):
         M = a.shape[0]
         n = a.shape[1]
         a = xp.fft.fftshift(a, axes=(-1, -2))
-        [_, kv, ku] = xp.mgrid[0:M, -n // 2:n // 2, -n // 2:n // 2] / n
-        ku = xp.fft.fftshift(ku, axes=(-1, -2))
-        kv = xp.fft.fftshift(kv, axes=(-1, -2))
-        ku = ku.reshape(M, -1).astype('float32')
-        kv = kv.reshape(M, -1).astype('float32')
-        x = xp.stack((kv, ku), axis=-1)
-        F = eq2us2d(a, x, n, 1e-6, xp=xp).reshape(M, n, n)
+        # [_, kv, ku] = xp.mgrid[0:M, -n // 2:n // 2, -n // 2:n // 2] / n
+        # ku = xp.fft.fftshift(ku, axes=(-1, -2))
+        # kv = xp.fft.fftshift(kv, axes=(-1, -2))
+        # ku = ku.reshape(M, -1).astype('float32')
+        # kv = kv.reshape(M, -1).astype('float32')
+        # x = xp.stack((kv, ku), axis=-1)
+        F = eq2us2d(a, self.x, n, 1e-6, xp=xp).reshape(M, n, n)
         if norm == 'ortho':
             F /= n
         return F
@@ -88,15 +90,15 @@ class Propagation(CachedFFT, Operator):
         xp = self.xp
         M = a.shape[0]
         n = a.shape[1]
-        [_, kv, ku] = xp.mgrid[0:M, -n // 2:n // 2, -n // 2:n // 2] / n
-        ku = xp.fft.fftshift(ku, axes=(-1, -2))
-        kv = xp.fft.fftshift(kv, axes=(-1, -2))
-        ku = ku.reshape(M, -1).astype('float32')
-        kv = kv.reshape(M, -1).astype('float32')
-        x = xp.stack((kv, ku), axis=-1)
+        # [_, kv, ku] = xp.mgrid[0:M, -n // 2:n // 2, -n // 2:n // 2] / n
+        # ku = xp.fft.fftshift(ku, axes=(-1, -2))
+        # kv = xp.fft.fftshift(kv, axes=(-1, -2))
+        # ku = ku.reshape(M, -1).astype('float32')
+        # kv = kv.reshape(M, -1).astype('float32')
+        # x = xp.stack((kv, ku), axis=-1)
         F = xp.zeros(a.shape, dtype='complex64')
         a = a.reshape(a.shape[0], -1)
-        F = us2eq2d(a, -x, n, 1e-6, xp=xp)
+        F = us2eq2d(a, -self.x, n, 1e-6, xp=xp)
         if norm == 'ortho':
             F /= n
         else:

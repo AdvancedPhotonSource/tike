@@ -102,7 +102,7 @@ def gaussian(size, rin=0.8, rout=1.0):
 def simulate(
         detector_shape,
         probe, scan,
-        psi,
+        psi, x,
         **kwargs
 ):  # yapf: disable
     """Return real-valued detector counts of simulated ptychography data."""
@@ -115,6 +115,7 @@ def simulate(
             nz=psi.shape[-2],
             n=psi.shape[-1],
             ntheta=scan.shape[0],
+            x=x,
             **kwargs,
     ) as operator:
         data = 0
@@ -138,7 +139,7 @@ def simulate(
 def reconstruct(
         data,
         probe, scan,
-        algorithm,
+        algorithm, x,
         psi=None, num_gpu=1, num_iter=1, rtol=-1, **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
@@ -162,6 +163,7 @@ def reconstruct(
                 nz=psi.shape[-2],
                 n=psi.shape[-1],
                 ntheta=scan.shape[0],
+                x=x,
                 **kwargs,
         ) as operator, ThreadPool(num_gpu) as pool:
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
