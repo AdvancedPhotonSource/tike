@@ -47,63 +47,43 @@ class Propagation(CachedFFT, Operator):
         self.cost = getattr(self, f'_{model}_cost')
         self.grad = getattr(self, f'_{model}_grad')
         self.x = x
+        self.nfreq = x.shape[-2]
 
     def fwd(self, nearplane, overwrite=False, **kwargs):
         """Forward Fourier-based free-space propagation operator."""
         self._check_shape(nearplane)
-        shape = nearplane.shape
         return self._fft2(
             nearplane.reshape(-1, self.detector_shape, self.detector_shape),
             norm='ortho',
             axes=(-2, -1),
             overwrite=overwrite,
-        ).reshape(shape)
+        ).reshape(*nearplane.shape[:-2], self.nfreq, 1)
 
     def _fft2(self, a, norm=None, **kwargs):
-        xp = self.xp
-        M = a.shape[0]
-        n = a.shape[1]
-        a = xp.fft.fftshift(a, axes=(-1, -2))
-        # [_, kv, ku] = xp.mgrid[0:M, -n // 2:n // 2, -n // 2:n // 2] / n
-        # ku = xp.fft.fftshift(ku, axes=(-1, -2))
-        # kv = xp.fft.fftshift(kv, axes=(-1, -2))
-        # ku = ku.reshape(M, -1).astype('float32')
-        # kv = kv.reshape(M, -1).astype('float32')
-        # x = xp.stack((kv, ku), axis=-1)
-        F = eq2us2d(a, self.x, n, 1e-6, xp=xp).reshape(M, n, n)
+        n = self.detector_shape
+        a = self.xp.fft.fftshift(a, axes=(-1, -2))
+        F = eq2us2d(a, self.x, n, 1e-6, xp=self.xp)
         if norm == 'ortho':
             F /= n
         return F
 
     def adj(self, farplane, overwrite=False, **kwargs):
         """Adjoint Fourier-based free-space propagation operator."""
-        self._check_shape(farplane)
-        shape = farplane.shape
         return self._ifft2(
-            farplane.reshape(-1, self.detector_shape, self.detector_shape),
+            farplane.reshape(-1, self.nfreq),
             norm='ortho',
             axes=(-2, -1),
             overwrite=overwrite,
-        ).reshape(shape)
+        ).reshape(*farplane.shape[:-2], self.detector_shape, self.detector_shape)
 
     def _ifft2(self, a, norm=None, **kwargs):
-        xp = self.xp
-        M = a.shape[0]
-        n = a.shape[1]
-        # [_, kv, ku] = xp.mgrid[0:M, -n // 2:n // 2, -n // 2:n // 2] / n
-        # ku = xp.fft.fftshift(ku, axes=(-1, -2))
-        # kv = xp.fft.fftshift(kv, axes=(-1, -2))
-        # ku = ku.reshape(M, -1).astype('float32')
-        # kv = kv.reshape(M, -1).astype('float32')
-        # x = xp.stack((kv, ku), axis=-1)
-        F = xp.zeros(a.shape, dtype='complex64')
-        a = a.reshape(a.shape[0], -1)
-        F = us2eq2d(a, -self.x, n, 1e-6, xp=xp)
+        n = self.detector_shape
+        F = us2eq2d(a, -self.x, n, 1e-6, xp=self.xp)
         if norm == 'ortho':
             F /= n
         else:
             F /= n * n
-        F = xp.fft.ifftshift(F, axes=(-1, -2))
+        F = self.xp.fft.ifftshift(F, axes=(-1, -2))
         return F
 
     def _check_shape(self, x):

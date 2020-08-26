@@ -126,14 +126,10 @@ def simulate(
                 psi=operator.asarray(psi, dtype='complex64'),
                 **kwargs,
             )
-            data += np.square(
-                np.linalg.norm(
-                    farplane.reshape(operator.ntheta,
-                                     scan.shape[-2] // operator.fly, -1,
-                                     detector_shape, detector_shape),
-                    ord=2,
-                    axis=2,
-                ))
+            data += np.sum(
+                np.square(np.abs(farplane)),
+                axis=(2, 3),
+            )
         return operator.asnumpy(data)
 
 def reconstruct(
@@ -159,7 +155,7 @@ def reconstruct(
         # Initialize an operator.
         with Ptycho(
                 probe_shape=probe.shape[-1],
-                detector_shape=data.shape[-1],
+                detector_shape=probe.shape[-1] * 2,
                 nz=psi.shape[-2],
                 n=psi.shape[-1],
                 ntheta=scan.shape[0],
