@@ -185,10 +185,15 @@ def eq2us2d(f, x, n, eps, xp, gather=cuda_gather2, fftn=None):
     ----------
     f : (..., n, n) complex64
         The equally-sampled function on an n by n grid.
-    x : (..., s, 2)
+    x : (..., s, 2) float32`
         The s unequally-spaced frequencies.
     eps : float
         The desired relative accuracy of the USFFT.
+
+    Returns
+    -------
+    F : (..., s) complex64
+        The transformed f sampled at frequencies x.
     """
     fftn = xp.fft.fft2 if fftn is None else fftn
     ndim = 2
@@ -368,6 +373,11 @@ def us2eq2d(f, x, n, eps, xp, scatter=cuda_scatter2, fftn=None):
         The width of the square equally-spaced grid.
     eps : float
         The accuracy of computing USFFT.
+
+    Returns
+    -------
+    F : (..., n, n) complex64
+        The transformed f sampled on a regular n by n grid.
     """
     fftn = xp.fft.fft2 if fftn is None else fftn
     pad = n // 2  # where zero-padding stops
