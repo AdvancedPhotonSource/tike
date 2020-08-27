@@ -28,15 +28,19 @@ class ThreadPool(ThreadPoolExecutor):
 
     def __init__(self, workers):
         self.device_count = cp.cuda.runtime.getDeviceCount()
-        if type(workers) is int and workers > 0:
+        if type(workers) is int:
+            if workers < 1:
+                raise ValueError(f"Provide workers > 0, not {workers}.")
             if workers > self.device_count:
                 warnings.warn(
                     "Not enough CUDA devices for workers!"
                     f" Requested {workers} of {self.device_count} devices.")
                 workers = min(workers, self.device_count)
-            workers = tuple(range(workers))
-        else:
-            raise ValueError(f"Provide workers > 0, not {workers}.")
+            if workers == 1:
+                # Respect "with cp.cuda.Device()" blocks for single thread
+                workers = (cp.cuda.Device().id, )
+            else:
+                workers = tuple(range(workers))
         for w in workers:
             if w < 0 or w >= self.device_count:
                 raise ValueError(f'{w} is not a valid GPU device number.')
@@ -57,15 +61,16 @@ class ThreadPool(ThreadPoolExecutor):
 
         return list(self.map(f, self.workers))
 
-    def gather(self, x: list, worker=0, axis=0) -> cp.array:
+    def gather(self, x: list, worker=None, axis=0) -> cp.array:
         """Concatenate x on a single worker along the given axis."""
+        worker = self.workers[0] if worker is None else worker
         return self.xp.concatenate(
             [self._copy_to(part, worker) for part in x],
             axis,
         )
 
     def all_gather(self, x: list, axis=0) -> list:
-        """Concatenate x on all worker along the given axis."""
+        """Concatenate x on all workers along the given axis."""
 
         def f(worker):
             return self.gather(x, worker, axis)
