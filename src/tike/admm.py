@@ -138,8 +138,13 @@ def lamino_align(data, tilt, theta, u=None, flow=None, niter=8, rho=0.5):
 
         if (k+1) % 10 == 0:
             dxchange.write_tiff(
-                u.real,
-                f'particle-{(k+1):03d}.tiff',
+                np.imag(u),
+                f'particle-i-{(k+1):03d}.tiff',
+                dtype='float32',
+            )
+            dxchange.write_tiff(
+                np.real(u),
+                f'particle-r-{(k+1):03d}.tiff',
                 dtype='float32',
             )
 
