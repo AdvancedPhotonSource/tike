@@ -1,12 +1,3 @@
-# Python package
-# Create and test a Python package on multiple Python versions.
-# Add steps that analyze code, save the dist with the build record, publish to
-# a PyPI-compatible index, and more:
-# https://docs.microsoft.com/vsts/pipelines/languages/python
-
-variables:
-  package_name: tike
-
 trigger:
 - master
 
@@ -19,78 +10,60 @@ pr:
     - 'docs/'
     - '/.*'
     - '/*.rst'
+    - '/*.md'
 
 jobs:
 
 - job: Linux
   pool:
-    vmImage: 'ubuntu-latest'
+    name: Default
+    demands:
+    - CUDA_VERSION
+    - Agent.OS -equals Linux
   strategy:
     matrix:
       Python36:
         python.version: '3.6'
       Python37:
         python.version: '3.7'
-        extra.packages: 'pydocstyle'
       Python38:
         python.version: '3.8'
     maxParallel: 4
   steps:
-  - bash: echo "##vso[task.prependpath]$CONDA/bin"
-    displayName: Add conda to PATH
-  - bash: >
-      conda install --yes --quiet
-      conda-build
-      $(extra.packages)
-    displayName: Install conda-build
-  - bash: >
-      conda build . --no-anaconda-upload -c conda-forge
-      --python $(python.version)
-    displayName: Conda build
-  # - bash: |
-  #     pydocstyle --match='(?!utils).*\.py' --count -v src/$(package_name)/
-  #   displayName: Run python docstring linter
-  #   condition: eq(variables['python.version'], '3.7')
 
-- job: macOS
-  pool:
-    vmImage: 'macOS-latest'
-  strategy:
-    matrix:
-      Python37:
-        python.version: '3.7'
-    maxParallel: 4
-  steps:
-  - bash: echo "##vso[task.prependpath]$CONDA/bin"
-    displayName: Add conda to PATH
-  - bash: sudo chown -R $USER $CONDA
-    displayName: Take ownership of conda installation
-  - bash: >
-      conda install --yes --quiet
-      conda-build
-      $(extra.packages)
-    displayName: Install conda-build
-  - bash: >
-      conda build . --no-anaconda-upload -c conda-forge
-      --python $(python.version)
-    displayName: Conda build
+  - script: echo "CUDA version is $(CUDA_VERSION)"
+    displayName: Print CUDA version
 
-- job: Windows
-  pool:
-    vmImage: 'windows-latest'
-  strategy:
-    matrix:
-      Python37:
-        python.version: '3.7'
-    maxParallel: 4
-  steps:
-  - powershell: Write-Host "##vso[task.prependpath]$env:CONDA\Scripts"
-    displayName: Add conda to PATH
+  - script: conda update -n base conda --yes --quiet
+    displayName: Update conda
+
+  - script: conda env remove --yes -n tike
+    displayName: Remove existing build environment
+
   - script: >
-      conda install --yes --quiet
-      conda-build
-    displayName: Install conda-build
-  - script: >
-      conda build . --no-anaconda-upload -c conda-forge
-      --python $(python.version)
-    displayName: Conda build
+      conda create --quiet --force --yes
+      -n tike
+      --channel conda-forge
+      pytest
+      python=$(python.version)
+    displayName: Create build environment
+
+  - script: |
+      source activate tike
+      conda install --file requirements.txt --channel conda-forge --yes --quiet
+    displayName: Install dependencies
+
+  - script: conda list -n tike
+    displayName: List build environment
+
+  - script: |
+      source activate tike
+      pip install . --no-deps
+    displayName: Setup and install
+
+  - script: |
+      source activate tike
+      pytest -vs
+    displayName: Run tests
+
+  - script: conda clean -py

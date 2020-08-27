@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 """Test functions in tike.trajectory."""
 
 import numpy as np
@@ -13,12 +12,18 @@ __docformat__ = 'restructuredtext en'
 
 def test_discrete_trajectory():
     """Check trajectory.discrete_trajectory for stationary probe."""
+
     def stationary(t):
         """Probe is stationary at location h = 8, v = 8."""
-        return 0*t, 8 + 0*t, 8 + 0*t
+        return 0 * t, 8 + 0 * t, 8 + 0 * t
 
-    answer = discrete_trajectory(stationary,
-                                 tmin=0, tmax=0.65, xstep=0.1, tstep=1)
+    answer = discrete_trajectory(
+        stationary,
+        tmin=0,
+        tmax=0.65,
+        xstep=0.1,
+        tstep=1,
+    )
     truth = ([0], [8], [8], [0.65], [0])
     np.testing.assert_equal(answer, truth)
 
@@ -28,10 +33,10 @@ def test_coded_exposure():
     c_time = np.arange(11)
     c_dwell = np.ones(11) * 0.5
 
-    time = np.array([-1., 0.8, 1.8, 3.0, 4.1, 4.2, 6.1,
-                     7.5, 8.6, 8.9, 8.9, 8.9, 20, 21])
-    dwell = np.array([0.1, 0.2, 0.4, 0.5, 0.1, 0.1, 0.6,
-                      0.2, 0.2,   2,   0, 0.3, 1.0, 1.0])
+    time = np.array(
+        [-1., 0.8, 1.8, 3.0, 4.1, 4.2, 6.1, 7.5, 8.6, 8.9, 8.9, 8.9, 20, 21])
+    dwell = np.array(
+        [0.1, 0.2, 0.4, 0.5, 0.1, 0.1, 0.6, 0.2, 0.2, 2, 0, 0.3, 1.0, 1.0])
 
     theta = np.arange(time.size)
     v = np.arange(time.size)

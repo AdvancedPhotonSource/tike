@@ -167,46 +167,31 @@ def reconstruct(
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[1:],
                                              num_iter))
-            # TODO: Merge code paths num_gpu is not used.
-            num_gpu = pool.device_count
-            # send any array-likes to device
-            if (num_gpu <= 1):
-                data = operator.asarray(data, dtype='float32')
-                result = {
-                    'psi': operator.asarray(psi, dtype='complex64'),
-                    'probe': operator.asarray(probe, dtype='complex64'),
-                    'scan': operator.asarray(scan, dtype='float32'),
-                }
-                for key, value in kwargs.items():
-                    if np.ndim(value) > 0:
-                        kwargs[key] = operator.asarray(value)
-            else:
-                scan, data = asarray_multi_split(
-                    operator,
-                    num_gpu,
-                    scan,
-                    data,
-                )
-                result = {
-                    'psi': pool.bcast(psi.astype('complex64')),
-                    'probe': pool.bcast(probe.astype('complex64')),
-                    'scan': scan,
-                }
-                for key, value in kwargs.items():
-                    if np.ndim(value) > 0:
-                        kwargs[key] = pool.bcast(value)
+            scan, data = asarray_multi_split(
+                operator,
+                pool.num_workers,
+                scan,
+                data,
+            )
+            result = {
+                'psi': pool.bcast(psi.astype('complex64')),
+                'probe': pool.bcast(probe.astype('complex64')),
+                'scan': scan,
+            }
+            for key, value in kwargs.items():
+                if np.ndim(value) > 0:
+                    kwargs[key] = pool.bcast(value)
+
+            result['probe'] = _rescale_obj_probe(operator, pool, data,
+                                                 result['psi'], result['scan'],
+                                                 result['probe'])
 
             cost = 0
             for i in range(num_iter):
-                result['probe'] = _rescale_obj_probe(operator, pool, num_gpu,
-                                                     data, result['psi'],
-                                                     result['scan'],
-                                                     result['probe'])
                 kwargs.update(result)
                 result = getattr(solvers, algorithm)(
                     operator,
                     pool,
-                    num_gpu=num_gpu,
                     data=data,
                     **kwargs,
                 )
@@ -218,25 +203,23 @@ def reconstruct(
                     break
                 cost = result['cost']
 
-            if (num_gpu > 1):
-                result['scan'] = pool.gather(result['scan'], axis=1)
-                for k, v in result.items():
-                    if isinstance(v, list):
-                        result[k] = v[0]
+            result['scan'] = pool.gather(result['scan'], axis=1)
+            for k, v in result.items():
+                if isinstance(v, list):
+                    result[k] = v[0]
         return {k: operator.asnumpy(v) for k, v in result.items()}
     else:
         raise ValueError(
             "The '{}' algorithm is not an available.".format(algorithm))
 
 
-def _rescale_obj_probe(operator, pool, num_gpu, data, psi, scan, probe):
+def _rescale_obj_probe(operator, pool, data, psi, scan, probe):
     """Keep the object amplitude around 1 by scaling probe by a constant."""
     # TODO: add multi-GPU support
-    if (num_gpu > 1):
-        scan = pool.gather(scan, axis=1)
-        data = pool.gather(data, axis=1)
-        psi = psi[0]
-        probe = probe[0]
+    scan = pool.gather(scan, axis=1)
+    data = pool.gather(data, axis=1)
+    psi = psi[0]
+    probe = probe[0]
 
     intensity = operator._compute_intensity(data, psi, scan, probe)
 
@@ -247,10 +230,9 @@ def _rescale_obj_probe(operator, pool, num_gpu, data, psi, scan, probe):
 
     probe *= rescale
 
-    if (num_gpu > 1):
-        probe = pool.bcast(probe)
-        del scan
-        del data
+    probe = pool.bcast(probe)
+    del scan
+    del data
 
     return probe
 
@@ -266,6 +248,10 @@ def asarray_multi_split(op, gpu_count, scan_cpu, data_cpu, *args, **kwargs):
     of scan and data.
 
     """
+    if gpu_count == 1:
+        return ([op.asarray(scan_cpu, dtype='float32')],
+                [op.asarray(data_cpu, dtype='float32')])
+
     scanmlist = [None] * gpu_count
     datamlist = [None] * gpu_count
     nscan = scan_cpu.shape[1]

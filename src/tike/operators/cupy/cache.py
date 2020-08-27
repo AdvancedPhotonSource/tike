@@ -1,10 +1,17 @@
+__author__ = "Daniel Ching"
+__copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
+
 import cupy as cp
 from cupyx.scipy.fft import fftn, ifftn
 from cupyx.scipy.fftpack import get_fft_plan
 
 
 class CachedFFT():
-    """A multi-plan cache for CuPy FFT."""
+    """Provides a multi-plan cache for CuPy FFT.
+
+    A class which inherits from this class gains the _fft2, _fftn, and _ifft2
+    methods which provide automatic plan caching for the CuPy FFTs.
+    """
 
     def __enter__(self):
         self.plan_cache = {}

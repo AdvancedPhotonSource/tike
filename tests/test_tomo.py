@@ -51,7 +51,6 @@ import numpy as np
 import os
 import pickle
 # import tike.tomo
-import pytest
 import unittest
 
 __author__ = "Daniel Ching"
@@ -61,7 +60,7 @@ __docformat__ = 'restructuredtext en'
 testdir = os.path.dirname(__file__)
 
 
-@pytest.mark.skip(reason="The tomo module is broken/disabled.")
+@unittest.skip(reason="The tomo module is broken/disabled.")
 class TestPtychoRecon(unittest.TestCase):
     """Test various ptychography reconstruction methods for consistency."""
 
