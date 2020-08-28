@@ -38,7 +38,7 @@ class ThreadPool(ThreadPoolExecutor):
                 workers = min(workers, self.device_count)
             if workers == 1:
                 # Respect "with cp.cuda.Device()" blocks for single thread
-                workers = (cp.cuda.Device().id, )
+                workers = (cp.cuda.Device().id,)
             else:
                 workers = tuple(range(workers))
         for w in workers:
@@ -76,6 +76,14 @@ class ThreadPool(ThreadPoolExecutor):
             return self.gather(x, worker, axis)
 
         return list(self.map(f, self.workers))
+
+    def scatter(self, x):
+        """Split x along 0th dimension and send chunks to workers`."""
+
+        def f(worker, chunk):
+            return self._copy_to(chunk, worker)
+
+        return self.map(f, self.workers, x)
 
     def map(self, func, *iterables, **kwargs):
         """ThreadPoolExecutor.map, but wraps call in a cuda.Device context."""
