@@ -24,6 +24,13 @@ class ThreadPool(ThreadPoolExecutor):
         The number of GPUs to use or a tuple of the device numbers of the GPUs
         to use. If the number of GPUs is less than the requested number, only
         workers for the available GPUs are allocated.
+
+    Raises
+    ------
+    ValueError
+        When invalid GPU device ids are provided.
+        When the current CUDA device does not match the first GPU id in the
+        list of workers.
     """
 
     def __init__(self, workers):
@@ -44,6 +51,11 @@ class ThreadPool(ThreadPoolExecutor):
         for w in workers:
             if w < 0 or w >= self.device_count:
                 raise ValueError(f'{w} is not a valid GPU device number.')
+        if workers[0] != cp.cuda.Device().id:
+            raise ValueError(
+                "The primary worker must be the current device. "
+                f"Use `with cupy.cuda.Device({workers[0]}):` to set the "
+                "current device.")
         self.workers = workers
         self.num_workers = len(workers)
         self.xp = cp
@@ -64,10 +76,11 @@ class ThreadPool(ThreadPoolExecutor):
     def gather(self, x: list, worker=None, axis=0) -> cp.array:
         """Concatenate x on a single worker along the given axis."""
         worker = self.workers[0] if worker is None else worker
-        return self.xp.concatenate(
-            [self._copy_to(part, worker) for part in x],
-            axis,
-        )
+        with cp.cuda.Device(worker):
+            return self.xp.concatenate(
+                [self._copy_to(part, worker) for part in x],
+                axis,
+            )
 
     def all_gather(self, x: list, axis=0) -> list:
         """Concatenate x on all workers along the given axis."""
