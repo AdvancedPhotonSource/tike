@@ -150,7 +150,8 @@ def reconstruct(
     rtol : float
         Terminate early if the relative decrease of the cost function is
         less than this amount.
-
+    split : 'grid' or 'stripe'
+        The method to use for splitting the scan positions among GPUS.
     """
     (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
     check_allowed_positions(scan, psi, probe)
