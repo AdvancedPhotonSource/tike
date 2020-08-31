@@ -139,7 +139,7 @@ def reconstruct(
         data,
         probe, scan,
         algorithm,
-        psi=None, num_gpu=1, num_iter=1, rtol=-1, **kwargs
+        psi=None, num_gpu=1, num_iter=1, rtol=-1, split=None, **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
 
@@ -167,7 +167,16 @@ def reconstruct(
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[1:],
                                              num_iter))
-            scan, data = split_by_scan_stripes(pool, scan, data, operator.fly)
+            if split == 'grid':
+                scan, data = split_by_scan_grid(
+                    operator,
+                    pool.num_workers,
+                    scan,
+                    data,
+                )
+            else:
+                scan, data = split_by_scan_stripes(pool, scan, data,
+                                                   operator.fly)
             result = {
                 'psi': pool.bcast(psi.astype('complex64')),
                 'probe': pool.bcast(probe.astype('complex64')),
@@ -232,7 +241,7 @@ def _rescale_obj_probe(operator, pool, data, psi, scan, probe):
     return probe
 
 
-def asarray_multi_split(op, gpu_count, scan_cpu, data_cpu, *args, **kwargs):
+def split_by_scan_grid(op, gpu_count, scan_cpu, data_cpu, *args, **kwargs):
     """Split scan and data and distribute to multiple GPUs.
 
     Instead of spliting the arrays based on the scanning order, we split
