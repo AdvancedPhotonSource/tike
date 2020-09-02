@@ -139,7 +139,7 @@ def reconstruct(
         data,
         probe, scan,
         algorithm,
-        psi=None, num_gpu=1, num_iter=1, rtol=-1, **kwargs
+        psi=None, num_gpu=1, num_iter=1, rtol=-1, split=None, **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
 
@@ -150,7 +150,8 @@ def reconstruct(
     rtol : float
         Terminate early if the relative decrease of the cost function is
         less than this amount.
-
+    split : 'grid' or 'stripe'
+        The method to use for splitting the scan positions among GPUS.
     """
     (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
     check_allowed_positions(scan, psi, probe)
@@ -167,12 +168,16 @@ def reconstruct(
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[1:],
                                              num_iter))
-            scan, data = asarray_multi_split(
-                operator,
-                pool.num_workers,
-                scan,
-                data,
-            )
+            if split == 'grid':
+                scan, data = split_by_scan_grid(
+                    operator,
+                    pool.num_workers,
+                    scan,
+                    data,
+                )
+            else:
+                scan, data = split_by_scan_stripes(pool, scan, data,
+                                                   operator.fly)
             result = {
                 'psi': pool.bcast(psi.astype('complex64')),
                 'probe': pool.bcast(probe.astype('complex64')),
@@ -237,7 +242,7 @@ def _rescale_obj_probe(operator, pool, data, psi, scan, probe):
     return probe
 
 
-def asarray_multi_split(op, gpu_count, scan_cpu, data_cpu, *args, **kwargs):
+def split_by_scan_grid(op, gpu_count, scan_cpu, data_cpu, *args, **kwargs):
     """Split scan and data and distribute to multiple GPUs.
 
     Instead of spliting the arrays based on the scanning order, we split
@@ -291,3 +296,58 @@ def asarray_multi_split(op, gpu_count, scan_cpu, data_cpu, *args, **kwargs):
         del tmpscan
         del tmpdata
     return scanmlist, datamlist
+
+
+def split_by_scan_stripes(pool, scan, data, fly=1):
+    """Split scan and data and distribute to multiple GPUs.
+
+    Divide the work amongst multiple GPUS by splitting the field of view
+    along the vertical axis. i.e. each GPU gets a subset of the data that
+    correspond to a horizontal stripe of the field of view.
+
+    This type of division does not minimze the volume of data transferred
+    between GPUs. However, it does minimizes the number of neighbors that
+    each GPU must communicate with, supports odd numbers of GPUs, and makes
+    resizing the subsets easy if the scan positions are not evenly
+    distributed across the field of view.
+
+    FIXME: Only uses the first angle to divide the positions. Assumes the
+    positions on all angles are distributed similarly.
+
+    Parameters
+    ----------
+    pool : ThreadPool
+    scan (ntheta, nscan, 2) float32
+        Scan positions.
+    data (ntheta, nscan // fly, D, D) float32
+        Captured frames from the detector.
+    fly : int
+        The number of scan positions per data frame
+
+    Returns
+    -------
+    scan_list, data_list : list, list
+        Scan positions and data split into chunks and scattered to GPUs
+    """
+    # Reshape scan so positions in the same fly scan are not separated
+    ntheta, nscan, _ = scan.shape
+    scan = scan.reshape(ntheta, nscan // fly, fly, 2)
+    # Determine the edges of the horizontal stripes
+    edges = np.linspace(
+        0,
+        scan[..., 0].max(),
+        pool.num_workers + 1,
+        endpoint=True,
+    )
+    # Split the scan positions and data amongst the stripes
+    scan_list, data_list = [], []
+    for i in range(pool.num_workers):
+        keep = np.logical_and(
+            edges[i] < scan[0, :, 0, 0],
+            scan[0, :, 0, 0] <= edges[i + 1],
+        )
+        scan_list.append(scan[:, keep].reshape(ntheta, -1, 2).astype('float32'))
+        data_list.append(data[:, keep].astype('float32'))
+    scan_list = list(pool.scatter(scan_list))
+    data_list = list(pool.scatter(data_list))
+    return scan_list, data_list
