@@ -18,13 +18,15 @@ def cgrad(
 
     def cost_function(original):
         return (
-            op.xp.linalg.norm((op.fwd(original, flow) - unaligned).ravel())**2
+            (1 - rho) * op.xp.linalg.norm((op.fwd(original, flow) - unaligned).ravel())**2
             + rho * op.xp.linalg.norm((original - reg).ravel())**2
         )
 
     def grad(original):
-        return (op.fwd(op.fwd(original, flow) - unaligned, -flow) +
-                rho * (original - reg)) / max(rho, 1)
+        return (
+            (1 - rho) * op.fwd(op.fwd(original, flow) - unaligned, -flow) +
+            rho * (original - reg)
+        )
 
     cost = 0
     original, cost = conjugate_gradient(
