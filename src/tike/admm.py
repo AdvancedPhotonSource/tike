@@ -206,51 +206,64 @@ def multi_ptycho(processes, data, probe, scan, psi, reg, num_gpu=8):
     }
 
 
-def rotate_and_crop(psi, radius=128, angle=-72.035):
-    # Rotate by desired angle (degrees)
+def rotate_and_crop(x, radius=128, angle=-72.035):
+    """Rotate x in two trailing dimensions then crop around center-of-mass.
+
+    Parameters
+    ----------
+    x : (M, N, O) complex64
+    radius : int
+    angle : float
+        Rotation angle in degrees.
+    """
     rotate_params = dict(
         angle=angle,
         clip=False,
         preserve_range=True,
         resize=False,
     )
-    psi.real = skimage.transform.rotate(psi.real, **rotate_params)
-    psi.imag = skimage.transform.rotate(psi.imag, **rotate_params)
-    phase = np.angle(psi)
-    phase[phase < 0] = 0
+    corner = np.zeros((len(x), 2), dtype=int)
+    patch = np.zeros((len(x), 2 * radius, 2 * radius), dtype='complex64')
+    for i in range(len(x)):
+        # Rotate by desired angle (degrees)
+        x[i].real = skimage.transform.rotate(x[i].real, **rotate_params)
+        x[i].imag = skimage.transform.rotate(x[i].imag, **rotate_params)
 
-    # Find the center of mass
-    M = skimage.measure.moments(phase, order=1)
-    center = np.array([M[1, 0] / M[0, 0], M[0, 1] / M[0, 0]]).astype('int')
+        # Find the center of mass
+        phase = np.angle(x[i])
+        phase[phase < 0] = 0
+        M = skimage.measure.moments(phase, order=1)
+        center = np.array([M[1, 0] / M[0, 0], M[0, 1] / M[0, 0]]).astype('int')
 
-    # Adjust the cropping region so it stays within the image
-    lo = np.fmax(0, center - radius)
-    hi = lo + 2 * radius
-    shift = np.fmin(0, psi.shape - hi)
-    hi += shift
-    lo += shift
-    assert np.all(lo >= 0), lo
-    assert np.all(hi <= psi.shape), (hi, psi.shape)
-    # Crop image
-    patch = psi[lo[0]:hi[0], lo[1]:hi[1]].astype('complex64')
+        # Adjust the cropping region so it stays within the image
+        lo = np.fmax(0, center - radius)
+        hi = lo + 2 * radius
+        shift = np.fmin(0, x[i].shape - hi)
+        hi += shift
+        lo += shift
+        assert np.all(lo >= 0), lo
+        assert np.all(hi <= x[i].shape), (hi, x[i].shape)
+        # Crop image
+        patch[i] = x[i][lo[0]:hi[0], lo[1]:hi[1]]
+        corner[i] = lo
 
-    return psi, patch, lo
+    return x, patch, corner
 
 
-def uncrop_and_rotate(psi, patch, lo, radius=128, angle=72.035):
-
-    psi[lo[0]:lo[0] + 2 * radius, lo[1]:lo[1] + 2 * radius] = patch
-
-    # Rotate by desired angle (degrees)
+def uncrop_and_rotate(x, patch, lo, radius=128, angle=72.035):
     rotate_params = dict(
         angle=angle,
         clip=False,
         preserve_range=True,
         resize=False,
     )
-    psi.real = skimage.transform.rotate(psi.real, **rotate_params)
-    psi.imag = skimage.transform.rotate(psi.imag, **rotate_params)
-    return psi
+    for i in range(len(x)):
+        x[i][lo[i][0]:lo[i][0] + 2 * radius,
+             lo[i][1]:lo[i][1] + 2 * radius] = patch[i]
+        # Rotate by desired angle (degrees)
+        x[i].real = skimage.transform.rotate(x[i].real, **rotate_params)
+        x[i].imag = skimage.transform.rotate(x[i].imag, **rotate_params)
+    return x
 
 
 def ptycho_lamino_align(
@@ -287,6 +300,7 @@ def ptycho_lamino_align(
     }
 
     phi = np.exp(1j * tike.lamino.simulate(obj=u, tilt=tilt, theta=theta))
+    phi = phi.astype('complex64')
     λ_p = np.zeros_like(phi)
     λ_a = np.zeros_like(phi)
     reg_p = np.zeros_like(psi)
@@ -299,17 +313,10 @@ def ptycho_lamino_align(
         if k > 0:
             # Skip regularization on zeroth iteration because we don't know
             # value of the cropping corner locations
-            reg_p = np.stack(
-                list(
-                    processes.starmap(
-                        uncrop_and_rotate,
-                        zip(
-                            psi_rotated,
-                            tike.align.simulate(phi, flow) + λ_p / 0.5,
-                            corners,
-                        ),
-                    )),
-                axis=0,
+            reg_p = uncrop_and_rotate(
+                psi_rotated,
+                tike.align.simulate(phi, flow) + λ_p / 0.5,
+                corners,
             )
         presult = multi_ptycho(
             processes,
@@ -320,11 +327,7 @@ def ptycho_lamino_align(
         psi = presult['psi']
 
         logging.info("Rotate and crop projections.")
-        psi_rotated, trimmed, corners = zip(
-            *processes.map(rotate_and_crop, psi))
-        psi_rotated = np.stack(psi_rotated, axis=0)
-        trimmed = np.stack(trimmed, axis=0)
-        corners = np.stack(corners, axis=0)
+        psi_rotated, trimmed, corners = rotate_and_crop(psi.copy())
 
         logging.info("Recover aligned projections from unaligned.")
         aresult = tike.align.reconstruct(
