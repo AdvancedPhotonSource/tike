@@ -29,32 +29,21 @@ class MPICommunicator(object):
         self.size = self.comm.Get_size()
         logger.info("Node {:,d} is running.".format(self.rank))
 
-    def scatter(self, *args):
+    def scatter(self, arg, root=0):
         """Send and recieve constant data that must be divided."""
-        if len(args) == 1:
-            arg = args[0]
-            if self.rank == 0:
-                chunks = np.array_split(arg, self.size)
-            else:
-                chunks = None
-            return self.comm.scatter(chunks, root=0)
-        out = list()
-        for arg in args:
-            if self.rank == 0:
-                chunks = np.array_split(arg, self.size)
-            else:
-                chunks = None
-            out.append(self.comm.scatter(chunks, root=0))
-        return out
+        if self.rank == root:
+            chunks = np.array_split(arg, self.size)
+        else:
+            chunks = None
+        chunk = self.comm.scatter(chunks, root=root)
+        # logger.info(f"Scatter from node {root} to node {self.rank}.")
+        return chunk
 
-    def broadcast(self, *args):
+    def broadcast(self, arg, root=0):
         """Synchronize parameters that are the same for all processses."""
-        if len(args) == 1:
-            return self.comm.bcast(args[0], root=0)
-        out = list()
-        for arg in args:
-            out.append(self.comm.bcast(arg, root=0))
-        return out
+        copy = self.comm.bcast(arg, root=root)
+        # logger.info(f"Broadcast from node {root} to node {self.rank}.")
+        return copy
 
     def get_ptycho_slice(self, tomo_slice):
         """Switch to slicing for the pytchography problem."""
@@ -81,6 +70,8 @@ class MPICommunicator(object):
     def gather(self, arg, root=0, axis=0):
         """Gather arg to one node."""
         arg = self.comm.gather(arg, root=root)
+        # logger.info(
+        #     f"Gather from node {self.rank} to node {root} along axis {axis}.")
         if self.rank == root:
             return np.concatenate(arg, axis=axis)
         return None

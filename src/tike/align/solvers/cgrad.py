@@ -18,14 +18,14 @@ def cgrad(
 
     def cost_function(original):
         return (
-            (1 - rho) * op.xp.linalg.norm((op.fwd(original, flow) - unaligned).ravel())**2
-            + rho * op.xp.linalg.norm((original - reg).ravel())**2
+            0.5 * op.xp.linalg.norm((op.fwd(original, flow) - unaligned).ravel())**2 +
+            0.5 * op.xp.linalg.norm((original - reg).ravel())**2
         )
 
     def grad(original):
         return (
-            (1 - rho) * op.fwd(op.fwd(original, flow) - unaligned, -flow) +
-            rho * (original - reg)
+            op.fwd(op.fwd(original, flow) - unaligned, -flow) +
+            (original - reg)
         )
 
     cost = 0

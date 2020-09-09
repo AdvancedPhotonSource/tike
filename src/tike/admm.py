@@ -7,6 +7,7 @@ import numpy as np
 import skimage.transform
 
 import tike.align
+from tike.communicator import MPICommunicator
 import tike.lamino
 import tike.ptycho
 
@@ -155,58 +156,7 @@ def lamino_align(data, tilt, theta, u=None, flow=None, niter=8, rho=0.5):
     return u
 
 
-def recon_with_device(device, data, psi, scan, probe, reg):
-    with cp.cuda.Device(device):
-        result = tike.ptycho.reconstruct(
-            data=data,
-            rho=0.5,
-            reg=reg,
-            psi=psi,
-            scan=scan,
-            probe=probe,
-            algorithm='combined',
-            num_iter=1,
-            cg_iter=4,
-            recover_psi=True,
-            recover_probe=True,
-            recover_positions=False,
-            model='gaussian',
-        )
-    return result['psi'], result['scan'], result['probe']
-
-
-def multi_ptycho(processes, data, probe, scan, psi, reg, num_gpu=8):
-
-    nsplit = len(data) // 6
-    data_ = np.array_split(data, nsplit, axis=0)
-    psi_ = np.array_split(psi, nsplit, axis=0)
-    scan_ = np.array_split(scan, nsplit, axis=0)
-    probe_ = np.array_split(probe, nsplit, axis=0)
-    reg_ = np.array_split(reg, nsplit, axis=0)
-    devices = np.arange(0, len(data_)) % num_gpu
-
-    psi_, scan_, probe_ = zip(*processes.starmap(
-        recon_with_device,
-        zip(devices, data_, psi_, scan_, probe_, reg_),
-    ))
-    # psi_, scan_, probe_ = zip(*map(
-    #     recon_with_device,
-    #     devices,
-    #     data_,
-    #     psi_,
-    #     scan_,
-    #     probe_,
-    #     reg_,
-    # ))
-
-    return {
-        'psi': np.concatenate(psi_, axis=0),
-        'scan': np.concatenate(scan_, axis=0),
-        'probe': np.concatenate(probe_, axis=0),
-    }
-
-
-def rotate_and_crop(x, radius=128, angle=-72.035):
+def rotate_and_crop(x, radius=128, angle=72.035):
     """Rotate x in two trailing dimensions then crop around center-of-mass.
 
     Parameters
@@ -250,7 +200,7 @@ def rotate_and_crop(x, radius=128, angle=-72.035):
     return x, patch, corner
 
 
-def uncrop_and_rotate(x, patch, lo, radius=128, angle=72.035):
+def uncrop_and_rotate(x, patch, lo, radius=128, angle=-72.035):
     rotate_params = dict(
         angle=angle,
         clip=False,
@@ -267,7 +217,6 @@ def uncrop_and_rotate(x, patch, lo, radius=128, angle=72.035):
 
 
 def ptycho_lamino_align(
-    processes,
     data,
     psi,
     scan,
@@ -280,130 +229,154 @@ def ptycho_lamino_align(
     folder=None,
 ):
     """Solve the joint ptycho-lamino-alignment problem using ADMM."""
+    comm = MPICommunicator()
+    with cp.cuda.Device(comm.rank):
+        # Set initial values for intermediate variables
+        w = 256
+        u = np.zeros(
+            [w, w, w],
+            dtype='complex64',
+        ) if u is None else u
+        winsize = min(*u.shape[:2])
 
-    # Set initial values for intermediate variables
-    w = 256
-    u = np.zeros(
-        [w, w, w],
-        dtype='complex64',
-    ) if u is None else u
-    flow = np.zeros(
-        [len(theta), w, w, 2],
-        dtype='float32',
-    ) if flow is None else flow
-    winsize = min(*u.shape[:2])
+        # data, psi, scan, probe, theta = [
+        #     comm.scatter(x) for x in (data, psi, scan, probe, theta)
+        # ]
 
-    presult = {  # ptychography result
-        'psi': psi,
-        'scan': scan,
-        'probe': probe,
-    }
+        flow = np.zeros(
+            [len(theta), w, w, 2],
+            dtype='float32',
+        ) if flow is None else flow
+        presult = {  # ptychography result
+            'psi': psi,
+            'scan': scan,
+            'probe': probe,
+        }
+        phi = np.exp(1j * tike.lamino.simulate(obj=u, tilt=tilt, theta=theta))
+        phi = phi.astype('complex64')
+        λ_p = np.zeros_like(phi)
+        λ_a = np.zeros_like(phi)
+        reg_p = np.zeros_like(psi)
 
-    phi = np.exp(1j * tike.lamino.simulate(obj=u, tilt=tilt, theta=theta))
-    phi = phi.astype('complex64')
-    λ_p = np.zeros_like(phi)
-    λ_a = np.zeros_like(phi)
-    reg_p = np.zeros_like(psi)
+        for k in range(niter):
+            logging.info(f"Start ADMM iteration {k}.")
 
-    for k in range(niter):
-        logging.info(f"Start ADMM iteration {k}.")
+            logging.info("Solve the ptychography problem.")
 
-        logging.info("Solve the ptychography problem.")
-
-        if k > 0:
-            # Skip regularization on zeroth iteration because we don't know
-            # value of the cropping corner locations
-            reg_p = uncrop_and_rotate(
-                psi_rotated,
-                tike.align.simulate(phi, flow) + λ_p / 0.5,
-                corners,
+            if k > 0:
+                # Skip regularization on zeroth iteration because we don't know
+                # value of the cropping corner locations
+                reg_p = uncrop_and_rotate(
+                    psi_rotated,
+                    λ_p / 0.5 - tike.align.simulate(phi, flow),
+                    corners,
+                )
+            presult = tike.ptycho.reconstruct(
+                data=data,
+                reg=reg_p,
+                algorithm='combined',
+                num_iter=1,
+                cg_iter=4,
+                recover_psi=True,
+                recover_probe=True,
+                recover_positions=False,
+                model='gaussian',
+                **presult,
             )
-        presult = multi_ptycho(
-            processes,
-            data=data,
-            reg=reg_p,
-            **presult,
-        )
-        psi = presult['psi']
+            psi = presult['psi']
 
-        logging.info("Rotate and crop projections.")
-        psi_rotated, trimmed, corners = rotate_and_crop(psi.copy())
+            logging.info("Rotate and crop projections.")
+            psi_rotated, trimmed, corners = rotate_and_crop(psi.copy())
 
-        logging.info("Recover aligned projections from unaligned.")
-        aresult = tike.align.reconstruct(
-            unaligned=trimmed - λ_p / 0.5,
-            original=phi,
-            flow=flow,
-            num_iter=4,
-            algorithm='cgrad',
-            reg=np.exp(1j * tike.lamino.simulate(obj=u, tilt=tilt, theta=theta))
-            + λ_a / 0.5,
-            rho=0.5,
-        )
-        phi = aresult['original']
-
-        logging.info('Solve the laminography problem.')
-        lresult = tike.lamino.reconstruct(
-            data=np.log(λ_a / 0.5 - phi) / (1j),
-            theta=theta,
-            tilt=tilt,
-            obj=u,
-            algorithm='cgrad',
-            num_iter=1,
-            cg_iter=4,
-        )
-        u = lresult['obj']
-
-        logging.info("Estimate alignment using Farneback.")
-        aresult = tike.align.solvers.farneback(
-            op=None,
-            unaligned=trimmed,
-            original=tike.align.simulate(phi, flow) + λ_p / 0.5,
-            flow=flow,
-            pyr_scale=0.5,
-            levels=1,
-            winsize=winsize,
-            num_iter=4,
-        )
-        flow = aresult['shift']
-
-        logging.info('Update lambdas and rhos.')
-
-        λ_p += 0.5 * (-trimmed + tike.align.simulate(phi, flow))
-        λ_a += 0.5 * (-phi + np.exp(
-            1j * tike.lamino.simulate(obj=u, tilt=tilt, theta=theta)))
-
-        # Limit winsize to larger value. 20?
-        if winsize > 20:
-            winsize -= 1
-
-        if (k + 1) % 1 == 0:
-            dxchange.write_tiff(
-                skimage.restoration.unwrap_phase(np.angle(
-                    presult['psi'])).astype('float32'),
-                f'{folder}/object-phase-{(k+1):03d}.tiff',
+            logging.info("Recover aligned projections from unaligned.")
+            aresult = tike.align.reconstruct(
+                unaligned=trimmed + λ_p / 0.5,
+                original=phi,
+                flow=flow,
+                num_iter=4,
+                algorithm='cgrad',
+                reg=np.exp(1j * tike.lamino.simulate(
+                    obj=u,
+                    tilt=tilt,
+                    theta=theta,
+                )) - λ_a / 0.5,
             )
-            dxchange.write_tiff(
-                phi.real,
-                f'{folder}/phi-real-{(k+1):03d}.tiff',
-                dtype='float32',
+            phi = aresult['original']
+
+            logging.info("Estimate alignment using Farneback.")
+            aresult = tike.align.solvers.farneback(
+                op=None,
+                unaligned=trimmed + λ_p / 0.5,
+                original=phi,
+                flow=flow,
+                pyr_scale=0.5,
+                levels=1,
+                winsize=winsize,
+                num_iter=4,
             )
-            dxchange.write_tiff(
-                phi.imag,
-                f'{folder}/phi-imag-{(k+1):03d}.tiff',
-                dtype='float32',
-            )
-            dxchange.write_tiff(
-                u.real,
-                f'{folder}/particle-real-{(k+1):03d}.tiff',
-                dtype='float32',
-            )
-            dxchange.write_tiff(
-                u.imag,
-                f'{folder}/particle-imag-{(k+1):03d}.tiff',
-                dtype='float32',
-            )
-            np.save(f"{folder}/flow-tike-{(k+1):03d}", flow)
+            flow = aresult['shift']
+
+            # Gather all to one thread
+            λ_a, phi, theta = [comm.gather(x) for x in (λ_a, phi, theta)]
+
+            if comm.rank == 0:
+                logging.info('Solve the laminography problem.')
+                lresult = tike.lamino.reconstruct(
+                    data=np.log(phi + λ_a / 0.5) / (1j),
+                    theta=theta,
+                    tilt=tilt,
+                    obj=u,
+                    algorithm='cgrad',
+                    num_iter=1,
+                    cg_iter=4,
+                )
+                u = lresult['obj']
+
+                # We cannot reorder phi, theta without ruining correspondence
+                # with data, psi, etc, but we can reorder the saved array
+                order = np.argsort(theta)
+                dxchange.write_tiff(
+                    phi[order].real,
+                    f'{folder}/phi-real-{(k+1):03d}.tiff',
+                    dtype='float32',
+                )
+                dxchange.write_tiff(
+                    phi[order].imag,
+                    f'{folder}/phi-imag-{(k+1):03d}.tiff',
+                    dtype='float32',
+                )
+
+            # Separate again to multiple threads
+            λ_a, phi, theta = [comm.scatter(x) for x in (λ_a, phi, theta)]
+            u = comm.broadcast(u)
+
+            logging.info('Update lambdas and rhos.')
+
+            λ_p += 0.5 * (trimmed - tike.align.simulate(phi, flow))
+            λ_a += 0.5 * (phi - np.exp(
+                1j * tike.lamino.simulate(obj=u, tilt=tilt, theta=theta)))
+
+            # Limit winsize to larger value. 20?
+            if winsize > 20:
+                winsize -= 1
+
+            if (k + 1) % 1 == 0 and comm.rank == 0:
+                dxchange.write_tiff(
+                    skimage.restoration.unwrap_phase(np.angle(
+                        presult['psi'])).astype('float32'),
+                    f'{folder}/object-phase-{(k+1):03d}.tiff',
+                )
+                dxchange.write_tiff(
+                    u.real,
+                    f'{folder}/particle-real-{(k+1):03d}.tiff',
+                    dtype='float32',
+                )
+                dxchange.write_tiff(
+                    u.imag,
+                    f'{folder}/particle-imag-{(k+1):03d}.tiff',
+                    dtype='float32',
+                )
+                np.save(f"{folder}/flow-tike-{(k+1):03d}", flow)
 
     result = presult
     return result

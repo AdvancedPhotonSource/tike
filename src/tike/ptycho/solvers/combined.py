@@ -105,7 +105,8 @@ def update_object(op, pool, data, psi, scan, probe, rho, reg, num_iter=1):
         cost_cpu = 0
         for c in cost_out:
             cost_cpu += op.asnumpy(c)
-        cost_cpu += op.asnumpy(rho * op.xp.linalg.norm((psi[0] - reg[0]).ravel())**2)
+        cost_cpu += op.asnumpy(0.5 * op.xp.linalg.norm(
+            (psi[0] + reg[0]).ravel())**2)
         return cost_cpu
 
     def grad_multi(psi):
@@ -116,7 +117,7 @@ def update_object(op, pool, data, psi, scan, probe, rho, reg, num_iter=1):
             grad_cpu_tmp = op.asnumpy(grad_list[i])
             grad_tmp = op.asarray(grad_cpu_tmp)
             grad_list[0] += grad_tmp
-        grad_list[0] += rho * (psi[0] - reg[0])
+        grad_list[0] += 0.5 * (psi[0] + reg[0])
         return grad_list[0]
 
     def dir_multi(dir):
