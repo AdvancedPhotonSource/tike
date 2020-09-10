@@ -61,7 +61,7 @@ def reconstruct(
     if algorithm in solvers.__all__:
 
         # Initialize an operator.
-        with Flow() as operator:
+        with Shift() as operator:
             # send any array-likes to device
             unaligned = operator.asarray(unaligned, dtype='complex64')
             original = operator.asarray(original, dtype='complex64')

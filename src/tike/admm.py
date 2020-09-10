@@ -244,7 +244,7 @@ def ptycho_lamino_align(
         # ]
 
         flow = np.zeros(
-            [len(theta), w, w, 2],
+            [len(theta), 2],  #w, w, 2],
             dtype='float32',
         ) if flow is None else flow
         presult = {  # ptychography result
@@ -268,14 +268,15 @@ def ptycho_lamino_align(
                 # value of the cropping corner locations
                 reg_p = uncrop_and_rotate(
                     psi_rotated,
-                    λ_p / 0.5 - tike.align.simulate(phi, flow),
+                    # λ_p / 0.5 - tike.align.simulate(phi, flow),
+                    λ_p / 0.5 - Hu,
                     corners,
                 )
             presult = tike.ptycho.reconstruct(
                 data=data,
                 reg=reg_p,
                 algorithm='combined',
-                num_iter=1,
+                num_iter=,
                 cg_iter=4,
                 recover_psi=True,
                 recover_probe=True,
@@ -288,33 +289,43 @@ def ptycho_lamino_align(
             logging.info("Rotate and crop projections.")
             psi_rotated, trimmed, corners = rotate_and_crop(psi.copy())
 
-            logging.info("Recover aligned projections from unaligned.")
-            aresult = tike.align.reconstruct(
-                unaligned=trimmed + λ_p / 0.5,
-                original=phi,
-                flow=flow,
-                num_iter=4,
-                algorithm='cgrad',
-                reg=np.exp(1j * tike.lamino.simulate(
-                    obj=u,
-                    tilt=tilt,
-                    theta=theta,
-                )) - λ_a / 0.5,
-            )
-            phi = aresult['original']
+            # logging.info("Recover aligned projections from unaligned.")
+            # aresult = tike.align.reconstruct(
+            #     unaligned=trimmed + λ_p / 0.5,
+            #     original=phi,
+            #     flow=flow,
+            #     num_iter=4,
+            #     algorithm='cgrad',
+            #     reg=np.exp(1j * tike.lamino.simulate(
+            #         obj=u,
+            #         tilt=tilt,
+            #         theta=theta,
+            #     )) - λ_a / 0.5,
+            # )
+            # phi = aresult['original']
+            phi = trimmed
 
-            logging.info("Estimate alignment using Farneback.")
-            aresult = tike.align.solvers.farneback(
-                op=None,
-                unaligned=trimmed + λ_p / 0.5,
-                original=phi,
-                flow=flow,
-                pyr_scale=0.5,
-                levels=1,
-                winsize=winsize,
-                num_iter=4,
-            )
-            flow = aresult['shift']
+            # logging.info("Estimate alignment using Farneback.")
+            # aresult = tike.align.solvers.farneback(
+            #     op=None,
+            #     unaligned=trimmed + λ_p / 0.5,
+            #     original=phi,
+            #     flow=flow,
+            #     pyr_scale=0.5,
+            #     levels=1,
+            #     winsize=winsize,
+            #     num_iter=4,
+            # )
+
+            # logging.info("Estimate alignment using cross correlation.")
+            # aresult = tike.align.reconstruct(
+            #     unaligned=trimmed + λ_p / 0.5,
+            #     original=phi,
+            #     flow=flow,
+            #     algorithm='cross_correlation',
+            #     upsample_factor=10,
+            # )
+            # flow = aresult['shift']
 
             # Gather all to one thread
             λ_a, phi, theta = [comm.gather(x) for x in (λ_a, phi, theta)]
@@ -352,15 +363,35 @@ def ptycho_lamino_align(
 
             logging.info('Update lambdas and rhos.')
 
-            λ_p += 0.5 * (trimmed - tike.align.simulate(phi, flow))
-            λ_a += 0.5 * (phi - np.exp(
-                1j * tike.lamino.simulate(obj=u, tilt=tilt, theta=theta)))
+            Hu = np.exp(1j *
+                        tike.lamino.simulate(obj=u, tilt=tilt, theta=theta))
+            φHu = phi - Hu
+            CψDφ = φHu  #trimmed - tike.align.simulate(phi, flow)
+
+            λ_a += 0.5 * φHu
+            λ_p += 0.5 * CψDφ
+
+            lagrangian = (
+                [presult['cost']],
+                2 * np.real(λ_p.conj() * CψDφ) +
+                0.5 * np.linalg.norm(CψDφ.ravel())**2,
+                2 * np.real(λ_a.conj() * φHu) +
+                0.5 * np.linalg.norm(φHu.ravel())**2,
+            )
+
+            lagrangian = [comm.gather(x) for x in lagrangian]
 
             # Limit winsize to larger value. 20?
             if winsize > 20:
                 winsize -= 1
 
             if (k + 1) % 1 == 0 and comm.rank == 0:
+                lagrangian = [np.sum(x) for x in lagrangian]
+                print(
+                    'Lagrangian = {:+6.3e} = {:+6.3e} {:+6.3e} {:+6.3e}'.format(
+                        np.sum(lagrangian), *lagrangian),
+                    flush=True)
+
                 dxchange.write_tiff(
                     skimage.restoration.unwrap_phase(np.angle(
                         presult['psi'])).astype('float32'),
