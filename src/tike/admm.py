@@ -176,8 +176,8 @@ def rotate_and_crop(x, radius=128, angle=72.035):
     patch = np.zeros((len(x), 2 * radius, 2 * radius), dtype='complex64')
     for i in range(len(x)):
         # Rotate by desired angle (degrees)
-        x[i].real = skimage.transform.rotate(x[i].real, **rotate_params)
-        x[i].imag = skimage.transform.rotate(x[i].imag, **rotate_params)
+        x[i].real = skimage.transform.rotate(x[i].real, **rotate_params, cval=1)
+        x[i].imag = skimage.transform.rotate(x[i].imag, **rotate_params, cval=0)
 
         # Find the center of mass
         phase = np.angle(x[i])
@@ -211,8 +211,8 @@ def uncrop_and_rotate(x, patch, lo, radius=128, angle=-72.035):
         x[i][lo[i][0]:lo[i][0] + 2 * radius,
              lo[i][1]:lo[i][1] + 2 * radius] = patch[i]
         # Rotate by desired angle (degrees)
-        x[i].real = skimage.transform.rotate(x[i].real, **rotate_params)
-        x[i].imag = skimage.transform.rotate(x[i].imag, **rotate_params)
+        x[i].real = skimage.transform.rotate(x[i].real, **rotate_params, cval=1)
+        x[i].imag = skimage.transform.rotate(x[i].imag, **rotate_params, cval=0)
     return x
 
 
@@ -322,7 +322,7 @@ def ptycho_lamino_align(
             if comm.rank == 0:
                 logging.info('Solve the laminography problem.')
                 lresult = tike.lamino.reconstruct(
-                    data=np.log(phi + λ_a / 0.5) / (1j),
+                    data=-1j * np.log(phi + λ_a / 0.5),
                     theta=theta,
                     tilt=tilt,
                     obj=u,
