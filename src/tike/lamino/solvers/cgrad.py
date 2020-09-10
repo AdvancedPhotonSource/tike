@@ -20,11 +20,14 @@ def cgrad(
 
 def update_obj(op, data, obj, num_iter=1):
     """Solver the object recovery problem."""
+
     def cost_function(obj):
-        return op.cost(data, obj)
+        "Cost function for the least-squres laminography problem"
+        return op.xp.linalg.norm((op.fwd(obj) - data).ravel())**2
 
     def grad(obj):
-        return op.grad(data, obj)
+        "Gradient for the least-squares laminography problem"
+        return op.adj(data=(op.fwd(obj) - data)) / (op.ntheta * op.n**3)
 
     obj, cost = conjugate_gradient(
         op.xp,
