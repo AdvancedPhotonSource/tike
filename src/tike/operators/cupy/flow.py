@@ -8,6 +8,16 @@ def _lanczos(xp, x, a):
     return xp.sinc(x) * xp.sinc(x / a)
 
 
+def _nearest(xp, i, n):
+    """Use nearest on-grid index at the edges."""
+    return xp.maximum(xp.minimum(i, n), 0)
+
+
+def _wrap(xp, i, n):
+    """Wrap indexes at the edges."""
+    return i % n
+
+
 def _remap_lanczos(xp, Fe, x, m, F=None):
     """Lanczos resampling from grid Fe to points x.
 
@@ -41,11 +51,13 @@ def _remap_lanczos(xp, Fe, x, m, F=None):
     ell = xp.floor(x).astype('int32')
     for i0 in range(-m, m + 1):
         kern0 = _lanczos(xp, ell[..., 0] + i0 - x[..., 0], m)
+        i0 = _nearest(xp, ell[..., 0] + i0, n[0])
         for i1 in range(-m, m + 1):
             kern1 = _lanczos(xp, ell[..., 1] + i1 - x[..., 1], m)
+            i1 = _nearest(xp, ell[..., 1] + i1, n[1])
             # Indexing Fe here causes problems for a stack of images
-            F += Fe[(ell[..., 0] + i0) % n[0],
-                    (ell[..., 1] + i1) % n[1]] * kern0 * kern1
+            F += Fe[i0, i1] * kern0 * kern1
+
     return F
 
 
