@@ -1,52 +1,55 @@
 __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
+import cupy as cp
+from importlib_resources import files
+
 from .operator import Operator
 
-
-def _lanczos(xp, x, a):
-    return xp.sinc(x) * xp.sinc(x / a)
+_cu_source = files('tike.operators.cupy').joinpath('interp.cu').read_text()
 
 
-def _remap_lanczos(xp, Fe, x, m, F=None):
+def _remap_lanczos(Fe, x, m, F, fwd=True):
     """Lanczos resampling from grid Fe to points x.
 
     At the edges, the Lanczos filter wraps around.
 
     Parameters
     ----------
-    xp : module
-        The array module for this implementation
     Fe : (H, W)
         The function at equally spaced samples.
     x : (N, 2) float32
         The non-uniform sample positions on the grid.
     m : int > 0
         The Lanczos filter is 2m + 1 wide.
-
-    Returns
-    -------
     F : (N, )
         The values at the non-uniform samples.
     """
-    # NOTE: This irregular convolution is very similar to the gather function
-    # from usfft
     assert Fe.ndim == 2
     assert x.ndim == 2 and x.shape[-1] == 2
     assert m > 0
-    F = xp.zeros(x.shape[:-1], dtype=Fe.dtype) if F is None else F
     assert F.shape == x.shape[:-1], F.dtype == Fe.dtype
-    n = Fe.shape[-2:]
-    # ell is the integer center of the kernel
-    ell = xp.floor(x).astype('int32')
-    for i0 in range(-m, m + 1):
-        kern0 = _lanczos(xp, ell[..., 0] + i0 - x[..., 0], m)
-        for i1 in range(-m, m + 1):
-            kern1 = _lanczos(xp, ell[..., 1] + i1 - x[..., 1], m)
-            # Indexing Fe here causes problems for a stack of images
-            F += Fe[(ell[..., 0] + i0) % n[0],
-                    (ell[..., 1] + i1) % n[1]] * kern0 * kern1
-    return F
+    assert Fe.dtype == 'complex64'
+    assert F.dtype == 'complex64'
+    assert x.dtype == 'float32'
+    lanczos_width = 2 * m + 1
+
+    if fwd:
+        kernel = cp.RawKernel(_cu_source, "fwd_lanczos_interp2D")
+    else:
+        kernel = cp.RawKernel(_cu_source, "adj_lanczos_interp2D")
+
+    grid = (-(-lanczos_width**2 // kernel.max_threads_per_block), 1,
+            min(x.shape[0], 65535))
+    block = (min(kernel.max_threads_per_block, lanczos_width**2),)
+    kernel(grid, block, (
+        Fe,
+        cp.array(Fe.shape, dtype='int32'),
+        F,
+        x,
+        len(x),
+        lanczos_width,
+    ))
 
 
 class Flow(Operator):
@@ -70,6 +73,7 @@ class Flow(Operator):
             The width of the Lanczos filter. Automatically rounded up to an
             odd positive integer.
         """
+        assert f.shape == flow.shape[:-1]
         # Convert from displacements to coordinates
         h, w = flow.shape[-3:-1]
         coords = -flow.copy()
@@ -84,6 +88,40 @@ class Flow(Operator):
 
         a = max(0, (filter_size) // 2)
         for i in range(len(f)):
-            _remap_lanczos(self.xp, f[i], coords[i], a, g[i])
+            _remap_lanczos(f[i], coords[i], a, g[i])
 
         return g.reshape(shape)
+
+    def adj(self, g, flow, filter_size=5):
+        """Remap individual pixels of f with Lanczos filtering.
+
+        Parameters
+        ----------
+        g (..., H, W) complex64
+            A stack of deformed arrays.
+        flow (..., H, W, 2) float32
+            The displacements to be applied to each pixel along the last two
+            dimensions.
+        filter_size : int
+            The width of the Lanczos filter. Automatically rounded up to an
+            odd positive integer.
+        """
+        f = self.xp.zeros_like(g)
+        assert f.shape == flow.shape[:-1]
+        # Convert from displacements to coordinates
+        h, w = flow.shape[-3:-1]
+        coords = -flow.copy()
+        coords[..., 0] += self.xp.arange(h)[:, None]
+        coords[..., 1] += self.xp.arange(w)
+
+        # Reshape into stack of 2D images
+        shape = f.shape
+        coords = coords.reshape(-1, h * w, 2)
+        f = f.reshape(-1, h, w)
+        g = g.reshape(-1, h * w)
+
+        a = max(0, (filter_size) // 2)
+        for i in range(len(f)):
+            _remap_lanczos(f[i], coords[i], a, g[i], fwd=False)
+
+        return f.reshape(shape)
