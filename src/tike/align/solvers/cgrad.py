@@ -24,7 +24,7 @@ def cgrad(
 
     def grad(original):
         return (
-            op.fwd(op.fwd(original, flow) - unaligned, -flow) +
+            op.adj(op.fwd(original, flow) - unaligned, flow) +
             (original - reg)
         )
 

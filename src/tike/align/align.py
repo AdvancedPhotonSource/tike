@@ -43,7 +43,7 @@ def reconstruct(
         original,
         unaligned,
         algorithm,
-        num_iter=1, rtol=-1, **kwargs
+        num_iter=1, rtol=-1, flow=None, **kwargs
 ):  # yapf: disable
     """Solve the alignment problem; returning either the original or the shift.
 
@@ -59,12 +59,17 @@ def reconstruct(
 
     """
     if algorithm in solvers.__all__:
+        if flow is not None and flow.shape == (*original.shape, 2):
+            Operator = Flow
+        else:
+            Operator = Shift
 
         # Initialize an operator.
-        with Shift() as operator:
+        with Operator() as operator:
             # send any array-likes to device
             unaligned = operator.asarray(unaligned, dtype='complex64')
             original = operator.asarray(original, dtype='complex64')
+            flow = operator.asarray(flow, dtype='float32')
             result = {}
             for key, value in kwargs.items():
                 if np.ndim(value) > 0:
@@ -80,6 +85,7 @@ def reconstruct(
                 original=original,
                 unaligned=unaligned,
                 num_iter=num_iter,
+                flow=flow,
                 **kwargs,
             )
 
