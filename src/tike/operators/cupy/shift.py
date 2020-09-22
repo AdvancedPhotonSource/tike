@@ -34,3 +34,6 @@ class Shift(CachedFFT, Operator):
         padded *= shift
         padded = self._ifft2(padded, axes=(-2, -1), overwrite=overwrite)
         return padded[..., pz:-pz, pn:-pn].reshape(shape)
+
+    def adj(self, a, shift, overwrite=False):
+        return self.fwd(a, -shift, overwrite=overwrite)
