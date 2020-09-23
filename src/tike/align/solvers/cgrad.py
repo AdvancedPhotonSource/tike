@@ -10,20 +10,27 @@ def cgrad(
     original,
     unaligned,
     flow,
+    reg, rho_p, rho_a,
     num_iter=4,
-    reg=0, rho_p=1, rho_a=0,
     **kwargs
 ):  # yapf: disable
     """Recover an undistorted image from a given flow."""
 
     def cost_function(original):
-        return (rho_p * op.xp.linalg.norm(
-            (op.fwd(original, flow) - unaligned).ravel(),)**2 +
-                rho_a * op.xp.linalg.norm((original - reg).ravel())**2)
+        return (
+            rho_p * op.xp.linalg.norm((
+                unaligned - op.fwd(original, flow)).ravel()
+            )**2 +
+            rho_a * op.xp.linalg.norm((
+                original - reg).ravel()
+            )**2
+        )
 
     def grad(original):
-        return (rho_p * op.adj(op.fwd(original, flow) - unaligned, flow) +
-                rho_a * (original - reg))
+        return (
+            rho_p * op.adj(op.fwd(original, flow) - unaligned, flow) +
+            rho_a * (original - reg)
+        )
 
     original, cost = conjugate_gradient(
         op.xp,

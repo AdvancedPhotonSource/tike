@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 def combined(
     op,
     pool,
-    data, probe, scan, psi, rho=0, reg=None,
+    data, probe, scan, psi, rho, reg,
     recover_psi=True, recover_probe=True, recover_positions=False,
     cg_iter=4,
     **kwargs
