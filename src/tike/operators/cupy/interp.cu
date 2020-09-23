@@ -65,15 +65,14 @@ _nd_to_1d(int ndim, const int* nd, const int* shape) {
 typedef float
 kernel_function(int ndim, const float* center, const int* point);
 
-// The two lobe lanczos kernel
 __device__ float
-_lanczos2(float x) {
+_lanczos(float x, float nlobes) {
   if (x == 0.0f) {
     return 1.0f;
-  } else if (fabsf(x) <= 2.0f) {
+  } else if (fabsf(x) <= nlobes) {
     // printf("distance: %f\n", x);
     const float pix = x * 3.141592653589793238462643383279502884f;
-    return 2.0f * sin(pix) * sin(pix * 0.5f) / (pix * pix);
+    return nlobes * sin(pix) * sin(pix / nlobes) / (pix * pix);
   } else {
     return 0.0f;
   }
@@ -84,9 +83,22 @@ __device__ float
 lanczos_kernel(int ndim, const float* center, const int* point) {
   float weight = 1.0f;
   for (int dim = 0; dim < ndim; dim++) {
-    weight *= _lanczos2(center[dim] - (float)point[dim]);
+    weight *= _lanczos(center[dim] - (float)point[dim], 2.0f);
   }
   return weight;
+}
+
+// Return the gaussian kernel weight for the given kernel center and point.
+__device__ float
+gaussian_kernel(int ndim, const float* center, const int* point) {
+  float weight = 0.0f;
+  const float two_sigma2 = 2.0f;  // two times sigma^2
+  const float pi = 3.141592653589793238462643383279502884f;
+  for (int dim = 0; dim < ndim; dim++) {
+    const float distance = (center[dim] - (float)point[dim]);
+    weight += distance * distance;
+  }
+  return expf(-weight / two_sigma2) / (pi * two_sigma2);
 }
 
 typedef void
