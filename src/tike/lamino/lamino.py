@@ -88,7 +88,7 @@ def reconstruct(
         theta,
         tilt,
         algorithm,
-        obj=None, num_iter=1, rtol=-1, **kwargs
+        obj=None, num_iter=1, rtol=-1, eps=1e-3, **kwargs
 ):  # yapf: disable
     """Solve the Laminography problem using the given `algorithm`.
 
@@ -109,7 +109,7 @@ def reconstruct(
             n=obj.shape[-1],
             theta=theta,
             tilt=tilt,
-            eps=1e-3,
+            eps=eps,
             **kwargs,
         ) as operator:
             # send any array-likes to device
