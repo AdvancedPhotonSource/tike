@@ -231,9 +231,9 @@ def _rescale_obj_probe(operator, pool, data, psi, scan, probe):
     rescale = (np.linalg.norm(np.ravel(np.sqrt(data))) /
                np.linalg.norm(np.ravel(np.sqrt(intensity))))
 
-    logger.info("object and probe rescaled by %f", rescale)
-
-    probe *= rescale
+    if abs(1 - rescale) > 0.01:
+        logger.info("object and probe rescaled by %f", rescale)
+        probe *= rescale
 
     probe = pool.bcast(probe)
     del scan
