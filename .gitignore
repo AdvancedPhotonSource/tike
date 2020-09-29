@@ -115,3 +115,5 @@ dmypy.json
 core
 .DS_Store
 .nfs*
+
+*.tiff
