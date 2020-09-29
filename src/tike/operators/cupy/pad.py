@@ -7,34 +7,53 @@ import numpy as np
 from .flow import _remap_lanczos
 from .operator import Operator
 
+
 class Pad(Operator):
     """Pad a stack of 2D images to the same shape but with unique pad_widths.
+
+    By default, no padding is applied and/or the padding is applied
+    symmetrically.
+
+    Parameters
+    ----------
+    corner: (N, 2)
+        The min corner of the images in the padded array.
     """
 
-    def fwd(self, unpadded, corner, padded_shape, **kwargs):
-        assert np.all(np.asarray(unpadded.shape) <= padded_shape)
-        assert self.xp.all(corner >= 0)
-        # assert self.xp.all(corner + unpadded.shape[1:] <= padded_shape[1:])
-        padded = self.xp.zeros(dtype=unpadded.dtype, shape=padded_shape)
+    def fwd(self, unpadded, corner=None, padded_shape=None, **kwargs):
+        if padded_shape is None:
+            padded_shape = unpadded.shape
+        if corner is None:
+            corner = self.xp.tile(
+                (((padded_shape[-2] - unpadded.shape[-2]) // 2,
+                  (padded_shape[-1] - unpadded.shape[-1]) // 2)),
+                (padded_shape[0], 1),
+            )
+
+        padded = self.xp.zeros(shape=padded_shape, dtype=unpadded.dtype)
         for i in range(padded.shape[0]):
-            # yapf: disable
-            padded[
-                i,
-                corner[i, 0]:corner[i, 0] + unpadded.shape[1],
-                corner[i, 1]:corner[i, 1] + unpadded.shape[2]] = unpadded[i]
-            # yapf: enable
+            lo0, hi0 = corner[i, 0], corner[i, 0] + unpadded.shape[-2]
+            lo1, hi1 = corner[i, 1], corner[i, 1] + unpadded.shape[-1]
+            assert lo0 >= 0 and lo1 >= 0
+            assert hi0 <= padded.shape[-2] and hi1 <= padded.shape[-1]
+            padded[i][lo0:hi0, lo1:hi1] = unpadded[i]
         return padded
 
-    def adj(self, padded, corner, unpadded_shape, **kwargs):
-        assert np.all(np.asarray(unpadded_shape) <= padded.shape)
-        assert self.xp.all(corner >= 0)
-        # assert self.xp.all(corner + unpadded_shape[1:] <= padded.shape[1:])
-        unpadded = self.xp.empty(dtype=padded.dtype, shape=unpadded_shape)
-        for i in range(unpadded.shape[0]):
-            # yapf: disable
-            unpadded[i] = padded[
-                i,
-                corner[i, 0]:corner[i, 0] + unpadded.shape[1],
-                corner[i, 1]:corner[i, 1] + unpadded.shape[2]]
-            # yapf: enable
+    def adj(self, padded, corner=None, unpadded_shape=None, **kwargs):
+        if unpadded_shape is None:
+            unpadded_shape = padded.shape
+        if corner is None:
+            corner = self.xp.tile(
+                (((padded.shape[-2] - unpadded_shape[-2]) // 2,
+                  (padded.shape[-1] - unpadded_shape[-1]) // 2)),
+                (padded.shape[0], 1),
+            )
+
+        unpadded = self.xp.empty(shape=unpadded_shape, dtype=padded.dtype)
+        for i in range(padded.shape[0]):
+            lo0, hi0 = corner[i, 0], corner[i, 0] + unpadded.shape[-2]
+            lo1, hi1 = corner[i, 1], corner[i, 1] + unpadded.shape[-1]
+            assert lo0 >= 0 and lo1 >= 0
+            assert hi0 <= padded.shape[-2] and hi1 <= padded.shape[-1]
+            unpadded[i] = padded[i][lo0:hi0, lo1:hi1]
         return unpadded

@@ -40,5 +40,30 @@ class TestPad(unittest.TestCase, OperatorTests):
         print(self.operator)
 
 
+class TestPadDefaults(unittest.TestCase, OperatorTests):
+    """Test the Pad operator."""
+
+    def setUp(self, shape=(7, 5, 5)):
+        """Load a dataset for reconstruction."""
+
+        self.operator = Pad()
+        self.operator.__enter__()
+        self.xp = self.operator.xp
+
+        padded_shape = shape
+
+        np.random.seed(0)
+        self.m = self.xp.asarray(random_complex(*shape), dtype='complex64')
+        self.m_name = 'unpadded'
+        self.d = self.xp.asarray(random_complex(*padded_shape),
+                                 dtype='complex64')
+        self.d_name = 'padded'
+        self.kwargs = {
+            'corner': None,
+            'padded_shape': None,
+            'unpadded_shape': None,
+        }
+        print(self.operator)
+
 if __name__ == '__main__':
     unittest.main()
