@@ -103,4 +103,4 @@ def farneback(
             flags=4,
         )
         flow[i] = 0.5 * (aflow + pflow)
-    return {'shift': flow[..., ::-1], 'cost': -1}
+    return {'flow': flow[..., ::-1], 'cost': -1}
