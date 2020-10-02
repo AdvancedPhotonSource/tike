@@ -19,6 +19,8 @@ class Shift(CachedFFT, Operator):
             The the shifts to be applied along the last two axes.
 
         """
+        if shift is None:
+            return a
         shape = a.shape
         padded = a.reshape(-1, *shape[-2:])
         padded = self._fft2(padded, axes=(-2, -1), overwrite=overwrite)
@@ -33,4 +35,6 @@ class Shift(CachedFFT, Operator):
         return padded.reshape(*shape)
 
     def adj(self, a, shift, overwrite=False):
+        if shift is None:
+            return a
         return self.fwd(a, -shift, overwrite=overwrite)

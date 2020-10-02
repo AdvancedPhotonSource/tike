@@ -29,6 +29,8 @@ class Rotate(Operator):
         return self.xp.stack([i1.ravel(), j1.ravel()], axis=-1)
 
     def fwd(self, unrotated, angle):
+        if angle is None:
+            return unrotated
         f = unrotated
         g = self.xp.zeros_like(f)
 
@@ -47,6 +49,8 @@ class Rotate(Operator):
         return g.reshape(shape)
 
     def adj(self, rotated, angle):
+        if angle is None:
+            return rotated
         g = rotated
         f = self.xp.zeros_like(g)
 
