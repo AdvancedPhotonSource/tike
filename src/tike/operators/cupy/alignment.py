@@ -5,9 +5,11 @@ __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
 import numpy as np
 
+from .flow import Flow
 from .operator import Operator
-from .rotate import Rotate
 from .pad import Pad
+from .rotate import Rotate
+from .shift import Shift
 
 
 class Alignment(Operator):
@@ -15,34 +17,44 @@ class Alignment(Operator):
 
     def __init__(self):
         """Please see help(Alignment) for more info."""
+        self.flow = Flow()
         self.pad = Pad()
         self.rotate = Rotate()
+        self.shift = Shift()
 
     def __enter__(self):
+        self.flow.__enter__()
         self.pad.__enter__()
         self.rotate.__enter__()
+        self.shift.__enter__()
         return self
 
     def __exit__(self, type, value, traceback):
+        self.flow.__exit__(type, value, traceback)
         self.pad.__exit__(type, value, traceback)
         self.rotate.__exit__(type, value, traceback)
+        self.shift.__exit__(type, value, traceback)
 
-    def fwd(self, unpadded, corner, padded_shape, angle, **kwargs):
+    def fwd(self, unpadded, flow, padded_shape, angle, unpadded_shape=None):
         return self.rotate.fwd(
-            unrotated=self.pad.fwd(
-                unpadded=unpadded,
-                corner=corner,
-                padded_shape=padded_shape,
+            unrotated=self.flow.fwd(
+                f=self.pad.fwd(
+                    unpadded=unpadded,
+                    padded_shape=padded_shape,
+                ),
+                flow=flow,
             ),
             angle=angle,
         )
 
-    def adj(self, rotated, corner, unpadded_shape, angle, **kwargs):
+    def adj(self, rotated, flow, unpadded_shape, angle, padded_shape=None):
         return self.pad.adj(
-            padded=self.rotate.adj(
-                rotated=rotated,
-                angle=angle,
+            padded=self.flow.adj(
+                g=self.rotate.adj(
+                    rotated=rotated,
+                    angle=angle,
+                ),
+                flow=flow,
             ),
-            corner=corner,
             unpadded_shape=unpadded_shape,
         )

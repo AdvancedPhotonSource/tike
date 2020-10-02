@@ -9,7 +9,7 @@ __all__ = [
 import logging
 import numpy as np
 
-from tike.operators import Shift, Flow
+from tike.operators import Alignment
 from tike.align import solvers
 
 logger = logging.getLogger(__name__)
@@ -17,23 +17,16 @@ logger = logging.getLogger(__name__)
 
 def simulate(
         original,
-        shift,
         **kwargs
 ):  # yapf: disable
     """Return original shifted by shift."""
-    assert original.ndim > 2
-    if shift.shape == (*original.shape, 2):
-        Operator = Flow
-    elif shift.shape == (*original.shape[:-2], 2):
-        Operator = Shift
-    else:
-        raise ValueError(
-            'There must be one shift per image or one shift per pixel.')
-
-    with Operator() as operator:
+    with Alignment() as operator:
+        for key, value in kwargs.items():
+            if not isinstance(value, tuple) and np.ndim(value) > 0:
+                kwargs[key] = operator.asarray(value)
         unaligned = operator.fwd(
             operator.asarray(original, dtype='complex64'),
-            operator.asarray(shift, dtype='float32'),
+            **kwargs,
         )
         assert unaligned.dtype == 'complex64', unaligned.dtype
         return operator.asnumpy(unaligned)
@@ -43,7 +36,7 @@ def reconstruct(
         original,
         unaligned,
         algorithm,
-        num_iter=1, rtol=-1, flow=None, **kwargs
+        num_iter=1, rtol=-1, **kwargs
 ):  # yapf: disable
     """Solve the alignment problem; returning either the original or the shift.
 
@@ -51,44 +44,26 @@ def reconstruct(
     ----------
     unaligned, original: (..., H, W) complex64
         The images to be aligned.
-    shift : (..., 2), (..., H, W, 2) float32
-        The displacements of pixels from original to unaligned.
     rtol : float
         Terminate early if the relative decrease of the cost function is
         less than this amount.
 
     """
     if algorithm in solvers.__all__:
-        if flow is not None and flow.shape == (*original.shape, 2):
-            Operator = Flow
-        else:
-            Operator = Shift
-
-        # Initialize an operator.
-        with Operator() as operator:
-            # send any array-likes to device
-            unaligned = operator.asarray(unaligned, dtype='complex64')
-            original = operator.asarray(original, dtype='complex64')
-            flow = operator.asarray(flow, dtype='float32')
-            result = {}
+        with Alignment() as operator:
             for key, value in kwargs.items():
-                if np.ndim(value) > 0:
+                if not isinstance(value, tuple) and np.ndim(value) > 0:
                     kwargs[key] = operator.asarray(value)
-
             logger.info("{} on {:,d} - {:,d} by {:,d} images for {:,d} "
                         "iterations.".format(algorithm, *unaligned.shape,
                                              num_iter))
-
-            kwargs.update(result)
             result = getattr(solvers, algorithm)(
                 operator,
-                original=original,
-                unaligned=unaligned,
+                original=operator.asarray(original, dtype='complex64'),
+                unaligned=operator.asarray(unaligned, dtype='complex64'),
                 num_iter=num_iter,
-                flow=flow,
                 **kwargs,
             )
-
         return {k: operator.asnumpy(v) for k, v in result.items()}
     else:
         raise ValueError(
