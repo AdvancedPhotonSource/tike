@@ -6,11 +6,11 @@ from cv2 import calcOpticalFlowFarneback
 
 def _rescale_8bit(a, b, hi=None, lo=None):
     """Return a, b rescaled into the same 8-bit range.
-    
+
     The images are rescaled into the range [lo, hi] if provided; otherwise, the
     range is decided by clipping the histogram of all bins that are less than
     0.5 percent of the fullest bin.
-    
+
     """
 
     if hi is None or lo is None:
@@ -79,8 +79,8 @@ def farneback(
             *_rescale_8bit(
                 np.real(original[i]),
                 np.real(unaligned[i]),
-                hi = hi[i] if hi is not None else None,
-                lo = lo[i] if lo is not None else None,
+                hi=hi[i] if hi is not None else None,
+                lo=lo[i] if lo is not None else None,
             ),
             flow=flow[i],
             pyr_scale=pyr_scale,
