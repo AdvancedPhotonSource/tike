@@ -73,6 +73,8 @@ class Flow(Operator):
             The width of the Lanczos filter. Automatically rounded up to an
             odd positive integer.
         """
+        if flow is None:
+            return f
         assert f.shape == flow.shape[:-1]
         # Convert from displacements to coordinates
         h, w = flow.shape[-3:-1]
@@ -106,6 +108,8 @@ class Flow(Operator):
             The width of the Lanczos filter. Automatically rounded up to an
             odd positive integer.
         """
+        if flow is None:
+            return g
         f = self.xp.zeros_like(g)
         assert f.shape == flow.shape[:-1]
         # Convert from displacements to coordinates
