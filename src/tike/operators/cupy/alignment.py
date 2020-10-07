@@ -35,26 +35,48 @@ class Alignment(Operator):
         self.rotate.__exit__(type, value, traceback)
         self.shift.__exit__(type, value, traceback)
 
-    def fwd(self, unpadded, flow, padded_shape, angle, unpadded_shape=None):
+    def fwd(
+        self,
+        unpadded,
+        flow,
+        padded_shape,
+        angle,
+        unpadded_shape=None,
+        cval=0.0,
+    ):
         return self.rotate.fwd(
             unrotated=self.flow.fwd(
                 f=self.pad.fwd(
                     unpadded=unpadded,
                     padded_shape=padded_shape,
+                    cval=cval,
                 ),
                 flow=flow,
+                cval=cval,
             ),
             angle=angle,
+            cval=cval,
         )
 
-    def adj(self, rotated, flow, unpadded_shape, angle, padded_shape=None):
+    def adj(
+        self,
+        rotated,
+        flow,
+        unpadded_shape,
+        angle,
+        padded_shape=None,
+        cval=0.0,
+    ):
         return self.pad.adj(
             padded=self.flow.adj(
                 g=self.rotate.adj(
                     rotated=rotated,
                     angle=angle,
+                    cval=cval,
                 ),
                 flow=flow,
+                cval=cval,
             ),
             unpadded_shape=unpadded_shape,
+            cval=cval,
         )

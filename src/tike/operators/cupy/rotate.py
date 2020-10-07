@@ -28,7 +28,7 @@ class Rotate(Operator):
 
         return self.xp.stack([i1.ravel(), j1.ravel()], axis=-1)
 
-    def fwd(self, unrotated, angle):
+    def fwd(self, unrotated, angle, cval=0.0):
         if angle is None:
             return unrotated
         f = unrotated
@@ -44,11 +44,11 @@ class Rotate(Operator):
         g = g.reshape(-1, h * w)
 
         for i in range(len(f)):
-            _remap_lanczos(f[i], coords, 2, g[i], fwd=True)
+            _remap_lanczos(f[i], coords, 2, g[i], fwd=True, cval=0.0)
 
         return g.reshape(shape)
 
-    def adj(self, rotated, angle):
+    def adj(self, rotated, angle, cval=0.0):
         if angle is None:
             return rotated
         g = rotated
@@ -64,6 +64,6 @@ class Rotate(Operator):
         g = g.reshape(-1, h * w)
 
         for i in range(len(f)):
-            _remap_lanczos(f[i], coords, 2, g[i], fwd=False)
+            _remap_lanczos(f[i], coords, 2, g[i], fwd=False, cval=cval)
 
         return f.reshape(shape)

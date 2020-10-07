@@ -20,7 +20,7 @@ class Pad(Operator):
         The min corner of the images in the padded array.
     """
 
-    def fwd(self, unpadded, corner=None, padded_shape=None, **kwargs):
+    def fwd(self, unpadded, corner=None, padded_shape=None, cval=0.0, **kwargs):
         if padded_shape is None:
             padded_shape = unpadded.shape
         if corner is None:
@@ -30,7 +30,8 @@ class Pad(Operator):
                 (padded_shape[0], 1),
             )
 
-        padded = self.xp.zeros(shape=padded_shape, dtype=unpadded.dtype)
+        padded = self.xp.empty(shape=padded_shape, dtype=unpadded.dtype)
+        padded[:] = cval
         for i in range(padded.shape[0]):
             lo0, hi0 = corner[i, 0], corner[i, 0] + unpadded.shape[-2]
             lo1, hi1 = corner[i, 1], corner[i, 1] + unpadded.shape[-1]
