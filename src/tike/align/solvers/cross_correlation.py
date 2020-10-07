@@ -29,8 +29,14 @@ phase_cross_correlation from skimage.registration."""
 import numpy as np
 
 
-def cross_correlation(op, original, unaligned, upsample_factor=1, space="real",
-                      **kwargs):  # yapf: disable
+def cross_correlation(
+    op,
+    original,
+    unaligned,
+    upsample_factor=1,
+    space="real",
+    num_iter=None,
+):
     """Efficient subpixel image translation alignment by cross-correlation.
 
     This code gives the same precision as the FFT upsampled cross-correlation
