@@ -9,7 +9,7 @@ from .operator import Operator
 _cu_source = files('tike.operators.cupy').joinpath('interp.cu').read_text()
 
 
-def _remap_lanczos(Fe, x, m, F, fwd=True):
+def _remap_lanczos(Fe, x, m, F, fwd=True, cval=0.0):
     """Lanczos resampling from grid Fe to points x.
 
     At the edges, the Lanczos filter wraps around.
@@ -49,6 +49,7 @@ def _remap_lanczos(Fe, x, m, F, fwd=True):
         x,
         len(x),
         lanczos_width,
+        cp.complex64(cval),
     ))
 
 
@@ -59,7 +60,7 @@ class Flow(Operator):
     images.
     """
 
-    def fwd(self, f, flow, filter_size=5):
+    def fwd(self, f, flow, filter_size=5, cval=0.0):
         """Remap individual pixels of f with Lanczos filtering.
 
         Parameters
@@ -73,7 +74,9 @@ class Flow(Operator):
             The width of the Lanczos filter. Automatically rounded up to an
             odd positive integer.
         """
-        assert f.shape == flow.shape[:-1]
+        if flow is None:
+            return f
+        assert f.shape == flow.shape[:-1], (f.shape, flow.shape)
         # Convert from displacements to coordinates
         h, w = flow.shape[-3:-1]
         coords = -flow.copy()
@@ -88,11 +91,11 @@ class Flow(Operator):
 
         a = max(0, (filter_size) // 2)
         for i in range(len(f)):
-            _remap_lanczos(f[i], coords[i], a, g[i])
+            _remap_lanczos(f[i], coords[i], a, g[i], cval=cval)
 
         return g.reshape(shape)
 
-    def adj(self, g, flow, filter_size=5):
+    def adj(self, g, flow, filter_size=5, cval=0.0):
         """Remap individual pixels of f with Lanczos filtering.
 
         Parameters
@@ -106,8 +109,10 @@ class Flow(Operator):
             The width of the Lanczos filter. Automatically rounded up to an
             odd positive integer.
         """
+        if flow is None:
+            return g
         f = self.xp.zeros_like(g)
-        assert f.shape == flow.shape[:-1]
+        assert f.shape == flow.shape[:-1], (f.shape, flow.shape)
         # Convert from displacements to coordinates
         h, w = flow.shape[-3:-1]
         coords = -flow.copy()
@@ -122,6 +127,6 @@ class Flow(Operator):
 
         a = max(0, (filter_size) // 2)
         for i in range(len(f)):
-            _remap_lanczos(f[i], coords[i], a, g[i], fwd=False)
+            _remap_lanczos(f[i], coords[i], a, g[i], fwd=False, cval=cval)
 
         return f.reshape(shape)
