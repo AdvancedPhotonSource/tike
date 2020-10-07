@@ -75,7 +75,7 @@ class Flow(Operator):
         """
         if flow is None:
             return f
-        assert f.shape == flow.shape[:-1]
+        assert f.shape == flow.shape[:-1], (f.shape, flow.shape)
         # Convert from displacements to coordinates
         h, w = flow.shape[-3:-1]
         coords = -flow.copy()
@@ -111,7 +111,7 @@ class Flow(Operator):
         if flow is None:
             return g
         f = self.xp.zeros_like(g)
-        assert f.shape == flow.shape[:-1]
+        assert f.shape == flow.shape[:-1], (f.shape, flow.shape)
         # Convert from displacements to coordinates
         h, w = flow.shape[-3:-1]
         coords = -flow.copy()
