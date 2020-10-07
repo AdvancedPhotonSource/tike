@@ -13,14 +13,22 @@ class Pad(Operator):
 
     By default, no padding is applied and/or the padding is applied
     symmetrically.
-
-    Parameters
-    ----------
-    corner: (N, 2)
-        The min corner of the images in the padded array.
     """
 
     def fwd(self, unpadded, corner=None, padded_shape=None, cval=0.0, **kwargs):
+        """Pad the unpadded images with cval.
+
+        Parameters
+        ----------
+        corner : (N, 2)
+            The min corner of the images in the padded array.
+        padded_shape : 3-tuple
+            The desired shape after padding. First element should be N.
+        unpadded_shape : 3-tuple
+            See padded_shape.
+        cval : complex64
+            The value to use for padding.
+        """
         if padded_shape is None:
             padded_shape = unpadded.shape
         if corner is None:
@@ -41,6 +49,19 @@ class Pad(Operator):
         return padded
 
     def adj(self, padded, corner=None, unpadded_shape=None, **kwargs):
+        """Strip the edges from the padded images.
+
+        Parameters
+        ----------
+        corner : (N, 2)
+            The min corner of the images in the padded array.
+        padded_shape : 3-tuple
+            The desired shape after padding. First element should be N.
+        unpadded_shape : 3-tuple
+            See padded_shape.
+        cval : complex64
+            The value to use for padding.
+        """
         if unpadded_shape is None:
             unpadded_shape = padded.shape
         if corner is None:
