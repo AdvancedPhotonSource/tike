@@ -44,7 +44,7 @@ class Rotate(Operator):
         g = g.reshape(-1, h * w)
 
         for i in range(len(f)):
-            _remap_lanczos(f[i], coords, 2, g[i], fwd=True, cval=0.0)
+            _remap_lanczos(f[i], coords, 2, g[i], fwd=True, cval=cval)
 
         return g.reshape(shape)
 
