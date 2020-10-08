@@ -119,11 +119,11 @@ scatterOrGather(float2*, int, float2*, int, float, float2);
 __device__ void
 gather(float2* grid, int gi, float2* points, int pi, float weight, float2 cval) {
   if (gi >= 0){
-    atomicAdd(&points[pi].x, grid[gi].x * weight);
-    atomicAdd(&points[pi].y, grid[gi].y * weight);
+    points[pi].x += grid[gi].x * weight;
+    points[pi].y += grid[gi].y * weight;
   } else {
-    atomicAdd(&points[pi].x, cval.x * weight);
-    atomicAdd(&points[pi].y, cval.y * weight);
+    points[pi].x += cval.x * weight;
+    points[pi].y += cval.y * weight;
   }
 }
 
@@ -137,8 +137,8 @@ scatter(float2* grid, int gi, float2* points, int pi, float weight, float2 cval)
   }
 }
 
-// grid shape (-(-diameter^ndim // max_threads), 0, nf)
-// block shape (min(diameter^ndim, max_threads), 0, 0)
+// grid shape (-(-nx // max_threads), 0, 0)
+// block shape (min(nx, max_threads), 0, 0)
 __device__ void
 _loop_over_kernels(int ndim,  // number of dimensions
                    kernel_function get_weight, scatterOrGather operation,
@@ -162,20 +162,18 @@ _loop_over_kernels(int ndim,  // number of dimensions
   const int nk = pow(diameter, ndim);  // number of grid positions in kernel
 
   // nonuniform position index (xi)
-  for (int xi = blockIdx.z; xi < nx; xi += gridDim.z) {
+  for (
+    int xi = threadIdx.x + blockDim.x * blockIdx.x;
+    xi < nx;
+    xi += blockDim.x * gridDim.x
+  ) {
     // closest ND grid coord to point center of kernel
     int center[max_dim];
     for (int dim = 0; dim < ndim; dim++) {
       center[dim] = int(floor(x[ndim * xi + dim]));
     }
     // linear intra-kernel index (ki)
-    // clang-format off
-    for (
-      int ki = threadIdx.x + blockDim.x * blockIdx.x;
-      ki < nk;
-      ki += blockDim.x * gridDim.x
-    ) {
-      // clang-format on
+    for (int ki = 0; ki < nk; ki++) {
       // Convert linear intra-kernel index to ND grid coord (knd)
       int knd[max_dim];
       _1d_to_nd(knd, ndim, ki, nk, diameter, center);
