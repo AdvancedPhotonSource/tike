@@ -93,3 +93,7 @@ class TestAlignRecon(unittest.TestCase):
         np.testing.assert_allclose(shift[:, h // 2, w // 2, :],
                                    self.shift,
                                    atol=1e-1)
+
+
+if __name__ == '__main__':
+    unittest.main()
