@@ -73,7 +73,7 @@ def divided(
 
         # Use χ (chi) to solve the nearplane problem. We use least-squares to
         # find the update of all the search directions: object, probe,
-        # positions, etc that causes the nearplane wavefront to match the that
+        # positions, etc that causes the nearplane wavefront to match the one
         # we just found by solving the phase problem.
         chi = op.propagation.adj(farplane, overwrite=True) - nearplane
 
