@@ -9,14 +9,15 @@ from ..position import update_positions_pd
 logger = logging.getLogger(__name__)
 
 
-def _random_subset(n, m):
-    """Yield indices [0...n) as groups of at most m indices."""
-    rng = np.random.default_rng()
-    i = np.arange(n)
-    rng.shuffle(i)
-    for s in np.array_split(i, (n + m - 1) // m):
-        yield s
+def _batch_indicies(n, m, use_random=False):
+    """Return list of indices [0...n) as groups of at most m indices.
 
+    >>> _random_subset(10, 4)
+    [array([2, 4, 7, 3]), array([1, 8, 9]), array([6, 5, 0])]
+
+    """
+    i = np.random.default_rng().permutation(n) if use_random else np.arange(n)
+    return np.array_split(i, (n + m - 1) // m)
 
 def divided(
     op, pool,
@@ -24,7 +25,8 @@ def divided(
     recover_psi=True, recover_probe=False, recover_positions=False,
     cg_iter=4,
     batch_size=40,
-    **kwargs
+    cost=None,
+    subset_is_random=True,
 ):  # yapf: disable
     """Solve near- and farfield- ptychography problems separately.
 
@@ -42,10 +44,10 @@ def divided(
     # Divide the scan positions into smaller batches to be processed
     # sequentially. Otherwise we run out memory processing all of
     # the diffraction patterns at the same time.
-    for lo in range(0, data[0].shape[1], batch_size):
-        hi = min(data[0].shape[1], lo + batch_size)
-        data_ = data[0][:, lo:hi]
-        scan_ = scan[0][:, lo:hi]
+    for index in _batch_indicies(data[0].shape[1], batch_size,
+                                 subset_is_random):
+        data_ = data[0][:, index]
+        scan_ = scan[0][:, index]
 
         # Compute the diffraction patterns for all of the probe modes at once.
         # We need access to all of the modes of a position to solve the phase
