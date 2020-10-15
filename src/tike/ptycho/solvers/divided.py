@@ -417,15 +417,12 @@ def _lstsq(a, b):
     ...seealso:: https://github.com/numpy/numpy/issues/8720
                  https://github.com/cupy/cupy/issues/3062
     """
+    # TODO: Using 'out' parameter of cp.matmul() may reduce memory footprint
     assert a.shape[:-1] == b.shape, (f"Leading dims of a {a.shape}"
                                      f"and b {b.shape} must be same!")
-    shape = a.shape[:-2]
-    a = a.reshape(-1, *a.shape[-2:])
-    b = b.reshape(-1, *b.shape[-1:], 1)
-    x = cp.empty((a.shape[0], a.shape[-1], 1), dtype=a.dtype)
-    for i in range(a.shape[0]):
-        x[i], _, _, _ = cp.linalg.lstsq(a[i], b[i])
-    return x.reshape(*shape, a.shape[-1])
+    aT = a.swapaxes(-2, -1)
+    x = cp.linalg.inv(aT @ a) @ aT @ b[..., None]
+    return x[..., 0]
 
 
 if __name__ == "__main__":
