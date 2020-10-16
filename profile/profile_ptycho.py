@@ -15,6 +15,7 @@ os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
+import cupy as cp
 import numpy as np  # noqa
 import tike.ptycho  # noqa
 
@@ -33,6 +34,19 @@ class BenchmarkPtycho(unittest.TestCase):
                 self.probe,
                 self.original,
             ] = pickle.load(file)
+
+    def start(self):
+        self.profiler.start()
+        cp.cuda.profiler.start()
+
+    def stop(self):
+        cp.cuda.profiler.stop()
+        self.profiler.stop()
+        print('\n')
+        print(self.profiler.output_text(
+            unicode=True,
+            color=True,
+        ))
 
     @unittest.skip('Demonstrate skipped tests.')
     def test_never(self):
@@ -55,7 +69,7 @@ class BenchmarkPtycho(unittest.TestCase):
             num_iter=1,
             rtol=-1,
         )
-        self.profiler.start()
+        self.start()
         result = tike.ptycho.reconstruct(
             **result,
             data=self.data,
@@ -63,12 +77,7 @@ class BenchmarkPtycho(unittest.TestCase):
             num_iter=50,
             rtol=-1,
         )
-        self.profiler.stop()
-        print('\n')
-        print(self.profiler.output_text(
-            unicode=True,
-            color=True,
-        ))
+        self.stop()
 
     def test_combined(self):
         """Use pyinstrument to benchmark the combined algorithm."""
