@@ -133,7 +133,7 @@ def simulate(
                     ord=2,
                     axis=2,
                 ))
-        return operator.asnumpy(data)
+        return operator.asnumpy(data.real)
 
 def reconstruct(
         data,
