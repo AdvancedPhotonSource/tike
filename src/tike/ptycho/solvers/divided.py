@@ -70,6 +70,7 @@ def divided(
         # Solve the farplane phase problem
         farplane = op.propagation.fwd(nearplane, overwrite=False)
         farplane, cost = update_phase(op, data_, farplane, num_iter=cg_iter)
+        logger.info('%10s cost is %+12.5e', 'farplane', cost)
 
         # Use χ (chi) to solve the nearplane problem. We use least-squares to
         # find the update of all the search directions: object, probe,
@@ -80,9 +81,6 @@ def divided(
         lstsq_shape = (*nearplane.shape[:-2],
                        nearplane.shape[-2] * nearplane.shape[-1] * 2)
         updates = []
-
-        logger.info('%10s cost is %+12.5e', 'nearplane',
-                    cp.linalg.norm(cp.ravel(chi)))
 
         if recover_psi:
             # FIXME: Implement conjugate gradient
@@ -195,8 +193,8 @@ def divided(
             probe += dir_probe * weighted_step / norm_psi
             d += step * dPO
 
-    logger.info('%10s cost is %+12.5e', 'nearplane',
-                cp.linalg.norm(cp.ravel(chi - d)))
+        logger.info('%10s cost is %+12.5e', 'nearplane',
+                    cp.linalg.norm(cp.ravel(chi - d)))
 
     return {
         'psi': [psi],
@@ -211,15 +209,13 @@ def update_phase(op, data, farplane, num_iter=1):
     xp = op.xp
     for m in range(farplane.shape[3]):
         intensity = xp.sum(xp.square(xp.abs(farplane)), axis=(2, 3))
-        cost = op.propagation.cost(data, intensity)
-        logger.info('%10s cost is %+12.5e', 'farplane', cost)
         grad = op.propagation.grad(
             data,
             farplane[..., m:m + 1, :, :],
             intensity,
         )
         farplane[..., m:m + 1, :, :] = farplane[..., m:m + 1, :, :] - grad
-
+    cost = op.propagation.cost(data, intensity)
     return farplane, cost
 
 
