@@ -65,5 +65,6 @@ class TestPadDefaults(unittest.TestCase, OperatorTests):
         }
         print(self.operator)
 
+
 if __name__ == '__main__':
     unittest.main()

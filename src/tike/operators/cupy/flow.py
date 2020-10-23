@@ -53,7 +53,7 @@ def _remap_lanczos(Fe, x, m, F, fwd=True, cval=0.0):
 
 
 class Flow(Operator):
-    """Map input 2D array to new coordinates by Lanczos interpolation.
+    """Map input 2D arrays to new coordinates by Lanczos interpolation.
 
     Uses Lanczos interpolation for a non-affine deformation of a series of 2D
     images.
@@ -64,14 +64,16 @@ class Flow(Operator):
 
         Parameters
         ----------
-        f (..., H, W) complex64
+        f : (..., H, W) complex64
             A stack of arrays to be deformed.
-        flow (..., H, W, 2) float32
+        flow : (..., H, W, 2) float32
             The displacements to be applied to each pixel along the last two
-            dimensions.
+            dimensions. Operation skipped when flow is None.
         filter_size : int
             The width of the Lanczos filter. Automatically rounded up to an
             odd positive integer.
+        cval : complex64
+            This value is used for interpolation from points outside the grid.
         """
         if flow is None:
             return f
@@ -99,14 +101,16 @@ class Flow(Operator):
 
         Parameters
         ----------
-        g (..., H, W) complex64
+        g : (..., H, W) complex64
             A stack of deformed arrays.
-        flow (..., H, W, 2) float32
+        flow : (..., H, W, 2) float32
             The displacements to be applied to each pixel along the last two
-            dimensions.
+            dimensions. Operation skipped when flow is None.
         filter_size : int
             The width of the Lanczos filter. Automatically rounded up to an
             odd positive integer.
+        cval : complex64
+            This value is used for interpolation from points outside the grid.
         """
         if flow is None:
             return g

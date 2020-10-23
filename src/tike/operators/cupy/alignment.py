@@ -13,7 +13,13 @@ from .shift import Shift
 
 
 class Alignment(Operator):
-    """An alignment operator composed of pad and rotate operations."""
+    """An alignment operator composed of pad, flow, and rotate operations.
+
+    The operations are applied in the aforementioned order.
+
+    Please see the help for the Pad, Flow, and Rotate operations for
+    description of arguments.
+    """
 
     def __init__(self):
         """Please see help(Alignment) for more info."""

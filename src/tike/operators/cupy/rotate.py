@@ -9,7 +9,16 @@ from .operator import Operator
 
 
 class Rotate(Operator):
-    """Rotate a stack of 2D images along last two dimensions."""
+    """Rotate a stack of 2D images along last two dimensions.
+
+    Parameters
+    ----------
+    angle : float
+        The desired rotation in radians. Operation skipped if angle is None.
+    cval : complex64
+        The value to use for filling regions that rotated from outside the
+        original image.
+    """
 
     def _make_grid(self, unrotated, angle):
         """Return the points on the rotated grid."""
