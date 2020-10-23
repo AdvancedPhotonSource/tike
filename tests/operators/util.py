@@ -59,4 +59,4 @@ class OperatorTests():
                                                      a.imag.item()))
         print('<   m,    m> = {:.6f}{:+.6f}j'.format(b.real.item(),
                                                      b.imag.item()))
-        # self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5)
+        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5)
