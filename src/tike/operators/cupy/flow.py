@@ -39,9 +39,8 @@ def _remap_lanczos(Fe, x, m, F, fwd=True, cval=0.0):
     else:
         kernel = cp.RawKernel(_cu_source, "adj_lanczos_interp2D")
 
-    grid = (-(-lanczos_width**2 // kernel.max_threads_per_block), 1,
-            min(x.shape[0], 65535))
-    block = (min(kernel.max_threads_per_block, lanczos_width**2),)
+    grid = (-(-x.shape[0] // kernel.max_threads_per_block), 0, 0)
+    block = (min(x.shape[0], kernel.max_threads_per_block), 0, 0)
     kernel(grid, block, (
         Fe,
         cp.array(Fe.shape, dtype='int32'),
