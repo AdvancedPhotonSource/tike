@@ -67,7 +67,7 @@ def farneback(
     # Farneback implementation.
     for i in range(len(original)):
         flow[i] = calcOpticalFlowFarneback(
-            *_rescale_8bit(np.abs(unaligned[i]), np.abs(original[i])),
+            *_rescale_8bit(np.abs(original[i]), np.abs(unaligned[i])),
             flow=flow[i],
             pyr_scale=pyr_scale,
             levels=levels,
