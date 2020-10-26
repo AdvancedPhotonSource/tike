@@ -82,3 +82,26 @@ patch(float2 *images, float2 *patches, const float2 *scan, int nimage,
     }
   }
 }
+
+extern "C" __global__ void
+fwd_patch(float2 *images, float2 *patches, const float2 *scan, int nimage,
+  int nimagey, int nimagex, int nscan, int patch_shape, int padded_shape,
+  bool forward
+
+)
+{
+  patch(images, patches, scan, nimage,
+    nimagey, nimagex, nscan, patch_shape, padded_shape,
+    true);
+
+}
+
+extern "C" __global__ void
+adj_patch(float2 *images, float2 *patches, const float2 *scan, int nimage,
+  int nimagey, int nimagex, int nscan, int patch_shape, int padded_shape,
+  bool forward
+){
+  patch(images, patches, scan, nimage,
+    nimagey, nimagex, nscan, patch_shape, padded_shape,
+    false);
+}

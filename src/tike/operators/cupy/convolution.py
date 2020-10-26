@@ -8,7 +8,8 @@ import cupy as cp
 from .operator import Operator
 
 _cu_source = files('tike.operators.cupy').joinpath('convolution.cu').read_text()
-_patch_kernel = cp.RawKernel(_cu_source, "patch")
+_fwd_patch = cp.RawKernel(_cu_source, "fwd_patch")
+_adj_patch = cp.RawKernel(_cu_source, "adj_patch")
 
 
 class Convolution(Operator):
@@ -139,13 +140,19 @@ class Convolution(Operator):
             self.ntheta,
         )
         blocks = (max_thread,)
-        _patch_kernel(
-            grids,
-            blocks,
-            (psi, patches, scan, self.ntheta, self.nz, self.n, scan.shape[-2],
-             self.probe_shape, patches.shape[-1], fwd),
-        )
         if fwd:
+            _fwd_patch(
+                grids,
+                blocks,
+                (psi, patches, scan, self.ntheta, self.nz, self.n,
+                 scan.shape[-2], self.probe_shape, patches.shape[-1], fwd),
+            )
             return patches
         else:
+            _adj_patch(
+                grids,
+                blocks,
+                (psi, patches, scan, self.ntheta, self.nz, self.n,
+                 scan.shape[-2], self.probe_shape, patches.shape[-1], fwd),
+            )
             return psi
