@@ -64,6 +64,10 @@ patch(forwardOrAdjoint operation, float2 *images, float2 *patches, const float2 
         return;
       }
 
+      const float sxf = scan[ts + ti * nscan].y - sx;
+      const float syf = scan[ts + ti * nscan].x - sy;
+      assert(1.0f >= sxf && sxf >= 0.0f && 1.0f >= syf && syf >= 0.0f);
+
       // for x,y coords in patch
       for (int py = blockIdx.z; py < patch_shape; py += gridDim.z) {
         for (int px = threadIdx.x; px < patch_shape; px += blockDim.x) {
@@ -77,10 +81,6 @@ patch(forwardOrAdjoint operation, float2 *images, float2 *patches, const float2 
 
           // image index (ii)
           const int ii = sx + px + nimagex * (sy + py + nimagey * ti);
-
-          const float sxf = scan[ts + ti * nscan].y - sx;
-          const float syf = scan[ts + ti * nscan].x - sy;
-          assert(1.0f >= sxf && sxf >= 0.0f && 1.0f >= syf && syf >= 0.0f);
 
           // Linear interpolation
           operation(patches, images, nimagex, pi, ii, sxf, syf);
