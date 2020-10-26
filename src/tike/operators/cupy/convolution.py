@@ -145,7 +145,7 @@ class Convolution(Operator):
                 grids,
                 blocks,
                 (psi, patches, scan, self.ntheta, self.nz, self.n,
-                 scan.shape[-2], self.probe_shape, patches.shape[-1], fwd),
+                 scan.shape[-2], self.probe_shape, patches.shape[-1]),
             )
             return patches
         else:
@@ -153,6 +153,6 @@ class Convolution(Operator):
                 grids,
                 blocks,
                 (psi, patches, scan, self.ntheta, self.nz, self.n,
-                 scan.shape[-2], self.probe_shape, patches.shape[-1], fwd),
+                 scan.shape[-2], self.probe_shape, patches.shape[-1]),
             )
             return psi
