@@ -135,9 +135,9 @@ class Convolution(Operator):
         max_thread = min(self.probe_shape,
                          _patch_kernel.attributes['max_threads_per_block'])
         grids = (
-            self.probe_shape,
             scan.shape[-2],
             self.ntheta,
+            self.probe_shape,
         )
         blocks = (max_thread,)
         if fwd:

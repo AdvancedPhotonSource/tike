@@ -37,7 +37,7 @@ adjoint(float2* patches, float2* images, int nimagex, int pi, int ii, float sxf,
 
 
 // The kernel should be launched with the following maximum shapes:
-// grid shape = (patch_size, nscan, nimage)
+// grid shape = (nscan, nimage, patch_size)
 // block shape = (min(max_thread, patch_size), 1, 1)
 
 // images has shape (nimage, nimagey, nimagex)
@@ -50,9 +50,9 @@ patch(forwardOrAdjoint operation, float2 *images, float2 *patches, const float2 
   const int pad = (padded_shape - patch_shape) / 2;
 
   // for each image
-  for (int ti = blockIdx.z; ti < nimage; ti += gridDim.z) {
+  for (int ti = blockIdx.y; ti < nimage; ti += gridDim.y) {
     // for each scan position
-    for (int ts = blockIdx.y; ts < nscan; ts += gridDim.y) {
+    for (int ts = blockIdx.x; ts < nscan; ts += gridDim.x) {
       // x,y scan coordinates in image
       const float sx = floor(scan[ts + ti * nscan].y);
       const float sy = floor(scan[ts + ti * nscan].x);
@@ -65,7 +65,7 @@ patch(forwardOrAdjoint operation, float2 *images, float2 *patches, const float2 
       }
 
       // for x,y coords in patch
-      for (int py = blockIdx.x; py < patch_shape; py += gridDim.x) {
+      for (int py = blockIdx.z; py < patch_shape; py += gridDim.z) {
         for (int px = threadIdx.x; px < patch_shape; px += blockDim.x) {
           // linear patch index (pi)
           // clang-format off
