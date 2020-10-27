@@ -131,9 +131,8 @@ class Convolution(Operator):
                 f"nearplane must have shape {shape1} not {x.shape}")
 
     def _patch(self, patches, psi, scan, fwd=True):
-        _patch_kernel = cp.RawKernel(_cu_source, "patch")
         max_thread = min(_next_power_two(self.probe_shape),
-                         _patch_kernel.attributes['max_threads_per_block'])
+                         _fwd_patch.attributes['max_threads_per_block'])
         grids = (
             scan.shape[-2],
             self.ntheta,
