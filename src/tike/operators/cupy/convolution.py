@@ -132,7 +132,7 @@ class Convolution(Operator):
 
     def _patch(self, patches, psi, scan, fwd=True):
         _patch_kernel = cp.RawKernel(_cu_source, "patch")
-        max_thread = min(self.probe_shape,
+        max_thread = min(_next_power_two(self.probe_shape),
                          _patch_kernel.attributes['max_threads_per_block'])
         grids = (
             scan.shape[-2],
@@ -156,3 +156,17 @@ class Convolution(Operator):
                  scan.shape[-2], self.probe_shape, patches.shape[-1]),
             )
             return psi
+
+
+def _next_power_two(v):
+    """Return the next highest power of 2 of 32-bit v.
+
+    https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+    """
+    v -= 1
+    v |= v >> 1
+    v |= v >> 2
+    v |= v >> 4
+    v |= v >> 8
+    v |= v >> 16
+    return v + 1
