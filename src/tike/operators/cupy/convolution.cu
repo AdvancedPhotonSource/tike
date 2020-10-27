@@ -8,10 +8,12 @@
 // kernel was launched.
 
 typedef void
-forwardOrAdjoint(float2*, float2*, int, int, int, float, float);
+forwardOrAdjoint(float2 *, float2 *, int, int, int, float, float);
 
 __device__ void
-forward(float2* patches, float2* images, int nimagex, int pi, int ii, float sxf, float syf){
+_forward(float2 *patches, float2 *images, int nimagex, int pi, int ii,
+         float sxf, float syf) {
+  // clang-format off
   patches[pi].x = images[ii              ].x * (1.0f - sxf) * (1.0f - syf)
                 + images[ii + 1          ].x * (       sxf) * (1.0f - syf)
                 + images[ii     + nimagex].x * (1.0f - sxf) * (       syf)
@@ -20,11 +22,14 @@ forward(float2* patches, float2* images, int nimagex, int pi, int ii, float sxf,
                 + images[ii + 1          ].y * (       sxf) * (1.0f - syf)
                 + images[ii     + nimagex].y * (1.0f - sxf) * (       syf)
                 + images[ii + 1 + nimagex].y * (       sxf) * (       syf);
+  // clang-format on
 }
 
 __device__ void
-adjoint(float2* patches, float2* images, int nimagex, int pi, int ii, float sxf, float syf){
+_adjoint(float2 *patches, float2 *images, int nimagex, int pi, int ii,
+         float sxf, float syf) {
   const float2 tmp = patches[pi];
+  // clang-format off
   atomicAdd(&images[ii              ].x, tmp.x * (1.0f - sxf) * (1.0f - syf));
   atomicAdd(&images[ii              ].y, tmp.y * (1.0f - sxf) * (1.0f - syf));
   atomicAdd(&images[ii + 1          ].y, tmp.y * (       sxf) * (1.0f - syf));
@@ -33,20 +38,21 @@ adjoint(float2* patches, float2* images, int nimagex, int pi, int ii, float sxf,
   atomicAdd(&images[ii     + nimagex].y, tmp.y * (1.0f - sxf) * (       syf));
   atomicAdd(&images[ii + 1 + nimagex].x, tmp.x * (       sxf) * (       syf));
   atomicAdd(&images[ii + 1 + nimagex].y, tmp.y * (       sxf) * (       syf));
+  // clang-format on
 }
-
 
 // The kernel should be launched with the following maximum shapes:
 // grid shape = (nscan, nimage, patch_size)
 // block shape = (min(max_thread, patch_size), 1, 1)
-
-// images has shape (nimage, nimagey, nimagex)
-// patches has shape (nscan, patch_shape, patch_shape)
-// nscan is the number of positions per images
-// scan has shape (nimage, nscan)
-extern "C" __global__ void
-patch(forwardOrAdjoint operation, float2 *images, float2 *patches, const float2 *scan, int nimage,
-      int nimagey, int nimagex, int nscan, int patch_shape, int padded_shape) {
+__device__ void
+_loop_over_patches(
+    forwardOrAdjoint operation,
+    float2 *images,      // has shape (nimage, nimagey, nimagex)
+    float2 *patches,     // has shape (nscan, patch_shape, patch_shape)
+    const float2 *scan,  // has shape (nimage, nscan)
+    int nimage, int nimagey, int nimagex,
+    int nscan,  // the number of positions per images
+    int patch_shape, int padded_shape) {
   const int pad = (padded_shape - patch_shape) / 2;
 
   // for each image
@@ -92,18 +98,16 @@ patch(forwardOrAdjoint operation, float2 *images, float2 *patches, const float2 
 
 extern "C" __global__ void
 fwd_patch(float2 *images, float2 *patches, const float2 *scan, int nimage,
-  int nimagey, int nimagex, int nscan, int patch_shape, int padded_shape
-)
-{
-  patch(forward, images, patches, scan, nimage,
-    nimagey, nimagex, nscan, patch_shape, padded_shape);
-
+          int nimagey, int nimagex, int nscan, int patch_shape,
+          int padded_shape) {
+  _loop_over_patches(_forward, images, patches, scan, nimage, nimagey, nimagex,
+                     nscan, patch_shape, padded_shape);
 }
 
 extern "C" __global__ void
 adj_patch(float2 *images, float2 *patches, const float2 *scan, int nimage,
-  int nimagey, int nimagex, int nscan, int patch_shape, int padded_shape
-){
-  patch(adjoint, images, patches, scan, nimage,
-    nimagey, nimagex, nscan, patch_shape, padded_shape);
+          int nimagey, int nimagex, int nscan, int patch_shape,
+          int padded_shape) {
+  _loop_over_patches(_adjoint, images, patches, scan, nimage, nimagey, nimagex,
+                     nscan, patch_shape, padded_shape);
 }
