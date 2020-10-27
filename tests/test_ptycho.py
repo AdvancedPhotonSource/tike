@@ -165,7 +165,7 @@ class TestPtychoRecon(unittest.TestCase):
         """Return the error between two arrays."""
         return np.linalg.norm(x - self.original)
 
-    def template_consistent_algorithm(self, algorithm):
+    def template_consistent_algorithm(self, algorithm, params={}):
         """Check ptycho.solver.algorithm for consistency."""
         result = {
             'psi': np.ones_like(self.original),
@@ -178,6 +178,7 @@ class TestPtychoRecon(unittest.TestCase):
             result['scan'] = self.scan
             result = tike.ptycho.reconstruct(
                 **result,
+                **params,
                 data=self.data,
                 algorithm=algorithm,
                 num_gpu=4,
@@ -187,7 +188,7 @@ class TestPtychoRecon(unittest.TestCase):
                 recover_psi=True,
             )
             error1 = result['cost']
-            print(error1)
+            print(f'{error1:.3e},')
             assert error1 < error0
             error0 = error1
 
@@ -201,7 +202,13 @@ class TestPtychoRecon(unittest.TestCase):
 
     # def test_consistent_divided(self):
     #     """Check ptycho.solver.divided for consistency."""
-    #     self.template_consistent_algorithm('divided')
+    #     self.template_consistent_algorithm(
+    #         'divided',
+    #         params={
+    #             'subset_is_random': True,
+    #             'batch_size': int(self.data.shape[1] * 0.15),
+    #         },
+    #     )
 
 
 if __name__ == '__main__':
