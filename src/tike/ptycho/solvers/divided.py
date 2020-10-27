@@ -7,6 +7,7 @@ from tike.opt import conjugate_gradient, line_search, direction_dy
 from ..position import update_positions_pd
 
 logger = logging.getLogger(__name__)
+randomizer = np.random.default_rng()
 
 
 def _batch_indicies(n, m, use_random=False):
@@ -16,7 +17,7 @@ def _batch_indicies(n, m, use_random=False):
     [array([2, 4, 7, 3]), array([1, 8, 9]), array([6, 5, 0])]
 
     """
-    i = np.random.default_rng().permutation(n) if use_random else np.arange(n)
+    i = randomizer.permutation(n) if use_random else np.arange(n)
     return np.array_split(i, (n + m - 1) // m)
 
 def divided(
@@ -71,6 +72,7 @@ def divided(
         farplane = op.propagation.fwd(nearplane, overwrite=False)
         farplane, cost = update_phase(op, data_, farplane, num_iter=cg_iter)
         logger.info('%10s cost is %+12.5e', 'farplane', cost)
+        # TODO: Only compute cost every 20 iterations or on a log sampling?
 
         # Use χ (chi) to solve the nearplane problem. We use least-squares to
         # find the update of all the search directions: object, probe,
