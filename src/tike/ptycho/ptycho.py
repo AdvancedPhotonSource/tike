@@ -56,6 +56,8 @@ __all__ = [
 ]
 
 import logging
+import time
+
 import numpy as np
 
 from tike.operators import Ptycho
@@ -191,7 +193,9 @@ def reconstruct(
                                                  result['psi'], result['scan'],
                                                  result['probe'])
 
-            cost = 0
+            costs = []
+            times = []
+            start = time.perf_counter()
             for i in range(num_iter):
                 kwargs.update(result)
                 result = getattr(solvers, algorithm)(
@@ -200,15 +204,20 @@ def reconstruct(
                     data=data,
                     **kwargs,
                 )
+                costs.append(result['cost'])
+                times.append(time.perf_counter() - start)
+                start = time.perf_counter()
+
                 # Check for early termination
-                if i > 0 and abs((result['cost'] - cost) / cost) < rtol:
+                if i > 0 and abs((costs[-1] - costs[-2]) / costs[-2]) < rtol:
                     logger.info(
                         "Cost function rtol < %g reached at %d "
                         "iterations.", rtol, i)
                     break
-                cost = result['cost']
 
             result['scan'] = pool.gather(result['scan'], axis=1)
+            result['cost'] = operator.asarray(costs)
+            result['times'] = operator.asarray(times)
             for k, v in result.items():
                 if isinstance(v, list):
                     result[k] = v[0]
