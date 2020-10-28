@@ -141,7 +141,9 @@ def reconstruct(
         data,
         probe, scan,
         algorithm,
-        psi=None, num_gpu=1, num_iter=1, rtol=-1, split=None, **kwargs
+        psi=None, num_gpu=1, num_iter=1, rtol=-1, split=None,
+        model='gaussian', cost=None, times=None,
+        **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
 
@@ -165,7 +167,7 @@ def reconstruct(
                 nz=psi.shape[-2],
                 n=psi.shape[-1],
                 ntheta=scan.shape[0],
-                **kwargs,
+                model=model,
         ) as operator, ThreadPool(num_gpu) as pool:
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[1:],

@@ -14,7 +14,6 @@ def combined(
     data, probe, scan, psi,
     recover_psi=True, recover_probe=True, recover_positions=False,
     cg_iter=4,
-    **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using a combined approach.
 
