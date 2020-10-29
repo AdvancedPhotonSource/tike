@@ -45,9 +45,9 @@ class Lamino(CachedFFT, Operator):
         """Please see help(Lamino) for more info."""
         self.n = n
         self.ntheta = len(theta)
-        self.tilt = tilt
+        self.tilt = self.xp.asarray(tilt)
         self.eps = eps
-        self.xi = self._make_grids(theta)
+        self.xi = self._make_grids(self.xp.asarray(theta))
 
     def __enter__(self):
         """Return self at start of a with-block."""

@@ -1,19 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import time
 import unittest
 
 import numpy as np
-
-from .util import random_complex, inner_complex
 from tike.operators import Ptycho
+
+from .util import random_complex, inner_complex, OperatorTests
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 
-class TestPtycho(unittest.TestCase):
+class TestPtycho(unittest.TestCase, OperatorTests):
     """Test the ptychography operator."""
 
     def setUp(self, ntheta=3, pw=15, nscan=27, fly=9):
@@ -27,62 +28,70 @@ class TestPtycho(unittest.TestCase):
         self.fly = fly
         print(Ptycho)
 
-    def test_adjoint(self):
-        """Check that the adjoint operator is correct."""
         np.random.seed(0)
         scan = np.random.rand(*self.scan_shape).astype('float32') * (127 - 16)
         probe = random_complex(*self.probe_shape)
         original = random_complex(*self.original_shape)
         farplane = random_complex(*self.probe_shape[:-2], *self.detector_shape)
 
-        with Ptycho(
-                nscan=self.scan_shape[-2],
-                probe_shape=self.probe_shape[-1],
-                detector_shape=self.detector_shape[-1],
-                nz=self.original_shape[-2],
-                n=self.original_shape[-1],
-                ntheta=self.ntheta,
-                fly=self.fly,
-        ) as op:
+        self.operator = Ptycho(
+            nscan=self.scan_shape[-2],
+            probe_shape=self.probe_shape[-1],
+            detector_shape=self.detector_shape[-1],
+            nz=self.original_shape[-2],
+            n=self.original_shape[-1],
+            ntheta=self.ntheta,
+            fly=self.fly,
+        )
+        self.operator.__enter__()
+        self.xp = self.operator.xp
 
-            probe = op.asarray(probe.astype('complex64'))
-            original = op.asarray(original.astype('complex64'))
-            farplane = op.asarray(farplane.astype('complex64'))
-            scan = op.asarray(scan.astype('float32'))
+        probe = self.xp.asarray(probe.astype('complex64'))
+        original = self.xp.asarray(original.astype('complex64'))
+        farplane = self.xp.asarray(farplane.astype('complex64'))
+        scan = self.xp.asarray(scan.astype('float32'))
 
-            d = op.fwd(
-                probe=probe,
-                scan=scan,
-                psi=original,
-            )
-            assert d.shape == farplane.shape
-            o = op.adj(
-                farplane=farplane,
-                probe=probe,
-                scan=scan,
-            )
-            assert original.shape == o.shape
-            p = op.adj_probe(
-                farplane=farplane,
-                scan=scan,
-                psi=original,
-            )
-            assert probe.shape == p.shape
-            a = inner_complex(d, farplane)
-            b = inner_complex(probe, p)
-            c = inner_complex(original, o)
-            print()
-            print('<FQP,     Ψ> = {:.6f}{:+.6f}j'.format(
-                a.real.item(), a.imag.item()))
-            print('<P  , Q*F*Ψ> = {:.6f}{:+.6f}j'.format(
-                b.real.item(), b.imag.item()))
-            print('<Q  , P*F*Ψ> = {:.6f}{:+.6f}j'.format(
-                c.real.item(), c.imag.item()))
-            # Test whether Adjoint fixed probe operator is correct
-            op.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5)
-            op.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
-            op.xp.testing.assert_allclose(a.real, c.real, rtol=1e-5)
-            op.xp.testing.assert_allclose(a.imag, c.imag, rtol=1e-5)
+        self.m = self.xp.asarray(original, dtype='complex64')
+        self.m_name = 'psi'
+        self.kwargs = {
+            'scan': self.xp.asarray(scan, dtype='float32'),
+            'probe': self.xp.asarray(probe, dtype='complex64')
+        }
+
+        self.m1 = self.xp.asarray(probe, dtype='complex64')
+        self.m1_name = 'probe'
+        self.kwargs1 = {
+            'scan': self.xp.asarray(scan, dtype='float32'),
+            'psi': self.xp.asarray(original, dtype='complex64')
+        }
+
+        self.d = self.xp.asarray(farplane, dtype='complex64')
+        self.d_name = 'farplane'
+
+    def test_adjoint_probe(self):
+        """Check that the adjoint operator is correct."""
+        d = self.operator.fwd(**{self.m1_name: self.m1}, **self.kwargs1)
+        assert d.shape == self.d.shape
+        m = self.operator.adj_probe(**{self.d_name: self.d}, **self.kwargs1)
+        assert m.shape == self.m1.shape
+        a = inner_complex(d, self.d)
+        b = inner_complex(self.m1, m)
+        print()
+        print('<Fm,   m> = {:.6f}{:+.6f}j'.format(a.real.item(), a.imag.item()))
+        print('< d, F*d> = {:.6f}{:+.6f}j'.format(b.real.item(), b.imag.item()))
+        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5)
+        self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
+
+    def test_adj_probe_time(self):
+        """Time the adjoint operation."""
+        start = time.perf_counter()
+        m = self.operator.adj_probe(**{self.d_name: self.d}, **self.kwargs1)
+        elapsed = time.perf_counter() - start
+        print(f"\n{elapsed:1.3e} seconds")
+
+    @unittest.skip('FIXME: This operator is not normalized.')
+    def test_normalized(self):
+        pass
 
 
 if __name__ == '__main__':
