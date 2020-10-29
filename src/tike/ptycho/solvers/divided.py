@@ -70,13 +70,12 @@ def divided(
 
         # Solve the farplane phase problem
         farplane = op.propagation.fwd(nearplane, overwrite=False)
-        farplane, cost = update_phase(op, data_, farplane, num_iter=cg_iter)
-        logger.info('%10s cost is %+12.5e', 'farplane', cost)
         intensity = xp.sum(xp.square(xp.abs(farplane)), axis=(2, 3))
-        # TODO: Only compute cost every 20 iterations or on a log sampling?
         cost = op.propagation.cost(data_, intensity)
-        logger.info('%10s cost is %+12.5e', 'farplane', cost)
         farplane -= op.propagation.grad(data_, farplane, intensity)
+
+        logger.info('%10s cost is %+12.5e', 'farplane', cost)
+        # TODO: Only compute cost every 20 iterations or on a log sampling?
 
         # Use χ (chi) to solve the nearplane problem. We use least-squares to
         # find the update of all the search directions: object, probe,
