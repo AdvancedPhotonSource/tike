@@ -160,8 +160,8 @@ def divided(
 
                 updates.append(dPO.view('float32').reshape(lstsq_shape))
 
-            # Use least-squares to find the optimal step sizes simultaneously for
-            # all search directions.
+            # Use least-squares to find the optimal step sizes simultaneously
+            # for all search directions.
             if updates:
                 A = cp.stack(updates, axis=-1)
                 b = chi_.view('float32').reshape(lstsq_shape)
