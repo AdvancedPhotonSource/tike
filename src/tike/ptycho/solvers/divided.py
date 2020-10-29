@@ -20,6 +20,7 @@ def _batch_indicies(n, m, use_random=False):
     i = randomizer.permutation(n) if use_random else np.arange(n)
     return np.array_split(i, (n + m - 1) // m)
 
+
 def divided(
     op, pool,
     data, probe, scan, psi,
