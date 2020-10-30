@@ -159,7 +159,7 @@ def reconstruct(
     """
     (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
     check_allowed_positions(scan, psi, probe)
-    if algorithm in solvers.__all__:
+    if algorithm in dir(solvers):
         # Initialize an operator.
         with Ptycho(
                 probe_shape=probe.shape[-1],

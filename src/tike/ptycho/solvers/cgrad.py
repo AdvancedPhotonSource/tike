@@ -8,7 +8,7 @@ from ..position import update_positions_pd
 logger = logging.getLogger(__name__)
 
 
-def combined(
+def cgrad(
     op, pool,
     data, probe, scan, psi,
     recover_psi=True, recover_probe=True, recover_positions=False,
@@ -17,11 +17,11 @@ def combined(
     cost=None,
     subset_is_random=True,
 ):  # yapf: disable
-    """Solve the ptychography problem using a combined approach.
+    """Solve the ptychography problem using conjugate gradient.
 
     Parameters
     ----------
-    operator : tike.operators.Ptycho
+    op : tike.operators.Ptycho
         A ptychography operator.
     pool : tike.pool.ThreadPoolExecutor
         An object which manages communications between GPUs.
@@ -33,7 +33,7 @@ def combined(
         scan_ = [x[:, index] for x in scan]
 
         if recover_psi:
-            psi, cost = update_object(
+            psi, cost = _update_object(
                 op,
                 pool,
                 data_,
@@ -45,7 +45,7 @@ def combined(
 
         if recover_probe:
             # TODO: add multi-GPU support
-            probe, cost = update_probe(
+            probe, cost = _update_probe(
                 op,
                 pool,
                 pool.gather(data_, axis=1),
@@ -69,7 +69,7 @@ def combined(
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 
 
-def update_probe(op, pool, data, psi, scan, probe, num_iter=1):
+def _update_probe(op, pool, data, psi, scan, probe, num_iter=1):
     """Solve the probe recovery problem."""
 
     # TODO: Cache object patche between mode updates
@@ -99,7 +99,7 @@ def update_probe(op, pool, data, psi, scan, probe, num_iter=1):
     return probe, cost
 
 
-def update_object(op, pool, data, psi, scan, probe, num_iter=1):
+def _update_object(op, pool, data, psi, scan, probe, num_iter=1):
     """Solve the object recovery problem."""
 
     def cost_function_multi(psi, **kwargs):

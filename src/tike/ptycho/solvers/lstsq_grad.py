@@ -9,10 +9,7 @@ from ..position import update_positions_pd
 logger = logging.getLogger(__name__)
 
 
-
-
-
-def divided(
+def lstsq_grad(
     op, pool,
     data, probe, scan, psi,
     recover_psi=True, recover_probe=False, recover_positions=False,
@@ -21,7 +18,17 @@ def divided(
     cost=None,
     subset_is_random=True,
 ):  # yapf: disable
-    """Solve near- and farfield- ptychography problems separately.
+    """Solve the ptychography problem using Odstrcil et al's approach.
+
+    The near- and farfield- ptychography problems are solved separately using
+    gradient descent in the farfield and linear-least-squares in the nearfield.
+
+    Parameters
+    ----------
+    op : tike.operators.Ptycho
+        A ptychography operator.
+    pool : tike.pool.ThreadPoolExecutor
+        An object which manages communications between GPUs.
 
     References
     ----------
@@ -37,8 +44,7 @@ def divided(
     # Divide the scan positions into smaller batches to be processed
     # sequentially. Otherwise we run out memory processing all of
     # the diffraction patterns at the same time.
-    for index in batch_indicies(data[0].shape[1], batch_size,
-                                 subset_is_random):
+    for index in batch_indicies(data[0].shape[1], batch_size, subset_is_random):
         data_ = data[0][:, index]
         scan_ = scan[0][:, index]
 
