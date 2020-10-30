@@ -2,18 +2,20 @@ import logging
 
 import numpy as np
 
-from tike.opt import conjugate_gradient, line_search
+from tike.opt import conjugate_gradient, line_search, batch_indicies
 from ..position import update_positions_pd
 
 logger = logging.getLogger(__name__)
 
 
 def combined(
-    op,
-    pool,
+    op, pool,
     data, probe, scan, psi,
     recover_psi=True, recover_probe=True, recover_positions=False,
     cg_iter=4,
+    batch_size=None,
+    cost=None,
+    subset_is_random=True,
 ):  # yapf: disable
     """Solve the ptychography problem using a combined approach.
 
@@ -25,40 +27,44 @@ def combined(
         An object which manages communications between GPUs.
     """
     cost = np.inf
+    for index in batch_indicies(data[0].shape[1], batch_size, subset_is_random):
 
-    if recover_psi:
-        psi, cost = update_object(
-            op,
-            pool,
-            data,
-            psi,
-            scan,
-            probe,
-            num_iter=cg_iter,
-        )
+        data_ = [x[:, index] for x in data]
+        scan_ = [x[:, index] for x in scan]
 
-    if recover_probe:
-        # TODO: add multi-GPU support
-        probe, cost = update_probe(
-            op,
-            pool,
-            pool.gather(data, axis=1),
-            psi[0],
-            pool.gather(scan, axis=1),
-            probe[0],
-            num_iter=cg_iter,
-        )
-        probe = pool.bcast(probe)
+        if recover_psi:
+            psi, cost = update_object(
+                op,
+                pool,
+                data_,
+                psi,
+                scan_,
+                probe,
+                num_iter=cg_iter,
+            )
 
-    if recover_positions and pool.num_workers == 1:
-        scan, cost = update_positions_pd(
-            op,
-            pool.gather(data, axis=1),
-            psi[0],
-            probe[0],
-            pool.gather(scan, axis=1),
-        )
-        scan = pool.bcast(scan)
+        if recover_probe:
+            # TODO: add multi-GPU support
+            probe, cost = update_probe(
+                op,
+                pool,
+                pool.gather(data_, axis=1),
+                psi[0],
+                pool.gather(scan_, axis=1),
+                probe[0],
+                num_iter=cg_iter,
+            )
+            probe = pool.bcast(probe)
+
+        if recover_positions and pool.num_workers == 1:
+            scan, cost = update_positions_pd(
+                op,
+                pool.gather(data_, axis=1),
+                psi[0],
+                probe[0],
+                pool.gather(scan_, axis=1),
+            )
+            scan = pool.bcast(scan)
 
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 

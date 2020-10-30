@@ -3,22 +3,13 @@ import logging
 import cupy as cp
 import numpy as np
 
-from tike.opt import conjugate_gradient, line_search, direction_dy
+from tike.opt import conjugate_gradient, line_search, direction_dy, batch_indicies
 from ..position import update_positions_pd
 
 logger = logging.getLogger(__name__)
-randomizer = np.random.default_rng()
 
 
-def _batch_indicies(n, m, use_random=False):
-    """Return list of indices [0...n) as groups of at most m indices.
 
-    >>> _random_subset(10, 4)
-    [array([2, 4, 7, 3]), array([1, 8, 9]), array([6, 5, 0])]
-
-    """
-    i = randomizer.permutation(n) if use_random else np.arange(n)
-    return np.array_split(i, (n + m - 1) // m)
 
 
 def divided(
@@ -26,7 +17,7 @@ def divided(
     data, probe, scan, psi,
     recover_psi=True, recover_probe=False, recover_positions=False,
     cg_iter=4,
-    batch_size=40,
+    batch_size=None,
     cost=None,
     subset_is_random=True,
 ):  # yapf: disable
@@ -46,7 +37,7 @@ def divided(
     # Divide the scan positions into smaller batches to be processed
     # sequentially. Otherwise we run out memory processing all of
     # the diffraction patterns at the same time.
-    for index in _batch_indicies(data[0].shape[1], batch_size,
+    for index in batch_indicies(data[0].shape[1], batch_size,
                                  subset_is_random):
         data_ = data[0][:, index]
         scan_ = scan[0][:, index]
