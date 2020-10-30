@@ -192,18 +192,18 @@ class TestPtychoRecon(unittest.TestCase):
             # assert error1 < error0
             error0 = error1
 
-    def test_consistent_combined(self):
-        """Check ptycho.solver.combined for consistency."""
-        self.template_consistent_algorithm('combined')
+    def test_consistent_cgrad(self):
+        """Check ptycho.solver.cgrad for consistency."""
+        self.template_consistent_algorithm('cgrad')
 
     # def test_consistent_admm(self):
     #     """Check ptycho.solver.admm for consistency."""
     #     self.template_consistent_algorithm('admm')
 
-    def test_consistent_divided(self):
-        """Check ptycho.solver.divided for consistency."""
+    def test_consistent_lstsq_grad(self):
+        """Check ptycho.solver.lstsq_grad for consistency."""
         self.template_consistent_algorithm(
-            'divided',
+            'lstsq_grad',
             params={
                 'subset_is_random': True,
                 'batch_size': int(self.data.shape[1] * 0.6),
