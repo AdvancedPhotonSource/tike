@@ -1,9 +1,8 @@
 import logging
 
 import cupy as cp
-import numpy as np
 
-from tike.opt import conjugate_gradient, line_search, direction_dy, batch_indicies
+from tike.opt import batch_indicies
 from ..position import update_positions_pd
 
 logger = logging.getLogger(__name__)
