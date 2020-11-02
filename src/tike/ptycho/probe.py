@@ -81,7 +81,7 @@ def orthogonalize_eig(x):
 
     Parameters
     ----------
-    x : (nmodes, probe_shape * probe_shape) array_like complex64
+    x : (..., nmodes, :, :) array_like complex64
         An array of the probe modes vectorized
 
     References
@@ -90,19 +90,36 @@ def orthogonalize_eig(x):
     Brocklesby, "Ptychographic coherent diffractive imaging with orthogonal
     probe relaxation." Opt. Express 24, 8360 (2016). doi: 10.1364/OE.24.008360
     """
-    nmodes = x.shape[0]
-    # 'A' holds the dot product of all possible mode pairs
-    A = np.empty((nmodes, nmodes), dtype='complex64')
+    nmodes = x.shape[-3]
+    # 'A' holds the dot product of all possible mode pairs. We only fill the
+    # lower half of `A` because it is conjugate-symmetric
+    A = cp.empty((*x.shape[:-3], nmodes, nmodes), dtype='complex64')
+    for i in range(nmodes):
+        for j in range(i + 1):
+            A[..., i, j] = cp.sum(cp.conj(x[..., i, :, :]) * x[..., j, :, :],
+                                  axis=(-1, -2))
+
+    _, vectors = cp.linalg.eigh(A, UPLO='L')
+    # np.linalg.eigh guarantees that the eigen values are returned in ascending
+    # order, so we just reverse the order of modes to have them sorted in
+    # descending order.
+
+    # TODO: Optimize this double-loop
+    x_new = cp.zeros_like(x)
     for i in range(nmodes):
         for j in range(nmodes):
-            A[i, j] = np.sum(np.conj(x[i]) * x[j])
+            # Sort new modes by eigen value in decending order.
+            x_new[..., nmodes - 1 -
+                  j, :, :] += vectors[..., i, j, None, None] * x[..., i, :, :]
+    assert x_new.shape == x.shape, [x_new.shape, x.shape]
 
-    values, vectors = np.linalg.eig(A)
+    return x_new
 
-    x_new = np.zeros_like(x)
-    for i in range(nmodes):
-        for j in range(nmodes):
-            x_new[j] += vectors[i, j] * x[i]
 
-    # Sort new modes by eigen value in decending order
-    return x_new[np.argsort(-values)]
+import cupy as cp
+if __name__ == "__main__":
+    cp.random.seed(0)
+    x = (cp.random.rand(7, 1, 9, 3, 3) +
+         1j * cp.random.rand(7, 1, 9, 3, 3)).astype('complex64')
+    x1 = orthogonalize_eig(x)
+    assert x1.shape == x.shape, x1.shape

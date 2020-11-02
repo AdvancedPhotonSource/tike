@@ -4,6 +4,7 @@ import cupy as cp
 
 from tike.opt import batch_indicies
 from ..position import update_positions_pd
+from ..probe import orthogonalize_eig
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +208,8 @@ def lstsq_grad(
 
             logger.info('%10s cost is %+12.5e', 'nearplane',
                         cp.linalg.norm(cp.ravel(chi_ - d)))
+
+    probe = orthogonalize_eig(probe)
 
     return {
         'psi': [psi],
