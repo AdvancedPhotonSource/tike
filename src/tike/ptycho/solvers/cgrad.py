@@ -69,19 +69,48 @@ def cgrad(
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 
 
+def _compute_intensity(op, psi, scan, probe):
+    farplane = op.fwd(
+        psi=psi,
+        scan=scan,
+        probe=probe,
+    )
+    return op.xp.sum(
+        op.xp.square(op.xp.abs(farplane)),
+        axis=(2, 3),
+    ), farplane
+
+
 def _update_probe(op, pool, data, psi, scan, probe, num_iter=1):
     """Solve the probe recovery problem."""
 
-    # TODO: Cache object patche between mode updates
+    # TODO: Cache object patches between mode updates
+    intensity = [
+        _compute_intensity(op, psi, scan, probe[..., m:m + 1, :, :])[0]
+        for m in range(probe.shape[-3])
+    ]
+    intensity = op.xp.array(intensity)
+
     for m in range(probe.shape[-3]):
 
         def cost_function(mode):
-            return op.cost(data, psi, scan, probe, m, mode)
+            intensity[m], _ = _compute_intensity(op, psi, scan, mode)
+            return op.propagation.cost(data, op.xp.sum(intensity, axis=0))
 
         def grad(mode):
+            intensity[m], farplane = _compute_intensity(op, psi, scan, mode)
             # Use the average gradient for all probe positions
             return op.xp.mean(
-                op.grad_probe(data, psi, scan, probe, m, mode),
+                op.adj_probe(
+                    farplane=op.propagation.grad(
+                        data,
+                        farplane,
+                        op.xp.sum(intensity, axis=0),
+                    ),
+                    psi=psi,
+                    scan=scan,
+                    overwrite=True,
+                ),
                 axis=(1, 2),
                 keepdims=True,
             )
