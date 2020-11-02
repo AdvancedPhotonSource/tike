@@ -163,7 +163,7 @@ def lstsq_grad(
                 A = cp.stack(updates, axis=-1)
                 b = chi_.view('float32').reshape(lstsq_shape)
                 steps = _lstsq(A, b)
-                num_steps = 0
+            num_steps = 0
             d = 0
 
             # Update each direction
@@ -209,7 +209,8 @@ def lstsq_grad(
             logger.info('%10s cost is %+12.5e', 'nearplane',
                         cp.linalg.norm(cp.ravel(chi_ - d)))
 
-    probe = orthogonalize_eig(probe)
+    if probe.shape[-3] > 1:
+        probe = orthogonalize_eig(probe)
 
     return {
         'psi': [psi],
