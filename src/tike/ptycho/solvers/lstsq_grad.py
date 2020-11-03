@@ -8,7 +8,6 @@ from ..probe import orthogonalize_eig
 
 logger = logging.getLogger(__name__)
 
-
 def lstsq_grad(
     op, pool,
     data, probe, scan, psi,
@@ -87,7 +86,7 @@ def lstsq_grad(
         # To solve the least-squares optimal step problem we flatten the last
         # two dimensions of the nearplanes and convert from complex to float
         lstsq_shape = (*nearplane.shape[:-3], 1,
-                       nearplane.shape[-2] * nearplane.shape[-1] * 2)
+                       nearplane.shape[-2] * nearplane.shape[-1])
 
         for m in range(probe.shape[-3]):
             chi_ = chi[m]
@@ -103,34 +102,31 @@ def lstsq_grad(
                 grad_psi = chi_.copy()
                 grad_psi[..., pad:end, pad:end] *= cp.conj(probe_)
 
-                # FIXME: What to do when elements of this norm are zero?
-                norm_probe = cp.ones_like(psi)
-                dir_psi = cp.zeros_like(psi)
-
                 # FIXME: Shape changes required for fly scans.
-                intensity = cp.ones(
+
+                probe_intensity = cp.ones(
                     (*scan_.shape[:2], 1, 1, 1, 1),
                     dtype='complex64',
                 ) * cp.square(cp.abs(probe_))
+
                 norm_probe = op.diffraction._patch(
-                    patches=intensity,
-                    psi=norm_probe,
+                    patches=probe_intensity,
+                    psi=cp.ones_like(psi),
                     scan=scan_,
                     fwd=False,
-                )
+                ) + 1e-6
+
+                # FIXME: What to do when elements of this norm are zero?
                 dir_psi = op.diffraction._patch(
                     patches=grad_psi,
-                    psi=dir_psi,
+                    psi=cp.zeros_like(psi),
                     scan=scan_,
                     fwd=False,
-                )
+                ) / norm_probe
 
-                dir_psi /= norm_probe
-
-                dOP = cp.zeros((*scan_.shape[:2], *data_.shape[-2:]),
-                               dtype='complex64')
                 dOP = op.diffraction._patch(
-                    patches=dOP,
+                    patches=cp.zeros((*scan_.shape[:2], *data_.shape[-2:]),
+                                     dtype='complex64'),
                     psi=dir_psi,
                     scan=scan_,
                     fwd=True,
@@ -139,29 +135,42 @@ def lstsq_grad(
                                   1, op.detector_shape, op.detector_shape)
                 dOP[..., pad:end, pad:end] *= probe_
 
-                updates.append(dOP.view('float32').reshape(lstsq_shape))
+                updates.append(dOP.reshape(lstsq_shape))
 
             if recover_probe:
+                patches = op.diffraction._patch(
+                    patches=cp.zeros(data_.shape, dtype='complex64'),
+                    psi=psi,
+                    scan=scan_,
+                    fwd=True,
+                )
+                patches = patches.reshape(op.ntheta, scan_.shape[-2] // op.fly,
+                                          op.fly, 1, op.detector_shape,
+                                          op.detector_shape)
+
                 grad_probe = (chi_ * xp.conj(patches))[..., pad:end, pad:end]
+
+                psi_intensity = cp.square(cp.abs(patches[..., pad:end,
+                                                         pad:end]))
+
+                norm_psi = cp.sum(psi_intensity, axis=(1, 2)) + 1e-6
+
                 dir_probe = cp.sum(
                     grad_probe,
                     axis=(1, 2),
                     keepdims=True,
-                ) / cp.sum(
-                    cp.square(cp.abs(patches[..., pad:end, pad:end])),
-                    axis=(1, 2),
-                )
+                ) / norm_psi
 
                 dPO = patches.copy()
                 dPO[..., pad:end, pad:end] *= dir_probe
 
-                updates.append(dPO.view('float32').reshape(lstsq_shape))
+                updates.append(dPO.reshape(lstsq_shape))
 
             # Use least-squares to find the optimal step sizes simultaneously
             # for all search directions.
             if updates:
                 A = cp.stack(updates, axis=-1)
-                b = chi_.view('float32').reshape(lstsq_shape)
+                b = chi_.reshape(lstsq_shape)
                 steps = _lstsq(A, b)
             num_steps = 0
             d = 0
@@ -169,18 +178,11 @@ def lstsq_grad(
             # Update each direction
             if recover_psi:
                 step = steps[..., num_steps, None, None]
-                # logger.info('%10s step is %+12.5e', 'object', step)
                 num_steps += 1
 
-                weighted_step = cp.zeros_like(psi)
-                # FIXME: Shape changes required for fly scans.
-                intensity = cp.ones(
-                    (*scan_.shape[:2], 1, 1, 1, 1),
-                    dtype='complex64',
-                ) * cp.square(cp.abs(probe_))
                 weighted_step = op.diffraction._patch(
-                    patches=step * intensity,
-                    psi=weighted_step,
+                    patches=step * probe_intensity,
+                    psi=cp.zeros_like(psi),
                     scan=scan_,
                     fwd=False,
                 )
@@ -192,16 +194,7 @@ def lstsq_grad(
                 step = steps[..., num_steps, None, None]
                 num_steps += 1
 
-                weighted_step = cp.sum(
-                    step * cp.square(cp.abs(patches[..., pad:end, pad:end])),
-                    axis=(1, 2),
-                )
-
-                # FIXME: What to do when elements of this norm are zero?
-                norm_psi = cp.sum(
-                    cp.square(cp.abs(patches[..., pad:end, pad:end])),
-                    axis=(1, 2),
-                ) + 1
+                weighted_step = cp.sum(step * psi_intensity, axis=(1, 2))
 
                 probe_ += dir_probe * weighted_step / norm_psi
                 d += step * dPO
