@@ -68,10 +68,14 @@ def lstsq_grad(
         farplane = op.propagation.fwd(nearplane, overwrite=False)
         intensity = xp.sum(xp.square(xp.abs(farplane)), axis=(2, 3))
         cost = op.propagation.cost(data_, intensity)
-        farplane -= op.propagation.grad(data_, farplane, intensity)
-
         logger.info('%10s cost is %+12.5e', 'farplane', cost)
-        # TODO: Only compute cost every 20 iterations or on a log sampling?
+        farplane -= 0.05 * op.propagation.grad(data_, farplane, intensity)
+
+        if __debug__:
+            intensity = xp.sum(xp.square(xp.abs(farplane)), axis=(2, 3))
+            cost = op.propagation.cost(data_, intensity)
+            logger.info('%10s cost is %+12.5e', 'farplane', cost)
+            # TODO: Only compute cost every 20 iterations or on a log sampling?
 
         # Use χ (chi) to solve the nearplane problem. We use least-squares to
         # find the update of all the search directions: object, probe,
@@ -86,7 +90,7 @@ def lstsq_grad(
         # To solve the least-squares optimal step problem we flatten the last
         # two dimensions of the nearplanes and convert from complex to float
         lstsq_shape = (*nearplane.shape[:-3], 1,
-                       nearplane.shape[-2] * nearplane.shape[-1])
+                       nearplane.shape[-2] * nearplane.shape[-1] * 2)
 
         for m in range(probe.shape[-3]):
             chi_ = chi[m]
@@ -135,7 +139,7 @@ def lstsq_grad(
                                   1, op.detector_shape, op.detector_shape)
                 dOP[..., pad:end, pad:end] *= probe_
 
-                updates.append(dOP.reshape(lstsq_shape))
+                updates.append(dOP.view('float32').reshape(lstsq_shape))
 
             if recover_probe:
                 patches = op.diffraction._patch(
@@ -164,13 +168,13 @@ def lstsq_grad(
                 dPO = patches.copy()
                 dPO[..., pad:end, pad:end] *= dir_probe
 
-                updates.append(dPO.reshape(lstsq_shape))
+                updates.append(dPO.view('float32').reshape(lstsq_shape))
 
             # Use least-squares to find the optimal step sizes simultaneously
             # for all search directions.
             if updates:
                 A = cp.stack(updates, axis=-1)
-                b = chi_.reshape(lstsq_shape)
+                b = chi_.view('float32').reshape(lstsq_shape)
                 steps = _lstsq(A, b)
             num_steps = 0
             d = 0
@@ -199,8 +203,9 @@ def lstsq_grad(
                 probe_ += dir_probe * weighted_step / norm_psi
                 d += step * dPO
 
-            logger.info('%10s cost is %+12.5e', 'nearplane',
-                        cp.linalg.norm(cp.ravel(chi_ - d)))
+            if __debug__:
+                logger.info('%10s cost is %+12.5e', 'nearplane',
+                            cp.linalg.norm(cp.ravel(chi_ - d)))
 
     if probe.shape[-3] > 1:
         probe = orthogonalize_eig(probe)
