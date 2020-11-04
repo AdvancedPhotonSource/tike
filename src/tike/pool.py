@@ -75,6 +75,8 @@ class ThreadPool(ThreadPoolExecutor):
 
     def gather(self, x: list, worker=None, axis=0) -> cp.array:
         """Concatenate x on a single worker along the given axis."""
+        if self.num_workers == 1:
+            return x[0]
         worker = self.workers[0] if worker is None else worker
         with cp.cuda.Device(worker):
             return self.xp.concatenate(
