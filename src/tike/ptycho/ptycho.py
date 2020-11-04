@@ -237,9 +237,15 @@ def _rescale_obj_probe(operator, pool, data, psi, scan, probe):
     psi = psi[0]
     probe = probe[0]
 
-    intensity = operator._compute_intensity(data, psi, scan, probe)
+    # Use a random subset instead of the whole dataset
+    s = np.random.choice(
+        data.shape[1],
+        min(64, data.shape[1]),
+        replace=False,
+    )
+    intensity = operator._compute_intensity(data[:, s], psi, scan[:, s], probe)
 
-    rescale = (np.linalg.norm(np.ravel(np.sqrt(data))) /
+    rescale = (np.linalg.norm(np.ravel(np.sqrt(data[:, s]))) /
                np.linalg.norm(np.ravel(np.sqrt(intensity))))
 
     logger.info("object and probe rescaled by %f", rescale)
