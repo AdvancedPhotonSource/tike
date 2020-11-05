@@ -1,15 +1,10 @@
 __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
-from importlib_resources import files
-
 import cupy as cp
 
 from .operator import Operator
-
-_cu_source = files('tike.operators.cupy').joinpath('convolution.cu').read_text()
-_fwd_patch = cp.RawKernel(_cu_source, "fwd_patch")
-_adj_patch = cp.RawKernel(_cu_source, "adj_patch")
+from .patch import Patch
 
 
 class Convolution(Operator):
@@ -56,6 +51,7 @@ class Convolution(Operator):
             self.detector_shape = detector_shape
         self.pad = (self.detector_shape - self.probe_shape) // 2
         self.end = self.probe_shape + self.pad
+        self.patch = Patch()
 
     def fwd(self, psi, scan, probe):
         """Extract probe shaped patches from the psi at each scan position.
@@ -70,7 +66,10 @@ class Convolution(Operator):
              self.detector_shape),
             dtype='complex64',
         )
-        patches = self._patch(patches, psi, scan, fwd=True)
+        patches = self.patch.fwd(patches=patches,
+                                 images=psi,
+                                 positions=scan,
+                                 patch_width=self.probe_shape)
         patches = patches.reshape(self.ntheta, scan.shape[-2], 1, 1,
                                   self.detector_shape, self.detector_shape)
         patches[..., self.pad:self.end, self.pad:self.end] *= probe
@@ -88,7 +87,10 @@ class Convolution(Operator):
         if psi is None:
             psi = self.xp.zeros((self.ntheta, self.nz, self.n),
                                 dtype='complex64')
-        return self._patch(nearplane, psi, scan, fwd=False)
+        return self.patch.adj(patches=nearplane,
+                              images=psi,
+                              positions=scan,
+                              patch_width=self.probe_shape)
 
     def adj_probe(self, nearplane, scan, psi, overwrite=False):
         """Combine probe shaped patches into a probe."""
@@ -97,7 +99,10 @@ class Convolution(Operator):
             (self.ntheta, scan.shape[-2], self.probe_shape, self.probe_shape),
             dtype='complex64',
         )
-        patches = self._patch(patches, psi, scan, fwd=True)
+        patches = self.patch.fwd(patches=patches,
+                                 images=psi,
+                                 positions=scan,
+                                 patch_width=self.probe_shape)
         patches = patches.reshape(self.ntheta, scan.shape[-2], 1, 1,
                                   self.probe_shape, self.probe_shape)
         patches = patches.conj()
@@ -123,48 +128,3 @@ class Convolution(Operator):
         if __debug__ and x.shape != shape1:
             raise ValueError(
                 f"nearplane must have shape {shape1} not {x.shape}")
-
-    def _patch(self, patches, psi, scan, fwd=True):
-        """Extract or combine patches.
-
-        When fwd is True, the regions are copied from psi into patches.
-        When fwd is False, patches are added to psi.
-        """
-        max_thread = min(_next_power_two(self.probe_shape),
-                         _fwd_patch.attributes['max_threads_per_block'])
-        grids = (
-            scan.shape[-2],
-            self.ntheta,
-            self.probe_shape,
-        )
-        blocks = (max_thread,)
-        if fwd:
-            _fwd_patch(
-                grids,
-                blocks,
-                (psi, patches, scan, self.ntheta, self.nz, self.n,
-                 scan.shape[-2], self.probe_shape, patches.shape[-1]),
-            )
-            return patches
-        else:
-            _adj_patch(
-                grids,
-                blocks,
-                (psi, patches, scan, self.ntheta, self.nz, self.n,
-                 scan.shape[-2], self.probe_shape, patches.shape[-1]),
-            )
-            return psi
-
-
-def _next_power_two(v):
-    """Return the next highest power of 2 of 32-bit v.
-
-    https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
-    """
-    v -= 1
-    v |= v >> 1
-    v |= v >> 2
-    v |= v >> 4
-    v |= v >> 8
-    v |= v >> 16
-    return v + 1
