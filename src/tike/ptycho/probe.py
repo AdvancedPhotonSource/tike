@@ -1,3 +1,4 @@
+import cupy as cp
 import numpy as np
 
 
@@ -116,7 +117,6 @@ def orthogonalize_eig(x):
     return x_new
 
 
-import cupy as cp
 if __name__ == "__main__":
     cp.random.seed(0)
     x = (cp.random.rand(7, 1, 9, 3, 3) +

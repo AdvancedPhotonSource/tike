@@ -8,6 +8,7 @@ from ..probe import orthogonalize_eig
 
 logger = logging.getLogger(__name__)
 
+
 def lstsq_grad(
     op, pool,
     data, probe, scan, psi,
