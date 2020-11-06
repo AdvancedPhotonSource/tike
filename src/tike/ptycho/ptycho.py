@@ -61,6 +61,7 @@ import time
 import numpy as np
 
 from tike.operators import Ptycho
+from tike.opt import batch_indicies
 from tike.pool import ThreadPool
 from tike.ptycho import solvers
 from .position import check_allowed_positions, get_padded_object
@@ -142,7 +143,7 @@ def reconstruct(
         probe, scan,
         algorithm,
         psi=None, num_gpu=1, num_iter=1, rtol=-1, split=None,
-        model='gaussian', cost=None, times=None,
+        model='gaussian', cost=None, times=None, batch_size=None, subset_is_random=None,
         **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
@@ -185,27 +186,30 @@ def reconstruct(
             result = {
                 'psi': pool.bcast(psi.astype('complex64')),
                 'probe': pool.bcast(probe.astype('complex64')),
-                'scan': scan,
             }
             for key, value in kwargs.items():
                 if np.ndim(value) > 0:
                     kwargs[key] = pool.bcast(value)
 
             result['probe'] = _rescale_obj_probe(operator, pool, data,
-                                                 result['psi'], result['scan'],
+                                                 result['psi'], scan,
                                                  result['probe'])
 
+            batches = batch_indicies(data[0].shape[1], batch_size,
+                                     subset_is_random)
             costs = []
             times = []
             start = time.perf_counter()
             for i in range(num_iter):
-                kwargs.update(result)
-                result = getattr(solvers, algorithm)(
-                    operator,
-                    pool,
-                    data=data,
-                    **kwargs,
-                )
+                for batch in batches:
+                    kwargs.update(result)
+                    kwargs['scan'] = [s[:, batch] for s in scan]
+                    result = getattr(solvers, algorithm)(
+                        operator,
+                        pool,
+                        data=[d[:, batch] for d in data],
+                        **kwargs,
+                    )
                 costs.append(result['cost'])
                 times.append(time.perf_counter() - start)
                 start = time.perf_counter()
