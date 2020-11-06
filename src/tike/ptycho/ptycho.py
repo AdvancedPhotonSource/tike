@@ -221,7 +221,7 @@ def reconstruct(
                         "iterations.", rtol, i)
                     break
 
-            result['scan'] = pool.gather(result['scan'], axis=1)
+            result['scan'] = pool.gather(scan, axis=1)
             result['cost'] = operator.asarray(costs)
             result['times'] = operator.asarray(times)
             for k, v in result.items():

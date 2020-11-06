@@ -175,7 +175,6 @@ class TestPtychoRecon(unittest.TestCase):
         error0 = np.inf
         print()
         for _ in range(16):
-            result['scan'] = self.scan
             result = tike.ptycho.reconstruct(
                 **result,
                 **params,

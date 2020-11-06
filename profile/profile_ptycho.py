@@ -68,22 +68,18 @@ class BenchmarkPtycho(unittest.TestCase):
             **result,
             data=self.data,
             algorithm=algorithm,
-            num_iter=50,
+            num_iter=100,
             rtol=-1,
         )
         self.stop()
 
     def test_combined(self):
         """Use pyinstrument to benchmark the combined algorithm."""
-        self.template_algorithm('combined')
+        self.template_algorithm('cgrad')
 
     def test_divided(self):
         """Use pyinstrument to benchmark the divided algorithm."""
-        self.template_algorithm('divided')
-
-    def test_admm(self):
-        """Use pyinstrument to benchmark the admm algorithm."""
-        self.template_algorithm('admm')
+        self.template_algorithm('lstsq_grad')
 
 
 if __name__ == '__main__':
