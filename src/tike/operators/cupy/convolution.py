@@ -8,7 +8,8 @@ import cupy as cp
 from .operator import Operator
 
 _cu_source = files('tike.operators.cupy').joinpath('convolution.cu').read_text()
-_patch_kernel = cp.RawKernel(_cu_source, "patch")
+_fwd_patch = cp.RawKernel(_cu_source, "fwd_patch")
+_adj_patch = cp.RawKernel(_cu_source, "adj_patch")
 
 
 class Convolution(Operator):
@@ -135,22 +136,41 @@ class Convolution(Operator):
         When fwd is True, the regions are copied from psi into patches.
         When fwd is False, patches are added to psi.
         """
-        _patch_kernel = cp.RawKernel(_cu_source, "patch")
-        max_thread = min(self.probe_shape,
-                         _patch_kernel.attributes['max_threads_per_block'])
+        max_thread = min(_next_power_two(self.probe_shape),
+                         _fwd_patch.attributes['max_threads_per_block'])
         grids = (
-            self.probe_shape,
             scan.shape[-2],
             self.ntheta,
+            self.probe_shape,
         )
         blocks = (max_thread,)
-        _patch_kernel(
-            grids,
-            blocks,
-            (psi, patches, scan, self.ntheta, self.nz, self.n, scan.shape[-2],
-             self.probe_shape, patches.shape[-1], fwd),
-        )
         if fwd:
+            _fwd_patch(
+                grids,
+                blocks,
+                (psi, patches, scan, self.ntheta, self.nz, self.n,
+                 scan.shape[-2], self.probe_shape, patches.shape[-1]),
+            )
             return patches
         else:
+            _adj_patch(
+                grids,
+                blocks,
+                (psi, patches, scan, self.ntheta, self.nz, self.n,
+                 scan.shape[-2], self.probe_shape, patches.shape[-1]),
+            )
             return psi
+
+
+def _next_power_two(v):
+    """Return the next highest power of 2 of 32-bit v.
+
+    https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+    """
+    v -= 1
+    v |= v >> 1
+    v |= v >> 2
+    v |= v >> 4
+    v |= v >> 8
+    v |= v >> 16
+    return v + 1
