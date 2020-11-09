@@ -67,6 +67,7 @@ The modules in Tike are as follows:
    align
    opt
    ptycho
+   pool
    lamino
    scan
    view
