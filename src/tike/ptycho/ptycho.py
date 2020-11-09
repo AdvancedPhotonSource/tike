@@ -143,7 +143,8 @@ def reconstruct(
         probe, scan,
         algorithm,
         psi=None, num_gpu=1, num_iter=1, rtol=-1, split=None,
-        model='gaussian', cost=None, times=None, batch_size=None, subset_is_random=None,
+        model='gaussian', cost=None, times=None,
+        batch_size=None, subset_is_random=None,
         **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
