@@ -12,7 +12,7 @@ def lstsq_grad(
     op, pool,
     data, probe, scan, psi,
     recover_psi=True, recover_probe=False, recover_positions=False,
-    cg_iter=4,
+    cg_iter=4, psi_step=None, probe_step=None,
     cost=None,
 ):  # yapf: disable
     """Solve the ptychography problem using Odstrcil et al's approach.

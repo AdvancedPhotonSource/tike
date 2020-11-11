@@ -26,7 +26,7 @@ def update_obj(op, data, obj, num_iter=1):
     def grad(obj):
         return op.grad(data, obj)
 
-    obj, cost = conjugate_gradient(
+    obj, cost, _ = conjugate_gradient(
         op.xp,
         x=obj,
         cost_function=cost_function,

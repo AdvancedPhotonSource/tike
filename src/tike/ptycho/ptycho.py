@@ -202,6 +202,9 @@ def reconstruct(
             times = []
             start = time.perf_counter()
             for i in range(num_iter):
+                logger.info(f"{algorithm} epoch {i:,d}")
+                result['psi_step'] = None
+                result['probe_step'] = None
                 for batch in batches:
                     kwargs.update(result)
                     kwargs['scan'] = [s[:, batch] for s in scan]
@@ -211,7 +214,8 @@ def reconstruct(
                         data=[d[:, batch] for d in data],
                         **kwargs,
                     )
-                costs.append(result['cost'])
+                    if result['cost'] is not None:
+                        costs.append(result['cost'])
                 times.append(time.perf_counter() - start)
                 start = time.perf_counter()
 

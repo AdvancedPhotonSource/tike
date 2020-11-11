@@ -34,7 +34,7 @@ def line_search(
     d,
     update_multi,
     step_length=1,
-    step_shrink=0.5,
+    step_shrink=0.1,
 ):
     """Return a new `step_length` using a backtracking line search.
 
@@ -115,6 +115,7 @@ def conjugate_gradient(
     update_multi=update_single,
     num_iter=1,
     step_length=1,
+    num_search=None,
 ):
     """Use conjugate gradient to estimate `x`.
 
@@ -134,8 +135,14 @@ def conjugate_gradient(
         The updated subimages in all GPUs.
     num_iter : int
         The number of steps to take.
-
+    num_search : int
+        The number of during which to perform line search.
+    step_length : float
+        The initial multiplier of the search direction.
     """
+    num_search = num_iter if num_search is None else num_search
+    cost = None
+
     for i in range(num_iter):
 
         grad1 = grad(x)
@@ -147,17 +154,19 @@ def conjugate_gradient(
 
         dir_list = dir_multi(dir_)
 
-        gamma, cost = line_search(
-            f=cost_function,
-            x=x,
-            d=dir_list,
-            update_multi=update_multi,
-            step_length=step_length,
-        )
+        if i < num_search:
+            gamma, cost = line_search(
+                f=cost_function,
+                x=x,
+                d=dir_list,
+                update_multi=update_multi,
+                step_length=step_length,
+            )
 
-        x = update_multi(x, gamma, dir_list)
+            logger.debug("step %d; length %.3e -> %.3e; cost %.6e", i,
+                         step_length, gamma, cost)
+            step_length = gamma
 
-        logger.debug("step %d; length %.3e -> %.3e; cost %.6e", i, step_length,
-                     gamma, cost)
+        x = update_multi(x, step_length, dir_list)
 
-    return x, cost
+    return x, cost, step_length

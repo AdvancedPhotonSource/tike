@@ -12,7 +12,9 @@ def cgrad(
     op, pool,
     data, probe, scan, psi,
     recover_psi=True, recover_probe=True, recover_positions=False,
-    cg_iter=4,
+    cg_iter=1,
+    psi_step=None,
+    probe_step=None,
     cost=None,
 ):  # yapf: disable
     """Solve the ptychography problem using conjugate gradient.
@@ -24,10 +26,8 @@ def cgrad(
     pool : tike.pool.ThreadPoolExecutor
         An object which manages communications between GPUs.
     """
-    cost = np.inf
-
     if recover_psi:
-        psi, cost = _update_object(
+        psi, cost, psi_step = _update_object(
             op,
             pool,
             data,
@@ -35,11 +35,12 @@ def cgrad(
             scan,
             probe,
             num_iter=cg_iter,
+            step_length=psi_step,
         )
 
     if recover_probe:
         # TODO: add multi-GPU support
-        probe, cost = _update_probe(
+        probe, cost, probe_step = _update_probe(
             op,
             pool,
             pool.gather(data, axis=1),
@@ -47,6 +48,7 @@ def cgrad(
             pool.gather(scan, axis=1),
             probe[0],
             num_iter=cg_iter,
+            step_length=probe_step,
         )
         probe = pool.bcast(probe)
 
@@ -60,7 +62,14 @@ def cgrad(
         )
         scan = pool.bcast(scan)
 
-    return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
+    return {
+        'psi': psi,
+        'probe': probe,
+        'cost': cost,
+        'scan': scan,
+        'psi_step': psi_step,
+        'probe_step': probe_step,
+    }
 
 
 def _compute_intensity(op, psi, scan, probe):
@@ -75,7 +84,16 @@ def _compute_intensity(op, psi, scan, probe):
     ), farplane
 
 
-def _update_probe(op, pool, data, psi, scan, probe, num_iter=1):
+def _update_probe(
+    op,
+    pool,
+    data,
+    psi,
+    scan,
+    probe,
+    num_iter=1,
+    step_length=None,
+):
     """Solve the probe recovery problem."""
 
     # TODO: Cache object patches between mode updates
@@ -84,7 +102,7 @@ def _update_probe(op, pool, data, psi, scan, probe, num_iter=1):
         for m in range(probe.shape[-3])
     ]
     intensity = op.xp.array(intensity)
-
+    cost = None
     for m in range(probe.shape[-3]):
 
         def cost_function(mode):
@@ -109,20 +127,35 @@ def _update_probe(op, pool, data, psi, scan, probe, num_iter=1):
                 keepdims=True,
             )
 
-        probe[..., m:m + 1, :, :], cost = conjugate_gradient(
+        probe[..., m:m + 1, :, :], costm, step_length = conjugate_gradient(
             op.xp,
             x=probe[..., m:m + 1, :, :],
             cost_function=cost_function,
             grad=grad,
             num_iter=num_iter,
-            step_length=4,
+            step_length=1.0 if step_length is None else step_length,
+            num_search=1 if step_length is None else 0,
         )
+        if costm is not None:
+            cost = costm
 
-    logger.info('%10s cost is %+12.5e', 'probe', cost)
-    return probe, cost
+    if cost is not None:
+        logger.info('%10s cost is %+12.5e, step length is %+12.5e', 'probe',
+                    cost, step_length)
+
+    return probe, cost, step_length
 
 
-def _update_object(op, pool, data, psi, scan, probe, num_iter=1):
+def _update_object(
+    op,
+    pool,
+    data,
+    psi,
+    scan,
+    probe,
+    num_iter=1,
+    step_length=None,
+):
     """Solve the object recovery problem."""
 
     def cost_function_multi(psi, **kwargs):
@@ -155,7 +188,7 @@ def _update_object(op, pool, data, psi, scan, probe, num_iter=1):
 
         return list(pool.map(f, psi, dir))
 
-    psi, cost = conjugate_gradient(
+    psi, cost, step_length = conjugate_gradient(
         op.xp,
         x=psi,
         cost_function=cost_function_multi,
@@ -163,8 +196,12 @@ def _update_object(op, pool, data, psi, scan, probe, num_iter=1):
         dir_multi=dir_multi,
         update_multi=update_multi,
         num_iter=num_iter,
-        step_length=8e-5,
+        step_length=1.0 if step_length is None else step_length,
+        num_search=1 if step_length is None else 0,
     )
 
-    logger.info('%10s cost is %+12.5e', 'object', cost)
-    return psi, cost
+    if cost is not None:
+        logger.info('%10s cost is %+12.5e, step length is %+12.5e', 'object',
+                    cost, step_length)
+
+    return psi, cost, step_length
