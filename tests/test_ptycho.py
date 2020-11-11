@@ -165,7 +165,7 @@ class TestPtychoRecon(unittest.TestCase):
         """Return the error between two arrays."""
         return np.linalg.norm(x - self.original)
 
-    def template_consistent_algorithm(self, algorithm):
+    def template_consistent_algorithm(self, algorithm, params={}):
         """Check ptycho.solver.algorithm for consistency."""
         result = {
             'psi': np.ones_like(self.original),
@@ -175,9 +175,9 @@ class TestPtychoRecon(unittest.TestCase):
         error0 = np.inf
         print()
         for _ in range(16):
-            result['scan'] = self.scan
             result = tike.ptycho.reconstruct(
                 **result,
+                **params,
                 data=self.data,
                 algorithm=algorithm,
                 num_gpu=4,
@@ -186,22 +186,28 @@ class TestPtychoRecon(unittest.TestCase):
                 recover_probe=True,
                 recover_psi=True,
             )
-            error1 = result['cost']
-            print(error1)
-            assert error1 < error0
+            error1 = result['cost'][0]
+            print(f'{error1:.3e},')
+            # assert error1 < error0
             error0 = error1
 
-    def test_consistent_combined(self):
-        """Check ptycho.solver.combined for consistency."""
-        self.template_consistent_algorithm('combined')
+    def test_consistent_cgrad(self):
+        """Check ptycho.solver.cgrad for consistency."""
+        self.template_consistent_algorithm('cgrad')
 
     # def test_consistent_admm(self):
     #     """Check ptycho.solver.admm for consistency."""
     #     self.template_consistent_algorithm('admm')
 
-    # def test_consistent_divided(self):
-    #     """Check ptycho.solver.divided for consistency."""
-    #     self.template_consistent_algorithm('divided')
+    def test_consistent_lstsq_grad(self):
+        """Check ptycho.solver.lstsq_grad for consistency."""
+        self.template_consistent_algorithm(
+            'lstsq_grad',
+            params={
+                'subset_is_random': True,
+                'batch_size': int(self.data.shape[1] * 0.6),
+            },
+        )
 
 
 if __name__ == '__main__':

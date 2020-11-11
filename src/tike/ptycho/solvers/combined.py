@@ -2,25 +2,24 @@ import logging
 
 import numpy as np
 
-from tike.opt import conjugate_gradient, line_search
+from tike.opt import conjugate_gradient
 from ..position import update_positions_pd
 
 logger = logging.getLogger(__name__)
 
 
-def combined(
-    op,
-    pool,
+def cgrad(
+    op, pool,
     data, probe, scan, psi,
     recover_psi=True, recover_probe=True, recover_positions=False,
     cg_iter=4,
-    **kwargs
+    cost=None,
 ):  # yapf: disable
-    """Solve the ptychography problem using a combined approach.
+    """Solve the ptychography problem using conjugate gradient.
 
     Parameters
     ----------
-    operator : tike.operators.Ptycho
+    op : tike.operators.Ptycho
         A ptychography operator.
     pool : tike.pool.ThreadPoolExecutor
         An object which manages communications between GPUs.
@@ -28,7 +27,7 @@ def combined(
     cost = np.inf
 
     if recover_psi:
-        psi, cost = update_object(
+        psi, cost = _update_object(
             op,
             pool,
             data,
@@ -40,7 +39,7 @@ def combined(
 
     if recover_probe:
         # TODO: add multi-GPU support
-        probe, cost = update_probe(
+        probe, cost = _update_probe(
             op,
             pool,
             pool.gather(data, axis=1),
@@ -64,19 +63,48 @@ def combined(
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 
 
-def update_probe(op, pool, data, psi, scan, probe, num_iter=1):
+def _compute_intensity(op, psi, scan, probe):
+    farplane = op.fwd(
+        psi=psi,
+        scan=scan,
+        probe=probe,
+    )
+    return op.xp.sum(
+        op.xp.square(op.xp.abs(farplane)),
+        axis=(2, 3),
+    ), farplane
+
+
+def _update_probe(op, pool, data, psi, scan, probe, num_iter=1):
     """Solve the probe recovery problem."""
 
-    # TODO: Cache object patche between mode updates
+    # TODO: Cache object patches between mode updates
+    intensity = [
+        _compute_intensity(op, psi, scan, probe[..., m:m + 1, :, :])[0]
+        for m in range(probe.shape[-3])
+    ]
+    intensity = op.xp.array(intensity)
+
     for m in range(probe.shape[-3]):
 
         def cost_function(mode):
-            return op.cost(data, psi, scan, probe, m, mode)
+            intensity[m], _ = _compute_intensity(op, psi, scan, mode)
+            return op.propagation.cost(data, op.xp.sum(intensity, axis=0))
 
         def grad(mode):
+            intensity[m], farplane = _compute_intensity(op, psi, scan, mode)
             # Use the average gradient for all probe positions
             return op.xp.mean(
-                op.grad_probe(data, psi, scan, probe, m, mode),
+                op.adj_probe(
+                    farplane=op.propagation.grad(
+                        data,
+                        farplane,
+                        op.xp.sum(intensity, axis=0),
+                    ),
+                    psi=psi,
+                    scan=scan,
+                    overwrite=True,
+                ),
                 axis=(1, 2),
                 keepdims=True,
             )
@@ -94,7 +122,7 @@ def update_probe(op, pool, data, psi, scan, probe, num_iter=1):
     return probe, cost
 
 
-def update_object(op, pool, data, psi, scan, probe, num_iter=1):
+def _update_object(op, pool, data, psi, scan, probe, num_iter=1):
     """Solve the object recovery problem."""
 
     def cost_function_multi(psi, **kwargs):

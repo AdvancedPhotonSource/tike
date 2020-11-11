@@ -56,9 +56,12 @@ __all__ = [
 ]
 
 import logging
+import time
+
 import numpy as np
 
 from tike.operators import Ptycho
+from tike.opt import batch_indicies
 from tike.pool import ThreadPool
 from tike.ptycho import solvers
 from .position import check_allowed_positions, get_padded_object
@@ -139,7 +142,10 @@ def reconstruct(
         data,
         probe, scan,
         algorithm,
-        psi=None, num_gpu=1, num_iter=1, rtol=-1, split=None, **kwargs
+        psi=None, num_gpu=1, num_iter=1, rtol=-1, split=None,
+        model='gaussian', cost=None, times=None,
+        batch_size=None, subset_is_random=None,
+        **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
 
@@ -155,7 +161,7 @@ def reconstruct(
     """
     (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
     check_allowed_positions(scan, psi, probe)
-    if algorithm in solvers.__all__:
+    if algorithm in dir(solvers):
         # Initialize an operator.
         with Ptycho(
                 probe_shape=probe.shape[-1],
@@ -163,7 +169,7 @@ def reconstruct(
                 nz=psi.shape[-2],
                 n=psi.shape[-1],
                 ntheta=scan.shape[0],
-                **kwargs,
+                model=model,
         ) as operator, ThreadPool(num_gpu) as pool:
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[1:],
@@ -181,34 +187,44 @@ def reconstruct(
             result = {
                 'psi': pool.bcast(psi.astype('complex64')),
                 'probe': pool.bcast(probe.astype('complex64')),
-                'scan': scan,
             }
             for key, value in kwargs.items():
                 if np.ndim(value) > 0:
                     kwargs[key] = pool.bcast(value)
 
             result['probe'] = _rescale_obj_probe(operator, pool, data,
-                                                 result['psi'], result['scan'],
+                                                 result['psi'], scan,
                                                  result['probe'])
 
-            cost = 0
+            batches = batch_indicies(data[0].shape[1], batch_size,
+                                     subset_is_random)
+            costs = []
+            times = []
+            start = time.perf_counter()
             for i in range(num_iter):
-                kwargs.update(result)
-                result = getattr(solvers, algorithm)(
-                    operator,
-                    pool,
-                    data=data,
-                    **kwargs,
-                )
+                for batch in batches:
+                    kwargs.update(result)
+                    kwargs['scan'] = [s[:, batch] for s in scan]
+                    result = getattr(solvers, algorithm)(
+                        operator,
+                        pool,
+                        data=[d[:, batch] for d in data],
+                        **kwargs,
+                    )
+                costs.append(result['cost'])
+                times.append(time.perf_counter() - start)
+                start = time.perf_counter()
+
                 # Check for early termination
-                if i > 0 and abs((result['cost'] - cost) / cost) < rtol:
+                if i > 0 and abs((costs[-1] - costs[-2]) / costs[-2]) < rtol:
                     logger.info(
                         "Cost function rtol < %g reached at %d "
                         "iterations.", rtol, i)
                     break
-                cost = result['cost']
 
-            result['scan'] = pool.gather(result['scan'], axis=1)
+            result['scan'] = pool.gather(scan, axis=1)
+            result['cost'] = operator.asarray(costs)
+            result['times'] = operator.asarray(times)
             for k, v in result.items():
                 if isinstance(v, list):
                     result[k] = v[0]
@@ -226,9 +242,15 @@ def _rescale_obj_probe(operator, pool, data, psi, scan, probe):
     psi = psi[0]
     probe = probe[0]
 
-    intensity = operator._compute_intensity(data, psi, scan, probe)
+    # Use a random subset instead of the whole dataset
+    s = np.random.choice(
+        data.shape[1],
+        min(64, data.shape[1]),
+        replace=False,
+    )
+    intensity = operator._compute_intensity(data[:, s], psi, scan[:, s], probe)
 
-    rescale = (np.linalg.norm(np.ravel(np.sqrt(data))) /
+    rescale = (np.linalg.norm(np.ravel(np.sqrt(data[:, s]))) /
                np.linalg.norm(np.ravel(np.sqrt(intensity))))
 
     logger.info("object and probe rescaled by %f", rescale)
