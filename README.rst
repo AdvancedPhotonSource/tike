@@ -40,6 +40,6 @@ Laminography
 - single tilt angle
 - conjugate-gradient descent solver
 
-Alighnment
+Alignment
 ==========
 - Lanczos-based rotation and flow operators
