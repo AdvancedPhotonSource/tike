@@ -55,13 +55,15 @@ __all__ = [
     "simulate",
 ]
 
+from itertools import product
 import logging
 import time
 
 import numpy as np
+import cupy as cp
 
 from tike.operators import Ptycho
-from tike.opt import batch_indicies
+from tike.opt import randomizer
 from tike.pool import ThreadPool
 from tike.ptycho import solvers
 from .position import check_allowed_positions, get_padded_object
@@ -142,7 +144,7 @@ def reconstruct(
         data,
         probe, scan,
         algorithm,
-        psi=None, num_gpu=1, num_iter=1, rtol=-1, split=None,
+        psi=None, num_gpu=1, num_iter=1, rtol=-1,
         model='gaussian', cost=None, times=None,
         batch_size=None, subset_is_random=None,
         **kwargs
@@ -174,16 +176,24 @@ def reconstruct(
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[1:],
                                              num_iter))
-            if split == 'grid':
-                scan, data = split_by_scan_grid(
-                    operator,
-                    pool.num_workers,
-                    scan,
-                    data,
-                )
-            else:
-                scan, data = split_by_scan_stripes(pool, scan, data,
-                                                   operator.fly)
+            # Divide the inputs into regions and mini-batches
+            num_batch = 1
+            if batch_size is not None:
+                num_batch = data.shape[1] // pool.num_workers // batch_size
+            data, scan = split_by_scan_grid(
+                data,
+                scan,
+                (2 if pool.num_workers > 1 else 1, (pool.num_workers + 1) // 2),
+                operator.fly,
+            )
+            data, scan = zip(*pool.map(
+                _make_mini_batches,
+                data,
+                scan,
+                num_batch=num_batch,
+                subset_is_random=subset_is_random,
+            ))
+
             result = {
                 'psi': pool.bcast(psi.astype('complex64')),
                 'probe': pool.bcast(probe.astype('complex64')),
@@ -192,26 +202,38 @@ def reconstruct(
                 if np.ndim(value) > 0:
                     kwargs[key] = pool.bcast(value)
 
-            result['probe'] = _rescale_obj_probe(operator, pool, data,
-                                                 result['psi'], scan,
-                                                 result['probe'])
+            result['probe'] = pool.bcast(
+                _rescale_obj_probe(
+                    operator,
+                    pool,
+                    data[0][0],
+                    result['psi'][0],
+                    scan[0][0],
+                    result['probe'][0],
+                ))
 
-            batches = batch_indicies(data[0].shape[1], batch_size,
-                                     subset_is_random)
             costs = []
             times = []
             start = time.perf_counter()
             for i in range(num_iter):
-                for batch in batches:
+
+                logger.info(f"{algorithm} epoch {i:,d}")
+
+                for b in range(num_batch):
                     kwargs.update(result)
-                    kwargs['scan'] = [s[:, batch] for s in scan]
+                    kwargs['scan'] = [s[b] for s in scan]
                     result = getattr(solvers, algorithm)(
                         operator,
                         pool,
-                        data=[d[:, batch] for d in data],
+                        data=[d[b] for d in data],
                         **kwargs,
                     )
-                costs.append(result['cost'])
+                    if result['cost'] is not None:
+                        costs.append(result['cost'])
+                    for g in range(pool.num_workers):
+                        scan[g][b] = result['scan'][g]
+                    probe = result['probe']
+
                 times.append(time.perf_counter() - start)
                 start = time.perf_counter()
 
@@ -222,7 +244,11 @@ def reconstruct(
                         "iterations.", rtol, i)
                     break
 
-            result['scan'] = pool.gather(scan, axis=1)
+            result['scan'] = pool.gather(
+                list(pool.map(cp.concatenate, scan, axis=1)),
+                axis=1,
+            )
+            result['probe'] = probe[0]
             result['cost'] = operator.asarray(costs)
             result['times'] = operator.asarray(times)
             for k, v in result.items():
@@ -234,142 +260,162 @@ def reconstruct(
             "The '{}' algorithm is not an available.".format(algorithm))
 
 
+def _make_mini_batches(data, scan, num_batch, subset_is_random=True):
+    """Divide ptycho-inputs into mini-batches along position dimension.
+
+    Parameters
+    ----------
+    data : (M, N, ...)
+    scan : (M, N, 2)
+    probe : (M, N, ...), (M, 1, ...)
+
+    Returns
+    -------
+    data, scan
+        The inputs shuffled in the same way.
+    """
+    # FIXME: fly positions must stay together
+    if subset_is_random:
+        indices = randomizer.permutation(data.shape[1])
+    else:
+        indices = np.arange(data.shape[1])
+    indices = np.array_split(indices, num_batch)
+    return (
+        [cp.asarray(data[:, i], dtype='float32') for i in indices],
+        [cp.asarray(scan[:, i], dtype='float32') for i in indices],
+    )
+
+
 def _rescale_obj_probe(operator, pool, data, psi, scan, probe):
     """Keep the object amplitude around 1 by scaling probe by a constant."""
-    # TODO: add multi-GPU support
-    scan = pool.gather(scan, axis=1)
-    data = pool.gather(data, axis=1)
-    psi = psi[0]
-    probe = probe[0]
 
-    # Use a random subset instead of the whole dataset
-    s = np.random.choice(
-        data.shape[1],
-        min(64, data.shape[1]),
-        replace=False,
-    )
-    intensity = operator._compute_intensity(data[:, s], psi, scan[:, s], probe)
+    intensity = operator._compute_intensity(data, psi, scan, probe)
 
-    rescale = (np.linalg.norm(np.ravel(np.sqrt(data[:, s]))) /
+    rescale = (np.linalg.norm(np.ravel(np.sqrt(data))) /
                np.linalg.norm(np.ravel(np.sqrt(intensity))))
 
     logger.info("object and probe rescaled by %f", rescale)
 
     probe *= rescale
 
-    probe = pool.bcast(probe)
-    del scan
-    del data
-
     return probe
 
 
-def split_by_scan_grid(op, gpu_count, scan_cpu, data_cpu, *args, **kwargs):
-    """Split scan and data and distribute to multiple GPUs.
+def split_by_scan_grid(data, scan, shape, fly=1):
+    """ split the field of view into a 2D grid.
 
-    Instead of spliting the arrays based on the scanning order, we split
-    them in accordance with the scan positions corresponding to the object
-    sub-images. For example, if we divide a square object image into four
-    sub-images, then the scan positions on the top-left sub-image and their
-    corresponding diffraction patterns will be grouped into the first chunk
-    of scan and data.
+    Mask divide the data into a 2D grid of spatially contiguous regions.
 
+    Parameters
+    ----------
+    data : (ntheta, nframe, ...)
+    probe : (ntheta, nscan, ...)
+    scan : (ntheta, nscan, 2) float32
+        The 2D coordinates of the scan positions.
+    shape : tuple of int
+        The number of grid divisions along each dimension.
+    fly : int
+        The number of scan positions per frame.
+
+    Returns
+    -------
+    data, scan, probe : List[array]
+        Each input divided into regions.
     """
-    if gpu_count == 1:
-        return ([op.asarray(scan_cpu, dtype='float32')],
-                [op.asarray(data_cpu, dtype='float32')])
-
-    scanmlist = [None] * gpu_count
-    datamlist = [None] * gpu_count
-    nscan = scan_cpu.shape[1]
-    tmplist = [0] * nscan
-    counter = [0] * gpu_count
-    xmax = np.amax(scan_cpu[:, :, 0])
-    ymax = np.amax(scan_cpu[:, :, 1])
-    for e in range(nscan):
-        xgpuid = scan_cpu[0, e, 0] // (xmax / (gpu_count // 2)) - int(
-            scan_cpu[0, e, 0] != 0 and scan_cpu[0, e, 0] %
-            (xmax / (gpu_count // 2)) == 0)
-        ygpuid = scan_cpu[0, e, 1] // (ymax / 2) - int(
-            scan_cpu[0, e, 1] != 0 and scan_cpu[0, e, 1] % (ymax / 2) == 0)
-        idx = int(xgpuid * 2 + ygpuid)
-        tmplist[e] = idx
-        counter[idx] += 1
-    for i in range(gpu_count):
-        tmpscan = np.zeros(
-            [scan_cpu.shape[0], counter[i], scan_cpu.shape[2]],
-            dtype=scan_cpu.dtype,
-        )
-        tmpdata = np.zeros(
-            [
-                data_cpu.shape[0], counter[i], data_cpu.shape[2],
-                data_cpu.shape[3]
-            ],
-            dtype=data_cpu.dtype,
-        )
-        c = 0
-        for e in range(nscan):
-            if tmplist[e] == i:
-                tmpscan[:, c, :] = scan_cpu[:, e, :]
-                tmpdata[:, c] = data_cpu[:, e]
-                c += 1
-            scanmlist[i] = op.asarray(tmpscan, device=i)
-            datamlist[i] = op.asarray(tmpdata, device=i)
-        del tmpscan
-        del tmpdata
-    return scanmlist, datamlist
+    if len(shape) != 2:
+        raise ValueError('The grid shape must have two dimensions.')
+    vstripes = split_by_scan_stripes(scan, shape[0], axis=0, fly=fly)
+    hstripes = split_by_scan_stripes(scan, shape[1], axis=1, fly=fly)
+    mask = [np.logical_and(*pair) for pair in product(vstripes, hstripes)]
+    data = [data[:, m] for m in mask]
+    scan = [scan[:, m] for m in mask]
+    return data, scan
 
 
-def split_by_scan_stripes(pool, scan, data, fly=1):
-    """Split scan and data and distribute to multiple GPUs.
+def split_by_scan_stripes(scan, n, fly=1, axis=0):
+    """Return `n` boolean masks that split the field of view into stripes.
 
-    Divide the work amongst multiple GPUS by splitting the field of view
-    along the vertical axis. i.e. each GPU gets a subset of the data that
-    correspond to a horizontal stripe of the field of view.
+    Mask divide the data into spatially contiguous regions along the position
+    axis.
 
-    This type of division does not minimze the volume of data transferred
-    between GPUs. However, it does minimizes the number of neighbors that
-    each GPU must communicate with, supports odd numbers of GPUs, and makes
-    resizing the subsets easy if the scan positions are not evenly
-    distributed across the field of view.
+    Split scan into three stripes:
+    >>> [scan[:, s] for s in split_by_scan_stripes(scan, 3)]
 
-    FIXME: Only uses the first angle to divide the positions. Assumes the
+    FIXME: Only uses the first view to divide the positions. Assumes the
     positions on all angles are distributed similarly.
 
     Parameters
     ----------
-    pool : ThreadPool
-    scan (ntheta, nscan, 2) float32
-        Scan positions.
-    data (ntheta, nscan // fly, D, D) float32
-        Captured frames from the detector.
+    scan : (ntheta, nscan, 2) float32
+        The 2D coordinates of the scan positions.
+    n : int
+        The number of stripes.
     fly : int
-        The number of scan positions per data frame
+        The number of scan positions per frame.
+    axis : int (0 or 1)
+        Which spatial dimension to divide along. i.e. horizontal or vertical.
 
     Returns
     -------
-    scan_list, data_list : list, list
-        Scan positions and data split into chunks and scattered to GPUs
+    mask : list of (nscan, ) boolean
+        A list of boolean arrays which divide the scan positions into `n`
+        stripes.
+
     """
-    # Reshape scan so positions in the same fly scan are not separated
+    if scan.ndim != 3:
+        raise ValueError('scan must have three dimensions.')
+    if n < 1:
+        raise ValueError('The number of stripes must be > 0.')
+
     ntheta, nscan, _ = scan.shape
+    if (nscan // fly) * fly != nscan:
+        raise ValueError('The number of scan positions must be an '
+                         'integer multiple of the number of fly positions.')
+
+    # Reshape scan so positions in the same fly scan are not separated
     scan = scan.reshape(ntheta, nscan // fly, fly, 2)
+
     # Determine the edges of the horizontal stripes
     edges = np.linspace(
-        0,
-        scan[..., 0].max(),
-        pool.num_workers + 1,
+        scan[..., axis].min(),
+        scan[..., axis].max(),
+        n + 1,
         endpoint=True,
     )
-    # Split the scan positions and data amongst the stripes
-    scan_list, data_list = [], []
-    for i in range(pool.num_workers):
-        keep = np.logical_and(
-            edges[i] < scan[0, :, 0, 0],
-            scan[0, :, 0, 0] <= edges[i + 1],
-        )
-        scan_list.append(scan[:, keep].reshape(ntheta, -1, 2).astype('float32'))
-        data_list.append(data[:, keep].astype('float32'))
-    scan_list = list(pool.scatter(scan_list))
-    data_list = list(pool.scatter(data_list))
-    return scan_list, data_list
+
+    # Move the outer edges to include all points
+    edges[0] -= 1
+    edges[-1] += 1
+
+    # Generate masks which put points into stripes
+    return [
+        np.logical_and(
+            edges[i] < scan[0, :, 0, axis],
+            scan[0, :, 0, axis] <= edges[i + 1],
+        ).repeat(fly) for i in range(n)
+    ]
+
+
+if __name__ == "__main__":
+    scan = np.mgrid[0:3, 0:3].reshape(2, 1, -1)
+    scan = np.moveaxis(scan, 0, -1)
+    print(scan.shape)
+    print(scan)
+
+    print('axis 0')
+    ind = split_by_scan_stripes(scan, 3, axis=0)
+    for split in ind:
+        print(scan[:, split].shape)
+        print(scan[:, split])
+
+    print('axis 1')
+    ind = split_by_scan_stripes(scan, 3, axis=1)
+    for split in ind:
+        print(scan[:, split].shape)
+        print(scan[:, split])
+
+    print('grid')
+    ind = split_by_scan_grid(scan, (1, 1))
+    for split in ind:
+        print(scan[:, split].shape)
+        print(scan[:, split])
