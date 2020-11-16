@@ -18,6 +18,7 @@ jobs:
   pool:
     name: Default
     demands:
+    - MultiGPU
     - CUDA_VERSION
     - Agent.OS -equals Linux
   strategy:
