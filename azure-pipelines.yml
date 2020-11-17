@@ -28,6 +28,8 @@ jobs:
         python.version: '3.7'
       Python38:
         python.version: '3.8'
+      Python39:
+        python.version: '3.9'
     maxParallel: 4
   steps:
 
@@ -44,14 +46,10 @@ jobs:
       conda create --quiet --force --yes
       -n tike
       --channel conda-forge
+      --file requirements.txt
       pytest
       python=$(python.version)
     displayName: Create build environment
-
-  - script: |
-      source activate tike
-      conda install --file requirements.txt --channel conda-forge --yes --quiet
-    displayName: Install dependencies
 
   - script: conda list -n tike
     displayName: List build environment
