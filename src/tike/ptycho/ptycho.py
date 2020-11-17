@@ -179,7 +179,10 @@ def reconstruct(
             # Divide the inputs into regions and mini-batches
             num_batch = 1
             if batch_size is not None:
-                num_batch = data.shape[1] // pool.num_workers // batch_size
+                num_batch = max(
+                    1,
+                    int(data.shape[1] / batch_size / pool.num_workers),
+                )
             data, scan = split_by_scan_grid(
                 data,
                 scan,
