@@ -398,27 +398,3 @@ def split_by_scan_stripes(scan, n, fly=1, axis=0):
         ).repeat(fly) for i in range(n)
     ]
 
-
-if __name__ == "__main__":
-    scan = np.mgrid[0:3, 0:3].reshape(2, 1, -1)
-    scan = np.moveaxis(scan, 0, -1)
-    print(scan.shape)
-    print(scan)
-
-    print('axis 0')
-    ind = split_by_scan_stripes(scan, 3, axis=0)
-    for split in ind:
-        print(scan[:, split].shape)
-        print(scan[:, split])
-
-    print('axis 1')
-    ind = split_by_scan_stripes(scan, 3, axis=1)
-    for split in ind:
-        print(scan[:, split].shape)
-        print(scan[:, split])
-
-    print('grid')
-    ind = split_by_scan_grid(scan, (1, 1))
-    for split in ind:
-        print(scan[:, split].shape)
-        print(scan[:, split])
