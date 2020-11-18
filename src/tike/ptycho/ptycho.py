@@ -57,6 +57,7 @@ __all__ = [
 
 from itertools import product
 import logging
+import random
 import time
 
 import numpy as np
@@ -217,12 +218,15 @@ def reconstruct(
 
             costs = []
             times = []
+            active_batches = list(range(num_batch))
             start = time.perf_counter()
             for i in range(num_iter):
                 logger.info(f"{algorithm} epoch {i:,d}")
-                result['psi_step'] = None
-                result['probe_step'] = None
-                for b in range(num_batch):
+                random.shuffle(active_batches)
+                for b in active_batches:
+                    result['psi_step'] = None
+                    result['probe_step'] = None
+                    result['cost'] = None
                     kwargs.update(result)
                     kwargs['scan'] = [s[b] for s in scan]
                     result = getattr(solvers, algorithm)(
@@ -231,6 +235,8 @@ def reconstruct(
                         data=[d[b] for d in data],
                         **kwargs,
                     )
+                    # if result['psi_step'] == 0 and result['probe_step'] == 0:
+                    #     active_batches.remove(b)
                     if result['cost'] is not None:
                         costs.append(result['cost'])
                     for g in range(pool.num_workers):
@@ -241,6 +247,10 @@ def reconstruct(
                 start = time.perf_counter()
 
                 # Check for early termination
+                if len(active_batches) < 2:
+                    active_batches = list(range(num_batch))
+                if not np.isfinite(costs[-1]):
+                    break
                 if i > 0 and abs((costs[-1] - costs[-2]) / costs[-2]) < rtol:
                     logger.info(
                         "Cost function rtol < %g reached at %d "
