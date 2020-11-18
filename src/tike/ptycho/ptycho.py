@@ -397,4 +397,3 @@ def split_by_scan_stripes(scan, n, fly=1, axis=0):
             scan[0, :, 0, axis] <= edges[i + 1],
         ).repeat(fly) for i in range(n)
     ]
-
