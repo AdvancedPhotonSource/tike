@@ -183,10 +183,14 @@ def reconstruct(
                     1,
                     int(data.shape[1] / batch_size / pool.num_workers),
                 )
+            odd_pool = pool.num_workers % 2
             data, scan = split_by_scan_grid(
                 data,
                 scan,
-                (2 if pool.num_workers > 1 else 1, (pool.num_workers + 1) // 2),
+                (
+                    pool.num_workers if odd_pool else pool.num_workers // 2,
+                    1 if odd_pool else 2,
+                ),
                 operator.fly,
             )
             data, scan = zip(*pool.map(
