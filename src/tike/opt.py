@@ -167,6 +167,7 @@ def conjugate_gradient(
             x = update_multi(x, step_length, dir_list)
             blind_update = True
 
-    cost = cost_function(x) if blind_update else cost
+    if __debug__ and blind_update:
+        cost = cost_function(x)
 
     return x, cost, step_length

@@ -36,6 +36,7 @@ def cgrad(
             probe,
             num_iter=cg_iter,
             step_length=psi_step,
+            cost=cost,
         )
 
     if recover_probe:
@@ -49,6 +50,7 @@ def cgrad(
             probe[0],
             num_iter=cg_iter,
             step_length=probe_step,
+            cost=cost,
         )
         probe = pool.bcast(probe)
 
@@ -93,6 +95,7 @@ def _update_probe(
     probe,
     num_iter=1,
     step_length=None,
+    cost=None,
 ):
     """Solve the probe recovery problem."""
 
@@ -102,7 +105,6 @@ def _update_probe(
         for m in range(probe.shape[-3])
     ]
     intensity = op.xp.array(intensity)
-    cost = None
     for m in range(probe.shape[-3]):
 
         def cost_function(mode):
@@ -127,7 +129,7 @@ def _update_probe(
                 keepdims=True,
             )
 
-        probe[..., m:m + 1, :, :], costm, step_length = conjugate_gradient(
+        probe[..., m:m + 1, :, :], cost, step_length = conjugate_gradient(
             op.xp,
             x=probe[..., m:m + 1, :, :],
             cost_function=cost_function,
@@ -135,9 +137,8 @@ def _update_probe(
             num_iter=num_iter,
             step_length=1.0 if step_length is None else step_length,
             num_search=1 if step_length is None else 0,
+            cost=cost,
         )
-        if costm is not None:
-            cost = costm
 
     if cost is not None:
         logger.info('%10s cost is %+12.5e, step length is %+12.5e', 'probe',
@@ -155,6 +156,7 @@ def _update_object(
     probe,
     num_iter=1,
     step_length=None,
+    cost=None,
 ):
     """Solve the object recovery problem."""
 
@@ -198,6 +200,7 @@ def _update_object(
         num_iter=num_iter,
         step_length=1.0 if step_length is None else step_length,
         num_search=1 if step_length is None else 0,
+        cost=cost,
     )
 
     if cost is not None:
