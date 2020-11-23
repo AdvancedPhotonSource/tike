@@ -105,6 +105,6 @@ class ThreadPool(ThreadPoolExecutor):
 
         def f(worker, *args):
             with cp.cuda.Device(worker):
-                return func(*args)
+                return func(*args, **kwargs)
 
-        return super().map(f, self.workers, *iterables, **kwargs)
+        return super().map(f, self.workers, *iterables)

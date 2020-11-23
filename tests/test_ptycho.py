@@ -87,6 +87,28 @@ class TestPtychoUtils(unittest.TestCase):
             with self.assertRaises(ValueError):
                 tike.ptycho.check_allowed_positions(scan, psi, probe)
 
+    def test_split_by_scan(self):
+        scan = np.mgrid[0:3, 0:3].reshape(2, 1, -1)
+        scan = np.moveaxis(scan, 0, -1)
+
+        ind = tike.ptycho.ptycho.split_by_scan_stripes(scan, 3, axis=0)
+        split = [scan[:, i] for i in ind]
+        solution = [
+            [[[0, 0], [0, 1], [0, 2]]],
+            [[[1, 0], [1, 1], [1, 2]]],
+            [[[2, 0], [2, 1], [2, 2]]],
+        ]
+        np.testing.assert_equal(split, solution)
+
+        ind = tike.ptycho.ptycho.split_by_scan_stripes(scan, 3, axis=1)
+        split = [scan[:, i] for i in ind]
+        solution = [
+            [[[0, 0], [1, 0], [2, 0]]],
+            [[[0, 1], [1, 1], [2, 1]]],
+            [[[0, 2], [1, 2], [2, 2]]],
+        ]
+        np.testing.assert_equal(split, solution)
+
 
 class TestPtychoRecon(unittest.TestCase):
     """Test various ptychography reconstruction methods for consistency."""
@@ -180,7 +202,6 @@ class TestPtychoRecon(unittest.TestCase):
                 **params,
                 data=self.data,
                 algorithm=algorithm,
-                num_gpu=4,
                 num_iter=1,
                 # Only works when probe recovery is false because scaling
                 recover_probe=True,
@@ -193,7 +214,12 @@ class TestPtychoRecon(unittest.TestCase):
 
     def test_consistent_cgrad(self):
         """Check ptycho.solver.cgrad for consistency."""
-        self.template_consistent_algorithm('cgrad')
+        self.template_consistent_algorithm(
+            'cgrad',
+            params={
+                'num_gpu': 4,
+            },
+        )
 
     # def test_consistent_admm(self):
     #     """Check ptycho.solver.admm for consistency."""
@@ -206,6 +232,7 @@ class TestPtychoRecon(unittest.TestCase):
             params={
                 'subset_is_random': True,
                 'batch_size': int(self.data.shape[1] * 0.6),
+                'num_gpu': 1,
             },
         )
 
