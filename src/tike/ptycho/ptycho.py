@@ -163,7 +163,7 @@ def reconstruct(
     """
     (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
     check_allowed_positions(scan, psi, probe)
-    if algorithm in dir(solvers):
+    if algorithm in solvers.__all__:
         # Initialize an operator.
         with Ptycho(
                 probe_shape=probe.shape[-1],
@@ -263,8 +263,8 @@ def reconstruct(
                     result[k] = v[0]
         return {k: operator.asnumpy(v) for k, v in result.items()}
     else:
-        raise ValueError(
-            "The '{}' algorithm is not an available.".format(algorithm))
+        raise ValueError(f"The '{algorithm}' algorithm is not an option.\n"
+                         f"\tAvailable algorithms are : {solvers.__all__}")
 
 
 def _make_mini_batches(data, scan, num_batch, subset_is_random=True):
