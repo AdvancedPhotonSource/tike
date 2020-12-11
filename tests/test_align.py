@@ -31,14 +31,20 @@ class TestAlignRecon(unittest.TestCase):
         self.original = np.expand_dims(original, axis=0).astype('complex64')
 
         np.random.seed(0)
-        self.shift = 5 * (np.random.rand(1, 2) - 0.5)
+        self.flow = np.empty((*self.original.shape, 2), dtype='float32')
+        self.flow[..., :] = 5 * (np.random.rand(2) - 0.5)
 
-        self.data = tike.align.simulate(self.original, self.shift)
+        self.data = tike.align.simulate(
+            original=self.original,
+            flow=self.flow,
+            padded_shape=None,
+            angle=None,
+        )
 
         setup_data = [
             self.data,
             self.original,
-            self.shift,
+            self.flow,
         ]
 
         with lzma.open(dataset_file, 'wb') as file:
@@ -53,12 +59,17 @@ class TestAlignRecon(unittest.TestCase):
             [
                 self.data,
                 self.original,
-                self.shift,
+                self.flow,
             ] = pickle.load(file)
 
     def test_consistent_simulate(self):
         """Check align.simulate for consistency."""
-        data = tike.align.simulate(self.original, self.shift)
+        data = tike.align.simulate(
+            original=self.original,
+            flow=self.flow,
+            padded_shape=None,
+            angle=None,
+        )
         assert data.dtype == 'complex64', data.dtype
         np.testing.assert_array_equal(data.shape, self.data.shape)
         np.testing.assert_allclose(data, self.data, atol=1e-6)
@@ -66,30 +77,31 @@ class TestAlignRecon(unittest.TestCase):
     def test_align_cross_correlation(self):
         """Check that align.solvers.cross_correlation works."""
         result = tike.align.reconstruct(
-            self.data,
-            self.original,
+            unaligned=self.data,
+            original=self.original,
             algorithm='cross_correlation',
             upsample_factor=1e3,
         )
         shift = result['shift']
         assert shift.dtype == 'float32', shift.dtype
-        np.testing.assert_array_equal(shift.shape, self.shift.shape)
-        np.testing.assert_allclose(shift, self.shift, atol=1e-3)
+        # np.testing.assert_array_equal(shift.shape, self.shift.shape)
+        np.testing.assert_allclose(shift, self.flow[:, 0, 0], atol=1e-1)
 
-    @unittest.skipUnless('TIKE_BACKEND' in os.environ
-                         and os.environ['TIKE_BACKEND'] == 'numpy',
-                         "Farneback method only available on CPU.")
     def test_align_farneback(self):
         """Check that align.solvers.farneback works."""
-        result = tike.align.reconstruct(
-            self.data,
-            self.original,
-            algorithm='farneback',
+        result = tike.align.solvers.farneback(
+            op=None,
+            unaligned=self.data,
+            original=self.original,
         )
-        shift = result['shift']
+        shift = result['flow']
         assert shift.dtype == 'float32', shift.dtype
         np.testing.assert_array_equal(shift.shape, (*self.original.shape, 2))
         h, w = shift.shape[1:3]
         np.testing.assert_allclose(shift[:, h // 2, w // 2, :],
-                                   self.shift,
+                                   self.flow[:, 0, 0],
                                    atol=1e-1)
+
+
+if __name__ == '__main__':
+    unittest.main()

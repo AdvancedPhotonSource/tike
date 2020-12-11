@@ -10,15 +10,17 @@ library.
 import logging
 import warnings
 
+import numpy as np
+
 logger = logging.getLogger(__name__)
+randomizer = np.random.default_rng()
 
 
 def line_search(
     f,
     x,
     d,
-    num_gpu,
-    update_multi=None,
+    update_multi,
     step_length=1,
     step_shrink=0.5,
 ):
@@ -54,10 +56,7 @@ def line_search(
     fx = f(x)  # Save the result of f(x) instead of computing it many times
     # Decrease the step length while the step increases the cost function
     while True:
-        if (num_gpu <= 1):
-            fxsd = f(x + step_length * d)
-        else:
-            fxsd = f(update_multi(x, step_length, d))
+        fxsd = f(update_multi(x, step_length, d))
         if fxsd <= fx + step_shrink * m:
             break
         step_length *= step_shrink
@@ -67,7 +66,7 @@ def line_search(
     return step_length, fxsd
 
 
-def direction_dy(xp, grad0, grad1, dir):
+def direction_dy(xp, grad0, grad1, dir_):
     """Return the Dai-Yuan search direction.
 
     Parameters
@@ -76,15 +75,23 @@ def direction_dy(xp, grad0, grad1, dir):
         The gradient from the previous step.
     grad1 : array_like
         The gradient from this step.
-    dir : array_like
+    dir_ : array_like
         The previous search direction.
 
     """
     return (
         - grad1
-        + dir * xp.linalg.norm(grad1.ravel())**2
-        / (xp.sum(dir.conj() * (grad1 - grad0)) + 1e-32)
+        + dir_ * xp.linalg.norm(grad1.ravel())**2
+        / (xp.sum(dir_.conj() * (grad1 - grad0)) + 1e-32)
     )  # yapf: disable
+
+
+def update_single(x, step_length, d):
+    return x + step_length * d
+
+
+def dir_single(x):
+    return x
 
 
 def conjugate_gradient(
@@ -92,10 +99,10 @@ def conjugate_gradient(
     x,
     cost_function,
     grad,
-    dir_multi=None,
-    update_multi=None,
-    num_gpu=1,
+    dir_multi=dir_single,
+    update_multi=update_single,
     num_iter=1,
+    step_length=1,
 ):
     """Use conjugate gradient to estimate `x`.
 
@@ -110,7 +117,7 @@ def conjugate_gradient(
     grad : func(x) -> array_like
         The gradient of cost_function.
     dir_multi : func(x) -> list_of_array
-        The dir in all GPUs.
+        The dir_ in all GPUs.
     update_multi : func(x) -> list_of_array
         The updated subimages in all GPUs.
     num_iter : int
@@ -118,31 +125,27 @@ def conjugate_gradient(
 
     """
     for i in range(num_iter):
+
         grad1 = grad(x)
         if i == 0:
-            dir = -grad1
+            dir_ = -grad1
         else:
-            dir = direction_dy(array_module, grad0, grad1, dir)
+            dir_ = direction_dy(array_module, grad0, grad1, dir_)
         grad0 = grad1
-        if (num_gpu <= 1):
-            gamma, cost = line_search(
-                f=cost_function,
-                x=x,
-                d=dir,
-                num_gpu=num_gpu,
-            )
-            x = x + gamma * dir
-        else:
-            dir_list = dir_multi(dir)
 
-            gamma, cost = line_search(
-                f=cost_function,
-                x=x,
-                d=dir_list,
-                num_gpu=num_gpu,
-                update_multi=update_multi,
-            )
-            # update the image
-            x = update_multi(x, gamma, dir_list)
-        logger.debug("%4d, %.3e, %.7e", (i + 1), gamma, cost)
+        dir_list = dir_multi(dir_)
+
+        gamma, cost = line_search(
+            f=cost_function,
+            x=x,
+            d=dir_list,
+            update_multi=update_multi,
+            step_length=step_length,
+        )
+
+        x = update_multi(x, gamma, dir_list)
+
+        logger.debug("step %d; length %.3e -> %.3e; cost %.6e", i, step_length,
+                     gamma, cost)
+
     return x, cost

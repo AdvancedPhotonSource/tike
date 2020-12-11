@@ -28,25 +28,25 @@ def _rescale_8bit(a, b):
 
 def farneback(
     op,
-    data,
+    original,
     unaligned,
     pyr_scale=0.5,
     levels=5,
     winsize=19,
-    iterations=16,
+    num_iter=16,
     poly_n=5,
     poly_sigma=1.1,
     flow=None,
     **kwargs,
 ):
-    """Find the flow from unaligned to data using Farneback's algorithm
+    """Find the flow from unaligned to original using Farneback's algorithm
 
     For parameter descriptions see
     https://docs.opencv.org/4.3.0/dc/d6b/group__video__track.html
 
     Parameters
     ----------
-    data, unaligned (L, M, N)
+    original, unaligned (L, M, N)
         The images to be aligned.
     flow : (L, M, N, 2) float32
         The inital guess for the displacement field.
@@ -56,25 +56,25 @@ def farneback(
     Farneback, Gunnar "Two-Frame Motion Estimation Based on Polynomial
     Expansion" 2003.
     """
-    shape = data.shape
+    shape = original.shape
 
     if flow is None:
         flow = np.zeros((*shape, 2), dtype='float32')
     else:
-        flow = np.copy(np.flip(flow, axis=-1))
+        flow = flow[..., ::-1].copy()
 
     # NOTE: Passing a reshaped view as any of the parameters breaks OpenCV's
     # Farneback implementation.
-    for i in range(len(data)):
+    for i in range(len(original)):
         flow[i] = calcOpticalFlowFarneback(
-            *_rescale_8bit(np.abs(unaligned[i]), np.abs(data[i])),
+            *_rescale_8bit(np.abs(original[i]), np.abs(unaligned[i])),
             flow=flow[i],
             pyr_scale=pyr_scale,
             levels=levels,
             winsize=winsize,
-            iterations=iterations,
+            iterations=num_iter,
             poly_n=poly_n,
             poly_sigma=poly_sigma,
             flags=4,
-        )[..., ::-1]
-    return {'shift': flow, 'cost': -1}
+        )
+    return {'flow': flow[..., ::-1], 'cost': -1}

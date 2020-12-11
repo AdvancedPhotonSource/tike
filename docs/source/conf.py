@@ -132,4 +132,5 @@ autodoc_mock_imports = [
     'mpi4py',
     'numpy',
     'scipy',
+    'cv2',
 ]

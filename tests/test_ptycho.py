@@ -87,6 +87,28 @@ class TestPtychoUtils(unittest.TestCase):
             with self.assertRaises(ValueError):
                 tike.ptycho.check_allowed_positions(scan, psi, probe)
 
+    def test_split_by_scan(self):
+        scan = np.mgrid[0:3, 0:3].reshape(2, 1, -1)
+        scan = np.moveaxis(scan, 0, -1)
+
+        ind = tike.ptycho.ptycho.split_by_scan_stripes(scan, 3, axis=0)
+        split = [scan[:, i] for i in ind]
+        solution = [
+            [[[0, 0], [0, 1], [0, 2]]],
+            [[[1, 0], [1, 1], [1, 2]]],
+            [[[2, 0], [2, 1], [2, 2]]],
+        ]
+        np.testing.assert_equal(split, solution)
+
+        ind = tike.ptycho.ptycho.split_by_scan_stripes(scan, 3, axis=1)
+        split = [scan[:, i] for i in ind]
+        solution = [
+            [[[0, 0], [1, 0], [2, 0]]],
+            [[[0, 1], [1, 1], [2, 1]]],
+            [[[0, 2], [1, 2], [2, 2]]],
+        ]
+        np.testing.assert_equal(split, solution)
+
 
 class TestPtychoRecon(unittest.TestCase):
     """Test various ptychography reconstruction methods for consistency."""
@@ -165,56 +187,59 @@ class TestPtychoRecon(unittest.TestCase):
         """Return the error between two arrays."""
         return np.linalg.norm(x - self.original)
 
-    def template_consistent_algorithm(self, algorithm):
+    def template_consistent_algorithm(self, algorithm, params={}):
         """Check ptycho.solver.algorithm for consistency."""
         result = {
             'psi': np.ones_like(self.original),
-            'probe': self.probe,
+            'probe': np.ones_like(self.probe),
             'scan': self.scan,
         }
-        # error0 = self.error_metric(self.error_metric(result['psi']))
-        # print('\n', error0)
-        for _ in range(5):
-            result['scan'] = self.scan
+        error0 = np.inf
+        print()
+        for _ in range(16):
             result = tike.ptycho.reconstruct(
                 **result,
+                **params,
                 data=self.data,
                 algorithm=algorithm,
-                num_gpu=4,
                 num_iter=1,
                 # Only works when probe recovery is false because scaling
                 recover_probe=True,
                 recover_psi=True,
             )
-            # error1 = self.error_metric(result['psi'])
-            # print(error1)
+            error1 = result['cost'][0]
+            print(f'{error1:.3e},')
             # assert error1 < error0
-            # error0 = error1
+            error0 = error1
 
-        recon_file = os.path.join(testdir,
-                                  f'data/ptycho_{algorithm}.pickle.lzma')
-        if os.path.isfile(recon_file):
-            with lzma.open(recon_file, 'rb') as file:
-                standard = pickle.load(file)
-        else:
-            with lzma.open(recon_file, 'wb') as file:
-                pickle.dump(result['psi'], file)
-            raise FileNotFoundError(
-                f"ptycho '{algorithm}' standard not initialized.")
-        np.testing.assert_array_equal(result['psi'].shape, self.original.shape)
-        np.testing.assert_allclose(result['psi'], standard, atol=1e-3)
-
-    def test_consistent_combined(self):
-        """Check ptycho.solver.combined for consistency."""
-        self.template_consistent_algorithm('combined')
+    def test_consistent_cgrad(self):
+        """Check ptycho.solver.cgrad for consistency."""
+        self.template_consistent_algorithm(
+            'cgrad',
+            params={
+                'num_gpu': 4,
+            },
+        )
 
     # def test_consistent_admm(self):
     #     """Check ptycho.solver.admm for consistency."""
     #     self.template_consistent_algorithm('admm')
 
-    # def test_consistent_divided(self):
-    #     """Check ptycho.solver.divided for consistency."""
-    #     self.template_consistent_algorithm('divided')
+    def test_consistent_lstsq_grad(self):
+        """Check ptycho.solver.lstsq_grad for consistency."""
+        self.template_consistent_algorithm(
+            'lstsq_grad',
+            params={
+                'subset_is_random': True,
+                'batch_size': int(self.data.shape[1] * 0.6),
+                'num_gpu': 1,
+            },
+        )
+
+    def test_invaid_algorithm_name(self):
+        """Check that wrong names are handled gracefully."""
+        with self.assertRaises(ValueError):
+            self.template_consistent_algorithm('divided')
 
 
 if __name__ == '__main__':

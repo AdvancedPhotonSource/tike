@@ -1,12 +1,9 @@
 """Contains different solver implementations."""
 
-# from .admm import admm, admm1
-from .combined import combined
-# from .divided import divided
+from .combined import cgrad
+from .divided import lstsq_grad
 
 __all__ = [
-    # "admm",
-    # "admm1",
-    "combined",
-    # "divided",
+    'cgrad',
+    'lstsq_grad',
 ]
