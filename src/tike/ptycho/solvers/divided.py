@@ -50,7 +50,7 @@ def lstsq_grad(
         scan=scan_,
         fwd=True,
     )
-    patches = patches.reshape(op.ntheta, scan_.shape[-2] // op.fly, op.fly, 1,
+    patches = patches.reshape(op.ntheta, scan_.shape[-2], 1, 1,
                               op.detector_shape, op.detector_shape)
 
     nearplane = op.xp.tile(patches, reps=(1, 1, 1, probe.shape[-3], 1, 1))
@@ -99,8 +99,6 @@ def lstsq_grad(
             grad_psi = chi_.copy()
             grad_psi[..., pad:end, pad:end] *= cp.conj(probe_)
 
-            # FIXME: Shape changes required for fly scans.
-
             probe_intensity = cp.ones(
                 (*scan_.shape[:2], 1, 1, 1, 1),
                 dtype='complex64',
@@ -128,7 +126,7 @@ def lstsq_grad(
                 scan=scan_,
                 fwd=True,
             )
-            dOP = dOP.reshape(op.ntheta, scan_.shape[-2] // op.fly, op.fly, 1,
+            dOP = dOP.reshape(op.ntheta, scan_.shape[-2], 1, 1,
                               op.detector_shape, op.detector_shape)
             dOP[..., pad:end, pad:end] *= probe_
 
@@ -141,9 +139,8 @@ def lstsq_grad(
                 scan=scan_,
                 fwd=True,
             )
-            patches = patches.reshape(op.ntheta, scan_.shape[-2] // op.fly,
-                                      op.fly, 1, op.detector_shape,
-                                      op.detector_shape)
+            patches = patches.reshape(op.ntheta, scan_.shape[-2], 1, 1,
+                                      op.detector_shape, op.detector_shape)
 
             grad_probe = (chi_ * xp.conj(patches))[..., pad:end, pad:end]
 
