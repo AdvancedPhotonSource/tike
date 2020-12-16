@@ -240,8 +240,23 @@ class TestPtychoRecon(unittest.TestCase):
             fname = os.path.join(testdir, 'result', f'{algorithm}')
             os.makedirs(fname, exist_ok=True)
             for i in range(len(self.original)):
-                plt.imsave(f'{fname}/{i}-phase.png', np.angle(result['psi'][i]))
-                plt.imsave(f'{fname}/{i}-ampli.png', np.abs(result['psi'][i]))
+                plt.imsave(
+                    f'{fname}/{i}-phase.png',
+                    np.angle(result['psi'][i]),
+                )
+                plt.imsave(
+                    f'{fname}/{i}-ampli.png',
+                    np.abs(result['psi'][i]),
+                )
+            for i in range(self.probe.shape[-3]):
+                plt.imsave(
+                    f'{fname}/{i}-probe-phase.png',
+                    np.angle(result['probe'][0, 0, 0, i]),
+                )
+                plt.imsave(
+                    f'{fname}/{i}-probe-ampli.png',
+                    np.abs(result['probe'][0, 0, 0, i]),
+                )
         except ImportError:
             pass
 
