@@ -33,7 +33,7 @@ class Propagation(CachedFFT, Operator):
     farplane: (..., detector_shape, detector_shape) complex64
         The wavefronts hitting the detector respectively.
         Shape for cost functions and gradients is
-        (ntheta, nscan // fly, fly, 1, detector_shape, detector_shape).
+        (ntheta, nscan, 1, 1, detector_shape, detector_shape).
     data, intensity : (ntheta, nscan, detector_shape, detector_shape) complex64
         data is the square of the absolute value of `farplane`. `data` is the
         intensity of the `farplane`.

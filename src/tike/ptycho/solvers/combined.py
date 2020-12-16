@@ -105,7 +105,7 @@ def _update_probe(op, pool, data, psi, scan, probe, num_iter=1):
                     scan=scan,
                     overwrite=True,
                 ),
-                axis=(1, 2),
+                axis=1,
                 keepdims=True,
             )
 

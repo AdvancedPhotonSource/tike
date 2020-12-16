@@ -108,6 +108,7 @@ def simulate(
         detector_shape,
         probe, scan,
         psi,
+        fly=1,
         **kwargs
 ):  # yapf: disable
     """Return real-valued detector counts of simulated ptychography data."""
@@ -132,8 +133,7 @@ def simulate(
             )
             data += np.square(
                 np.linalg.norm(
-                    farplane.reshape(operator.ntheta,
-                                     scan.shape[-2] // operator.fly, -1,
+                    farplane.reshape(operator.ntheta, scan.shape[-2] // fly, -1,
                                      detector_shape, detector_shape),
                     ord=2,
                     axis=2,
@@ -191,7 +191,6 @@ def reconstruct(
                     pool.num_workers if odd_pool else pool.num_workers // 2,
                     1 if odd_pool else 2,
                 ),
-                operator.fly,
             )
             data, scan = zip(*pool.map(
                 _make_mini_batches,
