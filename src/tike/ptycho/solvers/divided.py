@@ -146,13 +146,9 @@ def lstsq_grad(
 
             psi_intensity = cp.square(cp.abs(patches[..., pad:end, pad:end]))
 
-            norm_psi = cp.sum(psi_intensity, axis=(1, 2)) + 1e-6
+            norm_psi = cp.sum(psi_intensity, axis=1, keepdims=True) + 1e-6
 
-            dir_probe = cp.sum(
-                grad_probe,
-                axis=(1, 2),
-                keepdims=True,
-            ) / norm_psi
+            dir_probe = cp.sum(grad_probe, axis=1, keepdims=True) / norm_psi
 
             dPO = patches.copy()
             dPO[..., pad:end, pad:end] *= dir_probe
@@ -187,7 +183,7 @@ def lstsq_grad(
             step = steps[..., num_steps, None, None]
             num_steps += 1
 
-            weighted_step = cp.sum(step * psi_intensity, axis=(1, 2))
+            weighted_step = cp.sum(step * psi_intensity, axis=1, keepdims=True)
 
             probe_ += dir_probe * weighted_step / norm_psi
             d += step * dPO
