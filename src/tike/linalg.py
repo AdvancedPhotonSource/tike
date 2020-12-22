@@ -1,10 +1,17 @@
+"""Linear algebra routines with broadcasting and complex value support.
+
+This module exists because support for broadcasting and complex values is
+spotty in the NumPy and CuPy libraries.
+"""
+
 import numpy as np
 
 
 def projection(a, b, axis=None):
-    """Return the vector projection of a onto b for vector along given axis."""
-    bh = b / np.linalg.norm(b, axis=axis, keepdims=True)
-    return (a.conj() * bh).sum(axis=axis, keepdims=True) * bh
+    """Return complex vector projection of a onto b for along given axis."""
+    # NOTE: Using np.linalg norm here is not correct because of complex values
+    bh = b / inner(b, b, axis=axis, keepdims=True)
+    return inner(b, a, axis=axis, keepdims=True) * bh
 
 
 def inner(x, y, axis=None, keepdims=False):
@@ -42,24 +49,36 @@ def orthogonalize_gs(x, axis=-1):
         Array containing dimensions to be orthogonalized.
     axis : int or tuple(int)
         The axis/axes to be orthogonalized. By default only the last axis
-        is orthogonalized.
+        is orthogonalized. If axis is a tuple, then the number of
+        orthogonal vectors is the length of the last dimension not included in
+        axis. The other dimensions are broadcast.
     """
     # Find N, the last dimension not included in axis; we iterate over N
     # vectors in the Gram-schmidt algorithm. Dimensions that are not N or
     # included in axis are leading dimensions for broadcasting.
-    axis = np.array(np.array(axis) % x.ndim)
+    try:
+        axis = [a % x.ndim for a in axis]
+    except TypeError:
+        axis = [axis % x.ndim]
     N = x.ndim - 1
     while N in axis:
         N -= 1
+    if N < 0:
+        raise ValueError("Cannot orthogonalize a single vector.")
     # Move axis N to the front for convenience
-    x.moveaxis(N, 0)
+    x = np.moveaxis(x, N, 0)
     u = x.copy()
     for i in range(1, len(x)):
         u[i:] -= projection(x[i:], u[i - 1:i], axis=axis)
     if __debug__:
         # Test each pair of vectors for orthogonality
-        pass
-    return u.moveaxis(0, N)
+        for i in range(len(u)):
+            for j in range(i):
+                error = abs(inner(u[i:i + 1], u[j:j + 1], axis=axis))
+                if np.any(error > 1e-12):
+                    raise RuntimeWarning(
+                        'Some vectors were not orthogonalized.', error)
+    return np.moveaxis(u, 0, N)
 
 
 def orthogonalize_eig(x):
@@ -100,11 +119,3 @@ def orthogonalize_eig(x):
     assert x_new.shape == x.shape, [x_new.shape, x.shape]
 
     return x_new
-
-
-if __name__ == "__main__":
-    cp.random.seed(0)
-    x = (cp.random.rand(7, 1, 9, 3, 3) +
-         1j * cp.random.rand(7, 1, 9, 3, 3)).astype('complex64')
-    x1 = orthogonalize_eig(x)
-    assert x1.shape == x.shape, x1.shape
