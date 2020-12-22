@@ -81,41 +81,36 @@ def orthogonalize_gs(x, axis=-1):
     return np.moveaxis(u, 0, N)
 
 
-def orthogonalize_eig(x):
-    """Orthogonalize modes of x using eigenvectors of the pairwise dot product.
+def hermitian(x):
+    """Compute the conjugate transpose of x along last two dimensions."""
+    return x.conj().swapaxes(-1, -2)
+
+
+def cov(x):
+    """Compute the covariance of x with observations along axis -2."""
+    x0 = x - np.mean(x, axis=-2, keepdims=True)
+    return hermitian(x0) @ x0
+
+
+def pca_eig(data, k):
+    """Return k principal components via Eigen decomposition.
 
     Parameters
     ----------
-    x : (..., nmodes, :, :) array_like complex64
-        An array of the probe modes vectorized
+    data (..., N, D)
+        Array of N observations of a D dimensional space.
 
-    References
-    ----------
-    M. Odstrcil, P. Baksh, S. A. Boden, R. Card, J. E. Chad, J. G. Frey, W. S.
-    Brocklesby, "Ptychographic coherent diffractive imaging with orthogonal
-    probe relaxation." Opt. Express 24, 8360 (2016). doi: 10.1364/OE.24.008360
+    Returns
+    -------
+    S (..., k)
+        The singular values corresponding to the current principal components
+        sorted largest to smallest.
+    U (..., D, k)
+        The current best principal components of the population.
     """
-    nmodes = x.shape[-3]
-    # 'A' holds the dot product of all possible mode pairs. We only fill the
-    # lower half of `A` because it is conjugate-symmetric
-    A = cp.empty((*x.shape[:-3], nmodes, nmodes), dtype='complex64')
-    for i in range(nmodes):
-        for j in range(i + 1):
-            A[..., i, j] = cp.sum(cp.conj(x[..., i, :, :]) * x[..., j, :, :],
-                                  axis=(-1, -2))
-
-    _, vectors = cp.linalg.eigh(A, UPLO='L')
-    # np.linalg.eigh guarantees that the eigen values are returned in ascending
-    # order, so we just reverse the order of modes to have them sorted in
-    # descending order.
-
-    # TODO: Optimize this double-loop
-    x_new = cp.zeros_like(x)
-    for i in range(nmodes):
-        for j in range(nmodes):
-            # Sort new modes by eigen value in decending order.
-            x_new[..., nmodes - 1 -
-                  j, :, :] += vectors[..., i, j, None, None] * x[..., i, :, :]
-    assert x_new.shape == x.shape, [x_new.shape, x.shape]
-
-    return x_new
+    S, U = np.linalg.eigh(cov(data))
+    # eigh() API states that values returned in acending order. i.e.
+    # the best vectors are last.
+    U = U[..., -1:-(k + 1):-1]
+    S = S[..., -1:-(k + 1):-1]
+    return S, U
