@@ -17,15 +17,14 @@ __docformat__ = 'restructuredtext en'
 class TestPtycho(unittest.TestCase, OperatorTests):
     """Test the ptychography operator."""
 
-    def setUp(self, ntheta=3, pw=15, nscan=27, fly=9):
+    def setUp(self, ntheta=3, pw=15, nscan=27):
         """Load a dataset for reconstruction."""
         self.nscan = nscan
         self.ntheta = ntheta
-        self.probe_shape = (ntheta, nscan // fly, fly, 1, pw, pw)
+        self.probe_shape = (ntheta, nscan, 1, 1, pw, pw)
         self.detector_shape = (pw * 3, pw * 3)
         self.original_shape = (ntheta, 128, 128)
         self.scan_shape = (ntheta, nscan, 2)
-        self.fly = fly
         print(Ptycho)
 
         np.random.seed(0)
@@ -41,7 +40,6 @@ class TestPtycho(unittest.TestCase, OperatorTests):
             nz=self.original_shape[-2],
             n=self.original_shape[-1],
             ntheta=self.ntheta,
-            fly=self.fly,
         )
         self.operator.__enter__()
         self.xp = self.operator.xp

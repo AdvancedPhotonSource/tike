@@ -113,38 +113,61 @@ class TestPtychoUtils(unittest.TestCase):
 class TestPtychoRecon(unittest.TestCase):
     """Test various ptychography reconstruction methods for consistency."""
 
-    def create_dataset(self, dataset_file):
+    def create_dataset(
+        self,
+        dataset_file,
+        pw=16,
+        coherent=1,
+        width=128,
+    ):
         """Create a dataset for testing this module.
 
         Only called with setUp detects that `dataset_file` has been deleted.
         """
-        import matplotlib.pyplot as plt
-        amplitude = plt.imread(
-            os.path.join(testdir, "data/Cryptomeria_japonica-0128.png"))
-        phase = plt.imread(
-            os.path.join(testdir, "data/Bombus_terrestris-0128.png"))
-        original = amplitude * np.exp(1j * phase * np.pi)
-        self.original = np.expand_dims(original, axis=0).astype('complex64')
+        import libimage
+        # Create a stack of phase-only images
+        phase = np.stack(
+            [libimage.load('satyre', width),
+             libimage.load('coins', width)],
+            axis=0,
+        )
+        original = np.exp(1j * phase * np.pi)
+        self.original = original.astype('complex64')
+        leading = self.original.shape[:-2]
 
-        pw = 15  # probe width
-        weights = tike.ptycho.gaussian(pw, rin=0.8, rout=1.0)
-        probe = weights * np.exp(1j * weights * 0.2)
-        self.probe = np.expand_dims(probe, (0, 1, 2, 3)).astype('complex64')
+        # Create a multi-probe with gaussian amplitude decreasing as 1/N
+        phase = np.stack(
+            [libimage.load('cryptomeria', pw),
+             libimage.load('bombus', pw)],
+            axis=0,
+        )
+        weights = 1.0 / np.arange(1, len(phase) + 1)[:, None, None]
+        weights = weights * tike.ptycho.gaussian(pw, rin=0.8, rout=1.0)
+        probe = weights * np.exp(1j * phase * np.pi)
+        self.probe = np.tile(
+            probe.astype('complex64'),
+            (*leading, 1, coherent, 1, 1, 1),
+        )
 
         v, h = np.meshgrid(
-            np.linspace(1, amplitude.shape[0]-pw-1, 13, endpoint=True),
-            np.linspace(1, amplitude.shape[0]-pw-1, 13, endpoint=True),
+            np.linspace(1, original.shape[-2]-pw-1, 13, endpoint=True),
+            np.linspace(1, original.shape[-1]-pw-1, 13, endpoint=True),
             indexing='ij'
         )  # yapf: disable
         scan = np.stack((np.ravel(v), np.ravel(h)), axis=1)
-        self.scan = np.expand_dims(scan, axis=0).astype('float32')
+        self.scan = np.tile(
+            scan.astype('float32'),
+            (*leading, 1, 1),
+        )
 
-        self.data = tike.ptycho.simulate(detector_shape=pw * 2,
-                                         probe=self.probe,
-                                         scan=self.scan,
-                                         psi=self.original)
+        self.data = tike.ptycho.simulate(
+            detector_shape=pw * 2,
+            probe=self.probe,
+            scan=self.scan,
+            psi=self.original,
+        )
 
-        assert self.data.shape == (1, 13 * 13, pw * 2, pw * 2)
+        assert self.data.shape == (*leading, 13 * 13, pw * 2, pw * 2)
         assert self.data.dtype == 'float32', self.data.dtype
 
         setup_data = [
@@ -153,7 +176,6 @@ class TestPtychoRecon(unittest.TestCase):
             self.probe,
             self.original,
         ]
-
         with lzma.open(dataset_file, 'wb') as file:
             pickle.dump(setup_data, file)
 
@@ -177,6 +199,7 @@ class TestPtychoRecon(unittest.TestCase):
             probe=self.probe,
             scan=self.scan,
             psi=self.original,
+            fly=self.scan.shape[-2] // self.data.shape[-3],
         )
         assert data.dtype == 'float32', data.dtype
         assert self.data.dtype == 'float32', self.data.dtype
@@ -191,26 +214,51 @@ class TestPtychoRecon(unittest.TestCase):
         """Check ptycho.solver.algorithm for consistency."""
         result = {
             'psi': np.ones_like(self.original),
-            'probe': np.ones_like(self.probe),
+            'probe': self.probe * np.random.rand(*self.probe.shape),
             'scan': self.scan,
         }
-        error0 = np.inf
+        result = tike.ptycho.reconstruct(
+            **result,
+            **params,
+            data=self.data,
+            algorithm=algorithm,
+            num_iter=1,
+        )
+        result = tike.ptycho.reconstruct(
+            **result,
+            **params,
+            data=self.data,
+            algorithm=algorithm,
+            num_iter=32,
+            # Only works when probe recovery is false because scaling
+        )
         print()
-        for _ in range(16):
-            result = tike.ptycho.reconstruct(
-                **result,
-                **params,
-                data=self.data,
-                algorithm=algorithm,
-                num_iter=1,
-                # Only works when probe recovery is false because scaling
-                recover_probe=True,
-                recover_psi=True,
-            )
-            error1 = result['cost'][0]
-            print(f'{error1:.3e},')
-            # assert error1 < error0
-            error0 = error1
+        cost = '\n'.join(f'{c:1.3e}' for c in result['cost'])
+        print(cost)
+        try:
+            import matplotlib.pyplot as plt
+            fname = os.path.join(testdir, 'result', f'{algorithm}')
+            os.makedirs(fname, exist_ok=True)
+            for i in range(len(self.original)):
+                plt.imsave(
+                    f'{fname}/{i}-phase.png',
+                    np.angle(result['psi'][i]),
+                )
+                plt.imsave(
+                    f'{fname}/{i}-ampli.png',
+                    np.abs(result['psi'][i]),
+                )
+            for i in range(self.probe.shape[-3]):
+                plt.imsave(
+                    f'{fname}/{i}-probe-phase.png',
+                    np.angle(result['probe'][0, 0, 0, i]),
+                )
+                plt.imsave(
+                    f'{fname}/{i}-probe-ampli.png',
+                    np.abs(result['probe'][0, 0, 0, i]),
+                )
+        except ImportError:
+            pass
 
     def test_consistent_cgrad(self):
         """Check ptycho.solver.cgrad for consistency."""
@@ -218,6 +266,8 @@ class TestPtychoRecon(unittest.TestCase):
             'cgrad',
             params={
                 'num_gpu': 4,
+                'recover_probe': True,
+                'recover_psi': True,
             },
         )
 
@@ -230,9 +280,11 @@ class TestPtychoRecon(unittest.TestCase):
         self.template_consistent_algorithm(
             'lstsq_grad',
             params={
-                'subset_is_random': True,
-                'batch_size': int(self.data.shape[1] * 0.6),
+                # 'subset_is_random': True,
+                # 'batch_size': int(self.data.shape[1] * 0.6),
                 'num_gpu': 1,
+                'recover_probe': True,
+                'recover_psi': True,
             },
         )
 

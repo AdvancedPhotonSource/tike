@@ -52,7 +52,7 @@ def lstsq_grad(
         scan=scan_,
         fwd=True,
     )
-    patches = patches.reshape(op.ntheta, scan_.shape[-2] // op.fly, op.fly, 1,
+    patches = patches.reshape(op.ntheta, scan_.shape[-2], 1, 1,
                               op.detector_shape, op.detector_shape)
 
     nearplane = op.xp.tile(patches, reps=(1, 1, 1, probe.shape[-3], 1, 1))
@@ -101,8 +101,6 @@ def lstsq_grad(
             grad_psi = chi_.copy()
             grad_psi[..., pad:end, pad:end] *= cp.conj(probe_)
 
-            # FIXME: Shape changes required for fly scans.
-
             probe_intensity = cp.ones(
                 (*scan_.shape[:2], 1, 1, 1, 1),
                 dtype='complex64',
@@ -130,7 +128,7 @@ def lstsq_grad(
                 scan=scan_,
                 fwd=True,
             )
-            dOP = dOP.reshape(op.ntheta, scan_.shape[-2] // op.fly, op.fly, 1,
+            dOP = dOP.reshape(op.ntheta, scan_.shape[-2], 1, 1,
                               op.detector_shape, op.detector_shape)
             dOP[..., pad:end, pad:end] *= probe_
 
@@ -143,21 +141,16 @@ def lstsq_grad(
                 scan=scan_,
                 fwd=True,
             )
-            patches = patches.reshape(op.ntheta, scan_.shape[-2] // op.fly,
-                                      op.fly, 1, op.detector_shape,
-                                      op.detector_shape)
+            patches = patches.reshape(op.ntheta, scan_.shape[-2], 1, 1,
+                                      op.detector_shape, op.detector_shape)
 
             grad_probe = (chi_ * xp.conj(patches))[..., pad:end, pad:end]
 
             psi_intensity = cp.square(cp.abs(patches[..., pad:end, pad:end]))
 
-            norm_psi = cp.sum(psi_intensity, axis=(1, 2)) + 1e-6
+            norm_psi = cp.sum(psi_intensity, axis=1, keepdims=True) + 1e-6
 
-            dir_probe = cp.sum(
-                grad_probe,
-                axis=(1, 2),
-                keepdims=True,
-            ) / norm_psi
+            dir_probe = cp.sum(grad_probe, axis=1, keepdims=True) / norm_psi
 
             dPO = patches.copy()
             dPO[..., pad:end, pad:end] *= dir_probe
@@ -192,7 +185,7 @@ def lstsq_grad(
             step = steps[..., num_steps, None, None]
             num_steps += 1
 
-            weighted_step = cp.sum(step * psi_intensity, axis=(1, 2))
+            weighted_step = cp.sum(step * psi_intensity, axis=1, keepdims=True)
 
             probe_ += dir_probe * weighted_step / norm_psi
             d += step * dPO

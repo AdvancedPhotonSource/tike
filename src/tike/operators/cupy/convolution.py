@@ -21,8 +21,6 @@ class Convolution(Operator):
     ----------
     nscan : int
         The number of scan positions at each angular view.
-    fly : int
-        The number of consecutive scan positions that describe a fly scan.
     probe_shape : int
         The pixel width and height of the (square) probe illumination.
     nz, n : int
@@ -35,10 +33,10 @@ class Convolution(Operator):
     psi : (ntheta, nz, n) complex64
         The complex wavefront modulation of the object.
     probe : complex64
-        The (ntheta, nscan // fly, fly, 1, probe_shape, probe_shape)
+        The (ntheta, nscan // 1, 1, 1, probe_shape, probe_shape)
         complex illumination function.
     nearplane: complex64
-        The (ntheta, nscan // fly, fly, 1, probe_shape, probe_shape)
+        The (ntheta, nscan // 1, 1, 1, probe_shape, probe_shape)
         wavefronts after exiting the object.
     scan : (ntheta, nscan, 2) float32
         Coordinates of the minimum corner of the probe grid for each
@@ -46,13 +44,12 @@ class Convolution(Operator):
         first, horizontal coordinates second.
 
     """
-    def __init__(self, probe_shape, nz, n, ntheta, fly=1,
+    def __init__(self, probe_shape, nz, n, ntheta,
                  detector_shape=None, **kwargs):  # yapf: disable
         self.probe_shape = probe_shape
         self.nz = nz
         self.n = n
         self.ntheta = ntheta
-        self.fly = fly
         if detector_shape is None:
             self.detector_shape = probe_shape
         else:
@@ -74,9 +71,8 @@ class Convolution(Operator):
             dtype='complex64',
         )
         patches = self._patch(patches, psi, scan, fwd=True)
-        patches = patches.reshape(self.ntheta, scan.shape[-2] // self.fly,
-                                  self.fly, 1, self.detector_shape,
-                                  self.detector_shape)
+        patches = patches.reshape(self.ntheta, scan.shape[-2], 1, 1,
+                                  self.detector_shape, self.detector_shape)
         patches[..., self.pad:self.end, self.pad:self.end] *= probe
         return patches
 
@@ -102,9 +98,8 @@ class Convolution(Operator):
             dtype='complex64',
         )
         patches = self._patch(patches, psi, scan, fwd=True)
-        patches = patches.reshape(self.ntheta, scan.shape[-2] // self.fly,
-                                  self.fly, 1, self.probe_shape,
-                                  self.probe_shape)
+        patches = patches.reshape(self.ntheta, scan.shape[-2], 1, 1,
+                                  self.probe_shape, self.probe_shape)
         patches = patches.conj()
         patches *= nearplane[..., self.pad:self.end, self.pad:self.end]
         return patches
@@ -113,8 +108,7 @@ class Convolution(Operator):
         """Check that the probe is correctly shaped."""
         assert type(x) is self.xp.ndarray, type(x)
         # unique probe for each position
-        shape1 = (self.ntheta, nscan // self.fly, self.fly, 1, self.probe_shape,
-                  self.probe_shape)
+        shape1 = (self.ntheta, nscan, 1, 1, self.probe_shape, self.probe_shape)
         # one probe for all positions
         shape2 = (self.ntheta, 1, 1, 1, self.probe_shape, self.probe_shape)
         if __debug__ and x.shape != shape2 and x.shape != shape1:
@@ -124,8 +118,8 @@ class Convolution(Operator):
     def _check_shape_nearplane(self, x, nscan):
         """Check that nearplane is correctly shaped."""
         assert type(x) is self.xp.ndarray, type(x)
-        shape1 = (self.ntheta, nscan // self.fly, self.fly, 1,
-                  self.detector_shape, self.detector_shape)
+        shape1 = (self.ntheta, nscan, 1, 1, self.detector_shape,
+                  self.detector_shape)
         if __debug__ and x.shape != shape1:
             raise ValueError(
                 f"nearplane must have shape {shape1} not {x.shape}")
