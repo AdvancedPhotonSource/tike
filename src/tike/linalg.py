@@ -9,7 +9,6 @@ import numpy as np
 
 def projection(a, b, axis=None):
     """Return complex vector projection of a onto b for along given axis."""
-    # NOTE: Using np.linalg norm here is not correct because of complex values
     bh = b / inner(b, b, axis=axis, keepdims=True)
     return inner(b, a, axis=axis, keepdims=True) * bh
 
@@ -57,9 +56,9 @@ def orthogonalize_gs(x, axis=-1):
     # vectors in the Gram-schmidt algorithm. Dimensions that are not N or
     # included in axis are leading dimensions for broadcasting.
     try:
-        axis = [a % x.ndim for a in axis]
+        axis = tuple(a % x.ndim for a in axis)
     except TypeError:
-        axis = [axis % x.ndim]
+        axis = (axis % x.ndim,)
     N = x.ndim - 1
     while N in axis:
         N -= 1

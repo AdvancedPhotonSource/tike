@@ -7,6 +7,16 @@ import tike.linalg
 import tike.random
 
 
+def test_norm():
+    # Complex inner product is equal to square of complex norm
+    a = tike.random.cupy_complex(5)
+    assert 1.0 == cp.linalg.norm(a / cp.linalg.norm(a))
+    cp.testing.assert_allclose(
+        cp.sqrt(tike.linalg.inner(a, a)),
+        cp.linalg.norm(a),
+    )
+
+
 def test_lstsq():
     a = tike.random.cupy_complex(5, 1, 4, 3, 3)
     x = tike.random.cupy_complex(5, 1, 4, 3, 1)
