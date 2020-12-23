@@ -55,7 +55,7 @@ __all__ = [
     "simulate",
 ]
 
-from itertools import product
+from itertools import product, chain
 import logging
 import time
 
@@ -184,7 +184,9 @@ def reconstruct(
                     int(data.shape[1] / batch_size / pool.num_workers),
                 )
             odd_pool = pool.num_workers % 2
-            data, scan = split_by_scan_grid(
+            order = np.arange(data.shape[1])
+            order, data, scan = split_by_scan_grid(
+                order,
                 data,
                 scan,
                 (
@@ -192,8 +194,9 @@ def reconstruct(
                     1 if odd_pool else 2,
                 ),
             )
-            data, scan = zip(*pool.map(
+            order, data, scan = zip(*pool.map(
                 _make_mini_batches,
+                order,
                 data,
                 scan,
                 num_batch=num_batch,
@@ -238,7 +241,6 @@ def reconstruct(
                         costs.append(result['cost'])
                     for g in range(pool.num_workers):
                         scan[g][b] = result['scan'][g]
-                    probe = result['probe']
 
                 times.append(time.perf_counter() - start)
                 start = time.perf_counter()
@@ -250,11 +252,13 @@ def reconstruct(
                         "iterations.", rtol, i)
                     break
 
+            reorder = np.argsort(
+                np.concatenate(list(chain.from_iterable(order))))
             result['scan'] = pool.gather(
                 list(pool.map(cp.concatenate, scan, axis=1)),
                 axis=1,
-            )
-            result['probe'] = probe[0]
+            )[:, reorder]
+            result['probe'] = result['probe'][0]
             result['cost'] = operator.asarray(costs)
             result['times'] = operator.asarray(times)
             for k, v in result.items():
@@ -266,7 +270,13 @@ def reconstruct(
                          f"\tAvailable algorithms are : {solvers.__all__}")
 
 
-def _make_mini_batches(data, scan, num_batch, subset_is_random=True):
+def _make_mini_batches(
+    order,
+    data,
+    scan,
+    num_batch=1,
+    subset_is_random=True,
+):
     """Divide ptycho-inputs into mini-batches along position dimension.
 
     Parameters
@@ -280,16 +290,17 @@ def _make_mini_batches(data, scan, num_batch, subset_is_random=True):
     data, scan
         The inputs shuffled in the same way.
     """
+    logger.info(f'Split data into {num_batch} mini-batches.')
     # FIXME: fly positions must stay together
     if subset_is_random:
         indices = randomizer.permutation(data.shape[1])
     else:
         indices = np.arange(data.shape[1])
     indices = np.array_split(indices, num_batch)
-    return (
-        [cp.asarray(data[:, i], dtype='float32') for i in indices],
-        [cp.asarray(scan[:, i], dtype='float32') for i in indices],
-    )
+    order = [order[i] for i in indices]
+    data = [cp.asarray(data[:, i], dtype='float32') for i in indices]
+    scan = [cp.asarray(scan[:, i], dtype='float32') for i in indices]
+    return order, data, scan
 
 
 def _rescale_obj_probe(operator, pool, data, psi, scan, probe):
@@ -307,7 +318,7 @@ def _rescale_obj_probe(operator, pool, data, psi, scan, probe):
     return probe
 
 
-def split_by_scan_grid(data, scan, shape, fly=1):
+def split_by_scan_grid(order, data, scan, shape, fly=1):
     """ split the field of view into a 2D grid.
 
     Mask divide the data into a 2D grid of spatially contiguous regions.
@@ -333,9 +344,10 @@ def split_by_scan_grid(data, scan, shape, fly=1):
     vstripes = split_by_scan_stripes(scan, shape[0], axis=0, fly=fly)
     hstripes = split_by_scan_stripes(scan, shape[1], axis=1, fly=fly)
     mask = [np.logical_and(*pair) for pair in product(vstripes, hstripes)]
+    order = [order[m] for m in mask]
     data = [data[:, m] for m in mask]
     scan = [scan[:, m] for m in mask]
-    return data, scan
+    return order, data, scan
 
 
 def split_by_scan_stripes(scan, n, fly=1, axis=0):
