@@ -50,6 +50,7 @@ jobs:
       --file requirements.txt
       pytest
       python=$(python.version)
+      cudatoolkit=$(CUDA_VERSION)
     displayName: Create build environment
 
   - script: conda list -n tike
