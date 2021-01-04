@@ -2,6 +2,8 @@ import logging
 
 import cupy as cp
 
+from tike.linalg import lstsq
+
 from ..position import update_positions_pd
 from ..probe import orthogonalize_eig
 
@@ -160,7 +162,7 @@ def lstsq_grad(
         if updates:
             A = cp.stack(updates, axis=-1)
             b = chi_.view('float32').reshape(lstsq_shape)
-            steps = _lstsq(A, b)
+            steps = lstsq(A, b)
         num_steps = 0
         d = 0
 
@@ -201,35 +203,3 @@ def lstsq_grad(
         'cost': cost,
         'scan': scan,
     }
-
-
-def _lstsq(a, b):
-    """Return the least-squares solution for a @ x = b.
-
-    This implementation, unlike cp.linalg.lstsq, allows a stack of matricies to
-    be processed simultaneously. The input sizes of the matricies are as
-    follows:
-        a (..., M, N)
-        b (..., M)
-        x (...,    N)
-
-    ...seealso:: https://github.com/numpy/numpy/issues/8720
-                 https://github.com/cupy/cupy/issues/3062
-    """
-    # TODO: Using 'out' parameter of cp.matmul() may reduce memory footprint
-    assert a.shape[:-1] == b.shape, (f"Leading dims of a {a.shape}"
-                                     f"and b {b.shape} must be same!")
-    aT = a.swapaxes(-2, -1)
-    x = cp.linalg.inv(aT @ a) @ aT @ b[..., None]
-    return x[..., 0]
-
-
-if __name__ == "__main__":
-    N = (3, 4)
-
-    a = cp.random.rand(*N, 5, 2) + 1j * cp.random.rand(*N, 5, 2)
-    b = cp.random.rand(*N, 5) + 1j * cp.random.rand(*N, 5)
-
-    x = _lstsq(a.astype('complex64'), b.astype('complex64'))
-
-    assert x.shape == (*N, 2)

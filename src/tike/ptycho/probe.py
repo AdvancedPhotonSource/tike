@@ -34,49 +34,6 @@ def add_modes_random_phase(probe, nmodes):
     return all_modes
 
 
-# TODO: Possibly a faster implementation would use QR decomposition, but numpy
-# only support 2D inputs for QR as of 2020.04.
-def orthogonalize_gs(x, ndim=1):
-    """Gram-schmidt orthogonalization for complex arrays.
-
-    x : (..., nmodes, :, :) array_like
-        The array with modes in the -3 dimension.
-
-    ndim : int > 0
-        The number of trailing dimensions to orthogonalize.
-
-    """
-    if ndim < 1:
-        raise ValueError("Must orthogonalize at least one dimension!")
-
-    def inner(x, y, axis=None):
-        """Return the complex inner product of x and y along axis."""
-        return np.sum(np.conj(x) * y, axis=axis, keepdims=True)
-
-    unflat_shape = x.shape
-    nmodes = unflat_shape[-ndim - 1]
-    x_ortho = x.reshape(*unflat_shape[:-ndim], -1)
-
-    for i in range(1, nmodes):
-        u = x_ortho[..., 0:i, :]
-        v = x_ortho[..., i:i + 1, :]
-        projections = u * inner(u, v, axis=-1) / inner(u, u, axis=-1)
-        x_ortho[..., i:i + 1, :] -= np.sum(projections, axis=-2, keepdims=True)
-
-    if __debug__:
-        # Test each pair of vectors for orthogonality
-        for i in range(nmodes):
-            for j in range(i):
-                error = abs(
-                    inner(x_ortho[..., i:i + 1, :],
-                          x_ortho[..., j:j + 1, :],
-                          axis=-1))
-                assert np.all(error < 1e-5), (
-                    f"Some vectors are not orthogonal!, {error}, {error.shape}")
-
-    return x_ortho.reshape(unflat_shape)
-
-
 def orthogonalize_eig(x):
     """Orthogonalize modes of x using eigenvectors of the pairwise dot product.
 
