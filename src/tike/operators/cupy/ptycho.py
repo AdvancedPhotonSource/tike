@@ -23,8 +23,6 @@ class Ptycho(Operator):
     ----------
     nscan : int
         The number of scan positions at each angular view.
-    fly : int
-        The number of consecutive scan positions that describe a fly scan.
     probe_shape : int
         The pixel width and height of the (square) probe illumination.
     detector_shape : int
@@ -45,16 +43,16 @@ class Ptycho(Operator):
     psi : (ntheta, nz, n) complex64
         The complex wavefront modulation of the object.
     probe : complex64
-        The complex (ntheta, nscan // fly, fly, 1, probe_shape,
+        The complex (ntheta, nscan , 1, 1, probe_shape,
         probe_shape) illumination function.
     mode : complex64
-        A single (ntheta, nscan // fly, fly, 1, probe_shape, probe_shape)
+        A single (ntheta, nscan , 1, 1, probe_shape, probe_shape)
         probe mode.
     nearplane, farplane: complex64
-        The (ntheta, nscan // fly, fly, 1, detector_shape, detector_shape)
+        The (ntheta, nscan , 1, 1, detector_shape, detector_shape)
         wavefronts exiting the object and hitting the detector respectively.
     data, intensity : float32
-        The (ntheta, nscan // fly, detector_shape, detector_shape)
+        The (ntheta, nframe, detector_shape, detector_shape)
         square of the absolute value of `farplane` summed over `fly` and
         `modes`.
     scan : (ntheta, nscan, 2) float32
@@ -65,7 +63,7 @@ class Ptycho(Operator):
     """
 
     def __init__(self, detector_shape, probe_shape, nz, n,
-                 ntheta=1, model='gaussian', fly=1,
+                 ntheta=1, model='gaussian',
                  propagation=Propagation,
                  diffraction=Convolution,
                  **kwargs):  # noqa: D102 yapf: disable
@@ -82,7 +80,6 @@ class Ptycho(Operator):
             n=n,
             ntheta=ntheta,
             model=model,
-            fly=fly,
             **kwargs,
         )
         # TODO: Replace these with @property functions
@@ -91,7 +88,6 @@ class Ptycho(Operator):
         self.nz = nz
         self.n = n
         self.ntheta = ntheta
-        self.fly = fly
 
     def __enter__(self):
         self.propagation.__enter__()

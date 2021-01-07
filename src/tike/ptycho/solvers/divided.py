@@ -2,6 +2,8 @@ import logging
 
 import cupy as cp
 
+from tike.linalg import lstsq
+
 from ..position import update_positions_pd
 from ..probe import orthogonalize_eig
 
@@ -50,7 +52,7 @@ def lstsq_grad(
         scan=scan_,
         fwd=True,
     )
-    patches = patches.reshape(op.ntheta, scan_.shape[-2] // op.fly, op.fly, 1,
+    patches = patches.reshape(op.ntheta, scan_.shape[-2], 1, 1,
                               op.detector_shape, op.detector_shape)
 
     nearplane = op.xp.tile(patches, reps=(1, 1, 1, probe.shape[-3], 1, 1))
@@ -99,8 +101,6 @@ def lstsq_grad(
             grad_psi = chi_.copy()
             grad_psi[..., pad:end, pad:end] *= cp.conj(probe_)
 
-            # FIXME: Shape changes required for fly scans.
-
             probe_intensity = cp.ones(
                 (*scan_.shape[:2], 1, 1, 1, 1),
                 dtype='complex64',
@@ -128,7 +128,7 @@ def lstsq_grad(
                 scan=scan_,
                 fwd=True,
             )
-            dOP = dOP.reshape(op.ntheta, scan_.shape[-2] // op.fly, op.fly, 1,
+            dOP = dOP.reshape(op.ntheta, scan_.shape[-2], 1, 1,
                               op.detector_shape, op.detector_shape)
             dOP[..., pad:end, pad:end] *= probe_
 
@@ -141,21 +141,16 @@ def lstsq_grad(
                 scan=scan_,
                 fwd=True,
             )
-            patches = patches.reshape(op.ntheta, scan_.shape[-2] // op.fly,
-                                      op.fly, 1, op.detector_shape,
-                                      op.detector_shape)
+            patches = patches.reshape(op.ntheta, scan_.shape[-2], 1, 1,
+                                      op.detector_shape, op.detector_shape)
 
             grad_probe = (chi_ * xp.conj(patches))[..., pad:end, pad:end]
 
             psi_intensity = cp.square(cp.abs(patches[..., pad:end, pad:end]))
 
-            norm_psi = cp.sum(psi_intensity, axis=(1, 2)) + 1e-6
+            norm_psi = cp.sum(psi_intensity, axis=1, keepdims=True) + 1e-6
 
-            dir_probe = cp.sum(
-                grad_probe,
-                axis=(1, 2),
-                keepdims=True,
-            ) / norm_psi
+            dir_probe = cp.sum(grad_probe, axis=1, keepdims=True) / norm_psi
 
             dPO = patches.copy()
             dPO[..., pad:end, pad:end] *= dir_probe
@@ -167,7 +162,7 @@ def lstsq_grad(
         if updates:
             A = cp.stack(updates, axis=-1)
             b = chi_.view('float32').reshape(lstsq_shape)
-            steps = _lstsq(A, b)
+            steps = lstsq(A, b)
         num_steps = 0
         d = 0
 
@@ -190,7 +185,7 @@ def lstsq_grad(
             step = steps[..., num_steps, None, None]
             num_steps += 1
 
-            weighted_step = cp.sum(step * psi_intensity, axis=(1, 2))
+            weighted_step = cp.sum(step * psi_intensity, axis=1, keepdims=True)
 
             probe_ += dir_probe * weighted_step / norm_psi
             d += step * dPO
@@ -208,35 +203,3 @@ def lstsq_grad(
         'cost': cost,
         'scan': scan,
     }
-
-
-def _lstsq(a, b):
-    """Return the least-squares solution for a @ x = b.
-
-    This implementation, unlike cp.linalg.lstsq, allows a stack of matricies to
-    be processed simultaneously. The input sizes of the matricies are as
-    follows:
-        a (..., M, N)
-        b (..., M)
-        x (...,    N)
-
-    ...seealso:: https://github.com/numpy/numpy/issues/8720
-                 https://github.com/cupy/cupy/issues/3062
-    """
-    # TODO: Using 'out' parameter of cp.matmul() may reduce memory footprint
-    assert a.shape[:-1] == b.shape, (f"Leading dims of a {a.shape}"
-                                     f"and b {b.shape} must be same!")
-    aT = a.swapaxes(-2, -1)
-    x = cp.linalg.inv(aT @ a) @ aT @ b[..., None]
-    return x[..., 0]
-
-
-if __name__ == "__main__":
-    N = (3, 4)
-
-    a = cp.random.rand(*N, 5, 2) + 1j * cp.random.rand(*N, 5, 2)
-    b = cp.random.rand(*N, 5) + 1j * cp.random.rand(*N, 5)
-
-    x = _lstsq(a.astype('complex64'), b.astype('complex64'))
-
-    assert x.shape == (*N, 2)
