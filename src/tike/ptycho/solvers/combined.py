@@ -122,7 +122,7 @@ def _update_probe(op, pool, data, psi, scan, probe, num_iter=1):
     return probe, cost
 
 
-def _update_object(op, pool, data, psi, scan, probe, num_iter=1):
+def _update_object(op, comm, pool, data, psi, scan, probe, num_iter=1):
     """Solve the object recovery problem."""
 
     def cost_function_multi(psi, **kwargs):
@@ -131,7 +131,7 @@ def _update_object(op, pool, data, psi, scan, probe, num_iter=1):
         cost_cpu = 0
         for c in cost_out:
             cost_cpu += op.asnumpy(c)
-        return cost_cpu
+        return comm.Allreduce(cost_cpu)
 
     def grad_multi(psi):
         grad_out = pool.map(op.grad, data, psi, scan, probe)
@@ -141,8 +141,8 @@ def _update_object(op, pool, data, psi, scan, probe, num_iter=1):
             grad_cpu_tmp = op.asnumpy(grad_list[i])
             grad_tmp = op.asarray(grad_cpu_tmp)
             grad_list[0] += grad_tmp
-
-        return grad_list[0]
+        grad = op.asarray(comm.Allreduce(op.asnumpy(grad_list[0])))
+        return grad
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""

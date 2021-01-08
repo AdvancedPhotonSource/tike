@@ -172,7 +172,7 @@ def reconstruct(
                 n=psi.shape[-1],
                 ntheta=scan.shape[0],
                 model=model,
-        ) as operator, ThreadPool(num_gpu) as pool:
+        ) as operator, MPIComm(num_gpu) as communicator, ThreadPool(num_gpu) as pool:
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[1:],
                                              num_iter))

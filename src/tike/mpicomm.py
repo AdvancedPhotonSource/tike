@@ -33,12 +33,6 @@ class MPIComm:
         self.gpu_count = gpu_count
         self.xp = cp
 
-    def get_rank():
-        return self.rank
-
-    def get_size():
-        return self.size
-
     def p2p(self, sendbuf, src=0, dest=1, tg=0, **kwargs):
         """Send data from a source to a designated destination."""
 
@@ -88,16 +82,13 @@ class MPIComm:
         self.comm.Scatter(sendbuf, recvbuf, src)
         return recvbuf
 
-    def Allreduce(self, x: list, **kwargs):
+    def Allreduce(self, sendbuf, op=MPI.SUM):
         """Combines data from all processes and distributes
         the result back to all processes."""
 
-        sendbuf = np.zeros(x[0].shape, x[0].dtype)
-        for i in range(self.gpu_count):
-            with cp.cuda.Device(i):
-                sendbuf += cp.asnumpy(x[i])
+        if sendbuf is None:
+            raise ValueError(f"Allreduce data can't be empty.")
         recvbuf = np.empty(sendbuf.shape, sendbuf.dtype)
-        self.comm.Allreduce(sendbuf, recvbuf, op=MPI.SUM)
-        data = cp.asarray(recvbuf)
+        self.comm.Allreduce(sendbuf, recvbuf, op=op)
 
-        return data
+        return recvbuf
