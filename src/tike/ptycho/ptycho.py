@@ -173,7 +173,8 @@ def reconstruct(
                 n=psi.shape[-1],
                 ntheta=scan.shape[0],
                 model=model,
-        ) as operator, MPIComm(num_gpu) as communicator, ThreadPool(num_gpu) as pool:
+        ) as operator, MPIComm(
+                num_gpu) as communicator, ThreadPool(num_gpu) as pool:
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[1:],
                                              num_iter))
@@ -353,8 +354,6 @@ def split_by_scan_grid(rank, size, order, data, scan, shape, fly=1):
     vstripes = vstripes[rank * shape[0]:(rank + 1) * shape[0]]
     hstripes = split_by_scan_stripes(scan, shape[1], axis=1, fly=fly)
     mask = [np.logical_and(*pair) for pair in product(vstripes, hstripes)]
-    for m in mask:
-        print("test:", type(m), m.shape)
     order = [order[m] for m in mask]
     data = [data[:, m] for m in mask]
     scan = [scan[:, m] for m in mask]
