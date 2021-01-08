@@ -49,11 +49,11 @@ class MPIComm:
         elif self.rank == dest:
             info = MPI.Status()
             recvbuf = np.empty(sendbuf.shape, sendbuf.dtype)
-            self.comm.Recv(recvbuf,
-                    source=src, tag=tg, status=info, **kwargs)
+            self.comm.Recv(recvbuf, source=src,
+                            tag=tg, status=info, **kwargs)
             return recvbuf
 
-    def Bcast(self, data, root: int=0):
+    def Bcast(self, data, root: int = 0):
         """Send data from a root to all processes."""
 
         if data is None:
@@ -65,10 +65,7 @@ class MPIComm:
         self.comm.Bcast(data, root)
         return data
 
-
-        return list(self.map(f, self.workers))
-
-    def Gather(self, sendbuf, dest: int=0):
+    def Gather(self, sendbuf, dest: int = 0):
         """Take data from all processes into one destination."""
 
         if sendbuf is None:
@@ -79,7 +76,7 @@ class MPIComm:
         if self.rank == dest:
             return recvbuf
 
-    def Scatter(self, sendbuf, src: int=0):
+    def Scatter(self, sendbuf, src: int = 0):
         """Spread data from a source to all processes."""
 
         if sendbuf is None:
