@@ -46,7 +46,7 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-__author__ = "Doga Gursoy, Daniel Ching"
+__author__ = "Doga Gursoy, Daniel Ching, Xiaodong Yu"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = [
@@ -64,6 +64,7 @@ import cupy as cp
 
 from tike.operators import Ptycho
 from tike.opt import randomizer
+from tike.mpicomm import MPIComm
 from tike.pool import ThreadPool
 from tike.ptycho import solvers
 from .position import check_allowed_positions, get_padded_object
@@ -186,6 +187,8 @@ def reconstruct(
             odd_pool = pool.num_workers % 2
             order = np.arange(data.shape[1])
             order, data, scan = split_by_scan_grid(
+                communicator.rank,
+                communicator.size,
                 order,
                 data,
                 scan,
@@ -233,6 +236,7 @@ def reconstruct(
                     kwargs['scan'] = [s[b] for s in scan]
                     result = getattr(solvers, algorithm)(
                         operator,
+                        communicator,
                         pool,
                         data=[d[b] for d in data],
                         **kwargs,
@@ -318,13 +322,17 @@ def _rescale_obj_probe(operator, pool, data, psi, scan, probe):
     return probe
 
 
-def split_by_scan_grid(order, data, scan, shape, fly=1):
+def split_by_scan_grid(rank, size, order, data, scan, shape, fly=1):
     """ split the field of view into a 2D grid.
 
     Mask divide the data into a 2D grid of spatially contiguous regions.
 
     Parameters
     ----------
+    rank : int
+        The ID of the current process.
+    size : int
+        The total number of processes.
     data : (ntheta, nframe, ...)
     probe : (ntheta, nscan, ...)
     scan : (ntheta, nscan, 2) float32
@@ -341,9 +349,12 @@ def split_by_scan_grid(order, data, scan, shape, fly=1):
     """
     if len(shape) != 2:
         raise ValueError('The grid shape must have two dimensions.')
-    vstripes = split_by_scan_stripes(scan, shape[0], axis=0, fly=fly)
+    vstripes = split_by_scan_stripes(scan, shape[0] * size, axis=0, fly=fly)
+    vstripes = vstripes[rank * shape[0]:(rank + 1) * shape[0]]
     hstripes = split_by_scan_stripes(scan, shape[1], axis=1, fly=fly)
     mask = [np.logical_and(*pair) for pair in product(vstripes, hstripes)]
+    for m in mask:
+        print("test:", type(m), m.shape)
     order = [order[m] for m in mask]
     data = [data[:, m] for m in mask]
     scan = [scan[:, m] for m in mask]

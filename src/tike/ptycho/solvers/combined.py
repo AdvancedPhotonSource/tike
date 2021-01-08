@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def cgrad(
-    op, pool,
+    op, comm, pool,
     data, probe, scan, psi,
     recover_psi=True, recover_probe=True, recover_positions=False,
     cg_iter=4,
@@ -21,6 +21,8 @@ def cgrad(
     ----------
     op : tike.operators.Ptycho
         A ptychography operator.
+    comm : tike.mpicomm.MPIComm
+        An object which manages communications between nodes.
     pool : tike.pool.ThreadPoolExecutor
         An object which manages communications between GPUs.
     """
@@ -29,6 +31,7 @@ def cgrad(
     if recover_psi:
         psi, cost = _update_object(
             op,
+            comm,
             pool,
             data,
             psi,

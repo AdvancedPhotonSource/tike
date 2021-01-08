@@ -224,6 +224,7 @@ class TestPtychoRecon(unittest.TestCase):
             algorithm=algorithm,
             num_iter=1,
         )
+        result['scan'] = self.scan
         result = tike.ptycho.reconstruct(
             **result,
             **params,
@@ -265,7 +266,7 @@ class TestPtychoRecon(unittest.TestCase):
         self.template_consistent_algorithm(
             'cgrad',
             params={
-                'num_gpu': 4,
+                'num_gpu': 2,
                 'recover_probe': True,
                 'recover_psi': True,
             },
