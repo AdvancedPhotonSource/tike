@@ -6,7 +6,6 @@ __docformat__ = 'restructuredtext en'
 __all__ = ['MPIComm']
 
 from mpi4py import MPI
-import warnings
 
 import cupy as cp
 import numpy as np

@@ -117,3 +117,6 @@ dmypy.json
 core
 .DS_Store
 .nfs*
+
+# MPI host files
+host_list
