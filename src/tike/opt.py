@@ -9,6 +9,7 @@ library.
 
 import logging
 import warnings
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -141,8 +142,7 @@ def conjugate_gradient(
         )
 
         x = update_multi(x, gamma, dir_list)
-
         logger.debug("step %d; length %.3e -> %.3e; cost %.6e", i, step_length,
                      gamma, cost)
-
+   
     return x, cost
