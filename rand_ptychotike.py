@@ -11,8 +11,6 @@ import dxchange
 import cv2
 import sys
 
-import tv   #add tv
-
 for module in [tike, np]:
     print("{} is version {}".format(module.__name__, module.__version__))
 
@@ -74,9 +72,9 @@ if __name__ == "__main__":
         nmode = 1
         weights = tike.ptycho.gaussian(pw, rin=0.3, rout=1.0)
         # probe = weights * np.exp(1j * 0) * 10
-        name = '7Cone512paddedPoissongrp1noise05prbFscanFiter50TV'
+        name = '7Cone512paddedPoissongrp1noise1prbFscanFiter50test'
         grp = 1 #number of groups to sample
-        probe = weights * np.exp(1j * 0.2 * weights) * 0.5
+        probe = weights * np.exp(1j * 0.2 * weights) * 1
         # to control noise level *1,5,10 etc --> gets less noisy
         probe = np.tile(probe, (ntheta, 1, 1)).astype('complex64')[:, np.newaxis, np.newaxis, np.newaxis]
         # probe = add_modes_random_phase(probe, nmode)
@@ -167,7 +165,7 @@ if __name__ == "__main__":
                     **result,
                     algorithm='combined',
                     model = 'poisson',
-                    num_iter=5,
+                    num_iter=50,
                     recover_probe=False,
                     recover_positions=False,
                 )
@@ -195,13 +193,9 @@ if __name__ == "__main__":
 
                 psi_all_imag[t]  = psi_all_imag[t] + np.angle(result['psi'][ntheta // 2]).copy()
 
-                if grp == 1
-                psi_tv = denoise_tv_chambolle(np.angle(result['psi'][ntheta // 2], weight=0.2))
-
         print(np.max(psi_all_imag), psi_all_imag.shape)
         dxchange.write_tiff(np.mean(psi_all_imag, axis=0), 'results/T'+name+'/psi_imag_mean')
         dxchange.write_tiff(psi_all_imag, 'results/T'+name+'/psi_T'+name+'_imag')
-        dxchange.write_tiff(psi_tv, 'results/T'+name+'/psiTV_T'+name+'_imag')
 
 
 

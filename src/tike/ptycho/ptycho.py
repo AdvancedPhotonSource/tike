@@ -211,7 +211,7 @@ def reconstruct(
                 costall[i] = np.linalg.norm((result['cost'] - cost) )**2
                 cost = result['cost']
 
-            np.save('costall_T6Peppers512paddedgrp1noise1prbFscanFiter100.npy', costall)  
+            np.save('7Cone512paddedPoissongrp1noise1prbFscanFiter50test.npy', costall)  
             # np.save('psi.npy', psiall)  
             result['scan'] = pool.gather(result['scan'], axis=1)
             for k, v in result.items():
