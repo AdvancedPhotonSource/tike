@@ -63,9 +63,8 @@ import numpy as np
 import cupy as cp
 
 from tike.operators import Ptycho
+from tike.communicators import Comm
 from tike.opt import randomizer
-from tike.mpicomm import MPIComm
-from tike.pool import ThreadPool
 from tike.ptycho import solvers
 from .position import check_allowed_positions, get_padded_object
 
@@ -173,8 +172,7 @@ def reconstruct(
                 n=psi.shape[-1],
                 ntheta=scan.shape[0],
                 model=model,
-        ) as operator, MPIComm(
-                num_gpu) as communicator, ThreadPool(num_gpu) as pool:
+        ) as operator, Comm(num_gpu) as comm:
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[1:],
                                              num_iter))
@@ -183,9 +181,9 @@ def reconstruct(
             if batch_size is not None:
                 num_batch = max(
                     1,
-                    int(data.shape[1] / batch_size / pool.num_workers),
+                    int(data.shape[1] / batch_size / comm.num_workers),
                 )
-            odd_pool = pool.num_workers % 2
+            odd_pool = comm.num_workers % 2
             order = np.arange(data.shape[1])
             order, data, scan = split_by_scan_grid(
                 communicator.rank,
@@ -194,11 +192,11 @@ def reconstruct(
                 data,
                 scan,
                 (
-                    pool.num_workers if odd_pool else pool.num_workers // 2,
+                    comm.num_workers if odd_pool else comm.num_workers // 2,
                     1 if odd_pool else 2,
                 ),
             )
-            order, data, scan = zip(*pool.map(
+            order, data, scan = zip(*comm.map(
                 _make_mini_batches,
                 order,
                 data,
@@ -208,17 +206,17 @@ def reconstruct(
             ))
 
             result = {
-                'psi': pool.bcast(psi.astype('complex64')),
-                'probe': pool.bcast(probe.astype('complex64')),
+                'psi': comm.bcast(psi.astype('complex64')),
+                'probe': comm.bcast(probe.astype('complex64')),
             }
             for key, value in kwargs.items():
                 if np.ndim(value) > 0:
-                    kwargs[key] = pool.bcast(value)
+                    kwargs[key] = comm.bcast(value)
 
-            result['probe'] = pool.bcast(
+            result['probe'] = comm.bcast(
                 _rescale_obj_probe(
                     operator,
-                    pool,
+                    comm,
                     data[0][0],
                     result['psi'][0],
                     scan[0][0],
@@ -237,14 +235,13 @@ def reconstruct(
                     kwargs['scan'] = [s[b] for s in scan]
                     result = getattr(solvers, algorithm)(
                         operator,
-                        communicator,
-                        pool,
+                        comm,
                         data=[d[b] for d in data],
                         **kwargs,
                     )
                     if result['cost'] is not None:
                         costs.append(result['cost'])
-                    for g in range(pool.num_workers):
+                    for g in range(comm.num_workers):
                         scan[g][b] = result['scan'][g]
 
                 times.append(time.perf_counter() - start)
@@ -259,8 +256,8 @@ def reconstruct(
 
             reorder = np.argsort(
                 np.concatenate(list(chain.from_iterable(order))))
-            result['scan'] = pool.gather(
-                list(pool.map(cp.concatenate, scan, axis=1)),
+            result['scan'] = comm.gather(
+                list(comm.map(cp.concatenate, scan, axis=1)),
                 axis=1,
             )[:, reorder]
             result['probe'] = result['probe'][0]
@@ -308,7 +305,7 @@ def _make_mini_batches(
     return order, data, scan
 
 
-def _rescale_obj_probe(operator, pool, data, psi, scan, probe):
+def _rescale_obj_probe(operator, comm, data, psi, scan, probe):
     """Keep the object amplitude around 1 by scaling probe by a constant."""
 
     intensity = operator._compute_intensity(data, psi, scan, probe)

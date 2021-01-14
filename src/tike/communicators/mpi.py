@@ -3,7 +3,6 @@
 __author__ = "Xiaodong Yu"
 __copyright__ = "Copyright (c) 2021, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = ['MPIComm']
 
 from mpi4py import MPI
 

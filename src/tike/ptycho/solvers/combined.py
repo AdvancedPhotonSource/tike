@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def cgrad(
-    op, comm, pool,
+    op, comm,
     data, probe, scan, psi,
     recover_psi=True, recover_probe=True, recover_positions=False,
     cg_iter=4,
@@ -21,10 +21,10 @@ def cgrad(
     ----------
     op : tike.operators.Ptycho
         A ptychography operator.
-    comm : tike.mpicomm.MPIComm
-        An object which manages communications between nodes.
-    pool : tike.pool.ThreadPoolExecutor
-        An object which manages communications between GPUs.
+    comm : tike.communicators.Comm
+        An object which manages communications between both
+        GPUs and nodes.
+
     """
     cost = np.inf
 
@@ -32,7 +32,6 @@ def cgrad(
         psi, cost = _update_object(
             op,
             comm,
-            pool,
             data,
             psi,
             scan,
@@ -44,24 +43,24 @@ def cgrad(
         # TODO: add multi-GPU support
         probe, cost = _update_probe(
             op,
-            pool,
-            pool.gather(data, axis=1),
+            comm,
+            comm.gather(data, axis=1),
             psi[0],
-            pool.gather(scan, axis=1),
+            comm.gather(scan, axis=1),
             probe[0],
             num_iter=cg_iter,
         )
-        probe = pool.bcast(probe)
+        probe = comm.bcast(probe)
 
-    if recover_positions and pool.num_workers == 1:
+    if recover_positions and comm.num_workers == 1:
         scan, cost = update_positions_pd(
             op,
-            pool.gather(data, axis=1),
+            comm.gather(data, axis=1),
             psi[0],
             probe[0],
-            pool.gather(scan, axis=1),
+            comm.gather(scan, axis=1),
         )
-        scan = pool.bcast(scan)
+        scan = comm.bcast(scan)
 
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 
@@ -78,7 +77,7 @@ def _compute_intensity(op, psi, scan, probe):
     ), farplane
 
 
-def _update_probe(op, pool, data, psi, scan, probe, num_iter=1):
+def _update_probe(op, comm, data, psi, scan, probe, num_iter=1):
     """Solve the probe recovery problem."""
 
     # TODO: Cache object patches between mode updates
@@ -125,21 +124,21 @@ def _update_probe(op, pool, data, psi, scan, probe, num_iter=1):
     return probe, cost
 
 
-def _update_object(op, comm, pool, data, psi, scan, probe, num_iter=1):
+def _update_object(op, comm, data, psi, scan, probe, num_iter=1):
     """Solve the object recovery problem."""
 
     def cost_function_multi(psi, **kwargs):
-        cost_out = pool.map(op.cost, data, psi, scan, probe)
-        # TODO: Implement reduce function for ThreadPool
+        cost_out = comm.map(op.cost, data, psi, scan, probe)
+        # TODO: Implement reduce function for Threadcomm
         cost_cpu = 0
         for c in cost_out:
             cost_cpu += op.asnumpy(c)
         return comm.Allreduce(cost_cpu)
 
     def grad_multi(psi):
-        grad_out = pool.map(op.grad, data, psi, scan, probe)
+        grad_out = comm.map(op.grad, data, psi, scan, probe)
         grad_list = list(grad_out)
-        # TODO: Implement reduce function for ThreadPool
+        # TODO: Implement reduce function for Threadcomm
         for i in range(1, len(grad_list)):
             grad_cpu_tmp = op.asnumpy(grad_list[i])
             grad_tmp = op.asarray(grad_cpu_tmp)
@@ -149,14 +148,14 @@ def _update_object(op, comm, pool, data, psi, scan, probe, num_iter=1):
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""
-        return pool.bcast(dir)
+        return comm.bcast(dir)
 
     def update_multi(psi, gamma, dir):
 
         def f(psi, dir):
             return psi + gamma * dir
 
-        return list(pool.map(f, psi, dir))
+        return list(comm.map(f, psi, dir))
 
     psi, cost = conjugate_gradient(
         op.xp,

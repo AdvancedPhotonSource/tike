@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def lstsq_grad(
-    op, comm, pool,
+    op, comm,
     data, probe, scan, psi,
     recover_psi=True, recover_probe=False, recover_positions=False,
     cg_iter=4,
@@ -26,8 +26,8 @@ def lstsq_grad(
     ----------
     op : tike.operators.Ptycho
         A ptychography operator.
-    pool : tike.pool.ThreadPoolExecutor
-        An object which manages communications between GPUs.
+    comm : tike.communicators.Comm
+        An object which manages communications between GPUs and nodes.
 
     References
     ----------

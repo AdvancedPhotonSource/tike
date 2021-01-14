@@ -3,7 +3,6 @@
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = ['ThreadPool']
 
 from concurrent.futures import ThreadPoolExecutor
 import os
