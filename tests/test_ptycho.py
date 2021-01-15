@@ -193,9 +193,6 @@ class TestPtychoRecon(unittest.TestCase):
                 self.original,
             ] = pickle.load(file)
 
-        with MPIComm(2) as IO:
-            self.scan, self.data = IO.MPIio(self.scan, self.data)
-
     def test_consistent_simulate(self):
         """Check ptycho.simulate for consistency."""
         data = tike.ptycho.simulate(
@@ -216,6 +213,11 @@ class TestPtychoRecon(unittest.TestCase):
 
     def template_consistent_algorithm(self, algorithm, params={}):
         """Check ptycho.solver.algorithm for consistency."""
+
+        if params['use_mpi'] is True:
+            with MPIComm(params['num_gpu']) as IO:
+                self.scan, self.data = IO.MPIio(self.scan, self.data)
+
         result = {
             'psi': np.ones_like(self.original),
             'probe': self.probe * np.random.rand(*self.probe.shape),
@@ -273,7 +275,7 @@ class TestPtychoRecon(unittest.TestCase):
                 'num_gpu': 1,
                 'recover_probe': True,
                 'recover_psi': True,
-                'use_mpi': True,
+                'use_mpi': False,
             },
         )
 
