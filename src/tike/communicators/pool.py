@@ -99,6 +99,22 @@ class ThreadPool(ThreadPoolExecutor):
 
         return self.map(f, self.workers, x)
 
+    def reduce_gpu(self, x: list, worker=None) -> cp.array:
+        """Reduce x to one GPU from all other GPUs."""
+        if self.num_workers == 1:
+            return x[0]
+        worker = self.workers[0] if worker is None else worker
+        with cp.cuda.Device(worker):
+            x[worker] += [self._copy_to(part, worker) for part in x[:worker]]
+            x[worker] += [self._copy_to(part, worker) for part in x[worker+1):]]
+            return x[worker]
+
+    def reduce_cpu(self, x, buf=None):
+        """Reduce x on to a CPU buffer."""
+        buf = 0 if buf is None else buf
+        buf += [self.xp.asnumpy(part) for part in x]
+        return buf
+
     def map(self, func, *iterables, **kwargs):
         """ThreadPoolExecutor.map, but wraps call in a cuda.Device context."""
 

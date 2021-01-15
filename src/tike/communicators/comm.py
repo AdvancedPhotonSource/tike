@@ -52,6 +52,23 @@ class Comm:
         """Concatenate x on a single thread along the given axis."""
         return self.pool.gather(x, worker, axis)
 
+    def reduce(self, x, dest, **kwargs):
+        if dest == 'gpu':
+            return self.pool.reduce_gpu(x, **kwargs)
+        elif dest == 'cpu':
+            return self.pool.reduce_cpu(x, **kwargs)
+        else:
+            raise ValueError(f'Must specify the destination.')
+
     def map(self, func, *iterables, **kwargs):
         """Map the given function to all threads."""
         return self.pool.map(func, *iterables, **kwargs)
+
+    def Allreduce_reduce(self, x, dest, **kwargs):
+        src = self.reduce(x, dest, **kwargs)
+        if dest == 'gpu':
+            return cp.asarray(self.mpi.Allreduce(cp.asnumpy(src)))
+        elif dest == 'cpu':
+            return self.mpi.Allreduce(src)
+        else:
+            raise ValueError(f'Must specify the destination.')
