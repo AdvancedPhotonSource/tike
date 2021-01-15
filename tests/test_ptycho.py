@@ -214,7 +214,7 @@ class TestPtychoRecon(unittest.TestCase):
     def template_consistent_algorithm(self, algorithm, params={}):
         """Check ptycho.solver.algorithm for consistency."""
 
-        if params['use_mpi'] is True:
+        if params.get('use_mpi') is True:
             with MPIComm(params['num_gpu']) as IO:
                 self.scan, self.data = IO.MPIio(self.scan, self.data)
 
