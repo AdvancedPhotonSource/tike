@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 def cgrad(
     op, comm,
-    data, probe, scan, psi,
+    data, probe, scan, psi, use_mpi=False,
     recover_psi=True, recover_probe=True, recover_positions=False,
     cg_iter=4,
     cost=None,
@@ -36,6 +36,7 @@ def cgrad(
             psi,
             scan,
             probe,
+            use_mpi,
             num_iter=cg_iter,
         )
 
@@ -124,27 +125,30 @@ def _update_probe(op, comm, data, psi, scan, probe, num_iter=1):
     return probe, cost
 
 
-def _update_object(op, comm, data, psi, scan, probe, num_iter=1):
+def _update_object(op, comm, data, psi, scan, probe, use_mpi, num_iter=1):
     """Solve the object recovery problem."""
 
     def cost_function_multi(psi, **kwargs):
         cost_out = comm.map(op.cost, data, psi, scan, probe)
-        # TODO: Implement reduce function for Threadcomm
-        cost_cpu = 0
-        for c in cost_out:
-            cost_cpu += op.asnumpy(c)
-        return comm.Allreduce(cost_cpu)
+        if use_mpi is True:
+            return comm.Allreduce_reduce(cost_out, 'cpu')
+        else:
+            return comm.reduce(cost_out, 'cpu')
 
     def grad_multi(psi):
         grad_out = comm.map(op.grad, data, psi, scan, probe)
         grad_list = list(grad_out)
         # TODO: Implement reduce function for Threadcomm
-        for i in range(1, len(grad_list)):
-            grad_cpu_tmp = op.asnumpy(grad_list[i])
-            grad_tmp = op.asarray(grad_cpu_tmp)
-            grad_list[0] += grad_tmp
-        grad = op.asarray(comm.Allreduce(op.asnumpy(grad_list[0])))
-        return grad
+        if use_mpi is True:
+            return comm.Allreduce_reduce(grad_list, 'gpu')
+        else:
+            return comm.reduce(grad_list, 'gpu')
+        #for i in range(1, len(grad_list)):
+        #    grad_cpu_tmp = op.asnumpy(grad_list[i])
+        #    grad_tmp = op.asarray(grad_cpu_tmp)
+        #    grad_list[0] += grad_tmp
+        #grad = op.asarray(comm.Allreduce(op.asnumpy(grad_list[0])))
+        #return grad
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""

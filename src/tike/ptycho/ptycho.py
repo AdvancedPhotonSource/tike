@@ -145,7 +145,7 @@ def reconstruct(
         probe, scan,
         algorithm,
         psi=None, num_gpu=1, num_iter=1, rtol=-1,
-        model='gaussian', cost=None, times=None,
+        model='gaussian', use_mpi=False, cost=None, times=None,
         batch_size=None, subset_is_random=None,
         **kwargs
 ):  # yapf: disable
@@ -172,7 +172,7 @@ def reconstruct(
                 n=psi.shape[-1],
                 ntheta=scan.shape[0],
                 model=model,
-        ) as operator, Comm(num_gpu) as comm:
+        ) as operator, Comm(num_gpu, use_mpi) as comm:
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[1:],
                                              num_iter))
@@ -186,8 +186,6 @@ def reconstruct(
             odd_pool = comm.num_workers % 2
             order = np.arange(data.shape[1])
             order, data, scan = split_by_scan_grid(
-                communicator.rank,
-                communicator.size,
                 order,
                 data,
                 scan,
@@ -237,6 +235,7 @@ def reconstruct(
                         operator,
                         comm,
                         data=[d[b] for d in data],
+                        use_mpi=use_mpi,
                         **kwargs,
                     )
                     if result['cost'] is not None:
@@ -320,17 +319,13 @@ def _rescale_obj_probe(operator, comm, data, psi, scan, probe):
     return probe
 
 
-def split_by_scan_grid(rank, size, order, data, scan, shape, fly=1):
+def split_by_scan_grid(order, data, scan, shape, fly=1):
     """ split the field of view into a 2D grid.
 
     Mask divide the data into a 2D grid of spatially contiguous regions.
 
     Parameters
     ----------
-    rank : int
-        The ID of the current process.
-    size : int
-        The total number of processes.
     data : (ntheta, nframe, ...)
     probe : (ntheta, nscan, ...)
     scan : (ntheta, nscan, 2) float32
@@ -347,8 +342,10 @@ def split_by_scan_grid(rank, size, order, data, scan, shape, fly=1):
     """
     if len(shape) != 2:
         raise ValueError('The grid shape must have two dimensions.')
-    vstripes = split_by_scan_stripes(scan, shape[0] * size, axis=0, fly=fly)
-    vstripes = vstripes[rank * shape[0]:(rank + 1) * shape[0]]
+    #vstripes = split_by_scan_stripes(scan, shape[0] * size, axis=0, fly=fly)
+    #vstripes = vstripes[rank * shape[0]:(rank + 1) * shape[0]]
+    #hstripes = split_by_scan_stripes(scan, shape[1], axis=1, fly=fly)
+    vstripes = split_by_scan_stripes(scan, shape[0], axis=0, fly=fly)
     hstripes = split_by_scan_stripes(scan, shape[1], axis=1, fly=fly)
     mask = [np.logical_and(*pair) for pair in product(vstripes, hstripes)]
     order = [order[m] for m in mask]

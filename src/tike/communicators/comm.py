@@ -26,21 +26,25 @@ class Comm:
 
     """
 
-    def __init__(self, gpu_count,
+    def __init__(self, gpu_count, use_mpi,
                  mpi=MPIComm,
                  pool=ThreadPool,
                  **kwargs):
-        self.mpi = mpi(gpu_count)
+        self.use_mpi = use_mpi
+        if self.use_mpi is True:
+            self.mpi = mpi(gpu_count)
         self.pool = pool(gpu_count)
         self.num_workers = gpu_count
 
     def __enter__(self):
-        self.mpi.__enter__()
+        if self.use_mpi is True:
+            self.mpi.__enter__()
         self.pool.__enter__()
         return self
 
     def __exit__(self, type, value, traceback):
-        self.mpi.__exit__(type, value, traceback)
+        if self.use_mpi is True:
+            self.mpi.__exit__(type, value, traceback)
         self.pool.__exit__(type, value, traceback)
 
 
