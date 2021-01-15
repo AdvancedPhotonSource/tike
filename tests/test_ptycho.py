@@ -270,7 +270,7 @@ class TestPtychoRecon(unittest.TestCase):
         self.template_consistent_algorithm(
             'cgrad',
             params={
-                'num_gpu': 2,
+                'num_gpu': 1,
                 'recover_probe': True,
                 'recover_psi': True,
                 'use_mpi': False,
