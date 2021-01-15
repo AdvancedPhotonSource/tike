@@ -193,8 +193,8 @@ class TestPtychoRecon(unittest.TestCase):
                 self.original,
             ] = pickle.load(file)
 
-        with MPIComm(2) as IO:
-            self.scan, self.data = IO.MPIio(self.scan, self.data)
+        #with MPIComm(2) as IO:
+        #    self.scan, self.data = IO.MPIio(self.scan, self.data)
 
     def test_consistent_simulate(self):
         """Check ptycho.simulate for consistency."""
@@ -273,7 +273,7 @@ class TestPtychoRecon(unittest.TestCase):
                 'num_gpu': 2,
                 'recover_probe': True,
                 'recover_psi': True,
-                'use_mpi': True,
+                'use_mpi': False,
             },
         )
 
