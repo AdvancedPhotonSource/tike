@@ -54,6 +54,7 @@ import unittest
 import numpy as np
 
 import tike.ptycho
+from tike.communicators import MPIComm
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
@@ -192,6 +193,9 @@ class TestPtychoRecon(unittest.TestCase):
                 self.original,
             ] = pickle.load(file)
 
+        with MPIComm(2) as IO:
+            self.scan, self.data = IO.MPIio(self.scan, self.data)
+
     def test_consistent_simulate(self):
         """Check ptycho.simulate for consistency."""
         data = tike.ptycho.simulate(
@@ -269,7 +273,7 @@ class TestPtychoRecon(unittest.TestCase):
                 'num_gpu': 2,
                 'recover_probe': True,
                 'recover_psi': True,
-                'use_mpi': False,
+                'use_mpi': True,
             },
         )
 

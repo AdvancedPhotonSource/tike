@@ -93,3 +93,27 @@ class MPIComm:
         self.comm.Allreduce(sendbuf, recvbuf, op=op)
 
         return recvbuf
+
+    def MPIio(self, scan, data):
+        """Read data parts to different processes."""
+
+        # Determine the edges of the stripes
+        edges = np.linspace(
+            scan[..., 0].min(),
+            scan[..., 0].max(),
+            self.size + 1,
+            endpoint=True,
+        )
+
+        # Move the outer edges to include all points
+        edges[0] -= 1
+        edges[-1] += 1
+
+        # Generate the mask
+        mask = np.logical_and(
+                edges[self.rank] < scan[0, :, 0],
+                scan[0, :, 0] <= edges[self.rank + 1])
+
+        scan = scan[:, mask]
+        data = data[:, mask]
+        return scan, data
