@@ -138,17 +138,10 @@ def _update_object(op, comm, data, psi, scan, probe, use_mpi, num_iter=1):
     def grad_multi(psi):
         grad_out = comm.map(op.grad, data, psi, scan, probe)
         grad_list = list(grad_out)
-        # TODO: Implement reduce function for Threadcomm
         if use_mpi is True:
             return comm.Allreduce_reduce(grad_list, 'gpu')
         else:
             return comm.reduce(grad_list, 'gpu')
-        #for i in range(1, len(grad_list)):
-        #    grad_cpu_tmp = op.asnumpy(grad_list[i])
-        #    grad_tmp = op.asarray(grad_cpu_tmp)
-        #    grad_list[0] += grad_tmp
-        #grad = op.asarray(comm.Allreduce(op.asnumpy(grad_list[0])))
-        #return grad
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""

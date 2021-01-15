@@ -47,7 +47,6 @@ class Comm:
             self.mpi.__exit__(type, value, traceback)
         self.pool.__exit__(type, value, traceback)
 
-
     def bcast(self, x: cp.array) -> list:
         """Send a copy of x to all threads in a process."""
         return self.pool.bcast(x)

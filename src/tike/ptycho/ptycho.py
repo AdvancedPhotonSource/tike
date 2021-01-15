@@ -342,9 +342,6 @@ def split_by_scan_grid(order, data, scan, shape, fly=1):
     """
     if len(shape) != 2:
         raise ValueError('The grid shape must have two dimensions.')
-    #vstripes = split_by_scan_stripes(scan, shape[0] * size, axis=0, fly=fly)
-    #vstripes = vstripes[rank * shape[0]:(rank + 1) * shape[0]]
-    #hstripes = split_by_scan_stripes(scan, shape[1], axis=1, fly=fly)
     vstripes = split_by_scan_stripes(scan, shape[0], axis=0, fly=fly)
     hstripes = split_by_scan_stripes(scan, shape[1], axis=1, fly=fly)
     mask = [np.logical_and(*pair) for pair in product(vstripes, hstripes)]
