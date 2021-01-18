@@ -19,6 +19,8 @@ class Comm:
     ----------
     gpu_count : int
         The number of GPUs to use.
+    num_workers : int
+        The number of threads per process.
     mpi : class
         The multi-processing communicator.
     pool : class
@@ -26,13 +28,15 @@ class Comm:
 
     """
 
-    def __init__(self, gpu_count, use_mpi,
+    def __init__(self, gpu_count,
                  mpi=MPIComm,
                  pool=ThreadPool,
                  **kwargs):
-        self.use_mpi = use_mpi
-        if self.use_mpi is True:
-            self.mpi = mpi(gpu_count)
+        if mpi is not None:
+            self.mpi = mpi()
+            self.use_mpi = True
+        else:
+            self.use_mpi = False
         self.pool = pool(gpu_count)
         self.num_workers = gpu_count
 
@@ -47,14 +51,6 @@ class Comm:
             self.mpi.__exit__(type, value, traceback)
         self.pool.__exit__(type, value, traceback)
 
-    def bcast(self, x: cp.array) -> list:
-        """Send a copy of x to all threads in a process."""
-        return self.pool.bcast(x)
-
-    def gather(self, x: list, worker=None, axis=0) -> cp.array:
-        """Concatenate x on a single thread along the given axis."""
-        return self.pool.gather(x, worker, axis)
-
     def reduce(self, x, dest, **kwargs):
         if dest == 'gpu':
             return self.pool.reduce_gpu(x, **kwargs)
@@ -62,10 +58,6 @@ class Comm:
             return self.pool.reduce_cpu(x, **kwargs)
         else:
             raise ValueError(f'Must specify the destination.')
-
-    def map(self, func, *iterables, **kwargs):
-        """Map the given function to all threads."""
-        return self.pool.map(func, *iterables, **kwargs)
 
     def Allreduce_reduce(self, x, dest, **kwargs):
         src = self.reduce(x, dest, **kwargs)

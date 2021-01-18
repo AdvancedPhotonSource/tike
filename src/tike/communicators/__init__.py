@@ -1,8 +1,8 @@
-"""Module for operators utilizing the CuPy library.
+"""Module for communicators using threadpool and MPI.
 
-This module implements the forward and adjoint operators using CuPy. This
-removes the need for interface layers like pybind11 or SWIG because kernel
-launches and memory management may by accessed from Python.
+This module implements both the p2p and collective communications
+among multiple GPUs and multiple nodes.
+
 """
 
 from .mpi import *

@@ -19,16 +19,13 @@ class MPIComm:
 
     Attributes
     ----------
-    gpu_count : int
-        The number of GPUs on each node.
 
     """
 
-    def __init__(self, gpu_count):
+    def __init__(self):
         self.comm = MPI.COMM_WORLD
         self.rank = self.comm.Get_rank()
         self.size = self.comm.Get_size()
-        self.gpu_count = gpu_count
         self.xp = cp
 
     def __enter__(self):

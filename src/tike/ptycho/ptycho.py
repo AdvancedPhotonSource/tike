@@ -63,7 +63,7 @@ import numpy as np
 import cupy as cp
 
 from tike.operators import Ptycho
-from tike.communicators import Comm
+from tike.communicators import Comm, MPIComm
 from tike.opt import randomizer
 from tike.ptycho import solvers
 from .position import check_allowed_positions, get_padded_object
@@ -163,6 +163,10 @@ def reconstruct(
     """
     (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
     check_allowed_positions(scan, psi, probe)
+    if use_mpi is True:
+        mpi = MPIComm
+    else:
+        mpi = None
     if algorithm in solvers.__all__:
         # Initialize an operator.
         with Ptycho(
@@ -172,7 +176,7 @@ def reconstruct(
                 n=psi.shape[-1],
                 ntheta=scan.shape[0],
                 model=model,
-        ) as operator, Comm(num_gpu, use_mpi) as comm:
+        ) as operator, Comm(num_gpu, mpi) as comm:
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[1:],
                                              num_iter))
@@ -194,7 +198,7 @@ def reconstruct(
                     1 if odd_pool else 2,
                 ),
             )
-            order, data, scan = zip(*comm.map(
+            order, data, scan = zip(*comm.pool.map(
                 _make_mini_batches,
                 order,
                 data,
@@ -204,14 +208,14 @@ def reconstruct(
             ))
 
             result = {
-                'psi': comm.bcast(psi.astype('complex64')),
-                'probe': comm.bcast(probe.astype('complex64')),
+                'psi': comm.pool.bcast(psi.astype('complex64')),
+                'probe': comm.pool.bcast(probe.astype('complex64')),
             }
             for key, value in kwargs.items():
                 if np.ndim(value) > 0:
-                    kwargs[key] = comm.bcast(value)
+                    kwargs[key] = comm.pool.bcast(value)
 
-            result['probe'] = comm.bcast(
+            result['probe'] = comm.pool.bcast(
                 _rescale_obj_probe(
                     operator,
                     comm,
@@ -235,7 +239,6 @@ def reconstruct(
                         operator,
                         comm,
                         data=[d[b] for d in data],
-                        use_mpi=use_mpi,
                         **kwargs,
                     )
                     if result['cost'] is not None:
@@ -255,8 +258,8 @@ def reconstruct(
 
             reorder = np.argsort(
                 np.concatenate(list(chain.from_iterable(order))))
-            result['scan'] = comm.gather(
-                list(comm.map(cp.concatenate, scan, axis=1)),
+            result['scan'] = comm.pool.gather(
+                list(comm.pool.map(cp.concatenate, scan, axis=1)),
                 axis=1,
             )[:, reorder]
             result['probe'] = result['probe'][0]

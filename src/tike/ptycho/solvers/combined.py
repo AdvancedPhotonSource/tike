@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 def cgrad(
     op, comm,
-    data, probe, scan, psi, use_mpi=False,
+    data, probe, scan, psi,
     recover_psi=True, recover_probe=True, recover_positions=False,
     cg_iter=4,
     cost=None,
@@ -36,7 +36,6 @@ def cgrad(
             psi,
             scan,
             probe,
-            use_mpi,
             num_iter=cg_iter,
         )
 
@@ -45,23 +44,23 @@ def cgrad(
         probe, cost = _update_probe(
             op,
             comm,
-            comm.gather(data, axis=1),
+            comm.pool.gather(data, axis=1),
             psi[0],
-            comm.gather(scan, axis=1),
+            comm.pool.gather(scan, axis=1),
             probe[0],
             num_iter=cg_iter,
         )
-        probe = comm.bcast(probe)
+        probe = comm.pool.bcast(probe)
 
     if recover_positions and comm.num_workers == 1:
         scan, cost = update_positions_pd(
             op,
-            comm.gather(data, axis=1),
+            comm.pool.gather(data, axis=1),
             psi[0],
             probe[0],
-            comm.gather(scan, axis=1),
+            comm.pool.gather(scan, axis=1),
         )
-        scan = comm.bcast(scan)
+        scan = comm.pool.bcast(scan)
 
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 
@@ -125,34 +124,34 @@ def _update_probe(op, comm, data, psi, scan, probe, num_iter=1):
     return probe, cost
 
 
-def _update_object(op, comm, data, psi, scan, probe, use_mpi, num_iter=1):
+def _update_object(op, comm, data, psi, scan, probe, num_iter=1):
     """Solve the object recovery problem."""
 
     def cost_function_multi(psi, **kwargs):
-        cost_out = comm.map(op.cost, data, psi, scan, probe)
-        if use_mpi is True:
+        cost_out = comm.pool.map(op.cost, data, psi, scan, probe)
+        if comm.use_mpi is True:
             return comm.Allreduce_reduce(cost_out, 'cpu')
         else:
             return comm.reduce(cost_out, 'cpu')
 
     def grad_multi(psi):
-        grad_out = comm.map(op.grad, data, psi, scan, probe)
+        grad_out = comm.pool.map(op.grad, data, psi, scan, probe)
         grad_list = list(grad_out)
-        if use_mpi is True:
+        if comm.use_mpi is True:
             return comm.Allreduce_reduce(grad_list, 'gpu')
         else:
             return comm.reduce(grad_list, 'gpu')
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""
-        return comm.bcast(dir)
+        return comm.pool.bcast(dir)
 
     def update_multi(psi, gamma, dir):
 
         def f(psi, dir):
             return psi + gamma * dir
 
-        return list(comm.map(f, psi, dir))
+        return list(comm.pool.map(f, psi, dir))
 
     psi, cost = conjugate_gradient(
         op.xp,

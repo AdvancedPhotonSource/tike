@@ -215,7 +215,7 @@ class TestPtychoRecon(unittest.TestCase):
         """Check ptycho.solver.algorithm for consistency."""
 
         if params.get('use_mpi') is True:
-            with MPIComm(params['num_gpu']) as IO:
+            with MPIComm() as IO:
                 self.scan, self.data = IO.MPIio(self.scan, self.data)
 
         result = {

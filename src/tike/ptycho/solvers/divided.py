@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 def lstsq_grad(
     op, comm,
-    data, probe, scan, psi, use_mpi,
+    data, probe, scan, psi,
     recover_psi=True, recover_probe=False, recover_positions=False,
     cg_iter=4,
     cost=None,
