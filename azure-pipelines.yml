@@ -37,11 +37,11 @@ jobs:
   - script: conda update -n base conda --yes --quiet
     displayName: Update conda
 
-  - script: conda env remove --yes -n tike
-    displayName: Remove existing build environment
+  - script: rm /home/azure/conda/envs/tike -rf
+    displayName: Force remove previous environments
 
   - script: >
-      conda create --quiet --force --yes
+      conda create --quiet --yes
       -n tike
       --channel conda-forge
       --file requirements.txt
@@ -63,7 +63,7 @@ jobs:
       pytest -vs
     displayName: Run tests
 
-  - script: conda clean -py
+  - script: conda clean --packages --yes
 
 
 - job: MultiLinux
@@ -86,11 +86,11 @@ jobs:
   - script: conda update -n base conda --yes --quiet
     displayName: Update conda
 
-  - script: conda env remove --yes -n tike
-    displayName: Remove existing build environment
+  - script: rm /home/azure/conda/envs/tike -rf
+    displayName: Force remove previous environments
 
   - script: >
-      conda create --quiet --force --yes
+      conda create --quiet --yes
       -n tike
       --channel conda-forge
       --file requirements.txt
@@ -112,4 +112,4 @@ jobs:
       pytest -vs
     displayName: Run tests
 
-  - script: conda clean -py
+  - script: conda clean --packages --yes
