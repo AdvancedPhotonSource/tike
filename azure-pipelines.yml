@@ -37,6 +37,9 @@ jobs:
   - script: conda update -n base conda --yes --quiet
     displayName: Update conda
 
+  - script: rm $CONDA_PREFIX/envs/tike -rf
+    displayName: Force remove previous environments
+
   - script: >
       conda create --quiet --yes
       -n tike
@@ -82,6 +85,9 @@ jobs:
 
   - script: conda update -n base conda --yes --quiet
     displayName: Update conda
+
+  - script: rm $CONDA_PREFIX/envs/tike -rf
+    displayName: Force remove previous environments
 
   - script: >
       conda create --quiet --yes
