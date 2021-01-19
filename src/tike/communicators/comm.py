@@ -52,18 +52,22 @@ class Comm:
         self.pool.__exit__(type, value, traceback)
 
     def reduce(self, x, dest, **kwargs):
+        """ThreadPool reduce from all GPUs to a GPU or CPU."""
+
         if dest == 'gpu':
             return self.pool.reduce_gpu(x, **kwargs)
         elif dest == 'cpu':
             return self.pool.reduce_cpu(x, **kwargs)
         else:
-            raise ValueError(f'Must specify the destination.')
+            raise ValueError(f'dest must be gpu or cpu.')
 
     def Allreduce_reduce(self, x, dest, **kwargs):
+        """ThreadPool reduce coupled with MPI allreduce."""
+
         src = self.reduce(x, dest, **kwargs)
         if dest == 'gpu':
             return cp.asarray(self.mpi.Allreduce(cp.asnumpy(src)))
         elif dest == 'cpu':
             return self.mpi.Allreduce(src)
         else:
-            raise ValueError(f'Must specify the destination.')
+            raise ValueError(f'dest must be gpu or cpu.')

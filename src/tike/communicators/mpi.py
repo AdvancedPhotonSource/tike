@@ -6,7 +6,6 @@ __docformat__ = 'restructuredtext en'
 
 from mpi4py import MPI
 
-import cupy as cp
 import numpy as np
 
 
@@ -26,7 +25,6 @@ class MPIComm:
         self.comm = MPI.COMM_WORLD
         self.rank = self.comm.Get_rank()
         self.size = self.comm.Get_size()
-        self.xp = cp
 
     def __enter__(self):
         return self
