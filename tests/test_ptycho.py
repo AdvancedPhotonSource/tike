@@ -230,7 +230,6 @@ class TestPtychoRecon(unittest.TestCase):
             algorithm=algorithm,
             num_iter=1,
         )
-        #result['scan'] = self.scan
         result = tike.ptycho.reconstruct(
             **result,
             **params,
