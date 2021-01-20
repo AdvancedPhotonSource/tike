@@ -19,8 +19,6 @@ class Comm:
     ----------
     gpu_count : int
         The number of GPUs to use.
-    num_workers : int
-        The number of threads per process.
     mpi : class
         The multi-processing communicator.
     pool : class
@@ -38,7 +36,6 @@ class Comm:
         else:
             self.use_mpi = False
         self.pool = pool(gpu_count)
-        self.num_workers = gpu_count
 
     def __enter__(self):
         if self.use_mpi is True:

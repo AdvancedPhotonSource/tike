@@ -185,16 +185,16 @@ def reconstruct(
             if batch_size is not None:
                 num_batch = max(
                     1,
-                    int(data.shape[1] / batch_size / comm.num_workers),
+                    int(data.shape[1] / batch_size / comm.pool.num_workers),
                 )
-            odd_pool = comm.num_workers % 2
+            odd_pool = comm.pool.num_workers % 2
             order = np.arange(data.shape[1])
             order, data, scan = split_by_scan_grid(
                 order,
                 data,
                 scan,
                 (
-                    comm.num_workers if odd_pool else comm.num_workers // 2,
+                    comm.pool.num_workers if odd_pool else comm.pool.num_workers // 2,
                     1 if odd_pool else 2,
                 ),
             )
@@ -243,7 +243,7 @@ def reconstruct(
                     )
                     if result['cost'] is not None:
                         costs.append(result['cost'])
-                    for g in range(comm.num_workers):
+                    for g in range(comm.pool.num_workers):
                         scan[g][b] = result['scan'][g]
 
                 times.append(time.perf_counter() - start)

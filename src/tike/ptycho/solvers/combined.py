@@ -52,7 +52,7 @@ def cgrad(
         )
         probe = comm.pool.bcast(probe)
 
-    if recover_positions and comm.num_workers == 1:
+    if recover_positions and comm.pool.num_workers == 1:
         scan, cost = update_positions_pd(
             op,
             comm.pool.gather(data, axis=1),
