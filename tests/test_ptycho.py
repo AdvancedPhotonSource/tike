@@ -275,7 +275,7 @@ class TestPtychoRecon(unittest.TestCase):
                 'num_gpu': 4,
                 'recover_probe': True,
                 'recover_psi': True,
-                'use_mpi': True,
+                'use_mpi': False,
             },
         )
 
