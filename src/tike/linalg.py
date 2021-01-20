@@ -34,7 +34,7 @@ def lstsq(a, b):
     # TODO: Using 'out' parameter of cp.matmul() may reduce memory footprint
     assert a.shape[:-1] == b.shape, (f"Leading dims of a {a.shape}"
                                      f"and b {b.shape} must be same!")
-    aT = a.swapaxes(-2, -1)
+    aT = hermitian(a)
     x = np.linalg.inv(aT @ a) @ aT @ b[..., None]
     return x[..., 0]
 
