@@ -157,6 +157,7 @@ jobs:
 
   - script: |
       source activate tike
+      mpirun -n 2 pytest tests/test_comm.py
       mpirun -n 2 pytest tests/test_ptycho.py -k cgrad
     displayName: Run tests
 
