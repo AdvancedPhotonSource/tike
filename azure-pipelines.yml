@@ -110,6 +110,53 @@ jobs:
   - script: |
       source activate tike
       pytest -vs
+    displayName: Run tests
+
+  - script: conda clean --packages --yes
+
+- job: MPILinux
+  pool:
+    name: Default
+    demands:
+    - MultiGPU
+    - CUDA_VERSION
+    - Agent.OS -equals Linux
+  strategy:
+    matrix:
+      Python38:
+        python.version: '3.8'
+    maxParallel: 4
+  steps:
+
+  - script: echo "CUDA version is $(CUDA_VERSION)"
+    displayName: Print CUDA version
+
+  - script: conda update -n base conda --yes --quiet
+    displayName: Update conda
+
+  - script: rm /home/azure/conda/envs/tike -rf
+    displayName: Force remove previous environments
+
+  - script: >
+      conda create --quiet --yes
+      -n tike
+      --channel conda-forge
+      --file requirements.txt
+      pytest
+      python=$(python.version)
+      cudatoolkit=$(CUDA_VERSION)
+    displayName: Create build environment
+
+  - script: conda list -n tike
+    displayName: List build environment
+
+  - script: |
+      source activate tike
+      pip install . --no-deps
+    displayName: Setup and install
+
+  - script: |
+      source activate tike
       mpirun -n 2 pytest tests/test_ptycho.py -k cgrad
     displayName: Run tests
 
