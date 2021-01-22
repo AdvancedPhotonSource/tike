@@ -12,8 +12,6 @@ class TestComm(unittest.TestCase):
         self.xp = self.comm.pool.xp
 
     def test_reduce(self):
-        if self.comm.pool.device_count < 2:
-            return  # skip test if only one device
         a = self.xp.ones((1,))
         a_list = self.comm.pool.bcast(a)
         a = a * self.comm.pool.num_workers
