@@ -129,7 +129,7 @@ def _update_object(op, comm, data, psi, scan, probe, num_iter=1):
 
     def cost_function_multi(psi, **kwargs):
         cost_out = comm.pool.map(op.cost, data, psi, scan, probe)
-        if comm.use_mpi is True:
+        if comm.use_mpi:
             return comm.Allreduce_reduce(cost_out, 'cpu')
         else:
             return comm.reduce(cost_out, 'cpu')
