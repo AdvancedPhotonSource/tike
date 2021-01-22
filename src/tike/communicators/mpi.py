@@ -18,7 +18,10 @@ class MPIComm:
 
     Attributes
     ----------
-
+    rank : int
+        The identity of this process.
+    size : int
+        The total number of MPI processes.
     """
 
     def __init__(self):
