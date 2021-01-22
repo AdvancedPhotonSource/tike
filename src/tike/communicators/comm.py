@@ -18,7 +18,7 @@ class Comm:
     Attributes
     ----------
     gpu_count : int
-        The number of GPUs to use.
+        The number of GPUs to use per process.
     mpi : class
         The multi-processing communicator.
     pool : class
