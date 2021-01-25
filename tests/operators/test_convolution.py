@@ -40,9 +40,9 @@ class TestConvolution(unittest.TestCase, OperatorTests):
         np.random.seed(0)
         scan = np.random.rand(self.ntheta, self.nscan, 2) * (127 - 15 - 1)
         original = random_complex(*self.original_shape)
-        nearplane = random_complex(self.ntheta, self.nscan, 1, 1,
-                                   self.detector_shape, self.detector_shape)
-        kernel = random_complex(self.ntheta, self.nscan, 1, 1, self.probe_shape,
+        nearplane = random_complex(self.ntheta, self.nscan, self.detector_shape,
+                                   self.detector_shape)
+        kernel = random_complex(self.ntheta, self.nscan, self.probe_shape,
                                 self.probe_shape)
 
         self.m = self.xp.asarray(original, dtype='complex64')

@@ -39,9 +39,9 @@ class OperatorTests():
     def test_adjoint(self):
         """Check that the adjoint operator is correct."""
         d = self.operator.fwd(**{self.m_name: self.m}, **self.kwargs)
-        assert d.shape == self.d.shape
+        assert d.shape == self.d.shape, (d.shape, self.d.shape)
         m = self.operator.adj(**{self.d_name: self.d}, **self.kwargs)
-        assert m.shape == self.m.shape
+        assert m.shape == self.m.shape, (m.shape, self.m.shape)
         a = inner_complex(d, self.d)
         b = inner_complex(self.m, m)
         print()
