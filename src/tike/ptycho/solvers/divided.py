@@ -68,12 +68,12 @@ def lstsq_grad(
         cprobe = common_probe[..., m:m + 1, :, :]
         uprobe = unique_probe[..., m:m + 1, :, :]
 
-        patches = op.diffraction._patch(
-            patches=cp.zeros(nearplane.shape, dtype='complex64'),
-            psi=psi,
-            scan=scan_,
-            fwd=True,
-        )
+        patches = op.diffraction.patch.fwd(
+            patches=cp.zeros(nearplane.shape, dtype='complex64')[..., 0,
+                                                                 0, :, :],
+            images=psi,
+            positions=scan_,
+        )[..., None, None, :, :]
 
         # χ (diff) is the target for the nearplane problem; the difference
         # between the desired nearplane and the current nearplane that we wish
@@ -88,19 +88,18 @@ def lstsq_grad(
             # (25b) Common object gradient. Use a weighted (normalized) sum
             # instead of division as described in publication to improve
             # numerical stability.
-            common_grad_psi = op.diffraction._patch(
-                patches=grad_psi,
-                psi=cp.zeros(psi.shape, dtype='complex64'),
-                scan=scan_,
-                fwd=False,
+            common_grad_psi = op.diffraction.patch.adj(
+                patches=grad_psi[..., 0, 0, :, :],
+                images=cp.zeros(psi.shape, dtype='complex64'),
+                positions=scan_,
             )
 
-            dOP = op.diffraction._patch(
-                patches=cp.zeros(patches.shape, dtype='complex64'),
-                psi=common_grad_psi,
-                scan=scan_,
-                fwd=True,
-            ) * uprobe
+            dOP = op.diffraction.patch.fwd(
+                patches=cp.zeros(patches.shape, dtype='complex64')[..., 0,
+                                                                   0, :, :],
+                images=common_grad_psi,
+                positions=scan_,
+            )[..., None, None, :, :] * uprobe
             A1 = cp.sum((dOP * dOP.conj()).real + 0.5, axis=(-2, -1))
             A1 += 0.5 * cp.mean(A1, axis=-3, keepdims=True)
             b1 = cp.sum((dOP.conj() * diff).real, axis=(-2, -1))
@@ -197,12 +196,12 @@ def lstsq_grad(
             )
 
         if __debug__:
-            patches = op.diffraction._patch(
-                patches=cp.zeros(nearplane.shape, dtype='complex64'),
-                psi=psi,
-                scan=scan_,
-                fwd=True,
-            )
+            patches = op.diffraction.patch.fwd(
+                patches=cp.zeros(nearplane.shape, dtype='complex64')[..., 0,
+                                                                     0, :, :],
+                images=psi,
+                positions=scan_,
+            )[..., None, None, :, :]
             logger.info('%10s cost is %+12.5e', 'nearplane',
                         norm(cprobe * patches - nearplane))
 
@@ -223,13 +222,12 @@ def _update_wavefront(op, data, varying_probe, scan, psi):
     # Compute the diffraction patterns for all of the probe modes at once.
     # We need access to all of the modes of a position to solve the phase
     # problem. The Ptycho operator doesn't do this natively, so it's messy.
-    # TODO: Refactor so no using non-public API (_patch)
     patches = cp.zeros(data.shape, dtype='complex64')
-    patches = op.diffraction._patch(
+    patches = op.diffraction.patch.fwd(
         patches=patches,
-        psi=psi,
-        scan=scan,
-        fwd=True,
+        images=psi,
+        positions=scan,
+        patch_width=varying_probe.shape[-1],
     )
     patches = patches.reshape(op.ntheta, scan.shape[-2], 1, 1,
                               op.detector_shape, op.detector_shape)
