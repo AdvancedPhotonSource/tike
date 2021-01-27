@@ -55,6 +55,7 @@ import numpy as np
 
 import tike.ptycho
 from tike.communicators import MPIComm
+import tike.random
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
@@ -118,7 +119,7 @@ class TestPtychoRecon(unittest.TestCase):
         self,
         dataset_file,
         pw=16,
-        coherent=1,
+        eigen=1,
         width=128,
     ):
         """Create a dataset for testing this module.
@@ -129,17 +130,26 @@ class TestPtychoRecon(unittest.TestCase):
         # Create a stack of phase-only images
         phase = np.stack(
             [libimage.load('satyre', width),
-             libimage.load('coins', width)],
+             libimage.load('satyre', width)],
             axis=0,
         )
-        original = np.exp(1j * phase * np.pi)
+        amplitude = np.stack(
+            [
+                1 - 0 * libimage.load('coins', width),
+                1 - libimage.load('coins', width)
+            ],
+            axis=0,
+        )
+        original = amplitude * np.exp(1j * phase * np.pi)
         self.original = original.astype('complex64')
         leading = self.original.shape[:-2]
 
         # Create a multi-probe with gaussian amplitude decreasing as 1/N
         phase = np.stack(
-            [libimage.load('cryptomeria', pw),
-             libimage.load('bombus', pw)],
+            [
+                1 - libimage.load('cryptomeria', pw),
+                1 - libimage.load('bombus', pw)
+            ],
             axis=0,
         )
         weights = 1.0 / np.arange(1, len(phase) + 1)[:, None, None]
@@ -147,14 +157,15 @@ class TestPtychoRecon(unittest.TestCase):
         probe = weights * np.exp(1j * phase * np.pi)
         self.probe = np.tile(
             probe.astype('complex64'),
-            (*leading, 1, coherent, 1, 1, 1),
+            (*leading, 1, eigen, 1, 1, 1),
         )
 
+        pad = 2
         v, h = np.meshgrid(
-            np.linspace(1, original.shape[-2]-pw-1, 13, endpoint=True),
-            np.linspace(1, original.shape[-1]-pw-1, 13, endpoint=True),
-            indexing='ij'
-        )  # yapf: disable
+            np.linspace(pad, original.shape[-2] - pw - pad, 13, endpoint=True),
+            np.linspace(pad, original.shape[-1] - pw - pad, 13, endpoint=True),
+            indexing='ij',
+        )
         scan = np.stack((np.ravel(v), np.ravel(h)), axis=1)
         self.scan = np.tile(
             scan.astype('float32'),
@@ -230,8 +241,8 @@ class TestPtychoRecon(unittest.TestCase):
             algorithm=algorithm,
             num_iter=1,
         )
+        params.update(result)
         result = tike.ptycho.reconstruct(
-            **result,
             **params,
             data=self.data,
             algorithm=algorithm,
@@ -296,10 +307,58 @@ class TestPtychoRecon(unittest.TestCase):
             },
         )
 
+    def test_consistent_lstsq_grad_variable_probe(self):
+        """Check ptycho.solver.lstsq_grad for consistency."""
+
+        eigen_probe = tike.random.numpy_complex(
+            *self.scan.shape[:-2], 1, 1, 2,
+            *self.probe.shape[-2:]).astype('complex64')
+        weights = 1e-6 * np.random.rand(*self.scan.shape[:-1], *
+                                        eigen_probe.shape[-4:-2])
+        weights -= np.mean(weights, axis=-3, keepdims=True)
+        weights = weights.astype('float32')
+
+        self.template_consistent_algorithm(
+            'lstsq_grad',
+            params={
+                # 'subset_is_random': True,
+                # 'batch_size': int(self.data.shape[1] * 0.6),
+                'num_gpu': 1,
+                'recover_probe': True,
+                'recover_psi': True,
+                'eigen_probe': eigen_probe,
+                'eigen_weights': weights,
+            },
+        )
+
     def test_invaid_algorithm_name(self):
         """Check that wrong names are handled gracefully."""
         with self.assertRaises(ValueError):
             self.template_consistent_algorithm('divided')
+
+
+class TestProbe(unittest.TestCase):
+
+    def test_eigen_probe(self):
+
+        leading = (2,)
+        wide = 18
+        high = 21
+        posi = 53
+        eigen = 5
+
+        R = np.random.rand(*leading, posi, 1, 1, wide, high)
+        eigen_probe = np.random.rand(*leading, 1, eigen, 1, wide, high)
+        weights = np.random.rand(*leading, posi)
+        weights -= np.mean(weights)
+
+        new_probe = tike.ptycho.probe.update_eigen_probe(
+            R=R,
+            eigen_probe=eigen_probe,
+            weights=weights,
+        )
+
+        assert eigen_probe.shape == new_probe.shape
 
 
 if __name__ == '__main__':
