@@ -123,7 +123,7 @@ def lstsq_grad(
             b2 = cp.sum((dPO.conj() * diff).real, axis=(-2, -1))
 
         if recover_probe and eigen_probe is not None:
-            logger.info('Updating coherent probes')
+            logger.info('Updating eigen probes')
             # (30) residual probe updates
             R = grad_probe - cp.mean(grad_probe, axis=-5, keepdims=True)
 
@@ -136,7 +136,7 @@ def lstsq_grad(
                     β=0.01,  # TODO: Adjust according to mini-batch size
                 )
 
-                # Determine new eigen_weights for the updated coherent probe
+                # Determine new eigen_weights for the updated eigen probe
                 phi = patches * eigen_probe[..., c:c + 1, m:m + 1, :, :]
                 n = cp.mean(
                     cp.real(diff * phi.conj()),
