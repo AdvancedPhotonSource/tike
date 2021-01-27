@@ -193,6 +193,7 @@ def reconstruct(
         psi=None, num_gpu=1, num_iter=1, rtol=-1,
         model='gaussian', use_mpi=False, cost=None, times=None,
         batch_size=None, subset_is_random=None,
+        eigen_probe=None, eigen_weights=None,
         **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
@@ -224,7 +225,7 @@ def reconstruct(
                 model=model,
         ) as operator, Comm(num_gpu, mpi) as comm:
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
-                        "iterations.".format(algorithm, *data.shape[1:],
+                        "iterations.".format(algorithm, *data.shape[-3:],
                                              num_iter))
             # Divide the inputs into regions and mini-batches
             num_batch = 1
@@ -235,27 +236,35 @@ def reconstruct(
                 )
             odd_pool = comm.pool.num_workers % 2
             order = np.arange(data.shape[1])
-            order, data, scan = split_by_scan_grid(
+            order, data, scan, eigen_weights = split_by_scan_grid(
                 order,
                 data,
                 scan,
                 (
-                    comm.pool.num_workers if odd_pool else comm.pool.num_workers // 2,
+                    comm.pool.num_workers
+                    if odd_pool else comm.pool.num_workers // 2,
                     1 if odd_pool else 2,
                 ),
+                eigen_weights=eigen_weights,
             )
-            order, data, scan = zip(*comm.pool.map(
+            order, data, scan, eigen_weights = zip(*comm.pool.map(
                 _make_mini_batches,
                 order,
                 data,
                 scan,
+                eigen_weights,
                 num_batch=num_batch,
                 subset_is_random=subset_is_random,
             ))
 
             result = {
-                'psi': comm.pool.bcast(psi.astype('complex64')),
-                'probe': comm.pool.bcast(probe.astype('complex64')),
+                'psi':
+                    comm.pool.bcast(psi.astype('complex64')),
+                'probe':
+                    comm.pool.bcast(probe.astype('complex64')),
+                'eigen_probe':
+                    comm.pool.bcast(eigen_probe.astype('complex64'))
+                    if eigen_probe is not None else None,
             }
             for key, value in kwargs.items():
                 if np.ndim(value) > 0:
@@ -278,9 +287,10 @@ def reconstruct(
 
                 logger.info(f"{algorithm} epoch {i:,d}")
 
-                for b in range(num_batch):
+                for b in randomizer.permutation(num_batch):
                     kwargs.update(result)
                     kwargs['scan'] = [s[b] for s in scan]
+                    kwargs['eigen_weights'] = [w[b] for w in eigen_weights]
                     result = getattr(solvers, algorithm)(
                         operator,
                         comm,
@@ -291,6 +301,8 @@ def reconstruct(
                         costs.append(result['cost'])
                     for g in range(comm.pool.num_workers):
                         scan[g][b] = result['scan'][g]
+                        eigen_weights[g][b] = result['eigen_weights'][
+                            g] if 'eigen_weights' in result else None
 
                 times.append(time.perf_counter() - start)
                 start = time.perf_counter()
@@ -308,6 +320,12 @@ def reconstruct(
                 list(comm.pool.map(cp.concatenate, scan, axis=1)),
                 axis=1,
             )[:, reorder]
+            if 'eigen_weights' in result:
+                result['eigen_weights'] = comm.pool.gather(
+                    list(comm.pool.map(cp.concatenate, eigen_weights, axis=1)),
+                    axis=1,
+                )[:, reorder]
+                result['eigen_probe'] = result['eigen_probe'][0]
             result['probe'] = result['probe'][0]
             result['cost'] = operator.asarray(costs)
             result['times'] = operator.asarray(times)
@@ -324,6 +342,7 @@ def _make_mini_batches(
     order,
     data,
     scan,
+    eigen_weights=None,
     num_batch=1,
     subset_is_random=True,
 ):
@@ -350,7 +369,13 @@ def _make_mini_batches(
     order = [order[i] for i in indices]
     data = [cp.asarray(data[:, i], dtype='float32') for i in indices]
     scan = [cp.asarray(scan[:, i], dtype='float32') for i in indices]
-    return order, data, scan
+    if eigen_weights is not None:
+        eigen_weights = [
+            cp.asarray(eigen_weights[:, i], dtype='float32') for i in indices
+        ]
+    else:
+        eigen_weights = [None for i in indices]
+    return order, data, scan, eigen_weights
 
 
 def _rescale_obj_probe(operator, comm, data, psi, scan, probe):
@@ -368,7 +393,7 @@ def _rescale_obj_probe(operator, comm, data, psi, scan, probe):
     return probe
 
 
-def split_by_scan_grid(order, data, scan, shape, fly=1):
+def split_by_scan_grid(order, data, scan, shape, eigen_weights=None, fly=1):
     """ split the field of view into a 2D grid.
 
     Mask divide the data into a 2D grid of spatially contiguous regions.
@@ -397,7 +422,11 @@ def split_by_scan_grid(order, data, scan, shape, fly=1):
     order = [order[m] for m in mask]
     data = [data[:, m] for m in mask]
     scan = [scan[:, m] for m in mask]
-    return order, data, scan
+    if eigen_weights is not None:
+        eigen_weights = [eigen_weights[:, m] for m in mask]
+    else:
+        eigen_weights = [None for m in mask]
+    return order, data, scan, eigen_weights
 
 
 def split_by_scan_stripes(scan, n, fly=1, axis=0):
