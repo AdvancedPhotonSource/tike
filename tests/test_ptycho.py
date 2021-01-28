@@ -54,6 +54,7 @@ import unittest
 import numpy as np
 
 import tike.ptycho
+from tike.communicators import MPIComm
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
@@ -87,42 +88,87 @@ class TestPtychoUtils(unittest.TestCase):
             with self.assertRaises(ValueError):
                 tike.ptycho.check_allowed_positions(scan, psi, probe)
 
+    def test_split_by_scan(self):
+        scan = np.mgrid[0:3, 0:3].reshape(2, 1, -1)
+        scan = np.moveaxis(scan, 0, -1)
+
+        ind = tike.ptycho.ptycho.split_by_scan_stripes(scan, 3, axis=0)
+        split = [scan[:, i] for i in ind]
+        solution = [
+            [[[0, 0], [0, 1], [0, 2]]],
+            [[[1, 0], [1, 1], [1, 2]]],
+            [[[2, 0], [2, 1], [2, 2]]],
+        ]
+        np.testing.assert_equal(split, solution)
+
+        ind = tike.ptycho.ptycho.split_by_scan_stripes(scan, 3, axis=1)
+        split = [scan[:, i] for i in ind]
+        solution = [
+            [[[0, 0], [1, 0], [2, 0]]],
+            [[[0, 1], [1, 1], [2, 1]]],
+            [[[0, 2], [1, 2], [2, 2]]],
+        ]
+        np.testing.assert_equal(split, solution)
+
 
 class TestPtychoRecon(unittest.TestCase):
     """Test various ptychography reconstruction methods for consistency."""
 
-    def create_dataset(self, dataset_file):
+    def create_dataset(
+        self,
+        dataset_file,
+        pw=16,
+        coherent=1,
+        width=128,
+    ):
         """Create a dataset for testing this module.
 
         Only called with setUp detects that `dataset_file` has been deleted.
         """
-        import matplotlib.pyplot as plt
-        amplitude = plt.imread(
-            os.path.join(testdir, "data/Cryptomeria_japonica-0128.png"))
-        phase = plt.imread(
-            os.path.join(testdir, "data/Bombus_terrestris-0128.png"))
-        original = amplitude * np.exp(1j * phase * np.pi)
-        self.original = np.expand_dims(original, axis=0).astype('complex64')
+        import libimage
+        # Create a stack of phase-only images
+        phase = np.stack(
+            [libimage.load('satyre', width),
+             libimage.load('coins', width)],
+            axis=0,
+        )
+        original = np.exp(1j * phase * np.pi)
+        self.original = original.astype('complex64')
+        leading = self.original.shape[:-2]
 
-        pw = 15  # probe width
-        weights = tike.ptycho.gaussian(pw, rin=0.8, rout=1.0)
-        probe = weights * np.exp(1j * weights * 0.2)
-        self.probe = np.expand_dims(probe, (0, 1, 2, 3)).astype('complex64')
+        # Create a multi-probe with gaussian amplitude decreasing as 1/N
+        phase = np.stack(
+            [libimage.load('cryptomeria', pw),
+             libimage.load('bombus', pw)],
+            axis=0,
+        )
+        weights = 1.0 / np.arange(1, len(phase) + 1)[:, None, None]
+        weights = weights * tike.ptycho.gaussian(pw, rin=0.8, rout=1.0)
+        probe = weights * np.exp(1j * phase * np.pi)
+        self.probe = np.tile(
+            probe.astype('complex64'),
+            (*leading, 1, coherent, 1, 1, 1),
+        )
 
         v, h = np.meshgrid(
-            np.linspace(1, amplitude.shape[0]-pw-1, 13, endpoint=True),
-            np.linspace(1, amplitude.shape[0]-pw-1, 13, endpoint=True),
+            np.linspace(1, original.shape[-2]-pw-1, 13, endpoint=True),
+            np.linspace(1, original.shape[-1]-pw-1, 13, endpoint=True),
             indexing='ij'
         )  # yapf: disable
         scan = np.stack((np.ravel(v), np.ravel(h)), axis=1)
-        self.scan = np.expand_dims(scan, axis=0).astype('float32')
+        self.scan = np.tile(
+            scan.astype('float32'),
+            (*leading, 1, 1),
+        )
 
-        self.data = tike.ptycho.simulate(detector_shape=pw * 2,
-                                         probe=self.probe,
-                                         scan=self.scan,
-                                         psi=self.original)
+        self.data = tike.ptycho.simulate(
+            detector_shape=pw * 2,
+            probe=self.probe,
+            scan=self.scan,
+            psi=self.original,
+        )
 
-        assert self.data.shape == (1, 13 * 13, pw * 2, pw * 2)
+        assert self.data.shape == (*leading, 13 * 13, pw * 2, pw * 2)
         assert self.data.dtype == 'float32', self.data.dtype
 
         setup_data = [
@@ -131,7 +177,6 @@ class TestPtychoRecon(unittest.TestCase):
             self.probe,
             self.original,
         ]
-
         with lzma.open(dataset_file, 'wb') as file:
             pickle.dump(setup_data, file)
 
@@ -155,6 +200,7 @@ class TestPtychoRecon(unittest.TestCase):
             probe=self.probe,
             scan=self.scan,
             psi=self.original,
+            fly=self.scan.shape[-2] // self.data.shape[-3],
         )
         assert data.dtype == 'float32', data.dtype
         assert self.data.dtype == 'float32', self.data.dtype
@@ -165,43 +211,95 @@ class TestPtychoRecon(unittest.TestCase):
         """Return the error between two arrays."""
         return np.linalg.norm(x - self.original)
 
-    def template_consistent_algorithm(self, algorithm):
+    def template_consistent_algorithm(self, algorithm, params={}):
         """Check ptycho.solver.algorithm for consistency."""
+
+        if params.get('use_mpi') is True:
+            with MPIComm() as IO:
+                self.scan, self.data = IO.MPIio(self.scan, self.data)
+
         result = {
             'psi': np.ones_like(self.original),
-            'probe': np.ones_like(self.probe),
+            'probe': self.probe * np.random.rand(*self.probe.shape),
             'scan': self.scan,
         }
-        error0 = np.inf
+        result = tike.ptycho.reconstruct(
+            **result,
+            **params,
+            data=self.data,
+            algorithm=algorithm,
+            num_iter=1,
+        )
+        result = tike.ptycho.reconstruct(
+            **result,
+            **params,
+            data=self.data,
+            algorithm=algorithm,
+            num_iter=32,
+            # Only works when probe recovery is false because scaling
+        )
         print()
-        for _ in range(16):
-            result['scan'] = self.scan
-            result = tike.ptycho.reconstruct(
-                **result,
-                data=self.data,
-                algorithm=algorithm,
-                num_gpu=4,
-                num_iter=1,
-                # Only works when probe recovery is false because scaling
-                recover_probe=True,
-                recover_psi=True,
-            )
-            error1 = result['cost']
-            print(error1)
-            assert error1 < error0
-            error0 = error1
+        cost = '\n'.join(f'{c:1.3e}' for c in result['cost'])
+        print(cost)
+        try:
+            import matplotlib.pyplot as plt
+            fname = os.path.join(testdir, 'result', f'{algorithm}')
+            os.makedirs(fname, exist_ok=True)
+            for i in range(len(self.original)):
+                plt.imsave(
+                    f'{fname}/{i}-phase.png',
+                    np.angle(result['psi'][i]),
+                )
+                plt.imsave(
+                    f'{fname}/{i}-ampli.png',
+                    np.abs(result['psi'][i]),
+                )
+            for i in range(self.probe.shape[-3]):
+                plt.imsave(
+                    f'{fname}/{i}-probe-phase.png',
+                    np.angle(result['probe'][0, 0, 0, i]),
+                )
+                plt.imsave(
+                    f'{fname}/{i}-probe-ampli.png',
+                    np.abs(result['probe'][0, 0, 0, i]),
+                )
+        except ImportError:
+            pass
 
-    def test_consistent_combined(self):
-        """Check ptycho.solver.combined for consistency."""
-        self.template_consistent_algorithm('combined')
+    def test_consistent_cgrad(self):
+        """Check ptycho.solver.cgrad for consistency."""
+        self.template_consistent_algorithm(
+            'cgrad',
+            params={
+                'num_gpu': 4,
+                'recover_probe': True,
+                'recover_psi': True,
+                'use_mpi': True,
+            },
+        )
 
     # def test_consistent_admm(self):
     #     """Check ptycho.solver.admm for consistency."""
     #     self.template_consistent_algorithm('admm')
 
-    # def test_consistent_divided(self):
-    #     """Check ptycho.solver.divided for consistency."""
-    #     self.template_consistent_algorithm('divided')
+    def test_consistent_lstsq_grad(self):
+        """Check ptycho.solver.lstsq_grad for consistency."""
+        self.template_consistent_algorithm(
+            'lstsq_grad',
+            params={
+                # 'subset_is_random': True,
+                # 'batch_size': int(self.data.shape[1] * 0.6),
+                'num_gpu': 1,
+                'recover_probe': True,
+                'recover_psi': True,
+                'use_mpi': False,
+            },
+        )
+
+    def test_invaid_algorithm_name(self):
+        """Check that wrong names are handled gracefully."""
+        with self.assertRaises(ValueError):
+            self.template_consistent_algorithm('divided')
 
 
 if __name__ == '__main__':

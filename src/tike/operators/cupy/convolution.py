@@ -8,7 +8,8 @@ import cupy as cp
 from .operator import Operator
 
 _cu_source = files('tike.operators.cupy').joinpath('convolution.cu').read_text()
-_patch_kernel = cp.RawKernel(_cu_source, "patch")
+_fwd_patch = cp.RawKernel(_cu_source, "fwd_patch")
+_adj_patch = cp.RawKernel(_cu_source, "adj_patch")
 
 
 class Convolution(Operator):
@@ -20,8 +21,6 @@ class Convolution(Operator):
     ----------
     nscan : int
         The number of scan positions at each angular view.
-    fly : int
-        The number of consecutive scan positions that describe a fly scan.
     probe_shape : int
         The pixel width and height of the (square) probe illumination.
     nz, n : int
@@ -34,10 +33,10 @@ class Convolution(Operator):
     psi : (ntheta, nz, n) complex64
         The complex wavefront modulation of the object.
     probe : complex64
-        The (ntheta, nscan // fly, fly, 1, probe_shape, probe_shape)
+        The (ntheta, nscan // 1, 1, 1, probe_shape, probe_shape)
         complex illumination function.
     nearplane: complex64
-        The (ntheta, nscan // fly, fly, 1, probe_shape, probe_shape)
+        The (ntheta, nscan // 1, 1, 1, probe_shape, probe_shape)
         wavefronts after exiting the object.
     scan : (ntheta, nscan, 2) float32
         Coordinates of the minimum corner of the probe grid for each
@@ -45,13 +44,12 @@ class Convolution(Operator):
         first, horizontal coordinates second.
 
     """
-    def __init__(self, probe_shape, nz, n, ntheta, fly=1,
+    def __init__(self, probe_shape, nz, n, ntheta,
                  detector_shape=None, **kwargs):  # yapf: disable
         self.probe_shape = probe_shape
         self.nz = nz
         self.n = n
         self.ntheta = ntheta
-        self.fly = fly
         if detector_shape is None:
             self.detector_shape = probe_shape
         else:
@@ -73,9 +71,8 @@ class Convolution(Operator):
             dtype='complex64',
         )
         patches = self._patch(patches, psi, scan, fwd=True)
-        patches = patches.reshape(self.ntheta, scan.shape[-2] // self.fly,
-                                  self.fly, 1, self.detector_shape,
-                                  self.detector_shape)
+        patches = patches.reshape(self.ntheta, scan.shape[-2], 1, 1,
+                                  self.detector_shape, self.detector_shape)
         patches[..., self.pad:self.end, self.pad:self.end] *= probe
         return patches
 
@@ -101,9 +98,8 @@ class Convolution(Operator):
             dtype='complex64',
         )
         patches = self._patch(patches, psi, scan, fwd=True)
-        patches = patches.reshape(self.ntheta, scan.shape[-2] // self.fly,
-                                  self.fly, 1, self.probe_shape,
-                                  self.probe_shape)
+        patches = patches.reshape(self.ntheta, scan.shape[-2], 1, 1,
+                                  self.probe_shape, self.probe_shape)
         patches = patches.conj()
         patches *= nearplane[..., self.pad:self.end, self.pad:self.end]
         return patches
@@ -112,8 +108,7 @@ class Convolution(Operator):
         """Check that the probe is correctly shaped."""
         assert type(x) is self.xp.ndarray, type(x)
         # unique probe for each position
-        shape1 = (self.ntheta, nscan // self.fly, self.fly, 1, self.probe_shape,
-                  self.probe_shape)
+        shape1 = (self.ntheta, nscan, 1, 1, self.probe_shape, self.probe_shape)
         # one probe for all positions
         shape2 = (self.ntheta, 1, 1, 1, self.probe_shape, self.probe_shape)
         if __debug__ and x.shape != shape2 and x.shape != shape1:
@@ -123,29 +118,53 @@ class Convolution(Operator):
     def _check_shape_nearplane(self, x, nscan):
         """Check that nearplane is correctly shaped."""
         assert type(x) is self.xp.ndarray, type(x)
-        shape1 = (self.ntheta, nscan // self.fly, self.fly, 1,
-                  self.detector_shape, self.detector_shape)
+        shape1 = (self.ntheta, nscan, 1, 1, self.detector_shape,
+                  self.detector_shape)
         if __debug__ and x.shape != shape1:
             raise ValueError(
                 f"nearplane must have shape {shape1} not {x.shape}")
 
     def _patch(self, patches, psi, scan, fwd=True):
-        _patch_kernel = cp.RawKernel(_cu_source, "patch")
-        max_thread = min(self.probe_shape,
-                         _patch_kernel.attributes['max_threads_per_block'])
+        """Extract or combine patches.
+
+        When fwd is True, the regions are copied from psi into patches.
+        When fwd is False, patches are added to psi.
+        """
+        max_thread = min(_next_power_two(self.probe_shape),
+                         _fwd_patch.attributes['max_threads_per_block'])
         grids = (
-            self.probe_shape,
             scan.shape[-2],
             self.ntheta,
+            self.probe_shape,
         )
         blocks = (max_thread,)
-        _patch_kernel(
-            grids,
-            blocks,
-            (psi, patches, scan, self.ntheta, self.nz, self.n, scan.shape[-2],
-             self.probe_shape, patches.shape[-1], fwd),
-        )
         if fwd:
+            _fwd_patch(
+                grids,
+                blocks,
+                (psi, patches, scan, self.ntheta, self.nz, self.n,
+                 scan.shape[-2], self.probe_shape, patches.shape[-1]),
+            )
             return patches
         else:
+            _adj_patch(
+                grids,
+                blocks,
+                (psi, patches, scan, self.ntheta, self.nz, self.n,
+                 scan.shape[-2], self.probe_shape, patches.shape[-1]),
+            )
             return psi
+
+
+def _next_power_two(v):
+    """Return the next highest power of 2 of 32-bit v.
+
+    https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+    """
+    v -= 1
+    v |= v >> 1
+    v |= v >> 2
+    v |= v >> 4
+    v |= v >> 8
+    v |= v >> 16
+    return v + 1

@@ -10,7 +10,10 @@ library.
 import logging
 import warnings
 
+import numpy as np
+
 logger = logging.getLogger(__name__)
+randomizer = np.random.default_rng()
 
 
 def line_search(

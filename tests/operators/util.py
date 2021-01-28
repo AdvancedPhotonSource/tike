@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 
 __author__ = "Daniel Ching, Viktor Nikitin"
@@ -59,4 +61,18 @@ class OperatorTests():
                                                      a.imag.item()))
         print('<   m,    m> = {:.6f}{:+.6f}j'.format(b.real.item(),
                                                      b.imag.item()))
-        # self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5)
+        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5)
+
+    def test_fwd_time(self):
+        """Time the forward operation."""
+        start = time.perf_counter()
+        d = self.operator.fwd(**{self.m_name: self.m}, **self.kwargs)
+        elapsed = time.perf_counter() - start
+        print(f"\n{elapsed:1.3e} seconds")
+
+    def test_adj_time(self):
+        """Time the adjoint operation."""
+        start = time.perf_counter()
+        m = self.operator.adj(**{self.d_name: self.d}, **self.kwargs)
+        elapsed = time.perf_counter() - start
+        print(f"\n{elapsed:1.3e} seconds")

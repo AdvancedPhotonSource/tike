@@ -13,8 +13,13 @@ operators
       :nosignatures:
 
       Operator
+      Alignment
+      CachedFFT
       Convolution
+      Flow
       Lamino
-      Ptycho
+      Pad
       Propagation
+      Ptycho
+      Rotate
       Shift

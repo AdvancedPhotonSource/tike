@@ -30,9 +30,9 @@ def get_padded_object(scan, probe):
     """Return a ones-initialized object and shifted scan positions.
 
     An complex object array is initialized with shape such that the area
-    covered by the probe is padded on each edge by 1/8th the width of that
-    dimenion. The scan positions are shifted to be centered in this newly
-    initialized object array.
+    covered by the probe is padded on each edge by a full probe width. The scan
+    positions are shifted to be centered in this newly initialized object
+    array.
     """
     # Shift scan positions to zeros
     scan[..., 0] -= np.min(scan[..., 0])
@@ -40,12 +40,12 @@ def get_padded_object(scan, probe):
 
     # Add padding to scan positions of field-of-view / 8
     span = np.max(scan[..., 0]), np.max(scan[..., 1])
-    scan[..., 0] += span[0] * 0.125
-    scan[..., 1] += span[1] * 0.125
+    scan[..., 0] += probe.shape[-2]
+    scan[..., 1] += probe.shape[-1]
 
     ntheta = probe.shape[0]
-    height = probe.shape[-2] + int(span[0] * 1.25)
-    width = probe.shape[-1] + int(span[1] * 1.25)
+    height = 3 * probe.shape[-2] + int(span[0])
+    width = 3 * probe.shape[-1] + int(span[1])
 
     return np.ones((ntheta, height, width), dtype='complex64'), scan
 

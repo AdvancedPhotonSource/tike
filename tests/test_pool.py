@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from tike.pool import ThreadPool
+from tike.communicators import ThreadPool
 
 
 class TestThreadPool(unittest.TestCase):

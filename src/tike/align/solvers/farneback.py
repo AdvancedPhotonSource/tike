@@ -75,13 +75,8 @@ def farneback(
     # NOTE: Passing a reshaped view as any of the parameters breaks OpenCV's
     # Farneback implementation.
     for i in range(len(original)):
-        aflow = calcOpticalFlowFarneback(
-            *_rescale_8bit(
-                np.real(original[i]),
-                np.real(unaligned[i]),
-                hi=hi[i] if hi is not None else None,
-                lo=lo[i] if lo is not None else None,
-            ),
+        flow[i] = calcOpticalFlowFarneback(
+            *_rescale_8bit(np.abs(original[i]), np.abs(unaligned[i])),
             flow=flow[i],
             pyr_scale=pyr_scale,
             levels=levels,
@@ -91,16 +86,4 @@ def farneback(
             poly_sigma=poly_sigma,
             flags=4,
         )
-        pflow = calcOpticalFlowFarneback(
-            *_rescale_8bit(np.imag(original[i]), np.imag(unaligned[i])),
-            flow=flow[i],
-            pyr_scale=pyr_scale,
-            levels=levels,
-            winsize=winsize,
-            iterations=num_iter,
-            poly_n=poly_n,
-            poly_sigma=poly_sigma,
-            flags=4,
-        )
-        flow[i] = 0.5 * (aflow + pflow)
     return {'flow': flow[..., ::-1], 'cost': -1}

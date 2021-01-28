@@ -2,35 +2,36 @@ import logging
 
 import numpy as np
 
-from tike.opt import conjugate_gradient, line_search
+from tike.opt import conjugate_gradient
 from ..position import update_positions_pd
 
 logger = logging.getLogger(__name__)
 
 
-def combined(
-    op,
-    pool,
-    data, probe, scan, psi, rho, reg,
+def cgrad(
+    op, comm,
+    data, probe, scan, psi, rho=None, reg=None,
     recover_psi=True, recover_probe=True, recover_positions=False,
     cg_iter=4,
-    **kwargs
+    cost=None,
 ):  # yapf: disable
-    """Solve the ptychography problem using a combined approach.
+    """Solve the ptychography problem using conjugate gradient.
 
     Parameters
     ----------
-    operator : tike.operators.Ptycho
+    op : tike.operators.Ptycho
         A ptychography operator.
-    pool : tike.pool.ThreadPoolExecutor
-        An object which manages communications between GPUs.
+    comm : tike.communicators.Comm
+        An object which manages communications between both
+        GPUs and nodes.
+
     """
     cost = np.inf
 
     if recover_psi:
-        psi, cost = update_object(
+        psi, cost = _update_object(
             op,
-            pool,
+            comm,
             data,
             psi,
             scan,
@@ -42,44 +43,73 @@ def combined(
 
     if recover_probe:
         # TODO: add multi-GPU support
-        probe, cost = update_probe(
+        probe, cost = _update_probe(
             op,
-            pool,
-            pool.gather(data, axis=1),
+            comm,
+            comm.pool.gather(data, axis=1),
             psi[0],
-            pool.gather(scan, axis=1),
+            comm.pool.gather(scan, axis=1),
             probe[0],
             num_iter=cg_iter,
         )
-        probe = pool.bcast(probe)
+        probe = comm.pool.bcast(probe)
 
-    if recover_positions and pool.num_workers == 1:
+    if recover_positions and comm.pool.num_workers == 1:
         scan, cost = update_positions_pd(
             op,
-            pool.gather(data, axis=1),
+            comm.pool.gather(data, axis=1),
             psi[0],
             probe[0],
-            pool.gather(scan, axis=1),
+            comm.pool.gather(scan, axis=1),
         )
-        scan = pool.bcast(scan)
+        scan = comm.pool.bcast(scan)
 
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 
 
-def update_probe(op, pool, data, psi, scan, probe, num_iter=1):
+def _compute_intensity(op, psi, scan, probe):
+    farplane = op.fwd(
+        psi=psi,
+        scan=scan,
+        probe=probe,
+    )
+    return op.xp.sum(
+        op.xp.square(op.xp.abs(farplane)),
+        axis=(2, 3),
+    ), farplane
+
+
+def _update_probe(op, comm, data, psi, scan, probe, num_iter=1):
     """Solve the probe recovery problem."""
 
-    # TODO: Cache object patche between mode updates
+    # TODO: Cache object patches between mode updates
+    intensity = [
+        _compute_intensity(op, psi, scan, probe[..., m:m + 1, :, :])[0]
+        for m in range(probe.shape[-3])
+    ]
+    intensity = op.xp.array(intensity)
+
     for m in range(probe.shape[-3]):
 
         def cost_function(mode):
-            return op.cost(data, psi, scan, probe, m, mode)
+            intensity[m], _ = _compute_intensity(op, psi, scan, mode)
+            return op.propagation.cost(data, op.xp.sum(intensity, axis=0))
 
         def grad(mode):
+            intensity[m], farplane = _compute_intensity(op, psi, scan, mode)
             # Use the average gradient for all probe positions
             return op.xp.mean(
-                op.grad_probe(data, psi, scan, probe, m, mode),
-                axis=(1, 2),
+                op.adj_probe(
+                    farplane=op.propagation.grad(
+                        data,
+                        farplane,
+                        op.xp.sum(intensity, axis=0),
+                    ),
+                    psi=psi,
+                    scan=scan,
+                    overwrite=True,
+                ),
+                axis=1,
                 keepdims=True,
             )
 
@@ -96,42 +126,41 @@ def update_probe(op, pool, data, psi, scan, probe, num_iter=1):
     return probe, cost
 
 
-def update_object(op, pool, data, psi, scan, probe, rho, reg, num_iter=1):
+def _update_object(op, comm, data, psi, scan, probe, rho, reg, num_iter=1):
     """Solve the object recovery problem."""
 
     def cost_function_multi(psi, **kwargs):
-        cost_out = pool.map(op.cost, data, psi, scan, probe)
-        # TODO: Implement reduce function for ThreadPool
-        cost_cpu = 0
-        for c in cost_out:
-            cost_cpu += op.asnumpy(c)
+        cost_out = comm.pool.map(op.cost, data, psi, scan, probe)
+        if comm.use_mpi:
+            result = comm.Allreduce_reduce(cost_out, 'cpu')
+        else:
+            result = comm.reduce(cost_out, 'cpu')
         if reg is not None:
-            cost_cpu += op.asnumpy(rho * op.xp.linalg.norm(
+            result += op.asnumpy(rho * op.xp.linalg.norm(
                 (psi[0] + reg[0]).ravel())**2)
-        return cost_cpu
+        return result
 
     def grad_multi(psi):
-        grad_out = pool.map(op.grad, data, psi, scan, probe)
+        grad_out = comm.pool.map(op.grad, data, psi, scan, probe)
         grad_list = list(grad_out)
-        # TODO: Implement reduce function for ThreadPool
-        for i in range(1, len(grad_list)):
-            grad_cpu_tmp = op.asnumpy(grad_list[i])
-            grad_tmp = op.asarray(grad_cpu_tmp)
-            grad_list[0] += grad_tmp
+        if comm.use_mpi:
+            result = comm.Allreduce_reduce(grad_list, 'gpu')
+        else:
+            result = comm.reduce(grad_list, 'gpu')
         if reg is not None:
-            grad_list[0] += rho * (psi[0] + reg[0])
-        return grad_list[0]
+            result += rho * (psi[0] + reg[0])
+        return result
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""
-        return pool.bcast(dir)
+        return comm.pool.bcast(dir)
 
     def update_multi(psi, gamma, dir):
 
         def f(psi, dir):
             return psi + gamma * dir
 
-        return list(pool.map(f, psi, dir))
+        return list(comm.pool.map(f, psi, dir))
 
     psi, cost = conjugate_gradient(
         op.xp,
