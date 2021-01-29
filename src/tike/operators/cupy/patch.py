@@ -42,7 +42,15 @@ class Patch(Operator):
         The width of the unpadded patches.
     """
 
-    def fwd(self, images, positions, patches, patch_width=None):
+    def fwd(
+        self,
+        images,
+        positions,
+        patches=None,
+        patch_width=None,
+        height=None,
+        width=None,
+    ):
         patch_width = patches.shape[-1] if patch_width is None else patch_width
         if patches is None:
             patches = cp.zeros(
@@ -71,12 +79,18 @@ class Patch(Operator):
         )
         return patches
 
-    def adj(self, images, positions, patches, patch_width=None):
+    def adj(
+        self,
+        positions,
+        patches,
+        images=None,
+        patch_width=None,
+        height=None,
+        width=None,
+    ):
         patch_width = patches.shape[-1] if patch_width is None else patch_width
         assert patch_width <= patches.shape[-1]
         if images is None:
-            height = int(cp.maximum(positions[..., 0])) + patch_width + 2
-            width = int(cp.maximum(positions[..., 1])) + patch_width + 2
             images = cp.zeros(
                 (*positions.shape[:-2], height, width),
                 dtype='complex64',
