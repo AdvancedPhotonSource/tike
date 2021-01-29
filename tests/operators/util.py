@@ -50,8 +50,11 @@ class OperatorTests():
         self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5)
         self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
 
-    def test_normalized(self):
-        """Check that the adjoint operator is normalized."""
+    def test_scaled(self):
+        """Check that the adjoint operator is scaled."""
+        # NOTE: For a linear operator to be considered 'normal', the input and
+        # output spaces must be the same. That requirement is too strict for
+        # all of our operators. Here we only test whether |F*Fm| = |m|.
         d = self.operator.fwd(**{self.m_name: self.m}, **self.kwargs)
         m = self.operator.adj(**{self.d_name: d}, **self.kwargs)
         a = inner_complex(m, m)

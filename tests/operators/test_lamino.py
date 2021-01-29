@@ -34,8 +34,8 @@ class TestLamino(unittest.TestCase, OperatorTests):
         self.kwargs = {}
         print(self.operator)
 
-    @unittest.skip('FIXME: This operator is not normalized.')
-    def test_normalized(self):
+    @unittest.skip('FIXME: This operator is not scaled.')
+    def test_scaled(self):
         pass
 
 

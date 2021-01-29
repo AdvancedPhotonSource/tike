@@ -42,8 +42,8 @@ class TestAlignment(unittest.TestCase, OperatorTests):
         }
         print(self.operator)
 
-    @unittest.skip('FIXME: This operator is not normalized.')
-    def test_normalized(self):
+    @unittest.skip('FIXME: This operator is not scaled.')
+    def test_scaled(self):
         pass
 
 
