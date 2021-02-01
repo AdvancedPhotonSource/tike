@@ -61,7 +61,8 @@ class Patch(Operator):
             )
         assert patch_width <= patches.shape[-1]
         assert images.shape[:-2] == positions.shape[:-2]
-        assert positions.shape[:-2] == patches.shape[:-3]
+        assert positions.shape[:-2] == patches.shape[:-3], (positions.shape,
+                                                            patches.shape)
         assert positions.shape[-2] * nrepeat == patches.shape[-3]
         assert positions.shape[-1] == 2
         assert images.dtype == 'complex64'
@@ -110,7 +111,8 @@ class Patch(Operator):
                 dtype='complex64',
             )
         assert images.shape[:-2] == positions.shape[:-2]
-        assert positions.shape[:-2] == patches.shape[:-3]
+        assert positions.shape[:-2] == patches.shape[:-3], (positions.shape,
+                                                            patches.shape)
         assert positions.shape[-2] * nrepeat == patches.shape[-3]
         assert positions.shape[-1] == 2
         assert images.dtype == 'complex64'

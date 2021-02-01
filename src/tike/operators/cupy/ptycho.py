@@ -103,18 +103,18 @@ class Ptycho(Operator):
             self.diffraction.fwd(
                 psi=psi,
                 scan=scan,
-                probe=probe[..., 0, 0, :, :],
+                probe=probe[..., 0, :, :, :],
             ),
             overwrite=True,
-        )[..., None, None, :, :]
+        )[..., None, :, :, :]
 
     def adj(self, farplane, probe, scan, overwrite=False, **kwargs):
         return self.diffraction.adj(
             nearplane=self.propagation.adj(
                 farplane,
                 overwrite=overwrite,
-            )[..., 0, 0, :, :],
-            probe=probe[..., 0, 0, :, :],
+            )[..., 0, :, :, :],
+            probe=probe[..., 0, :, :, :],
             scan=scan,
             overwrite=True,
         )
@@ -126,9 +126,9 @@ class Ptycho(Operator):
             nearplane=self.propagation.adj(
                 farplane=farplane,
                 overwrite=overwrite,
-            )[..., 0, 0, :, :],
+            )[..., 0, :, :, :],
             overwrite=True,
-        )[..., None, None, :, :]
+        )[..., None, :, :, :]
 
     def _compute_intensity(self, data, psi, scan, probe, n=-1, mode=None):
         """Compute detector intensities replacing the nth probe mode"""
