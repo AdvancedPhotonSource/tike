@@ -108,7 +108,7 @@ class Ptycho(Operator):
             overwrite=True,
         )[..., None, :, :, :]
 
-    def adj(self, farplane, probe, scan, overwrite=False, **kwargs):
+    def adj(self, farplane, probe, scan, psi=None, overwrite=False, **kwargs):
         return self.diffraction.adj(
             nearplane=self.propagation.adj(
                 farplane,
@@ -117,6 +117,7 @@ class Ptycho(Operator):
             probe=probe[..., 0, :, :, :],
             scan=scan,
             overwrite=True,
+            psi=psi,
         )
 
     def adj_probe(self, farplane, scan, psi, overwrite=False, **kwargs):
@@ -132,49 +133,42 @@ class Ptycho(Operator):
 
     def _compute_intensity(self, data, psi, scan, probe, n=-1, mode=None):
         """Compute detector intensities replacing the nth probe mode"""
-        intensity = 0
-        for m in range(probe.shape[-3]):
-            intensity += np.sum(
-                np.square(np.abs(self.fwd(
-                    psi=psi,
-                    scan=scan,
-                    probe=mode if m == n else probe[..., m:m + 1, :, :],
-                ).reshape(*data.shape[:2], -1, *data.shape[2:]))),
-                axis=2,
-            )  # yapf: disable
-        return intensity
+        farplane = self.fwd(
+            psi=psi,
+            scan=scan,
+            probe=probe,
+        )
+        return self.xp.sum(
+            (farplane * farplane.conj()).real,
+            axis=(2, 3),
+        ), farplane
 
     def cost(self, data, psi, scan, probe, n=-1, mode=None) -> float:
-        intensity = self._compute_intensity(data, psi, scan, probe, n, mode)
+        intensity, _ = self._compute_intensity(data, psi, scan, probe)
         return self.propagation.cost(data, intensity)
 
     def grad(self, data, psi, scan, probe):
-        intensity = self._compute_intensity(data, psi, scan, probe)
+        intensity, farplane = self._compute_intensity(data, psi, scan, probe)
         grad_obj = self.xp.zeros_like(psi)
-        for mode in np.split(probe, probe.shape[-3], axis=-3):
-            # TODO: Pass obj through adj() instead of making new obj inside
-            grad_obj += self.adj(
-                farplane=self.propagation.grad(
-                    data,
-                    self.fwd(psi=psi, scan=scan, probe=mode),
-                    intensity,
-                ),
-                probe=mode,
-                scan=scan,
-                overwrite=True,
-            ) / probe.shape[-3]
+        grad_obj = self.adj(
+            farplane=self.propagation.grad(
+                data,
+                farplane,
+                intensity,
+            ),
+            probe=probe,
+            scan=scan,
+            psi=grad_obj,
+            overwrite=True,
+        )
         return grad_obj
 
     def grad_probe(self, data, psi, scan, probe, n=-1, mode=None):
-        intensity = self._compute_intensity(data, psi, scan, probe, n, mode)
+        intensity, farplane = self._compute_intensity(data, psi, scan, probe)
         return self.adj_probe(
             farplane=self.propagation.grad(
                 data,
-                self.fwd(
-                    psi=psi,
-                    scan=scan,
-                    probe=mode if mode is not None else probe,
-                ),
+                farplane,
                 intensity,
             ),
             psi=psi,
