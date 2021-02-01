@@ -36,7 +36,7 @@ class Patch(Operator):
         The complex wavefront modulation of the object.
     positions : (..., N, 2) float32
         Coordinates of the minimum corner of the patches in the image grid.
-    patches : (..., N, width+, width+) complex64
+    patches : (..., N * nrepeat, width+, width+) complex64
         The extracted (zero-padded) patches.
     patch_width : int
         The width of the unpadded patches.
@@ -50,16 +50,20 @@ class Patch(Operator):
         patch_width=None,
         height=None,
         width=None,
+        nrepeat=1,
     ):
         patch_width = patches.shape[-1] if patch_width is None else patch_width
         if patches is None:
             patches = cp.zeros(
-                (*positions.shape[:-1], patch_width, patch_width),
+                (*positions.shape[:-2], positions.shape[-2] * nrepeat,
+                 patch_width, patch_width),
                 dtype='complex64',
             )
         assert patch_width <= patches.shape[-1]
         assert images.shape[:-2] == positions.shape[:-2]
-        assert positions.shape[:-1] == patches.shape[:-2]
+        assert positions.shape[:-2] == patches.shape[:-3]
+        assert positions.shape[-2] * nrepeat == patches.shape[-3]
+        assert positions.shape[-1] == 2
         assert images.dtype == 'complex64'
         assert patches.dtype == 'complex64'
         assert positions.dtype == 'float32'
@@ -74,8 +78,17 @@ class Patch(Operator):
         _fwd_patch(
             grids,
             blocks,
-            (images, patches, positions, nimage, *images.shape[-2:],
-             positions.shape[-2], patch_width, patches.shape[-1]),
+            (
+                images,
+                patches,
+                positions,
+                nimage,
+                *images.shape[-2:],
+                positions.shape[-2],
+                nrepeat,
+                patch_width,
+                patches.shape[-1],
+            ),
         )
         return patches
 
@@ -87,6 +100,7 @@ class Patch(Operator):
         patch_width=None,
         height=None,
         width=None,
+        nrepeat=1,
     ):
         patch_width = patches.shape[-1] if patch_width is None else patch_width
         assert patch_width <= patches.shape[-1]
@@ -96,7 +110,9 @@ class Patch(Operator):
                 dtype='complex64',
             )
         assert images.shape[:-2] == positions.shape[:-2]
-        assert positions.shape[:-1] == patches.shape[:-2]
+        assert positions.shape[:-2] == patches.shape[:-3]
+        assert positions.shape[-2] * nrepeat == patches.shape[-3]
+        assert positions.shape[-1] == 2
         assert images.dtype == 'complex64'
         assert patches.dtype == 'complex64'
         assert positions.dtype == 'float32'
@@ -111,7 +127,16 @@ class Patch(Operator):
         _adj_patch(
             grids,
             blocks,
-            (images, patches, positions, nimage, *images.shape[-2:],
-             positions.shape[-2], patch_width, patches.shape[-1]),
+            (
+                images,
+                patches,
+                positions,
+                nimage,
+                *images.shape[-2:],
+                positions.shape[-2],
+                nrepeat,
+                patch_width,
+                patches.shape[-1],
+            ),
         )
         return images
