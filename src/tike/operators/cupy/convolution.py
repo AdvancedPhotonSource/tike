@@ -59,7 +59,7 @@ class Convolution(Operator):
         The patches within the bounds of psi are linearly interpolated, and
         indices outside the bounds of psi are not allowed.
         """
-        assert psi.shape[:-2] == scan.shape[:-2]
+        assert psi.shape[:-2] == scan.shape[:-2], (psi.shape, scan.shape)
         assert probe.shape[:-4] == scan.shape[:-2]
         assert probe.shape[-4] == 1 or probe.shape[-4] == scan.shape[-2]
         patches = self.xp.zeros(

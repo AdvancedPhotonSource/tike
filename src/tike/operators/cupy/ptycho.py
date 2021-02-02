@@ -178,3 +178,32 @@ class Ptycho(Operator):
             axis=1,
             keepdims=True,
         )
+
+    def grad(self, data, psi, scan, probe):
+        intensity, farplane = self._compute_intensity(data, psi, scan, probe)
+        nearplane = self.propagation.adj(
+            self.propagation.grad(
+                data,
+                farplane,
+                intensity,
+                overwrite=True,
+            ),
+            overwrite=True,
+        )[..., 0, :, :, :]
+        grad_probe = self.xp.mean(
+            self.diffraction.adj_probe(
+                psi=psi,
+                scan=scan,
+                nearplane=nearplane,
+            )[..., None, :, :, :],
+            axis=1,
+            keepdims=True,
+        )
+        grad_obj = self.diffraction.adj(
+            nearplane=nearplane,
+            probe=probe[..., 0, :, :, :],
+            scan=scan,
+            overwrite=True,
+            psi=self.xp.zeros_like(psi),
+        )
+        return grad_obj, grad_probe
