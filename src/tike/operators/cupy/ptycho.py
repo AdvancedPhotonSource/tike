@@ -165,13 +165,18 @@ class Ptycho(Operator):
 
     def grad_probe(self, data, psi, scan, probe, n=-1, mode=None):
         intensity, farplane = self._compute_intensity(data, psi, scan, probe)
-        return self.adj_probe(
-            farplane=self.propagation.grad(
-                data,
-                farplane,
-                intensity,
+        # Use the average gradient for all probe positions
+        return self.xp.mean(
+            self.adj_probe(
+                farplane=self.propagation.grad(
+                    data,
+                    farplane,
+                    intensity,
+                ),
+                psi=psi,
+                scan=scan,
+                overwrite=True,
             ),
-            psi=psi,
-            scan=scan,
-            overwrite=True,
+            axis=1,
+            keepdims=True,
         )

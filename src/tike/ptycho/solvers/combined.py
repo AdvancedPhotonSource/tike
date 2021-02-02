@@ -70,27 +70,12 @@ def cgrad(
 def _update_probe(op, comm, data, psi, scan, probe, num_iter=1):
     """Solve the probe recovery problem."""
 
-    def cost_function(mode):
-        intensity, _ = op._compute_intensity(op, psi, scan, mode)
+    def cost_function(probe):
+        intensity, _ = op._compute_intensity(op, psi, scan, probe)
         return op.propagation.cost(data, intensity)
 
-    def grad(mode):
-        intensity, farplane = op._compute_intensity(op, psi, scan, mode)
-        # Use the average gradient for all probe positions
-        return op.xp.mean(
-            op.adj_probe(
-                farplane=op.propagation.grad(
-                    data,
-                    farplane,
-                    intensity,
-                ),
-                psi=psi,
-                scan=scan,
-                overwrite=True,
-            ),
-            axis=1,
-            keepdims=True,
-        )
+    def grad(probe):
+        return op.grad_probe(data, psi, scan, probe)
 
     probe, cost = conjugate_gradient(
         op.xp,
