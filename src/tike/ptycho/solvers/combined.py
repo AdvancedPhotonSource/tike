@@ -246,7 +246,7 @@ def _update_both(op, comm, data, psi, scan, probe, num_iter=1):
     array_module = op.xp
     x = (psi, probe)
     grad = gradient
-    step_length = 1
+    step_length = 1e-3
 
     for i in range(num_iter):
 
