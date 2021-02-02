@@ -116,7 +116,7 @@ def _update_object(op, comm, data, psi, scan, probe, num_iter=1):
             return comm.reduce(cost_out, 'cpu')
 
     def grad_multi(psi):
-        grad_out = comm.pool.map(op.grad, data, psi, scan, probe)
+        grad_out = comm.pool.map(op.grad_psi, data, psi, scan, probe)
         grad_list = list(grad_out)
         if comm.use_mpi:
             return comm.Allreduce_reduce(grad_list, 'gpu')

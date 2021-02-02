@@ -147,7 +147,7 @@ class Ptycho(Operator):
         intensity, _ = self._compute_intensity(data, psi, scan, probe)
         return self.propagation.cost(data, intensity)
 
-    def grad(self, data, psi, scan, probe):
+    def grad_psi(self, data, psi, scan, probe):
         intensity, farplane = self._compute_intensity(data, psi, scan, probe)
         grad_obj = self.xp.zeros_like(psi)
         grad_obj = self.adj(
