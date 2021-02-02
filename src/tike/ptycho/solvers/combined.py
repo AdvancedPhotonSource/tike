@@ -16,6 +16,7 @@ def cgrad(
     cost=None,
     eigen_probe=None,
     eigen_weights=None,
+    step_length=1,
 ):  # yapf: disable
     """Solve the ptychography problem using conjugate gradient.
 
@@ -39,6 +40,7 @@ def cgrad(
             scan,
             probe,
             num_iter=cg_iter,
+            step_length=step_length,
         )
 
     if recover_probe:
@@ -50,6 +52,7 @@ def cgrad(
             scan,
             probe,
             num_iter=cg_iter,
+            step_length=step_length,
         )
 
     if recover_positions and comm.pool.num_workers == 1:
@@ -65,7 +68,7 @@ def cgrad(
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 
 
-def _update_probe(op, comm, data, psi, scan, probe, num_iter=1):
+def _update_probe(op, comm, data, psi, scan, probe, num_iter, step_length):
     """Solve the probe recovery problem."""
 
     def cost_function(probe):
@@ -108,7 +111,7 @@ def _update_probe(op, comm, data, psi, scan, probe, num_iter=1):
     return probe, cost
 
 
-def _update_object(op, comm, data, psi, scan, probe, num_iter=1):
+def _update_object(op, comm, data, psi, scan, probe, num_iter, step_length):
     """Solve the object recovery problem."""
 
     def cost_function_multi(psi, **kwargs):
@@ -144,7 +147,7 @@ def _update_object(op, comm, data, psi, scan, probe, num_iter=1):
         dir_multi=dir_multi,
         update_multi=update_multi,
         num_iter=num_iter,
-        step_length=1,
+        step_length=step_length,
     )
 
     logger.info('%10s cost is %+12.5e', 'object', cost)
