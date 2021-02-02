@@ -7,6 +7,11 @@ spotty in the NumPy and CuPy libraries.
 import numpy as np
 
 
+def norm(x, axis=None, keepdims=None):
+    """Return the vector 2-norm of x along given axis."""
+    return np.sqrt(np.sum((x * x.conj()).real, axis=axis, keepdims=keepdims))
+
+
 def projection(a, b, axis=None):
     """Return complex vector projection of a onto b for along given axis."""
     bh = b / inner(b, b, axis=axis, keepdims=True)
