@@ -43,13 +43,11 @@ class Ptycho(Operator):
     psi : (..., nz, n) complex64
         The complex wavefront modulation of the object.
     probe : complex64
-        The complex (..., nscan, 1, 1, probe_shape,
-        probe_shape) illumination function.
-    mode : complex64
-        A single (..., nscan, 1, 1, probe_shape, probe_shape)
-        probe mode.
+        The complex (..., nscan, 1, nprobe, probe_shape, probe_shape) or
+        (..., 1, 1, nprobe, probe_shape, probe_shape) illumination
+        function.
     nearplane, farplane: complex64
-        The (..., nscan, 1, 1, detector_shape, detector_shape)
+        The (..., nscan, 1, nprobe, detector_shape, detector_shape)
         wavefronts exiting the object and hitting the detector respectively.
     data, intensity : float32
         The (..., nframe, detector_shape, detector_shape)
