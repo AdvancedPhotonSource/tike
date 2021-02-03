@@ -3,6 +3,8 @@ import logging
 import numpy as np
 
 from tike.opt import conjugate_gradient, line_search, direction_dy
+from tike.linalg import orthogonalize_gs
+
 from ..position import update_positions_pd
 
 logger = logging.getLogger(__name__)
@@ -17,6 +19,7 @@ def cgrad(
     eigen_probe=None,
     eigen_weights=None,
     step_length=1,
+    probe_is_orthogonal=False,
 ):  # yapf: disable
     """Solve the ptychography problem using conjugate gradient.
 
@@ -53,6 +56,7 @@ def cgrad(
             probe,
             num_iter=cg_iter,
             step_length=step_length,
+            probe_is_orthogonal=probe_is_orthogonal,
         )
 
     if recover_positions and comm.pool.num_workers == 1:
@@ -68,7 +72,8 @@ def cgrad(
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 
 
-def _update_probe(op, comm, data, psi, scan, probe, num_iter, step_length):
+def _update_probe(op, comm, data, psi, scan, probe, num_iter, step_length,
+                  probe_is_orthogonal):
     """Solve the probe recovery problem."""
 
     def cost_function(probe):
@@ -106,6 +111,9 @@ def _update_probe(op, comm, data, psi, scan, probe, num_iter, step_length):
         num_iter=num_iter,
         step_length=1,
     )
+
+    if probe[0].shape[-3] > 1 and probe_is_orthogonal:
+        probe = comm.pool.map(orthogonalize_gs, probe, axis=(-2, -1))
 
     logger.info('%10s cost is %+12.5e', 'probe', cost)
     return probe, cost
