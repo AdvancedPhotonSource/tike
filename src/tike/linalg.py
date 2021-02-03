@@ -74,14 +74,6 @@ def orthogonalize_gs(x, axis=-1):
     u = x.copy()
     for i in range(1, len(x)):
         u[i:] -= projection(x[i:], u[i - 1:i], axis=axis)
-    if __debug__:
-        # Test each pair of vectors for orthogonality
-        for i in range(len(u)):
-            for j in range(i):
-                error = abs(inner(u[i:i + 1], u[j:j + 1], axis=axis))
-                if np.any(error > 1e-12):
-                    raise RuntimeWarning(
-                        'Some vectors were not orthogonalized.', error)
     return np.moveaxis(u, 0, N)
 
 

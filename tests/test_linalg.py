@@ -51,3 +51,15 @@ class Orthogonal(unittest.TestCase):
     def test_gram_schmidt_multi_axis(self):
         y = tike.linalg.orthogonalize_gs(self.x, axis=(1, -1))
         assert self.x.shape == y.shape
+
+    def test_gram_schmidt_orthogonal(self, axis=(-2, -1)):
+        u = tike.linalg.orthogonalize_gs(self.x, axis=axis)
+        for i in range(4):
+            for j in range(i + 1, 4):
+                error = abs(
+                    tike.linalg.inner(
+                        u[:, i:i + 1],
+                        u[:, j:j + 1],
+                        axis=axis,
+                    ))
+                assert cp.all(error < 1e-12)
