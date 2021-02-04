@@ -91,8 +91,8 @@ class TestAlignRecon(unittest.TestCase):
         """Check that align.solvers.farneback works."""
         result = tike.align.solvers.farneback(
             op=None,
-            unaligned=self.data,
-            original=self.original,
+            unaligned=np.angle(self.data),
+            original=np.angle(self.original),
         )
         shift = result['flow']
         assert shift.dtype == 'float32', shift.dtype

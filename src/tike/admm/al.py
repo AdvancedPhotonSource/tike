@@ -112,8 +112,8 @@ def lamino_align(
                 logging.info("Estimate alignment using Farneback.")
                 fresult = tike.align.solvers.farneback(
                     op=None,
-                    unaligned=rotated,
-                    original=padded,
+                    unaligned=np.angle(rotated),
+                    original=np.angle(padded),
                     flow=flow,
                     pyr_scale=0.5,
                     levels=4,

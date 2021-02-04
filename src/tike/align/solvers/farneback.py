@@ -66,6 +66,8 @@ def farneback(
     Expansion" 2003.
     """
     shape = original.shape
+    assert original.dtype == 'float32', original.dtype
+    assert unaligned.dtype == 'float32', unaligned.dtype
 
     if flow is None:
         flow = np.zeros((*shape, 2), dtype='float32')
@@ -76,7 +78,12 @@ def farneback(
     # Farneback implementation.
     for i in range(len(original)):
         flow[i] = calcOpticalFlowFarneback(
-            *_rescale_8bit(np.abs(original[i]), np.abs(unaligned[i])),
+            *_rescale_8bit(
+                original[i],
+                unaligned[i],
+                hi=hi[i] if hi is not None else None,
+                lo=lo[i] if lo is not None else None,
+            ),
             flow=flow[i],
             pyr_scale=pyr_scale,
             levels=levels,
