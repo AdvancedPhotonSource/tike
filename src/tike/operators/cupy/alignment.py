@@ -44,6 +44,7 @@ class Alignment(Operator):
     def fwd(
         self,
         unpadded,
+        shift,
         flow,
         padded_shape,
         angle,
@@ -52,10 +53,13 @@ class Alignment(Operator):
     ):
         return self.rotate.fwd(
             unrotated=self.flow.fwd(
-                f=self.pad.fwd(
-                    unpadded=unpadded,
-                    padded_shape=padded_shape,
-                    cval=cval,
+                f=self.shift.fwd(
+                    a=self.pad.fwd(
+                        unpadded=unpadded,
+                        padded_shape=padded_shape,
+                        cval=cval,
+                    ),
+                    shift=shift,
                 ),
                 flow=flow,
                 cval=cval,
@@ -68,20 +72,24 @@ class Alignment(Operator):
         self,
         rotated,
         flow,
+        shift,
         unpadded_shape,
         angle,
         padded_shape=None,
         cval=0.0,
     ):
         return self.pad.adj(
-            padded=self.flow.adj(
-                g=self.rotate.adj(
-                    rotated=rotated,
-                    angle=angle,
+            padded=self.shift.adj(
+                a=self.flow.adj(
+                    g=self.rotate.adj(
+                        rotated=rotated,
+                        angle=angle,
+                        cval=cval,
+                    ),
+                    flow=flow,
                     cval=cval,
                 ),
-                flow=flow,
-                cval=cval,
+                shift=shift,
             ),
             unpadded_shape=unpadded_shape,
             cval=cval,

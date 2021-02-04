@@ -26,6 +26,7 @@ class TestAlignment(unittest.TestCase, OperatorTests):
         padded_shape = shape + np.asarray((0, 41, 32))
         flow = (self.xp.random.rand(*padded_shape, 2, dtype='float32') -
                 0.5) * 9
+        shift = self.xp.random.rand(*shape[:-2], 2) - 0.5
 
         np.random.seed(0)
         self.m = self.xp.asarray(random_complex(*shape), dtype='complex64')
@@ -35,6 +36,7 @@ class TestAlignment(unittest.TestCase, OperatorTests):
         self.d_name = 'rotated'
         self.kwargs = {
             'flow': flow,
+            'shift': shift,
             'padded_shape': padded_shape,
             'unpadded_shape': shape,
             'angle': np.random.rand() * 2 * np.pi,
