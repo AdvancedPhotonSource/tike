@@ -1,4 +1,4 @@
-name: CI
+name: Pull Reqest Validation
 
 on:
   pull_request:
@@ -16,9 +16,9 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - name: "Lint with pycodestyle"
-        uses: rahul-deepsource/pyaction@1.4.1
+        uses: ricardochaves/python-lint@v1
         with:
           python-root-list: "src/ tests/"
           use-pycodestyle: true
