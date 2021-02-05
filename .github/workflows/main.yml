@@ -27,3 +27,4 @@ jobs:
           use-flake8: false
           use-pylint: false
           use-isort: false
+          use-black: false
