@@ -2,9 +2,12 @@
 # -*- coding: utf-8 -*-
 import setuptools
 
+this is a very long line this is a very long linethis is a very long linethis is a very long linethis is a very long linethis is a very long linethis is a very long line
+
+
 setuptools.setup(
-    name='tike',
-    packages=setuptools.find_packages('src'),
+    name = 'tike',
+    packages     =     setuptools.find_packages('src'),
     package_dir={'': 'src'},
     include_package_data=True,
     setup_requires=['setuptools_scm', 'setuptools_scm_git_archive'],
