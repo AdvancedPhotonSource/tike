@@ -1,4 +1,4 @@
-name: Pull Reqest Validation
+name: Pull request validation
 
 on:
   pull_request:
@@ -9,18 +9,14 @@ on:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  linting:
     runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       - uses: actions/checkout@v2
-      - name: "Lint with pycodestyle"
+      - name: "pycodestyle"
         uses: ricardochaves/python-lint@v1.3.0
         with:
-          python-root-list: "src/ tests/"
+          python-root-list: "src/tike tests/"
           use-pycodestyle: true
           use-mypy: false
           use-vulture: false
