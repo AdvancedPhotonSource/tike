@@ -7,33 +7,53 @@ logger = logging.getLogger(__name__)
 
 def cgrad(
     op,
+    comm,
     data, obj,
     cg_iter=4,
     **kwargs
 ):  # yapf: disable
     """Solve the Laminogarphy problem using the conjugate gradients method."""
 
-    obj, cost = update_obj(op, data, obj, num_iter=cg_iter)
+    obj, cost = update_obj(op, comm, data, obj, num_iter=cg_iter)
 
     return {'obj': obj, 'cost': cost}
 
 
-def update_obj(op, data, obj, num_iter=1):
+def update_obj(op, comm, data, obj, num_iter=1):
     """Solver the object recovery problem."""
 
     def cost_function(obj):
-        "Cost function for the least-squres laminography problem"
-        return op.xp.linalg.norm((op.fwd(obj) - data).ravel())**2
+        cost_out = comm.pool.map(op.cost, data, obj)
+        if comm.use_mpi:
+            return comm.Allreduce_reduce(cost_out, 'cpu')
+        else:
+            return comm.reduce(cost_out, 'cpu')
 
     def grad(obj):
-        "Gradient for the least-squares laminography problem"
-        return op.adj(data=(op.fwd(obj) - data)) / (op.ntheta * op.n**3)
+        grad_list = comm.pool.map(op.grad, data, obj)
+        if comm.use_mpi:
+            return comm.Allreduce_reduce(grad_list, 'gpu')
+        else:
+            return comm.reduce(grad_list, 'gpu')
+
+    def dir_multi(dir):
+        """Scatter dir to all GPUs"""
+        return comm.pool.bcast(dir)
+
+    def update_multi(x, gamma, dir):
+
+        def f(x, dir):
+            return x + gamma * dir
+
+        return comm.pool.map(f, x, dir)
 
     obj, cost = conjugate_gradient(
         op.xp,
         x=obj,
         cost_function=cost_function,
         grad=grad,
+        dir_multi=dir_multi,
+        update_multi=update_multi,
         num_iter=num_iter,
     )
 

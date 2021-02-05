@@ -152,6 +152,14 @@ class Lamino(CachedFFT, Operator):
         ))
         return F
 
+    def cost(self, data, obj):
+        "Cost function for the least-squres laminography problem"
+        return self.xp.linalg.norm((self.fwd(obj) - data).ravel())**2
+
+    def grad(self, data, obj):
+        "Gradient for the least-squares laminography problem"
+        return self.adj(data=self.fwd(obj) - data) / (self.ntheta * self.n**3)
+
     def _make_grids(self, theta):
         """Return (ntheta*n*n, 3) unequally-spaced frequencies for the USFFT."""
         [kv, ku] = self.xp.mgrid[-self.n // 2:self.n // 2,
