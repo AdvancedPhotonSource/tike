@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - name: "Lint with pycodestyle"
-        uses: rahul-deepsource/pyaction@v1.4.1
+        uses: rahul-deepsource/pyaction@v1.4.0
         with:
           python-root-list: "src/ tests/"
           use-pycodestyle: true
