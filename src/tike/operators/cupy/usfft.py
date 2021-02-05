@@ -129,14 +129,16 @@ def sequential_scatter(xp, f, x, n, m, mu):
         for i0 in range(-m, m):
             for i1 in range(-m, m):
                 for i2 in range(-m, m):
+                    # yapf: disable
                     Fkernel = cons[0] * xp.exp(cons[1] * (
                         + ((ell0 + i0) / (2 * n) - x[k, 0])**2
                         + ((ell1 + i1) / (2 * n) - x[k, 1])**2
                         + ((ell2 + i2) / (2 * n) - x[k, 2])**2
-                    ))  # yapf: disable
+                    ))
                     G[(n + ell0 + i0) % (2 * n),
                       (n + ell1 + i1) % (2 * n),
-                      (n + ell2 + i2) % (2 * n)] += f[k] * Fkernel  # yapf: disable
+                      (n + ell2 + i2) % (2 * n)] += f[k] * Fkernel
+                    # yapf: enable
     return G
 
 
