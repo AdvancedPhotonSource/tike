@@ -132,6 +132,7 @@ class TestLaminoRecon(unittest.TestCase):
                 tilt=self.tilt,
                 algorithm=algorithm,
                 num_iter=1,
+                num_gpu=2,
             )
 
         recon_file = os.path.join(testdir,

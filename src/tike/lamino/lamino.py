@@ -75,11 +75,13 @@ def simulate(
     assert theta.ndim == 1
     with Lamino(
             n=obj.shape[-1],
-            theta=theta,
             tilt=tilt,
             **kwargs,
     ) as operator:
-        data = operator.fwd(u=operator.asarray(obj, dtype='complex64'))
+        data = operator.fwd(
+            u=operator.asarray(obj, dtype='complex64'),
+            theta=operator.asarray(theta, dtype='float32'),
+        )
         assert data.dtype == 'complex64', data.dtype
         return operator.asnumpy(data)
 
@@ -110,7 +112,6 @@ def reconstruct(
         # Initialize an operator.
         with Lamino(
                 n=obj.shape[-1],
-                theta=theta,
                 tilt=tilt,
                 eps=eps,
                 **kwargs,
@@ -119,6 +120,9 @@ def reconstruct(
             data = np.array_split(data.astype('complex64'),
                                   comm.pool.num_workers)
             data = comm.pool.scatter(data)
+            theta = np.array_split(theta.astype('float32'),
+                                   comm.pool.num_workers)
+            theta = comm.pool.scatter(theta)
             result = {
                 'obj': comm.pool.bcast(obj.astype('complex64')),
             }
@@ -136,6 +140,7 @@ def reconstruct(
                     operator,
                     comm,
                     data=data,
+                    theta=theta,
                     **kwargs,
                 )
                 # Check for early termination

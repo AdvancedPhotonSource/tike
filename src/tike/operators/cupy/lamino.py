@@ -24,8 +24,6 @@ class Lamino(CachedFFT, Operator):
     ----------
     n : int
         The pixel width of the cubic reconstructed grid.
-    theta : array-like float32
-        The projection angles; rotation around the vertical axis of the object.
     tilt : float32
         The tilt angle; the angle between the rotation axis of the object and
         the light source. π / 2 for conventional tomography. 0 for a beam path
@@ -38,16 +36,16 @@ class Lamino(CachedFFT, Operator):
         corresponding to the rotation axis.
     data : (ntheta, n, n) complex64
         The complex projection data of the object.
+    theta : array-like float32
+        The projection angles; rotation around the vertical axis of the object.
     """
 
-    def __init__(self, n, theta, tilt, eps=1e-3,
+    def __init__(self, n, tilt, eps=1e-3,
                  **kwargs):  # noqa: D102 yapf: disable
         """Please see help(Lamino) for more info."""
         self.n = n
-        self.ntheta = len(theta)
-        self.tilt = self.xp.asarray(tilt)
+        self.tilt = tilt
         self.eps = eps
-        self.xi = self._make_grids(self.xp.asarray(theta))
 
     def __enter__(self):
         """Return self at start of a with-block."""
@@ -58,8 +56,10 @@ class Lamino(CachedFFT, Operator):
         self.gather_kernel = cp.RawKernel(_cu_source, "gather")
         return self
 
-    def fwd(self, u, **kwargs):
+    def fwd(self, u, theta, **kwargs):
         """Perform the forward Laminography transform."""
+
+        xi = self._make_grids(theta)
 
         def gather(xp, Fe, x, n, m, mu):
             return self.gather(Fe, x, n, m, mu)
@@ -68,8 +68,8 @@ class Lamino(CachedFFT, Operator):
             return self._fftn(*args, overwrite=True, **kwargs)
 
         # USFFT from equally-spaced grid to unequally-spaced grid
-        F = eq2us(u, self.xi, self.n, self.eps, self.xp, gather,
-                  fftn).reshape([self.ntheta, self.n, self.n])
+        F = eq2us(u, xi, self.n, self.eps, self.xp, gather,
+                  fftn).reshape([theta.shape[-1], self.n, self.n])
 
         # Inverse 2D FFT
         data = checkerboard(
@@ -88,8 +88,10 @@ class Lamino(CachedFFT, Operator):
         )
         return data
 
-    def adj(self, data, overwrite=False, **kwargs):
+    def adj(self, data, theta, overwrite=False, **kwargs):
         """Perform the adjoint Laminography transform."""
+
+        xi = self._make_grids(theta)
 
         def scatter(xp, f, x, n, m, mu):
             return self.scatter(f, x, n, m, mu)
@@ -114,7 +116,7 @@ class Lamino(CachedFFT, Operator):
         ).ravel()
         # Inverse (x->-x) USFFT from unequally-spaced grid to equally-spaced
         # grid
-        u = us2eq(F, -self.xi, self.n, self.eps, self.xp, scatter, fftn)
+        u = us2eq(F, -xi, self.n, self.eps, self.xp, scatter, fftn)
         u /= self.n**2
         return u
 
@@ -152,13 +154,22 @@ class Lamino(CachedFFT, Operator):
         ))
         return F
 
-    def cost(self, data, obj):
+    def cost(self, data, theta, obj):
         "Cost function for the least-squres laminography problem"
-        return self.xp.linalg.norm((self.fwd(obj) - data).ravel())**2
+        return self.xp.linalg.norm((self.fwd(
+            u=obj,
+            theta=theta,
+        ) - data).ravel())**2
 
-    def grad(self, data, obj):
+    def grad(self, data, theta, obj):
         "Gradient for the least-squares laminography problem"
-        return self.adj(data=self.fwd(obj) - data) / (self.ntheta * self.n**3)
+        return self.adj(
+            data=self.fwd(
+                u=obj,
+                theta=theta,
+            ) - data,
+            theta=theta,
+        ) / (data.shape[-3] * self.n**3)
 
     def _make_grids(self, theta):
         """Return (ntheta*n*n, 3) unequally-spaced frequencies for the USFFT."""
@@ -166,9 +177,10 @@ class Lamino(CachedFFT, Operator):
                                  -self.n // 2:self.n // 2] / self.n
         ku = ku.ravel().astype('float32')
         kv = kv.ravel().astype('float32')
-        xi = self.xp.zeros([self.ntheta, self.n * self.n, 3], dtype='float32')
+        xi = self.xp.zeros([theta.shape[-1], self.n * self.n, 3],
+                           dtype='float32')
         ctilt, stilt = self.xp.cos(self.tilt), self.xp.sin(self.tilt)
-        for itheta in range(self.ntheta):
+        for itheta in range(theta.shape[-1]):
             ctheta = self.xp.cos(theta[itheta])
             stheta = self.xp.sin(theta[itheta])
             xi[itheta, :, 2] = ku * ctheta + kv * stheta * ctilt
@@ -178,4 +190,4 @@ class Lamino(CachedFFT, Operator):
         xi[xi >= 0.5] = 0.5 - 1e-5
         xi[xi < -0.5] = -0.5 + 1e-5
 
-        return xi.reshape(self.ntheta * self.n * self.n, 3)
+        return xi.reshape(theta.shape[-1] * self.n * self.n, 3)
