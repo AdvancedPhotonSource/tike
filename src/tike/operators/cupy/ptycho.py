@@ -129,7 +129,7 @@ class Ptycho(Operator):
             overwrite=True,
         )[..., None, :, :, :]
 
-    def _compute_intensity(self, data, psi, scan, probe, n=-1, mode=None):
+    def _compute_intensity(self, data, psi, scan, probe):
         """Compute detector intensities replacing the nth probe mode"""
         farplane = self.fwd(
             psi=psi,
@@ -141,7 +141,7 @@ class Ptycho(Operator):
             axis=(2, 3),
         ), farplane
 
-    def cost(self, data, psi, scan, probe, n=-1, mode=None) -> float:
+    def cost(self, data, psi, scan, probe) -> float:
         intensity, _ = self._compute_intensity(data, psi, scan, probe)
         return self.propagation.cost(data, intensity)
 
@@ -161,14 +161,23 @@ class Ptycho(Operator):
         )
         return grad_obj
 
-    def grad_probe(self, data, psi, scan, probe, n=-1, mode=None):
+    def grad_probe(self, data, psi, scan, probe, mode=None):
+        """Compute the gradient with respect to the probe(s).
+
+        Parameters
+        ----------
+        mode : list(int)
+            Only return the gradient with resepect to these probes.
+
+        """
+        mode = list(range(probe.shape[-3])) if mode is None else mode
         intensity, farplane = self._compute_intensity(data, psi, scan, probe)
         # Use the average gradient for all probe positions
         return self.xp.mean(
             self.adj_probe(
                 farplane=self.propagation.grad(
                     data,
-                    farplane,
+                    farplane[..., mode, :, :],
                     intensity,
                 ),
                 psi=psi,
@@ -178,32 +187,3 @@ class Ptycho(Operator):
             axis=1,
             keepdims=True,
         )
-
-    def grad(self, data, psi, scan, probe):
-        intensity, farplane = self._compute_intensity(data, psi, scan, probe)
-        nearplane = self.propagation.adj(
-            self.propagation.grad(
-                data,
-                farplane,
-                intensity,
-                overwrite=True,
-            ),
-            overwrite=True,
-        )[..., 0, :, :, :]
-        grad_probe = self.xp.mean(
-            self.diffraction.adj_probe(
-                psi=psi,
-                scan=scan,
-                nearplane=nearplane,
-            )[..., None, :, :, :],
-            axis=1,
-            keepdims=True,
-        )
-        grad_obj = self.diffraction.adj(
-            nearplane=nearplane,
-            probe=probe[..., 0, :, :, :],
-            scan=scan,
-            overwrite=True,
-            psi=self.xp.zeros_like(psi),
-        )
-        return grad_obj, grad_probe
