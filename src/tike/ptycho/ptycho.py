@@ -135,6 +135,7 @@ def compute_intensity(
         )
     return intensity
 
+
 def simulate(
         detector_shape,
         probe, scan,
@@ -185,6 +186,7 @@ def simulate(
         data = compute_intensity(operator, psi, scan, probe, eigen_weights,
                                  eigen_probe, fly)
         return operator.asnumpy(data.real)
+
 
 def reconstruct(
         data,
