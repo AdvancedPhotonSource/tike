@@ -2,7 +2,7 @@ import logging
 
 import numpy as np
 
-from tike.opt import conjugate_gradient, line_search, direction_dy
+from tike.opt import conjugate_gradient
 from tike.linalg import orthogonalize_gs
 
 from ..position import update_positions_pd
