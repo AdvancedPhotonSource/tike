@@ -40,22 +40,22 @@ class Ptycho(Operator):
 
     Parameters
     ----------
-    psi : (ntheta, nz, n) complex64
+    psi : (..., nz, n) complex64
         The complex wavefront modulation of the object.
     probe : complex64
-        The complex (ntheta, nscan , 1, 1, probe_shape,
+        The complex (..., nscan, 1, 1, probe_shape,
         probe_shape) illumination function.
     mode : complex64
-        A single (ntheta, nscan , 1, 1, probe_shape, probe_shape)
+        A single (..., nscan, 1, 1, probe_shape, probe_shape)
         probe mode.
     nearplane, farplane: complex64
-        The (ntheta, nscan , 1, 1, detector_shape, detector_shape)
+        The (..., nscan, 1, 1, detector_shape, detector_shape)
         wavefronts exiting the object and hitting the detector respectively.
     data, intensity : float32
-        The (ntheta, nframe, detector_shape, detector_shape)
+        The (..., nframe, detector_shape, detector_shape)
         square of the absolute value of `farplane` summed over `fly` and
         `modes`.
-    scan : (ntheta, nscan, 2) float32
+    scan : (..., nscan, 2) float32
         Coordinates of the minimum corner of the probe grid for each
         measurement in the coordinate system of psi. Vertical coordinates
         first, horizontal coordinates second.
@@ -103,18 +103,18 @@ class Ptycho(Operator):
             self.diffraction.fwd(
                 psi=psi,
                 scan=scan,
-                probe=probe,
+                probe=probe[..., 0, 0, :, :],
             ),
             overwrite=True,
-        )
+        )[..., None, None, :, :]
 
     def adj(self, farplane, probe, scan, overwrite=False, **kwargs):
         return self.diffraction.adj(
             nearplane=self.propagation.adj(
                 farplane,
                 overwrite=overwrite,
-            ),
-            probe=probe,
+            )[..., 0, 0, :, :],
+            probe=probe[..., 0, 0, :, :],
             scan=scan,
             overwrite=True,
         )
@@ -126,9 +126,9 @@ class Ptycho(Operator):
             nearplane=self.propagation.adj(
                 farplane=farplane,
                 overwrite=overwrite,
-            ),
+            )[..., 0, 0, :, :],
             overwrite=True,
-        )
+        )[..., None, None, :, :]
 
     def _compute_intensity(self, data, psi, scan, probe, n=-1, mode=None):
         """Compute detector intensities replacing the nth probe mode"""
