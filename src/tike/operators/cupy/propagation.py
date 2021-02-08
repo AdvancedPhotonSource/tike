@@ -75,8 +75,13 @@ class Propagation(CachedFFT, Operator):
 
     # COST FUNCTIONS AND GRADIENTS --------------------------------------------
 
+    # NOTE: We use mean instead of sum so that cost functions may be compared
+    # when mini-batches of different sizes are used.
+
     def _gaussian_cost(self, data, intensity):
-        return np.linalg.norm(np.ravel(np.sqrt(intensity) - np.sqrt(data)))**2
+        diff = np.sqrt(intensity) - np.sqrt(data)
+        diff *= diff.conj()
+        return np.mean(diff)
 
     def _gaussian_grad(self, data, farplane, intensity, overwrite=False):
         return farplane * (
@@ -84,7 +89,7 @@ class Propagation(CachedFFT, Operator):
         )[:, :, np.newaxis, np.newaxis]  # yapf:disable
 
     def _poisson_cost(self, data, intensity):
-        return np.sum(intensity - data * np.log(intensity + 1e-32))
+        return np.mean(intensity - data * np.log(intensity + 1e-32))
 
     def _poisson_grad(self, data, farplane, intensity, overwrite=False):
         return farplane * (
