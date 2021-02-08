@@ -107,7 +107,7 @@ class ThreadPool(ThreadPoolExecutor):
         with cp.cuda.Device(worker):
             for part in x[:worker]:
                 x[worker] += self._copy_to(part, worker)
-            for part in x[(worker+1):]:
+            for part in x[(worker + 1):]:
                 x[worker] += self._copy_to(part, worker)
             return x[worker]
 
@@ -124,4 +124,4 @@ class ThreadPool(ThreadPoolExecutor):
             with cp.cuda.Device(worker):
                 return func(*args, **kwargs)
 
-        return super().map(f, self.workers, *iterables)
+        return list(super().map(f, self.workers, *iterables))
