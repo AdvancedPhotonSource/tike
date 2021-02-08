@@ -117,7 +117,7 @@ def _update_probe(op, comm, data, psi, scan, probe, num_iter, step_length,
         dir_multi=dir_multi,
         update_multi=update_multi,
         num_iter=num_iter,
-        step_length=1,
+        step_length=step_length,
     )
 
     if probe[0].shape[-3] > 1 and probe_is_orthogonal:
