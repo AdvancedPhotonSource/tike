@@ -2,7 +2,7 @@ import logging
 
 import cupy as cp
 
-from tike.linalg import lstsq, projection, norm
+from tike.linalg import lstsq, projection, norm, orthogonalize_gs
 
 from ..position import update_positions_pd
 from ..probe import orthogonalize_eig, get_varying_probe, update_eigen_probe
@@ -18,6 +18,7 @@ def lstsq_grad(
     cost=None,
     eigen_probe=None,
     eigen_weights=None,
+    probe_is_orthogonal=False,
 ):  # yapf: disable
     """Solve the ptychography problem using Odstrcil et al's approach.
 
@@ -204,6 +205,9 @@ def lstsq_grad(
             )[..., None, None, :, :]
             logger.info('%10s cost is %+12.5e', 'nearplane',
                         norm(cprobe * patches - nearplane))
+
+    if probe.shape[-3] > 1 and probe_is_orthogonal:
+        probe = orthogonalize_gs(probe, axis=(-2, -1))
 
     result = {
         'psi': [psi],
