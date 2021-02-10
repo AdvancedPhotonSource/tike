@@ -27,6 +27,11 @@ def batch_indicies(n, m=1, use_random=False):
     return np.array_split(i, m)
 
 
+def collect_batch(x, b, n):
+    """Returns x[:, b[n]] for use with map()."""
+    return x[:, b[n]]
+
+
 def line_search(
     f,
     x,

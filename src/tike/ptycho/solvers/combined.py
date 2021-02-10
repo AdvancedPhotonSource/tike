@@ -3,7 +3,7 @@ import logging
 import numpy as np
 
 from tike.linalg import orthogonalize_gs
-from tike.opt import conjugate_gradient, batch_indicies
+from tike.opt import conjugate_gradient, batch_indicies, collect_batch
 from ..position import update_positions_pd
 
 logger = logging.getLogger(__name__)
@@ -40,8 +40,8 @@ def cgrad(
     ]
     for n in range(num_batch):
 
-        bdata = [d[:, b[n]] for b, d in zip(batches, data)]
-        bscan = [s[:, b[n]] for b, s in zip(batches, scan)]
+        bdata = comm.pool.map(collect_batch, data, batches, n=n)
+        bscan = comm.pool.map(collect_batch, scan, batches, n=n)
 
         if recover_psi:
             psi, cost = _update_object(
