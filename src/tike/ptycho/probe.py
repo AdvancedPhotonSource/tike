@@ -41,7 +41,7 @@ import numpy as np
 import tike.random
 
 
-def get_varying_probe(shared_probe, m=None, eigen_probe=None, weights=None):
+def get_varying_probe(shared_probe, eigen_probe=None, weights=None, m=None):
     """Construct the varying m-th probes.
 
     Parameters

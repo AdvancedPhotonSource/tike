@@ -118,7 +118,7 @@ def compute_intensity(
     intensity = 0
     for m in range(probe.shape[-3]):
         farplane = operator.fwd(
-            probe=get_varying_probe(probe, m, eigen_probe, eigen_weights),
+            probe=get_varying_probe(probe, eigen_probe, eigen_weights, m=m),
             scan=scan,
             psi=psi,
         )
@@ -194,7 +194,6 @@ def reconstruct(
         algorithm,
         psi=None, num_gpu=1, num_iter=1, rtol=-1,
         model='gaussian', use_mpi=False, cost=None, times=None,
-        batch_size=None, subset_is_random=None,
         eigen_probe=None, eigen_weights=None,
         **kwargs
 ):  # yapf: disable
@@ -229,36 +228,19 @@ def reconstruct(
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[-3:],
                                              num_iter))
-            # Divide the inputs into regions and mini-batches
-            num_batch = 1
-            if batch_size is not None:
-                num_batch = max(
-                    1,
-                    int(data.shape[1] / batch_size / comm.pool.num_workers),
-                )
+            # Divide the inputs into regions
             odd_pool = comm.pool.num_workers % 2
-            order = np.arange(data.shape[1])
-            order, data, scan, eigen_weights = split_by_scan_grid(
-                order,
-                data,
-                scan,
+            order, scan, data, eigen_weights = split_by_scan_grid(
+                comm.pool,
                 (
                     comm.pool.num_workers
                     if odd_pool else comm.pool.num_workers // 2,
                     1 if odd_pool else 2,
                 ),
-                eigen_weights=eigen_weights,
-            )
-            order, data, scan, eigen_weights = zip(*comm.pool.map(
-                _make_mini_batches,
-                order,
-                data,
                 scan,
+                data,
                 eigen_weights,
-                num_batch=num_batch,
-                subset_is_random=subset_is_random,
-            ))
-
+            )
             result = {
                 'psi':
                     comm.pool.bcast(psi.astype('complex64')),
@@ -267,6 +249,10 @@ def reconstruct(
                 'eigen_probe':
                     comm.pool.bcast(eigen_probe.astype('complex64'))
                     if eigen_probe is not None else None,
+                'scan':
+                    scan,
+                'eigen_weights':
+                    eigen_weights,
             }
             for key, value in kwargs.items():
                 if np.ndim(value) > 0:
@@ -276,9 +262,9 @@ def reconstruct(
                 _rescale_obj_probe(
                     operator,
                     comm,
-                    data[0][0],
+                    data[0],
                     result['psi'][0],
-                    scan[0][0],
+                    scan[0],
                     result['probe'][0],
                 ))
 
@@ -289,22 +275,15 @@ def reconstruct(
 
                 logger.info(f"{algorithm} epoch {i:,d}")
 
-                for b in randomizer.permutation(num_batch):
-                    kwargs.update(result)
-                    kwargs['scan'] = [s[b] for s in scan]
-                    kwargs['eigen_weights'] = [w[b] for w in eigen_weights]
-                    result = getattr(solvers, algorithm)(
-                        operator,
-                        comm,
-                        data=[d[b] for d in data],
-                        **kwargs,
-                    )
-                    if result['cost'] is not None:
-                        costs.append(result['cost'])
-                    for g in range(comm.pool.num_workers):
-                        scan[g][b] = result['scan'][g]
-                        eigen_weights[g][b] = result['eigen_weights'][
-                            g] if 'eigen_weights' in result else None
+                kwargs.update(result)
+                result = getattr(solvers, algorithm)(
+                    operator,
+                    comm,
+                    data=data,
+                    **kwargs,
+                )
+                if result['cost'] is not None:
+                    costs.append(result['cost'])
 
                 times.append(time.perf_counter() - start)
                 start = time.perf_counter()
@@ -316,15 +295,11 @@ def reconstruct(
                         "iterations.", rtol, i)
                     break
 
-            reorder = np.argsort(
-                np.concatenate(list(chain.from_iterable(order))))
-            result['scan'] = comm.pool.gather(
-                list(comm.pool.map(cp.concatenate, scan, axis=1)),
-                axis=1,
-            )[:, reorder]
+            reorder = np.argsort(np.concatenate(order))
+            result['scan'] = comm.pool.gather(scan, axis=1)[:, reorder]
             if 'eigen_weights' in result:
                 result['eigen_weights'] = comm.pool.gather(
-                    list(comm.pool.map(cp.concatenate, eigen_weights, axis=1)),
+                    eigen_weights,
                     axis=1,
                 )[:, reorder]
                 result['eigen_probe'] = result['eigen_probe'][0]
@@ -338,46 +313,6 @@ def reconstruct(
     else:
         raise ValueError(f"The '{algorithm}' algorithm is not an option.\n"
                          f"\tAvailable algorithms are : {solvers.__all__}")
-
-
-def _make_mini_batches(
-    order,
-    data,
-    scan,
-    eigen_weights=None,
-    num_batch=1,
-    subset_is_random=True,
-):
-    """Divide ptycho-inputs into mini-batches along position dimension.
-
-    Parameters
-    ----------
-    data : (M, N, ...)
-    scan : (M, N, 2)
-    probe : (M, N, ...), (M, 1, ...)
-
-    Returns
-    -------
-    data, scan
-        The inputs shuffled in the same way.
-    """
-    logger.info(f'Split data into {num_batch} mini-batches.')
-    # FIXME: fly positions must stay together
-    if subset_is_random:
-        indices = randomizer.permutation(data.shape[1])
-    else:
-        indices = np.arange(data.shape[1])
-    indices = np.array_split(indices, num_batch)
-    order = [order[i] for i in indices]
-    data = [cp.asarray(data[:, i], dtype='float32') for i in indices]
-    scan = [cp.asarray(scan[:, i], dtype='float32') for i in indices]
-    if eigen_weights is not None:
-        eigen_weights = [
-            cp.asarray(eigen_weights[:, i], dtype='float32') for i in indices
-        ]
-    else:
-        eigen_weights = [None for i in indices]
-    return order, data, scan, eigen_weights
 
 
 def _rescale_obj_probe(operator, comm, data, psi, scan, probe):
@@ -395,25 +330,29 @@ def _rescale_obj_probe(operator, comm, data, psi, scan, probe):
     return probe
 
 
-def split_by_scan_grid(order, data, scan, shape, eigen_weights=None, fly=1):
-    """ split the field of view into a 2D grid.
+def split_by_scan_grid(pool, shape, scan, *args, fly=1):
+    """Split the field of view into a 2D grid.
 
     Mask divide the data into a 2D grid of spatially contiguous regions.
 
     Parameters
     ----------
-    data : (ntheta, nframe, ...)
-    probe : (ntheta, nscan, ...)
-    scan : (ntheta, nscan, 2) float32
-        The 2D coordinates of the scan positions.
     shape : tuple of int
         The number of grid divisions along each dimension.
+    scan : (ntheta, nscan, 2) float32
+        The 2D coordinates of the scan positions.
+    args : (ntheta, nscan, ...) float32
+        The arrays to be split by scan position.
     fly : int
         The number of scan positions per frame.
 
     Returns
     -------
-    data, scan, probe : List[array]
+    order : List[array[int]]
+        The locations of the inputs in the original arrays.
+    scan : List[array[float32]]
+        The divided 2D coordinates of the scan positions.
+    args : List[array[float32]]
         Each input divided into regions.
     """
     if len(shape) != 2:
@@ -421,14 +360,16 @@ def split_by_scan_grid(order, data, scan, shape, eigen_weights=None, fly=1):
     vstripes = split_by_scan_stripes(scan, shape[0], axis=0, fly=fly)
     hstripes = split_by_scan_stripes(scan, shape[1], axis=1, fly=fly)
     mask = [np.logical_and(*pair) for pair in product(vstripes, hstripes)]
+
+    order = np.arange(scan.shape[1])
     order = [order[m] for m in mask]
-    data = [data[:, m] for m in mask]
-    scan = [scan[:, m] for m in mask]
-    if eigen_weights is not None:
-        eigen_weights = [eigen_weights[:, m] for m in mask]
-    else:
-        eigen_weights = [None for m in mask]
-    return order, data, scan, eigen_weights
+
+    def split(m, x):
+        return None if x is None else cp.asarray(x[:, m], dtype='float32')
+
+    split_args = [list(pool.map(split, mask, x=arg)) for arg in [scan, *args]]
+
+    return (order, *split_args)
 
 
 def split_by_scan_stripes(scan, n, fly=1, axis=0):

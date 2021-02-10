@@ -16,6 +16,17 @@ logger = logging.getLogger(__name__)
 randomizer = np.random.default_rng()
 
 
+def batch_indicies(n, m=1, use_random=False):
+    """Return list of indices [0...n) as m groups.
+
+    >>> batch_indicies(10, 3)
+    [array([2, 4, 7, 3]), array([1, 8, 9]), array([6, 5, 0])]
+    """
+    assert 0 < m and m <= n, (m, n)
+    i = randomizer.permutation(n) if use_random else np.arange(n)
+    return np.array_split(i, m)
+
+
 def line_search(
     f,
     x,
