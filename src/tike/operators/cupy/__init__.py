@@ -11,6 +11,7 @@ from .flow import *
 from .lamino import *
 from .operator import *
 from .pad import *
+from .patch import *
 from .propagation import *
 from .ptycho import *
 from .shift import *
@@ -23,6 +24,7 @@ __all__ = (
     'Lamino',
     'Operator',
     'Pad',
+    'Patch',
     'Propagation',
     'Ptycho',
     'Rotate',

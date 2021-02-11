@@ -135,6 +135,7 @@ def compute_intensity(
         )
     return intensity
 
+
 def simulate(
         detector_shape,
         probe, scan,
@@ -185,6 +186,7 @@ def simulate(
         data = compute_intensity(operator, psi, scan, probe, eigen_weights,
                                  eigen_probe, fly)
         return operator.asnumpy(data.real)
+
 
 def reconstruct(
         data,
@@ -383,7 +385,7 @@ def _make_mini_batches(
 def _rescale_obj_probe(operator, comm, data, psi, scan, probe):
     """Keep the object amplitude around 1 by scaling probe by a constant."""
 
-    intensity = operator._compute_intensity(data, psi, scan, probe)
+    intensity, _ = operator._compute_intensity(data, psi, scan, probe)
 
     rescale = (np.linalg.norm(np.ravel(np.sqrt(data))) /
                np.linalg.norm(np.ravel(np.sqrt(intensity))))

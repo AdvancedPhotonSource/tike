@@ -22,6 +22,7 @@ class TestConvolution(unittest.TestCase, OperatorTests):
 
         self.ntheta = 3
         self.nscan = 27
+        self.nprobe = 3
         self.original_shape = (self.ntheta, 128, 128)
         self.probe_shape = 15
         self.detector_shape = self.probe_shape * 3
@@ -40,10 +41,10 @@ class TestConvolution(unittest.TestCase, OperatorTests):
         np.random.seed(0)
         scan = np.random.rand(self.ntheta, self.nscan, 2) * (127 - 15 - 1)
         original = random_complex(*self.original_shape)
-        nearplane = random_complex(self.ntheta, self.nscan, 1, 1,
+        nearplane = random_complex(self.ntheta, self.nscan, self.nprobe,
                                    self.detector_shape, self.detector_shape)
-        kernel = random_complex(self.ntheta, self.nscan, 1, 1, self.probe_shape,
-                                self.probe_shape)
+        kernel = random_complex(self.ntheta, self.nscan, self.nprobe,
+                                self.probe_shape, self.probe_shape)
 
         self.m = self.xp.asarray(original, dtype='complex64')
         self.m_name = 'psi'

@@ -3,6 +3,8 @@ import logging
 import numpy as np
 
 from tike.opt import conjugate_gradient
+from tike.linalg import orthogonalize_gs
+
 from ..position import update_positions_pd
 
 logger = logging.getLogger(__name__)
@@ -16,6 +18,8 @@ def cgrad(
     cost=None,
     eigen_probe=None,
     eigen_weights=None,
+    step_length=1,
+    probe_is_orthogonal=False,
 ):  # yapf: disable
     """Solve the ptychography problem using conjugate gradient.
 
@@ -41,20 +45,22 @@ def cgrad(
             rho,
             reg,
             num_iter=cg_iter,
+            step_length=step_length,
         )
 
     if recover_probe:
-        # TODO: add multi-GPU support
         probe, cost = _update_probe(
             op,
             comm,
-            comm.pool.gather(data, axis=1),
-            psi[0],
-            comm.pool.gather(scan, axis=1),
-            probe[0],
+            data,
+            psi,
+            scan,
+            probe,
             num_iter=cg_iter,
+            step_length=step_length,
+            probe_is_orthogonal=probe_is_orthogonal,
+            mode=list(range(probe[0].shape[-3])),
         )
-        probe = comm.pool.bcast(probe)
 
     if recover_positions and comm.pool.num_workers == 1:
         scan, cost = update_positions_pd(
@@ -69,66 +75,62 @@ def cgrad(
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 
 
-def _compute_intensity(op, psi, scan, probe):
-    farplane = op.fwd(
-        psi=psi,
-        scan=scan,
-        probe=probe,
-    )
-    return op.xp.sum(
-        op.xp.square(op.xp.abs(farplane)),
-        axis=(2, 3),
-    ), farplane
-
-
-def _update_probe(op, comm, data, psi, scan, probe, num_iter=1):
+def _update_probe(op, comm, data, psi, scan, probe, num_iter, step_length,
+                  probe_is_orthogonal, mode):
     """Solve the probe recovery problem."""
 
-    # TODO: Cache object patches between mode updates
-    intensity = [
-        _compute_intensity(op, psi, scan, probe[..., m:m + 1, :, :])[0]
-        for m in range(probe.shape[-3])
-    ]
-    intensity = op.xp.array(intensity)
+    def cost_function(probe):
+        cost_out = comm.pool.map(op.cost, data, psi, scan, probe)
+        if comm.use_mpi:
+            return comm.Allreduce_reduce(cost_out, 'cpu')
+        else:
+            return comm.reduce(cost_out, 'cpu')
 
-    for m in range(probe.shape[-3]):
-
-        def cost_function(mode):
-            intensity[m], _ = _compute_intensity(op, psi, scan, mode)
-            return op.propagation.cost(data, op.xp.sum(intensity, axis=0))
-
-        def grad(mode):
-            intensity[m], farplane = _compute_intensity(op, psi, scan, mode)
-            # Use the average gradient for all probe positions
-            return op.xp.mean(
-                op.adj_probe(
-                    farplane=op.propagation.grad(
-                        data,
-                        farplane,
-                        op.xp.sum(intensity, axis=0),
-                    ),
-                    psi=psi,
-                    scan=scan,
-                    overwrite=True,
-                ),
-                axis=1,
-                keepdims=True,
-            )
-
-        probe[..., m:m + 1, :, :], cost = conjugate_gradient(
-            op.xp,
-            x=probe[..., m:m + 1, :, :],
-            cost_function=cost_function,
-            grad=grad,
-            num_iter=num_iter,
-            step_length=4,
+    def grad(probe):
+        grad_list = comm.pool.map(
+            op.grad_probe,
+            data,
+            psi,
+            scan,
+            probe,
+            mode=mode,
         )
+        if comm.use_mpi:
+            return comm.Allreduce_reduce(grad_list, 'gpu')
+        else:
+            return comm.reduce(grad_list, 'gpu')
+
+    def dir_multi(dir):
+        """Scatter dir to all GPUs"""
+        return comm.pool.bcast(dir)
+
+    def update_multi(x, gamma, d):
+
+        def f(x, d):
+            return x[..., mode, :, :] + gamma * d
+
+        return comm.pool.map(f, x, d)
+
+    probe, cost = conjugate_gradient(
+        op.xp,
+        x=probe,
+        cost_function=cost_function,
+        grad=grad,
+        dir_multi=dir_multi,
+        update_multi=update_multi,
+        num_iter=num_iter,
+        step_length=step_length,
+    )
+
+    if probe[0].shape[-3] > 1 and probe_is_orthogonal:
+        probe = comm.pool.map(orthogonalize_gs, probe, axis=(-2, -1))
 
     logger.info('%10s cost is %+12.5e', 'probe', cost)
     return probe, cost
 
 
-def _update_object(op, comm, data, psi, scan, probe, rho, reg, num_iter=1):
+def _update_object(op, comm, data, psi, scan, probe, rho, reg, num_iter,
+                   step_length):
     """Solve the object recovery problem."""
 
     def cost_function_multi(psi, **kwargs):
@@ -143,8 +145,7 @@ def _update_object(op, comm, data, psi, scan, probe, rho, reg, num_iter=1):
         return result
 
     def grad_multi(psi):
-        grad_out = comm.pool.map(op.grad, data, psi, scan, probe)
-        grad_list = list(grad_out)
+        grad_list = comm.pool.map(op.grad_psi, data, psi, scan, probe)
         if comm.use_mpi:
             result = comm.Allreduce_reduce(grad_list, 'gpu')
         else:
@@ -172,7 +173,7 @@ def _update_object(op, comm, data, psi, scan, probe, rho, reg, num_iter=1):
         dir_multi=dir_multi,
         update_multi=update_multi,
         num_iter=num_iter,
-        step_length=8e-5,
+        step_length=step_length,
     )
 
     logger.info('%10s cost is %+12.5e', 'object', cost)

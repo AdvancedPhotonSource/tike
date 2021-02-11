@@ -21,7 +21,8 @@ class TestPtycho(unittest.TestCase, OperatorTests):
         """Load a dataset for reconstruction."""
         self.nscan = nscan
         self.ntheta = ntheta
-        self.probe_shape = (ntheta, nscan, 1, 1, pw, pw)
+        self.nprobe = 3
+        self.probe_shape = (ntheta, nscan, 1, self.nprobe, pw, pw)
         self.detector_shape = (pw * 3, pw * 3)
         self.original_shape = (ntheta, 128, 128)
         self.scan_shape = (ntheta, nscan, 2)
