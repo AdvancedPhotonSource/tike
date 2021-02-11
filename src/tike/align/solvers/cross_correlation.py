@@ -36,7 +36,7 @@ def cross_correlation(
     upsample_factor=1,
     space="real",
     num_iter=None,
-    reg_weight=1e-6,
+    reg_weight=1e-9,
 ):
     """Efficient subpixel image translation alignment by cross-correlation.
 
