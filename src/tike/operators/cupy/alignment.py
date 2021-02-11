@@ -60,6 +60,7 @@ class Alignment(Operator):
                         cval=cval,
                     ),
                     shift=shift,
+                    cval=cval,
                 ),
                 flow=flow,
                 cval=cval,
@@ -90,6 +91,35 @@ class Alignment(Operator):
                     cval=cval,
                 ),
                 shift=shift,
+                cval=cval,
+            ),
+            unpadded_shape=unpadded_shape,
+            cval=cval,
+        )
+
+    def inv(
+        self,
+        rotated,
+        flow,
+        shift,
+        unpadded_shape,
+        angle,
+        padded_shape=None,
+        cval=0.0,
+    ):
+        return self.pad.adj(
+            padded=self.shift.adj(
+                a=self.flow.fwd(
+                    g=self.rotate.fwd(
+                        rotated=rotated,
+                        angle=-angle,
+                        cval=cval,
+                    ),
+                    flow=-flow,
+                    cval=cval,
+                ),
+                shift=shift,
+                cval=cval,
             ),
             unpadded_shape=unpadded_shape,
             cval=cval,
