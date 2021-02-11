@@ -1,11 +1,15 @@
 import logging
 
+import dxchange
+import numpy as np
+
 import tike.ptycho
 
 logger = logging.getLogger(__name__)
 
 
 def subproblem(
+    comm,
     # constants
     data,
     λ_p,
@@ -41,5 +45,17 @@ def subproblem(
     )
 
     logger.info("No update for ptychography lambdas and rhos")
+
+    if comm.rank == 0 and save_result:
+        dxchange.write_tiff(
+            np.abs(presult['psi']),
+            f'{folder}/psi-abs-{save_result:03d}.tiff',
+            dtype='float32',
+        )
+        dxchange.write_tiff(
+            np.angle(presult['psi']),
+            f'{folder}/psi-angle-{save_result:03d}.tiff',
+            dtype='float32',
+        )
 
     return presult
