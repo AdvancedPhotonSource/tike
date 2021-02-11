@@ -21,6 +21,7 @@ def subproblem(
     ρ_l,
     Hu0=None,
     # parameters
+    num_iter=1,
     cg_iter=1,
     folder=None,
     save_result=False,
@@ -46,6 +47,7 @@ def subproblem(
     # Gather all to one process
     λ_l, phi, theta = [comm.gather(x) for x in (λ_l, phi, theta)]
 
+    cost = None
     if comm.rank == 0:
         if save_result:
             # We cannot reorder phi, theta without ruining correspondence
@@ -68,15 +70,16 @@ def subproblem(
             tilt=tilt,
             obj=u,
             algorithm='cgrad',
-            num_iter=1,
+            num_iter=num_iter,
             cg_iter=cg_iter,
             num_gpu=comm.size,
         )
         u = lresult['obj']
+        cost = lresult['cost']
 
     # Separate again to multiple processes
     λ_l, phi, theta = [comm.scatter(x) for x in (λ_l, phi, theta)]
-    u = comm.broadcast(u)
+    # u = comm.broadcast(u)  # volume too large to fit in MPI buffer
 
     Hu = np.exp(1j * tike.lamino.simulate(
         obj=u,
@@ -121,4 +124,5 @@ def subproblem(
         λ_l,
         ρ_l,
         Hu0,
+        cost,
     )

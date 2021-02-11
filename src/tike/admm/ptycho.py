@@ -18,9 +18,11 @@ def subproblem(
     # updated
     presult,
     # parameters
+    num_iter=1,
     cg_iter=1,
     folder=None,
     save_result=False,
+    rescale=False,
 ):
     """Solve the ptychography subsproblem.
 
@@ -35,12 +37,13 @@ def subproblem(
         reg=λ_p / ρ_p - Aφ,
         rho=ρ_p,
         algorithm='cgrad',
-        num_iter=1,
+        num_iter=num_iter,
         cg_iter=cg_iter,
         recover_psi=True,
         recover_probe=True,
         recover_positions=False,
         model='gaussian',
+        rescale=rescale,
         **presult,
     )
 
