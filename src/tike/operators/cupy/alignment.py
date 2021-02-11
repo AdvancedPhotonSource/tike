@@ -110,12 +110,12 @@ class Alignment(Operator):
         return self.pad.adj(
             padded=self.shift.adj(
                 a=self.flow.fwd(
-                    g=self.rotate.fwd(
-                        rotated=rotated,
-                        angle=-angle,
+                    f=self.rotate.fwd(
+                        unrotated=rotated,
+                        angle=angle if angle is None else -angle,
                         cval=cval,
                     ),
-                    flow=-flow,
+                    flow=flow if flow is None else -flow,
                     cval=cval,
                 ),
                 shift=shift,

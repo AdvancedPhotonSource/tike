@@ -79,3 +79,5 @@ class Pad(Operator):
             assert hi0 <= padded.shape[-2] and hi1 <= padded.shape[-1]
             unpadded[i] = padded[i][lo0:hi0, lo1:hi1]
         return unpadded
+
+    inv = adj

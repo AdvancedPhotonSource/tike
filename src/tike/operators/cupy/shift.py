@@ -37,4 +37,6 @@ class Shift(CachedFFT, Operator):
     def adj(self, a, shift, overwrite=False, cval=None):
         if shift is None:
             return a
-        return self.fwd(a, -shift, overwrite=overwrite)
+        return self.fwd(a, -shift, overwrite=overwrite, cval=cval)
+
+    inv = adj

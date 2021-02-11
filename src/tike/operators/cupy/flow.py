@@ -133,3 +133,11 @@ class Flow(Operator):
             _remap_lanczos(f[i], coords[i], a, g[i], fwd=False, cval=cval)
 
         return f.reshape(shape)
+
+    def inv(self, g, flow, filter_size=5, cval=0.0):
+        return self.fwd(
+            g,
+            flow if flow is None else -flow,
+            filter_size,
+            cval,
+        )
