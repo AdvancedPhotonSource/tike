@@ -115,7 +115,7 @@ def lstsq_grad(
     return result
 
 
-def _update_nearplane(op, nearplane_, psi, scan_, probe, unique_probe,
+def _update_nearplane(op, nearplane, psi, scan_, probe, unique_probe,
                       eigen_probe, eigen_weights, recover_psi, recover_probe,
                       probe_is_orthogonal):
 
@@ -123,14 +123,9 @@ def _update_nearplane(op, nearplane_, psi, scan_, probe, unique_probe,
 
     for m in range(probe.shape[-3]):
 
-        nearplane = nearplane_[..., m:m + 1, pad:end, pad:end]
-
-        cprobe = probe[..., m:m + 1, :, :]
-        uprobe = unique_probe[..., m:m + 1, :, :]
-
         patches = op.diffraction.patch.fwd(
-            patches=cp.zeros(nearplane.shape, dtype='complex64')[..., 0,
-                                                                 0, :, :],
+            patches=cp.zeros(nearplane[..., m:m + 1, pad:end, pad:end].shape,
+                             dtype='complex64')[..., 0, 0, :, :],
             images=psi,
             positions=scan_,
         )[..., None, None, :, :]
@@ -138,12 +133,13 @@ def _update_nearplane(op, nearplane_, psi, scan_, probe, unique_probe,
         # χ (diff) is the target for the nearplane problem; the difference
         # between the desired nearplane and the current nearplane that we wish
         # to minimize.
-        diff = nearplane - uprobe * patches
+        diff = nearplane[..., m:m + 1, pad:end,
+                         pad:end] - unique_probe[..., m:m + 1, :, :] * patches
 
         logger.info('%10s cost is %+12.5e', 'nearplane', norm(diff))
 
         if recover_psi:
-            grad_psi = cp.conj(uprobe) * diff
+            grad_psi = cp.conj(unique_probe[..., m:m + 1, :, :]) * diff
 
             # (25b) Common object gradient. Use a weighted (normalized) sum
             # instead of division as described in publication to improve
@@ -159,7 +155,7 @@ def _update_nearplane(op, nearplane_, psi, scan_, probe, unique_probe,
                                                                    0, :, :],
                 images=common_grad_psi,
                 positions=scan_,
-            )[..., None, None, :, :] * uprobe
+            )[..., None, None, :, :] * unique_probe[..., m:m + 1, :, :]
             A1 = cp.sum((dOP * dOP.conj()).real + 0.5, axis=(-2, -1))
             A1 += 0.5 * cp.mean(A1, axis=-3, keepdims=True)
             b1 = cp.sum((dOP.conj() * diff).real, axis=(-2, -1))
@@ -248,22 +244,23 @@ def _update_nearplane(op, nearplane_, psi, scan_, probe, unique_probe,
         if recover_probe:
             step = x2[..., None, None]
 
+            weighted_step = cp.mean(step, axis=-5, keepdims=True)
+
             # (27a) Probe update
-            cprobe += common_grad_probe * cp.mean(
-                step,
-                axis=-5,
-                keepdims=True,
-            )
+            probe[..., m:m + 1, :, :] += weighted_step * common_grad_probe
 
         if __debug__:
             patches = op.diffraction.patch.fwd(
-                patches=cp.zeros(nearplane.shape, dtype='complex64')[..., 0,
-                                                                     0, :, :],
+                patches=cp.zeros(nearplane[..., m:m + 1, pad:end,
+                                           pad:end].shape,
+                                 dtype='complex64')[..., 0, 0, :, :],
                 images=psi,
                 positions=scan_,
             )[..., None, None, :, :]
-            logger.info('%10s cost is %+12.5e', 'nearplane',
-                        norm(cprobe * patches - nearplane))
+            logger.info(
+                '%10s cost is %+12.5e', 'nearplane',
+                norm(probe[..., m:m + 1, :, :] * patches -
+                     nearplane[..., m:m + 1, pad:end, pad:end]))
 
     if probe.shape[-3] > 1 and probe_is_orthogonal:
         probe = orthogonalize_gs(probe, axis=(-2, -1))
