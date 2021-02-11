@@ -1,5 +1,6 @@
 import logging
 
+from .admm import update_penalty
 import tike.align
 
 logger = logging.getLogger(__name__)
