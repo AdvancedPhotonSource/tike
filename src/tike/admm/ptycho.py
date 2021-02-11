@@ -12,8 +12,8 @@ def subproblem(
     comm,
     # constants
     data,
-    λ_p,
-    ρ_p,
+    λ,
+    ρ,
     Aφ,
     # updated
     presult,
@@ -34,8 +34,8 @@ def subproblem(
 
     presult = tike.ptycho.reconstruct(
         data=data,
-        reg=λ_p / ρ_p - Aφ,
-        rho=ρ_p,
+        reg=None if λ is None else λ / ρ - Aφ,
+        rho=ρ,
         algorithm='cgrad',
         num_iter=num_iter,
         cg_iter=cg_iter,

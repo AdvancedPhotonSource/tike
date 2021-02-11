@@ -24,6 +24,7 @@ def subproblem(
     # parameters
     align_method=False,
     cg_iter=1,
+    num_iter=1,
     folder=None,
     save_result=False,
 ):
@@ -43,12 +44,12 @@ def subproblem(
     save_result = False if folder is None else save_result
 
     aresult = tike.align.reconstruct(
-        unaligned=psi + λ_p / ρ_p,
+        unaligned=psi if λ_p is None else psi + λ_p / ρ_p,
         original=phi,
         flow=flow,
         shift=shift,
         angle=angle,
-        num_iter=cg_iter,
+        num_iter=cg_iter * num_iter,
         algorithm='cgrad',
         reg=Hu - λ_l / ρ_l,
         rho_p=ρ_p,
@@ -56,13 +57,16 @@ def subproblem(
         cval=1.0,
     )
     phi = aresult['original']
+    cost = aresult['cost']
 
     if align_method:
 
-        hi, lo = find_min_max(np.angle(psi + λ_p / ρ_p))
+        hi, lo = find_min_max(np.angle(psi if λ_p is None else psi + λ_p / ρ_p))
 
+        # TODO: Try combining rotation and flow because they use the same
+        # interpolator
         rotated = tike.align.simulate(
-            psi + λ_p / ρ_p,
+            psi if λ_p is None else psi + λ_p / ρ_p,
             angle=-angle,
             flow=None,
             shift=None,
@@ -90,42 +94,42 @@ def subproblem(
                 dtype='float32',
             )
 
-    if align_method.lower() == 'flow':
-        winsize = max(winsize - 1, 128)
-        logging.info("Estimate alignment using Farneback.")
-        fresult = tike.align.solvers.farneback(
-            op=None,
-            unaligned=np.angle(rotated),
-            original=np.angle(padded),
-            flow=flow,
-            pyr_scale=0.5,
-            levels=4,
-            winsize=winsize,
-            num_iter=32,
-            hi=hi,
-            lo=lo,
-        )
-        flow = fresult['flow']
-    elif align_method.lower() == 'tvl1':
-        logging.info("Estimate alignment using TV-L1.")
-        flow = optical_flow_tvl1(
-            unaligned=rotated,
-            original=padded,
-            num_iter=cg_iter,
-        )
-    elif align_method.lower() == 'xcor':
-        logging.info("Estimate rigid alignment with cross correlation.")
-        sresult = tike.align.reconstruct(
-            algorithm='cross_correlation',
-            unaligned=rotated,
-            original=padded,
-            upsample_factor=100,
-        )
-        # Limit shift change per iteration
-        if shift is None:
-            shift = np.clip(sresult['shift'], -16, 16)
-        else:
-            shift += np.clip(sresult['shift'] - shift, -16, 16)
+        if align_method.lower() == 'flow':
+            winsize = max(winsize - 1, 128)
+            logging.info("Estimate alignment using Farneback.")
+            fresult = tike.align.solvers.farneback(
+                op=None,
+                unaligned=np.angle(rotated),
+                original=np.angle(padded),
+                flow=flow,
+                pyr_scale=0.5,
+                levels=4,
+                winsize=winsize,
+                num_iter=32,
+                hi=hi,
+                lo=lo,
+            )
+            flow = fresult['flow']
+        elif align_method.lower() == 'tvl1':
+            logging.info("Estimate alignment using TV-L1.")
+            flow = optical_flow_tvl1(
+                unaligned=rotated,
+                original=padded,
+                num_iter=cg_iter,
+            )
+        elif align_method.lower() == 'xcor':
+            logging.info("Estimate rigid alignment with cross correlation.")
+            sresult = tike.align.reconstruct(
+                algorithm='cross_correlation',
+                unaligned=rotated,
+                original=padded,
+                upsample_factor=100,
+            )
+            # Limit shift change per iteration
+            if shift is None:
+                shift = np.clip(sresult['shift'], -16, 16)
+            else:
+                shift += np.clip(sresult['shift'] - shift, -16, 16)
 
     Aφ = tike.align.simulate(
         phi,
@@ -139,9 +143,10 @@ def subproblem(
 
     logger.info("Update alignment lambdas and rhos")
 
-    λ_p += ρ_p * ψAφ
+    if λ_p is not None:
+        λ_p += ρ_p * ψAφ
 
-    if Aφ0 is not None:
+    if ρ_p is not None and Aφ0 is not None:
         ρ_p = update_penalty(comm, psi, Aφ, Aφ0, ρ_p)
 
     Aφ0 = Aφ
@@ -153,4 +158,5 @@ def subproblem(
         flow,
         shift,
         Aφ0,
+        cost,
     )
