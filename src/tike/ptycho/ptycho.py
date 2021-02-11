@@ -194,6 +194,7 @@ def reconstruct(
         model='gaussian', use_mpi=False, cost=None, times=None,
         batch_size=None, subset_is_random=None,
         eigen_probe=None, eigen_weights=None,
+        rescale=True,
         **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
@@ -270,15 +271,16 @@ def reconstruct(
                 if np.ndim(value) > 0:
                     kwargs[key] = comm.pool.bcast(value)
 
-            result['probe'] = comm.pool.bcast(
-                _rescale_obj_probe(
-                    operator,
-                    comm,
-                    data[0][0],
-                    result['psi'][0],
-                    scan[0][0],
-                    result['probe'][0],
-                ))
+            if rescale:
+                result['probe'] = comm.pool.bcast(
+                    _rescale_obj_probe(
+                        operator,
+                        comm,
+                        data[0][0],
+                        result['psi'][0],
+                        scan[0][0],
+                        result['probe'][0],
+                    ))
 
             costs = []
             times = []
