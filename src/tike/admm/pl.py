@@ -6,6 +6,7 @@ import cupy as cp
 import tike.admm.alignment
 import tike.admm.lamino
 import tike.admm.ptycho
+import tike.align
 import tike.communicator
 
 from .admm import print_log_line
@@ -23,7 +24,7 @@ def ptycho_lamino(
     angle,
     w,
     flow=False,
-    shift=False,
+    shift=None,
     niter=1,
     interval=8,
     folder=None,
@@ -38,15 +39,9 @@ def ptycho_lamino(
     }
 
     u = np.zeros((w, w, w), dtype='complex64')
-    Hu = np.ones((len(theta), w, w), dtype='complex64')
-    phi = Hu
-    Aφ = np.ones(psi.shape, dtype='complex64')
-
+    Hu = np.ones_like(psi)
     λ_p = np.zeros_like(psi)
     ρ_p = 0.5
-
-    λ_l = np.zeros([len(theta), w, w], dtype='complex64')
-    ρ_l = 0.5
 
     comm = tike.communicator.MPICommunicator()
 
@@ -56,53 +51,53 @@ def ptycho_lamino(
             save_result = k if k % interval == 0 else False
 
             presult = tike.admm.ptycho.subproblem(
+                comm,
                 # constants
                 data,
                 λ_p=λ_p,
                 ρ_p=ρ_p,
-                Aφ=Aφ,
+                Aφ=Hu,
                 # updated
                 presult=presult,
                 # parameters
-                cg_iter=1,
+                num_iter=4,
+                cg_iter=cg_iter,
                 folder=folder,
                 save_result=save_result,
+                rescale=(k == 1),
             )
 
-            (
-                phi,
-                λ_p,
-                ρ_p,
-                flow,
-                shift,
-                Aφ,
-            ) = tike.admm.alignment.subproblem(
-                # constants
-                comm,
+            phi = tike.align.invert(
                 presult['psi'],
-                angle,
-                Hu,
-                λ_l,
-                ρ_l,
-                # updated
-                phi,
-                λ_p,
-                ρ_p,
+                angle=angle,
                 flow=None,
-                shift=None,
-                Aφ0=Aφ,
-                # parameters
-                align_method='',
-                cg_iter=1,
-                folder=folder,
-                save_result=save_result,
+                shift=shift,
+                unpadded_shape=(len(theta), w, w),
+                cval=1.0,
+            )
+            Hu = tike.align.invert(
+                Hu,
+                angle=angle,
+                flow=None,
+                shift=shift,
+                unpadded_shape=(len(theta), w, w),
+                cval=1.0,
+            )
+            λ_p = tike.align.invert(
+                λ_p,
+                angle=angle,
+                flow=None,
+                shift=shift,
+                unpadded_shape=(len(theta), w, w),
+                cval=1.0,
             )
 
             (
                 u,
-                λ_l,
-                ρ_l,
+                λ_p,
+                ρ_p,
                 Hu,
+                lamino_cost,
             ) = tike.admm.lamino.subproblem(
                 # constants
                 comm,
@@ -111,27 +106,40 @@ def ptycho_lamino(
                 tilt,
                 # updated
                 u,
-                λ_l,
-                ρ_l,
+                λ_p,
+                ρ_p,
                 Hu0=Hu,
                 # parameters
-                cg_iter=1,
+                num_iter=4,
+                cg_iter=cg_iter,
                 folder=folder,
                 save_result=save_result,
             )
 
+            Hu = tike.align.simulate(
+                Hu,
+                angle=angle,
+                flow=None,
+                shift=shift,
+                padded_shape=psi.shape,
+                cval=1.0,
+            )
+            λ_p = tike.align.simulate(
+                λ_p,
+                angle=angle,
+                flow=None,
+                shift=shift,
+                padded_shape=psi.shape,
+                cval=1.0,
+            )
+
             # Record metrics for each subproblem
-            ψAφ = presult['psi'] - Aφ
-            φHu = phi - Hu
+            ψHu = presult['psi'] - Hu
             lagrangian = (
                 [presult['cost']],
                 [
-                    2 * np.real(λ_p.conj() * ψAφ) +
-                    ρ_p * np.linalg.norm(ψAφ.ravel())**2
-                ],
-                [
-                    2 * np.real(λ_l.conj() * φHu) +
-                    ρ_l * np.linalg.norm(φHu.ravel())**2
+                    2 * np.real(λ_p.conj() * ψHu) +
+                    ρ_p * np.linalg.norm(ψHu.ravel())**2
                 ],
             )
             lagrangian = [comm.gather(x) for x in lagrangian]
@@ -141,9 +149,8 @@ def ptycho_lamino(
                 print_log_line(
                     k=k,
                     ρ_p=ρ_p,
-                    ρ_l=ρ_l,
                     Lagrangian=np.sum(lagrangian),
                     dGψ=lagrangian[0],
-                    ψAφ=lagrangian[1],
-                    φHu=lagrangian[2],
+                    ψHu=lagrangian[1],
+                    lamino=float(lamino_cost),
                 )
