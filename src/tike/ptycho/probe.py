@@ -113,6 +113,7 @@ def update_eigen_probe(R, eigen_probe, weights, β=0.1):
 
     # (..., POSI, 1, 1, 1, 1) to match other arrays
     weights = weights[..., None, None, None, None]
+    # TODO: REDUCE norm_weights by NORM
     norm_weights = np.linalg.norm(weights, axis=-5, keepdims=True)**2
     if np.all(norm_weights == 0):
         raise ValueError('eigen_probe weights cannot all be zero?')
@@ -124,6 +125,7 @@ def update_eigen_probe(R, eigen_probe, weights, β=0.1):
         axis=-5,
         keepdims=True,
     )
+    # TODO: REDUCE update by WEIGHTED AVERAGE
     eigen_probe += β * update / np.linalg.norm(
         update,
         axis=(-2, -1),

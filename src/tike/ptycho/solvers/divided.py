@@ -150,6 +150,8 @@ def _update_nearplane(op, nearplane, psi, scan_, probe, unique_probe,
                 positions=scan_,
             )
 
+            #TODO: REDUCE common_grad_psi by ADDITION
+
             dOP = op.diffraction.patch.fwd(
                 patches=cp.zeros(patches.shape, dtype='complex64')[..., 0,
                                                                    0, :, :],
@@ -172,6 +174,8 @@ def _update_nearplane(op, nearplane, psi, scan_, probe, unique_probe,
                 keepdims=True,
             )
 
+            #TODO: REDUCE common_grad_probe by WEIGHTED AVERAGE
+
             dPO = common_grad_probe * patches
             A4 = cp.sum((dPO * dPO.conj()).real + 0.5, axis=(-2, -1))
             A4 += 0.5 * cp.mean(A4, axis=-3, keepdims=True)
@@ -180,6 +184,7 @@ def _update_nearplane(op, nearplane, psi, scan_, probe, unique_probe,
         if recover_probe and eigen_probe is not None:
             logger.info('Updating eigen probes')
             # (30) residual probe updates
+            # TODO: REDUCE mean_grad_probe by WEIGHTED AVERAGE
             R = grad_probe - cp.mean(grad_probe, axis=-5, keepdims=True)
 
             for c in range(eigen_probe.shape[-4]):
@@ -200,6 +205,7 @@ def _update_nearplane(op, nearplane, psi, scan_, probe, unique_probe,
                 )
                 norm_phi = cp.square(cp.abs(phi))
                 d = cp.mean(norm_phi, axis=(-1, -2), keepdims=True)
+                # TODO: REDUCE mean_d by WEIGHTED AVERAGE
                 d += 0.1 * cp.mean(d, axis=-5, keepdims=True)
                 weight_update = (n / d).reshape(*eigen_weights[..., 0, 0].shape)
                 assert cp.all(cp.isfinite(weight_update))
@@ -239,12 +245,16 @@ def _update_nearplane(op, nearplane, psi, scan_, probe, unique_probe,
             # (27b) Object update
             weighted_step = cp.mean(step, keepdims=True, axis=-5)[..., 0, 0, 0]
 
+            #TODO: REDUCE weighted_step by WEIGHTED AVERAGE
+
             psi += weighted_step * common_grad_psi
 
         if recover_probe:
             step = x2[..., None, None]
 
             weighted_step = cp.mean(step, axis=-5, keepdims=True)
+
+            #TODO: REDUCE weighted_step by WEIGHTED AVERAGE
 
             # (27a) Probe update
             probe[..., m:m + 1, :, :] += weighted_step * common_grad_probe
