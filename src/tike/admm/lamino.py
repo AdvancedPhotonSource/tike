@@ -47,21 +47,9 @@ def subproblem(
     λ_l, phi, theta = [comm.gather(x) for x in (λ_l, phi, theta)]
 
     if comm.rank == 0:
-        lresult = tike.lamino.reconstruct(
-            data=-1j * np.log(phi + λ_l / ρ_l),
-            theta=theta,
-            tilt=tilt,
-            obj=u,
-            algorithm='cgrad',
-            num_iter=1,
-            cg_iter=cg_iter,
-            num_gpu=comm.size,
-        )
-        u = lresult['obj']
-
-        # We cannot reorder phi, theta without ruining correspondence
-        # with data, psi, etc, but we can reorder the saved array
         if save_result:
+            # We cannot reorder phi, theta without ruining correspondence
+            # with data, psi, etc, but we can reorder the saved array
             order = np.argsort(theta)
             dxchange.write_tiff(
                 phi[order].real,
@@ -73,6 +61,18 @@ def subproblem(
                 f'{folder}/phi-imag-{save_result:03d}.tiff',
                 dtype='float32',
             )
+
+        lresult = tike.lamino.reconstruct(
+            data=-1j * np.log(phi + λ_l / ρ_l),
+            theta=theta,
+            tilt=tilt,
+            obj=u,
+            algorithm='cgrad',
+            num_iter=1,
+            cg_iter=cg_iter,
+            num_gpu=comm.size,
+        )
+        u = lresult['obj']
 
     # Separate again to multiple processes
     λ_l, phi, theta = [comm.scatter(x) for x in (λ_l, phi, theta)]
