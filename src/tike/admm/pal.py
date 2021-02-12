@@ -57,7 +57,8 @@ def ptycho_align_lamino(
 
             presult = tike.admm.ptycho.subproblem(
                 # constants
-                data,
+                comm=comm,
+                data=data,
                 λ=λ_p,
                 ρ=ρ_p,
                 Aφ=Aφ,
@@ -81,16 +82,16 @@ def ptycho_align_lamino(
                 align_cost,
             ) = tike.admm.alignment.subproblem(
                 # constants
-                comm,
-                presult['psi'],
-                angle,
-                Hu,
-                λ_l,
-                ρ_l,
+                comm=comm,
+                psi=presult['psi'],
+                angle=angle,
+                Hu=Hu,
+                λ_l=λ_l,
+                ρ_l=ρ_l,
                 # updated
-                phi,
-                λ_p,
-                ρ_p,
+                phi=phi,
+                λ_p=λ_p,
+                ρ_p=ρ_p,
                 flow=flow,
                 shift=shift,
                 Aφ0=Aφ,
@@ -110,12 +111,12 @@ def ptycho_align_lamino(
                 lamino_cost,
             ) = tike.admm.lamino.subproblem(
                 # constants
-                comm,
-                phi,
-                theta,
-                tilt,
+                comm=comm,
+                phi=phi,
+                theta=theta,
+                tilt=tilt,
                 # updated
-                u,
+                u=u,
                 λ_l=λ_l,
                 ρ_l=ρ_l,
                 Hu0=Hu,
