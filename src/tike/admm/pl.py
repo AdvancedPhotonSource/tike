@@ -54,8 +54,8 @@ def ptycho_lamino(
                 comm,
                 # constants
                 data,
-                λ_p=λ_p,
-                ρ_p=ρ_p,
+                λ=λ_p,
+                ρ=ρ_p,
                 Aφ=Hu,
                 # updated
                 presult=presult,

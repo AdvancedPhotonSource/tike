@@ -58,8 +58,8 @@ def ptycho_align_lamino(
             presult = tike.admm.ptycho.subproblem(
                 # constants
                 data,
-                λ_p=λ_p,
-                ρ_p=ρ_p,
+                λ=λ_p,
+                ρ=ρ_p,
                 Aφ=Aφ,
                 # updated
                 presult=presult,
