@@ -49,21 +49,21 @@ def ptycho__align_lamino(
 
     with cp.cuda.Device(comm.rank if comm.size > 1 else None):
 
-            presult = tike.admm.ptycho.subproblem(
-                # constants
-                data,
-                λ_p=None,
-                ρ_p=None,
-                Aφ=None,
-                # updated
-                presult=presult,
-                # parameters
-                num_iter=4 * niter,
-                cg_iter=cg_iter,
-                folder=folder,
-                save_result=save_result,
-                rescale=True,
-            )
+        presult = tike.admm.ptycho.subproblem(
+            # constants
+            data,
+            λ_p=None,
+            ρ_p=None,
+            Aφ=None,
+            # updated
+            presult=presult,
+            # parameters
+            num_iter=4 * niter,
+            cg_iter=cg_iter,
+            folder=folder,
+            save_result=save_result,
+            rescale=True,
+        )
 
         for k in range(1, niter + 1):
             logger.info(f"Start ADMM iteration {k}.")
