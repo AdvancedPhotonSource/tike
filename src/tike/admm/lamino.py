@@ -54,13 +54,13 @@ def subproblem(
             # with data, psi, etc, but we can reorder the saved array
             order = np.argsort(theta)
             dxchange.write_tiff(
-                phi[order].real,
-                f'{folder}/phi-real-{save_result:03d}.tiff',
+                np.angle(phi[order]),
+                f'{folder}/phi-angle-{save_result:03d}.tiff',
                 dtype='float32',
             )
             dxchange.write_tiff(
-                phi[order].imag,
-                f'{folder}/phi-imag-{save_result:03d}.tiff',
+                np.abs(phi[order]),
+                f'{folder}/phi-abs-{save_result:03d}.tiff',
                 dtype='float32',
             )
 
@@ -109,13 +109,13 @@ def subproblem(
             dtype='float32',
         )
         dxchange.write_tiff(
-            Hu.real,
-            f'{folder}/Hu-real-{save_result:03d}.tiff',
+            np.angle(Hu),
+            f'{folder}/Hu-angle-{save_result:03d}.tiff',
             dtype='float32',
         )
         dxchange.write_tiff(
-            Hu.imag,
-            f'{folder}/Hu-imag-{save_result:03d}.tiff',
+            np.abs(Hu),
+            f'{folder}/Hu-abs-{save_result:03d}.tiff',
             dtype='float32',
         )
 
