@@ -61,4 +61,11 @@ def subproblem(
             dtype='float32',
         )
 
-    return presult
+    Gψ = tike.ptycho.simulate(
+        detector_shape=data.shape[-1],
+        probe=presult['probe'],
+        scan=presult['scan'],
+        psi=presult['psi'],
+    )
+
+    return presult, Gψ

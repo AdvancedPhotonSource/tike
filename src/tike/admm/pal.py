@@ -55,7 +55,7 @@ def ptycho_align_lamino(
             logger.info(f"Start ADMM iteration {k}.")
             save_result = k if k % interval == 0 else False
 
-            presult = tike.admm.ptycho.subproblem(
+            presult, Gψ = tike.admm.ptycho.subproblem(
                 # constants
                 comm=comm,
                 data=data,
@@ -131,21 +131,23 @@ def ptycho_align_lamino(
             ψAφ = presult['psi'] - Aφ
             φHu = phi - Hu
             lagrangian = (
+                [np.mean(np.square(data - Gψ))],
+                [
+                    2 * np.mean(np.real(λ_p.conj() * ψAφ)) +
+                    ρ_p * np.mean(np.square(ψAφ))
+                ],
+                [
+                    2 * np.mean(np.real(λ_l.conj() * φHu)) +
+                    ρ_l * np.mean(np.square(φHu))
+                ],
                 [presult['cost']],
-                [
-                    2 * np.real(λ_p.conj() * ψAφ) +
-                    ρ_p * np.linalg.norm(ψAφ.ravel())**2
-                ],
-                [
-                    2 * np.real(λ_l.conj() * φHu) +
-                    ρ_l * np.linalg.norm(φHu.ravel())**2
-                ],
                 [align_cost],
             )
+
             lagrangian = [comm.gather(x) for x in lagrangian]
 
             if comm.rank == 0:
-                lagrangian = [np.sum(x) for x in lagrangian]
+                lagrangian = [np.mean(x) for x in lagrangian]
                 print_log_line(
                     k=k,
                     ρ_p=ρ_p,
@@ -154,6 +156,7 @@ def ptycho_align_lamino(
                     dGψ=lagrangian[0],
                     ψAφ=lagrangian[1],
                     φHu=lagrangian[2],
-                    align=lagrangian[3],
+                    ptycho=lagrangian[3],
+                    align=lagrangian[4],
                     lamino=float(lamino_cost),
                 )
