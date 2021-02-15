@@ -34,9 +34,13 @@ def cgrad(
 ):  # yapf: disable
     """Solve the Laminogarphy problem using the conjugate gradients method."""
 
-    step_length = comm.reduce(
-        comm.pool.map(_estimate_step_length, obj, theta, op=op),
-        'cpu') if step_length == 1 else step_length
+    step_length = comm.pool.reduce_cpu(
+        comm.pool.map(
+            _estimate_step_length,
+            obj,
+            theta,
+            op=op,
+        )) / comm.pool.num_workers if step_length == 1 else step_length
 
     obj, cost = update_obj(
         op,
