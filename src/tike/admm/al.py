@@ -49,9 +49,10 @@ def ptycho__align_lamino(
 
     with cp.cuda.Device(comm.rank if comm.size > 1 else None):
 
-        presult = tike.admm.ptycho.subproblem(
+        presult, _ = tike.admm.ptycho.subproblem(
             # constants
-            data,
+            comm=comm,
+            data=data,
             λ=None,
             ρ=None,
             Aφ=None,
@@ -61,7 +62,7 @@ def ptycho__align_lamino(
             num_iter=4 * niter,
             cg_iter=cg_iter,
             folder=folder,
-            save_result=save_result,
+            save_result=niter + 1,
             rescale=True,
         )
 
@@ -79,19 +80,19 @@ def ptycho__align_lamino(
                 align_cost,
             ) = tike.admm.alignment.subproblem(
                 # constants
-                comm,
-                presult['psi'],
-                angle,
-                Hu,
-                λ_l,
-                ρ_l,
+                comm=comm,
+                psi=presult['psi'],
+                angle=angle,
+                Hu=Hu,
+                λ_l=λ_l,
+                ρ_l=ρ_l,
                 # updated
-                phi,
+                phi=phi,
                 λ_p=None,
-                ρ_p=None,
+                ρ_p=1,
                 flow=flow,
                 shift=shift,
-                Aφ0=Aφ,
+                Aφ0=None,
                 # parameters
                 align_method=align_method,
                 cg_iter=cg_iter,
@@ -108,12 +109,12 @@ def ptycho__align_lamino(
                 lamino_cost,
             ) = tike.admm.lamino.subproblem(
                 # constants
-                comm,
-                phi,
-                theta,
-                tilt,
+                comm=comm,
+                phi=phi,
+                theta=theta,
+                tilt=tilt,
                 # updated
-                u,
+                u=u,
                 λ_l=λ_l,
                 ρ_l=ρ_l,
                 Hu0=Hu,
@@ -128,14 +129,10 @@ def ptycho__align_lamino(
             ψAφ = presult['psi'] - Aφ
             φHu = phi - Hu
             lagrangian = (
-                [presult['cost']],
+                [np.mean(np.real(ψAφ.conj() * ψAφ))],
                 [
-                    2 * np.real(λ_p.conj() * ψAφ) +
-                    ρ_p * np.linalg.norm(ψAφ.ravel())**2
-                ],
-                [
-                    2 * np.real(λ_l.conj() * φHu) +
-                    ρ_l * np.linalg.norm(φHu.ravel())**2
+                    2 * np.mean(np.real(λ_l.conj() * φHu)) +
+                    ρ_l * np.mean(np.real(φHu.conj() * φHu))
                 ],
                 [align_cost],
             )
@@ -145,12 +142,10 @@ def ptycho__align_lamino(
                 lagrangian = [np.sum(x) for x in lagrangian]
                 print_log_line(
                     k=k,
-                    ρ_p=ρ_p,
                     ρ_l=ρ_l,
-                    Lagrangian=np.sum(lagrangian[:3]),
-                    dGψ=lagrangian[0],
-                    ψAφ=lagrangian[1],
-                    φHu=lagrangian[2],
-                    align=lagrangian[3],
+                    Lagrangian=np.sum(lagrangian[:2]),
+                    ψAφ=lagrangian[0],
+                    φHu=lagrangian[1],
+                    align=lagrangian[2],
                     lamino=float(lamino_cost),
                 )

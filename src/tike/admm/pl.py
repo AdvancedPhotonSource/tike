@@ -50,7 +50,7 @@ def ptycho_lamino(
             logger.info(f"Start ADMM iteration {k}.")
             save_result = k if k % interval == 0 else False
 
-            presult = tike.admm.ptycho.subproblem(
+            presult, Gψ = tike.admm.ptycho.subproblem(
                 comm,
                 # constants
                 data,
@@ -136,7 +136,7 @@ def ptycho_lamino(
             # Record metrics for each subproblem
             ψHu = presult['psi'] - Hu
             lagrangian = (
-                [presult['cost']],
+                [np.mean(np.square(data - Gψ))],
                 [
                     2 * np.real(λ_p.conj() * ψHu) +
                     ρ_p * np.linalg.norm(ψHu.ravel())**2

@@ -133,12 +133,12 @@ def ptycho_align_lamino(
             lagrangian = (
                 [np.mean(np.square(data - Gψ))],
                 [
-                    2 * np.mean(np.real(λ_p.conj() * ψAφ)) +
-                    ρ_p * np.mean(np.square(ψAφ))
+                      2 * np.mean(np.real(λ_p.conj() * ψAφ)) +
+                    ρ_p * np.mean(np.real(ψAφ.conj() * ψAφ))
                 ],
                 [
-                    2 * np.mean(np.real(λ_l.conj() * φHu)) +
-                    ρ_l * np.mean(np.square(φHu))
+                      2 * np.mean(np.real(λ_l.conj() * φHu)) +
+                    ρ_l * np.mean(np.real(φHu.conj() * φHu))
                 ],
                 [presult['cost']],
                 [align_cost],
