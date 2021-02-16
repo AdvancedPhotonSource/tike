@@ -127,12 +127,14 @@ def subproblem(
                 unaligned=rotated,
                 original=padded,
                 upsample_factor=100,
+                reg_weight=0,
             )
-            # Limit shift change per iteration
-            if shift is None:
-                shift = np.clip(sresult['shift'], -16, 16)
-            else:
-                shift += np.clip(sresult['shift'] - shift, -16, 16)
+            shift = sresult['shift']
+        else:
+            logging.info("Estimate rigid alignment with center of mass.")
+            centers = center_of_mass(np.abs(np.angle(rotated)), axis=(-2, -1))
+            # shift is defined from padded coords to rotated coords
+            shift = centers - np.array(rotated.shape[-2:]) / 2
 
     Aφ = tike.align.simulate(
         phi,
