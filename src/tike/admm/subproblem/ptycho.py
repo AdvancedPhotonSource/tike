@@ -8,7 +8,7 @@ import tike.ptycho
 logger = logging.getLogger(__name__)
 
 
-def subproblem(
+def ptycho(
     comm,
     # constants
     data,

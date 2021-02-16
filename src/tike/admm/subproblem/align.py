@@ -3,13 +3,78 @@ import logging
 import dxchange
 import numpy as np
 
-from .admm import update_penalty, find_min_max, optical_flow_tvl1, center_of_mass
 import tike.align
+from . import update_penalty
 
 logger = logging.getLogger(__name__)
 
 
-def subproblem(
+def _find_min_max(data):
+    mmin = np.zeros(data.shape[0], dtype='float32')
+    mmax = np.zeros(data.shape[0], dtype='float32')
+
+    for k in range(data.shape[0]):
+        h, e = np.histogram(data[k][:], 1000)
+        stend = np.where(h > np.max(h) * 0.005)
+        st = stend[0][0]
+        end = stend[0][-1]
+        mmin[k] = e[st]
+        mmax[k] = e[end + 1]
+
+    return mmin, mmax
+
+
+def _optical_flow_tvl1(unaligned, original, num_iter=16):
+    """Wrap scikit-image optical_flow_tvl1 for complex values"""
+    from skimage.registration import optical_flow_tvl1
+    pflow = [
+        optical_flow_tvl1(
+            np.angle(original[i]),
+            np.angle(unaligned[i]),
+            num_iter=num_iter,
+        ) for i in range(len(original))
+    ]
+    # rflow = [
+    #     optical_flow_tvl1(
+    #         original[i].real,
+    #         unaligned[i].real,
+    #         num_iter=num_iter,
+    #     ) for i in range(len(original))
+    # ]
+    flow = np.array(pflow, dtype='float32')
+    #+ np.array(iflow, dtype='float32')) /2
+    flow = np.moveaxis(flow, 1, -1)
+    return flow
+
+
+def _center_of_mass(m, axis=None):
+    """Return the center of mass of m along the given axis.
+
+    Parameters
+    ----------
+    m : array
+        Values to find the center of mass from
+    axis : tuple(int)
+        The axes to find center of mass along.
+
+    Returns
+    -------
+    center : (..., len(axis)) array[int]
+        The shape of center is the shape of m with the dimensions corresponding
+        to axis removed plus a new dimension appended whose length is the
+        of length of axis in the order of axis.
+
+    """
+    centers = []
+    for a in range(m.ndim) if axis is None else axis:
+        shape = np.ones_like(m.shape)
+        shape[a] = m.shape[a]
+        x = np.arange(1, m.shape[a] + 1).reshape(*shape).astype(m.dtype)
+        centers.append((m * x).sum(axis=axis) / m.sum(axis=axis) - 1)
+    return np.stack(centers, axis=-1)
+
+
+def align(
     # constants
     comm,
     psi,
@@ -96,7 +161,7 @@ def subproblem(
             )
 
         if align_method.lower() == 'flow':
-            hi, lo = find_min_max(np.angle(psi))
+            hi, lo = _find_min_max(np.angle(psi))
             winsize = max(winsize - 1, 128)
             logging.info("Estimate alignment using Farneback.")
             fresult = tike.align.solvers.farneback(
@@ -114,7 +179,7 @@ def subproblem(
             flow = fresult['flow']
         elif align_method.lower() == 'tvl1':
             logging.info("Estimate alignment using TV-L1.")
-            flow = optical_flow_tvl1(
+            flow = _optical_flow_tvl1(
                 unaligned=rotated,
                 original=padded,
                 num_iter=cg_iter,
@@ -131,7 +196,7 @@ def subproblem(
             shift = sresult['shift']
         else:
             logging.info("Estimate rigid alignment with center of mass.")
-            centers = center_of_mass(np.abs(np.angle(rotated)), axis=(-2, -1))
+            centers = _center_of_mass(np.abs(np.angle(rotated)), axis=(-2, -1))
             # shift is defined from padded coords to rotated coords
             shift = centers - np.array(rotated.shape[-2:]) / 2
 

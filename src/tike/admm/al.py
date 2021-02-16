@@ -3,9 +3,7 @@ import logging
 import numpy as np
 import cupy as cp
 
-import tike.admm.alignment
-import tike.admm.lamino
-import tike.admm.ptycho
+import tike.admm.subproblem
 import tike.communicator
 
 from .admm import print_log_line
@@ -49,7 +47,7 @@ def ptycho__align_lamino(
 
     with cp.cuda.Device(comm.rank if comm.size > 1 else None):
 
-        presult, _ = tike.admm.ptycho.subproblem(
+        presult, _ = tike.admm.subproblem.ptycho(
             # constants
             comm=comm,
             data=data,
@@ -64,6 +62,7 @@ def ptycho__align_lamino(
             folder=folder,
             save_result=niter + 1,
             rescale=True,
+            rtol=1e-6,
         )
 
         for k in range(1, niter + 1):
@@ -78,7 +77,7 @@ def ptycho__align_lamino(
                 shift,
                 Aφ,
                 align_cost,
-            ) = tike.admm.alignment.subproblem(
+            ) = tike.admm.subproblem.align(
                 # constants
                 comm=comm,
                 psi=presult['psi'],
@@ -107,7 +106,7 @@ def ptycho__align_lamino(
                 ρ_l,
                 Hu,
                 lamino_cost,
-            ) = tike.admm.lamino.subproblem(
+            ) = tike.admm.subproblem.lamino(
                 # constants
                 comm=comm,
                 phi=phi,

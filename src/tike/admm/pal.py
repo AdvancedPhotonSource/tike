@@ -3,9 +3,7 @@ import logging
 import numpy as np
 import cupy as cp
 
-import tike.admm.alignment
-import tike.admm.lamino
-import tike.admm.ptycho
+import tike.admm.subproblem
 import tike.communicator
 
 from .admm import print_log_line
@@ -55,7 +53,7 @@ def ptycho_align_lamino(
             logger.info(f"Start ADMM iteration {k}.")
             save_result = k if k % interval == 0 else False
 
-            presult, Gψ = tike.admm.ptycho.subproblem(
+            presult, Gψ = tike.admm.subproblem.ptycho(
                 # constants
                 comm=comm,
                 data=data,
@@ -80,7 +78,7 @@ def ptycho_align_lamino(
                 shift,
                 Aφ,
                 align_cost,
-            ) = tike.admm.alignment.subproblem(
+            ) = tike.admm.subproblem.align(
                 # constants
                 comm=comm,
                 psi=presult['psi'],
@@ -109,7 +107,7 @@ def ptycho_align_lamino(
                 ρ_l,
                 Hu,
                 lamino_cost,
-            ) = tike.admm.lamino.subproblem(
+            ) = tike.admm.subproblem.lamino(
                 # constants
                 comm=comm,
                 phi=phi,

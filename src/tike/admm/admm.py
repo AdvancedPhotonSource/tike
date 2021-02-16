@@ -7,47 +7,6 @@ import tike.lamino
 import tike.ptycho
 
 
-def update_penalty(comm, g, h, h0, rho, diff=4):
-    """Increase rho when L2 error between g and h becomes too large.
-
-    If rho is the penalty parameter associated with the constraint norm(y - x),
-    then rho is increased when
-
-        norm(g - h) > diff * rho^2 * norm(h - h0)
-
-    and decreased when
-
-        norm(g - h) * diff < rho^2 * norm(h - h0)
-
-    """
-    r = np.linalg.norm(g - h)**2
-    s = rho * rho * np.linalg.norm(h - h0)**2
-    r, s = [np.sum(comm.gather(x)) for x in ([r], [s])]
-    if comm.rank == 0:
-        if (r > diff * s):
-            rho *= 2
-        elif (r * diff < s):
-            rho *= 0.5
-    rho = comm.broadcast(rho)
-    logging.info(f"Update penalty parameter ρ = {rho}.")
-    return rho
-
-
-def find_min_max(data):
-    mmin = np.zeros(data.shape[0], dtype='float32')
-    mmax = np.zeros(data.shape[0], dtype='float32')
-
-    for k in range(data.shape[0]):
-        h, e = np.histogram(data[k][:], 1000)
-        stend = np.where(h > np.max(h) * 0.005)
-        st = stend[0][0]
-        end = stend[0][-1]
-        mmin[k] = e[st]
-        mmax[k] = e[end + 1]
-
-    return mmin, mmax
-
-
 def simulate(
     u,
     scan,
@@ -106,52 +65,3 @@ def print_log_line(**kwargs):
             line.append(f'"{k}": {v}')
     # Combine all the strings and strip the last comma
     print("{", ", ".join(line), "}", flush=True)
-
-
-def optical_flow_tvl1(unaligned, original, num_iter=16):
-    """Wrap scikit-image optical_flow_tvl1 for complex values"""
-    from skimage.registration import optical_flow_tvl1
-    iflow = [
-        optical_flow_tvl1(
-            original[i].imag,
-            unaligned[i].imag,
-            num_iter=num_iter,
-        ) for i in range(len(original))
-    ]
-    rflow = [
-        optical_flow_tvl1(
-            original[i].real,
-            unaligned[i].real,
-            num_iter=num_iter,
-        ) for i in range(len(original))
-    ]
-    flow = np.array(rflow, dtype='float32') + np.array(iflow, dtype='float32')
-    flow = np.moveaxis(flow, 1, -1) / 2.0
-    return flow
-
-
-def center_of_mass(m, axis=None):
-    """Return the center of mass of m along the given axis.
-
-    Parameters
-    ----------
-    m : array
-        Values to find the center of mass from
-    axis : tuple(int)
-        The axes to find center of mass along.
-
-    Returns
-    -------
-    center : (..., len(axis)) array[int]
-        The shape of center is the shape of m with the dimensions corresponding
-        to axis removed plus a new dimension appended whose length is the
-        of length of axis in the order of axis.
-
-    """
-    centers = []
-    for a in range(m.ndim) if axis is None else axis:
-        shape = np.ones_like(m.shape)
-        shape[a] = m.shape[a]
-        x = np.arange(1, m.shape[a] + 1).reshape(*shape).astype(m.dtype)
-        centers.append((m * x).sum(axis=axis) / m.sum(axis=axis) - 1)
-    return np.stack(centers, axis=-1)

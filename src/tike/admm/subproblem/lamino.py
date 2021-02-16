@@ -4,12 +4,12 @@ import dxchange
 import numpy as np
 
 import tike.lamino
-from .admm import update_penalty
+from . import update_penalty
 
 logger = logging.getLogger(__name__)
 
 
-def subproblem(
+def lamino(
     # constants
     comm,
     phi,
