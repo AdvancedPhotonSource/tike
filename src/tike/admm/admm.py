@@ -120,13 +120,28 @@ def optical_flow_tvl1(unaligned, original, num_iter=16):
     return flow
 
 
-def center_of_mass(x):
-    """Find the center of mass"""
-    import skimage.measure
-    center = np.empty((len(x), 2), dtype='float32')
-    for i in range(len(x)):
-        phase = np.angle(x[i])
-        phase[phase < 0] = 0
-        M = skimage.measure.moments(phase, order=1)
-        center[i] = M[1, 0] / M[0, 0], M[0, 1] / M[0, 0]
-    return center
+def center_of_mass(m, axis=None):
+    """Return the center of mass of m along the given axis.
+
+    Parameters
+    ----------
+    m : array
+        Values to find the center of mass from
+    axis : tuple(int)
+        The axes to find center of mass along.
+
+    Returns
+    -------
+    center : (..., len(axis)) array[int]
+        The shape of center is the shape of m with the dimensions corresponding
+        to axis removed plus a new dimension appended whose length is the
+        of length of axis in the order of axis.
+
+    """
+    centers = []
+    for a in range(m.ndim) if axis is None else axis:
+        shape = np.ones_like(m.shape)
+        shape[a] = m.shape[a]
+        x = np.arange(1, m.shape[a] + 1).reshape(*shape).astype(m.dtype)
+        centers.append((m * x).sum(axis=axis) / m.sum(axis=axis) - 1)
+    return np.stack(centers, axis=-1)
