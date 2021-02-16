@@ -94,7 +94,7 @@ def ptycho__align_lamino(
                 shift=shift,
                 Aφ0=None,
                 # parameters
-                align_method=align_method,
+                align_method=align_method if k > 8 else 'mass',
                 cg_iter=cg_iter,
                 num_iter=4,
                 folder=folder,

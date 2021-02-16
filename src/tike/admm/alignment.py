@@ -64,16 +64,14 @@ def subproblem(
 
     if align_method:
 
-        hi, lo = find_min_max(np.angle(psi if λ_p is None else psi + λ_p / ρ_p))
-
         # TODO: Try combining rotation and flow because they use the same
         # interpolator
-        rotated = tike.align.simulate(
+        rotated = tike.align.invert(
             psi if λ_p is None else psi + λ_p / ρ_p,
-            angle=-angle,
+            angle=angle,
             flow=None,
             shift=None,
-            padded_shape=None,
+            unpadded_shape=None,
             cval=1.0,
         )
         padded = tike.align.simulate(
@@ -98,6 +96,7 @@ def subproblem(
             )
 
         if align_method.lower() == 'flow':
+            hi, lo = find_min_max(np.angle(psi))
             winsize = max(winsize - 1, 128)
             logging.info("Estimate alignment using Farneback.")
             fresult = tike.align.solvers.farneback(
