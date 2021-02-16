@@ -23,6 +23,7 @@ def subproblem(
     folder=None,
     save_result=False,
     rescale=False,
+    rtol=-1,
 ):
     """Solve the ptychography subsproblem.
 
@@ -44,6 +45,7 @@ def subproblem(
         recover_positions=False,
         model='gaussian',
         rescale=rescale,
+        rtol=rtol,
         **presult,
     )
 
