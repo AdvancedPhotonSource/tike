@@ -3,6 +3,7 @@ import logging
 import cupy as cp
 
 from tike.linalg import lstsq, projection, norm, orthogonalize_gs
+from tike.opt import batch_indicies, collect_batch
 
 from ..position import update_positions_pd
 from ..probe import orthogonalize_eig, get_varying_probe, update_eigen_probe
@@ -18,6 +19,8 @@ def lstsq_grad(
     cost=None,
     eigen_probe=None,
     eigen_weights=None,
+    num_batch=1,
+    subset_is_random=True,
     probe_is_orthogonal=False,
 ):  # yapf: disable
     """Solve the ptychography problem using Odstrcil et al's approach.
@@ -39,34 +42,90 @@ def lstsq_grad(
     Optics Express. 2018.
 
     """
-    data_ = data[0]
-    probe = probe[0]
-    scan_ = scan[0]
-    psi = psi[0]
-    if eigen_probe is not None:
-        eigen_weights = eigen_weights[0]
-        eigen_probe = eigen_probe[0]
+    # Unique batch for each device
+    batches = [
+        batch_indicies(s.shape[-2], num_batch, subset_is_random) for s in scan
+    ]
+    for n in range(num_batch):
 
-    # -------------------------------------------------------------------------
+        bdata = comm.pool.map(collect_batch, data, batches, n=n)
+        bscan = comm.pool.map(collect_batch, scan, batches, n=n)
 
-    common_probe = probe
-    unique_probe = get_varying_probe(
-        probe,
-        eigen_probe=eigen_probe,
-        weights=eigen_weights,
-    )
+        if isinstance(eigen_probe, list):
+            beigen_weights = [
+                e[:, b[n]] for b, e in zip(batches, eigen_weights)
+            ]
+            beigen_probe = eigen_probe
+        else:
+            beigen_probe = [None] * comm.pool.num_workers
+            beigen_weights = [None] * comm.pool.num_workers
 
-    farplane, cost = _update_wavefront(op, data_, unique_probe, scan_, psi)
+        unique_probe = list(
+            comm.pool.map(
+                get_varying_probe,
+                probe,
+                beigen_probe,
+                beigen_weights,
+            ))
+
+        nearplane, cost = zip(*comm.pool.map(
+            _update_wavefront,
+            [op] * comm.pool.num_workers,
+            bdata,
+            unique_probe,
+            bscan,
+            psi,
+        ))
+
+        cost = comm.pool.reduce_gpu(cost)
+
+        # v--- requires sycnrhonization ---v
+
+        (
+            psi[0],
+            probe[0],
+            beigen_probe[0],
+            beigen_weights[0],
+        ) = _update_nearplane(
+            op,
+            nearplane[0],
+            psi[0],
+            bscan[0],
+            probe[0],
+            unique_probe[0],
+            beigen_probe[0],
+            beigen_weights[0],
+            recover_psi,
+            recover_probe,
+            probe_is_orthogonal,
+        )
+
+        # ^--- requires synchronization ---^
+
+    result = {
+        'psi': psi,
+        'probe': probe,
+        'cost': cost,
+        'scan': scan,
+    }
+    if isinstance(eigen_probe, list):
+        result['eigen_probe'] = eigen_probe
+        result['eigen_weights'] = eigen_weights
+
+    return result
+
+
+def _update_nearplane(op, nearplane_, psi, scan_, probe, unique_probe,
+                      eigen_probe, eigen_weights, recover_psi, recover_probe,
+                      probe_is_orthogonal):
 
     pad, end = op.diffraction.pad, op.diffraction.end
 
-    # Solve the nearplane problem ---------------------------------------------
-
     for m in range(probe.shape[-3]):
 
-        nearplane = farplane[..., m:m + 1, pad:end, pad:end]
+        nearplane = nearplane_[..., m:m + 1, pad:end, pad:end]
 
-        cprobe = common_probe[..., m:m + 1, :, :]
+        cprobe = probe[..., m:m + 1, :, :]
         uprobe = unique_probe[..., m:m + 1, :, :]
 
         patches = op.diffraction.patch.fwd(
@@ -209,16 +268,7 @@ def lstsq_grad(
     if probe.shape[-3] > 1 and probe_is_orthogonal:
         probe = orthogonalize_gs(probe, axis=(-2, -1))
 
-    result = {
-        'psi': [psi],
-        'probe': [probe],
-        'cost': cost,
-        'scan': scan,
-    }
-    if eigen_probe is not None:
-        result['eigen_probe'] = [eigen_probe]
-        result['eigen_weights'] = [eigen_weights]
-    return result
+    return psi, probe, eigen_probe, eigen_weights
 
 
 def _update_wavefront(op, data, varying_probe, scan, psi):

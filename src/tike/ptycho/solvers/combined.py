@@ -2,9 +2,8 @@ import logging
 
 import numpy as np
 
-from tike.opt import conjugate_gradient
 from tike.linalg import orthogonalize_gs
-
+from tike.opt import conjugate_gradient, batch_indicies, collect_batch
 from ..position import update_positions_pd
 
 logger = logging.getLogger(__name__)
@@ -18,6 +17,8 @@ def cgrad(
     cost=None,
     eigen_probe=None,
     eigen_weights=None,
+    num_batch=1,
+    subset_is_random=None,
     step_length=1,
     probe_is_orthogonal=False,
 ):  # yapf: disable
@@ -33,44 +34,52 @@ def cgrad(
 
     """
     cost = np.inf
+    # Unique batch for each device
+    batches = [
+        batch_indicies(s.shape[-2], num_batch, subset_is_random) for s in scan
+    ]
+    for n in range(num_batch):
 
-    if recover_psi:
-        psi, cost = _update_object(
-            op,
-            comm,
-            data,
-            psi,
-            scan,
-            probe,
-            rho,
-            reg,
-            num_iter=cg_iter,
-            step_length=step_length,
-        )
+        bdata = comm.pool.map(collect_batch, data, batches, n=n)
+        bscan = comm.pool.map(collect_batch, scan, batches, n=n)
 
-    if recover_probe:
-        probe, cost = _update_probe(
-            op,
-            comm,
-            data,
-            psi,
-            scan,
-            probe,
-            num_iter=cg_iter,
-            step_length=step_length,
-            probe_is_orthogonal=probe_is_orthogonal,
-            mode=list(range(probe[0].shape[-3])),
-        )
+        if recover_psi:
+            psi, cost = _update_object(
+                op,
+                comm,
+                bdata,
+                psi,
+                bscan,
+                probe,
+                rho,
+                reg,
+                num_iter=cg_iter,
+                step_length=step_length,
+            )
 
-    if recover_positions and comm.pool.num_workers == 1:
-        scan, cost = update_positions_pd(
-            op,
-            comm.pool.gather(data, axis=1),
-            psi[0],
-            probe[0],
-            comm.pool.gather(scan, axis=1),
-        )
-        scan = comm.pool.bcast(scan)
+        if recover_probe:
+            probe, cost = _update_probe(
+                op,
+                comm,
+                bdata,
+                psi,
+                bscan,
+                probe,
+                num_iter=cg_iter,
+                step_length=step_length,
+                probe_is_orthogonal=probe_is_orthogonal,
+                mode=list(range(probe[0].shape[-3])),
+            )
+
+        if recover_positions and comm.pool.num_workers == 1:
+            bscan, cost = update_positions_pd(
+                op,
+                comm.pool.gather(bdata, axis=1),
+                psi[0],
+                probe[0],
+                comm.pool.gather(bscan, axis=1),
+            )
+            bscan = comm.pool.bcast(bscan)
 
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 
