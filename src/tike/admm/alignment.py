@@ -142,14 +142,13 @@ def subproblem(
         padded_shape=psi.shape,
         cval=1.0,
     )
-    ψAφ = psi - Aφ
 
     logger.info("Update alignment lambdas and rhos")
 
     if λ_p is not None:
-        λ_p += ρ_p * ψAφ
+        λ_p += ρ_p * (psi - Aφ)
 
-    if ρ_p is not None and Aφ0 is not None:
+    if Aφ0 is not None:
         ρ_p = update_penalty(comm, psi, Aφ, Aφ0, ρ_p)
 
     Aφ0 = Aφ

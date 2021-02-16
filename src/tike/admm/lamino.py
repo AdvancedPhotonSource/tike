@@ -75,22 +75,22 @@ def subproblem(
             num_gpu=comm.size,
         )
         u = lresult['obj']
-        cost = lresult['cost']
+        cost = lresult['cost'][-1]
 
     # Separate again to multiple processes
     λ_l, phi, theta = [comm.scatter(x) for x in (λ_l, phi, theta)]
-    # u = comm.broadcast(u)  # volume too large to fit in MPI buffer
+    # FIXME: volume becomes too large to fit in MPI buffer
+    u = comm.broadcast(u)
 
     Hu = np.exp(1j * tike.lamino.simulate(
         obj=u,
         tilt=tilt,
         theta=theta,
     ))
-    φHu = phi - Hu
 
     logger.info('Update laminography lambdas and rhos.')
 
-    λ_l += ρ_l * φHu
+    λ_l += ρ_l * (phi - Hu)
 
     if Hu0 is not None:
         ρ_l = update_penalty(comm, phi, Hu, Hu0, ρ_l)
