@@ -300,7 +300,7 @@ class TestPtychoRecon(unittest.TestCase):
             params={
                 # 'subset_is_random': True,
                 # 'batch_size': int(self.data.shape[1] * 0.6),
-                'num_gpu': 1,
+                'num_gpu': 2,
                 'recover_probe': True,
                 'recover_psi': True,
                 'use_mpi': False,

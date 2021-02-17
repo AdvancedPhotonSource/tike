@@ -77,9 +77,14 @@ def lstsq_grad(
             psi,
         ))
 
-        cost = comm.pool.reduce_gpu(cost)
+        #cost = comm.pool.reduce_gpu(cost)
+        if comm.use_mpi:
+            cost = comm.Allreduce_reduce(cost, 'cpu')
+        else:
+            cost = comm.reduce(cost, 'cpu')
 
         # v--- requires sycnrhonization ---v
+        print("test2:",n,type(cost), bdata[0].shape, bscan[0].shape)
 
         (
             psi[0],
@@ -102,6 +107,7 @@ def lstsq_grad(
 
         # ^--- requires synchronization ---^
 
+        print("test3:",type(psi),type(scan))
     result = {
         'psi': psi,
         'probe': probe,
@@ -159,6 +165,7 @@ def _update_nearplane(op, nearplane, psi, scan_, probe, unique_probe,
                 positions=scan_,
             )[..., None, None, :, :] * unique_probe[..., m:m + 1, :, :]
             A1 = cp.sum((dOP * dOP.conj()).real + 0.5, axis=(-2, -1))
+            #print("test:",nearplane.shape,common_grad_psi.shape,dOP.shape, A1.shape)
             A1 += 0.5 * cp.mean(A1, axis=-3, keepdims=True)
             b1 = cp.sum((dOP.conj() * diff).real, axis=(-2, -1))
 
