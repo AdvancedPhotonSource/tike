@@ -83,11 +83,11 @@ class TestPtychoUtils(unittest.TestCase):
         psi = np.empty((7, 4, 9))
         probe = np.empty((7, 1, 1, 8, 2, 2))
         scan = np.array([[1, 1], [1, 6.9], [1.1, 1], [1.9, 5.5]])
-        tike.ptycho.check_allowed_positions(scan, psi, probe)
+        tike.ptycho.check_allowed_positions(scan, psi, probe.shape)
 
         for scan in np.array([[1, 7], [1, 0.9], [0.9, 1], [1, 0]]):
             with self.assertRaises(ValueError):
-                tike.ptycho.check_allowed_positions(scan, psi, probe)
+                tike.ptycho.check_allowed_positions(scan, psi, probe.shape)
 
     def test_split_by_scan(self):
         scan = np.mgrid[0:3, 0:3].reshape(2, 1, -1)
