@@ -246,7 +246,7 @@ class TestPtychoRecon(unittest.TestCase):
             **params,
             data=self.data,
             algorithm=algorithm,
-            num_iter=32,
+            num_iter=1,
             # Only works when probe recovery is false because scaling
         )
         print()
