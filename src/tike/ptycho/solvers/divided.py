@@ -104,7 +104,6 @@ def lstsq_grad(
             [recover_psi] * comm.pool.num_workers,
             [recover_probe] * comm.pool.num_workers,
         ))
-        exit()
         #(
         #    psi[0],
         #    probe[0],
@@ -125,8 +124,9 @@ def lstsq_grad(
         #)
 
         psi, probe = _update_nearplane(
-            weighted_step1,
-            weighted_step2,
+            comm,
+            list(weighted_step1),
+            list(weighted_step2),
             psi,
             probe,
             recover_psi,
@@ -195,7 +195,6 @@ def _compute_nearplane(op, nearplane, psi, scan_, probe, unique_probe,
                 positions=scan_,
             )[..., None, None, :, :] * unique_probe[..., m:m + 1, :, :]
             A1 = cp.sum((dOP * dOP.conj()).real + 0.5, axis=(-2, -1))
-            print("test:",nearplane.shape,common_grad_psi.shape,dOP.shape, A1.shape)
             A1 += 0.5 * cp.mean(A1, axis=-3, keepdims=True)
             b1 = cp.sum((dOP.conj() * diff).real, axis=(-2, -1))
 
@@ -210,6 +209,7 @@ def _compute_nearplane(op, nearplane, psi, scan_, probe, unique_probe,
                 axis=-5,
                 keepdims=True,
             )
+            print("test:",nearplane.shape,common_grad_psi.shape,common_grad_probe.shape, A1.shape)
 
             #TODO: REDUCE common_grad_probe by WEIGHTED AVERAGE
 
@@ -282,15 +282,13 @@ def _compute_nearplane(op, nearplane, psi, scan_, probe, unique_probe,
             step = x1[..., None, None]
 
             # (27b) Object update
-            weighted_step = cp.mean(step, keepdims=True, axis=-5)[..., 0, 0, 0]
-
-            #TODO: REDUCE weighted_step by WEIGHTED AVERAGE
-            print("test3:",x1.shape, weighted_step.shape)
+            #weighted_step1 = cp.mean(step, keepdims=True, axis=-5)[..., 0, 0, 0]
+            weighted_step1 = cp.mean(step, keepdims=True, axis=-5)
 
         if recover_probe:
             step = x2[..., None, None]
 
-            weighted_step = cp.mean(step, axis=-5, keepdims=True)
+            weighted_step2 = cp.mean(step, axis=-5, keepdims=True)
 
         if __debug__:
             patches = op.diffraction.patch.fwd(
@@ -307,12 +305,17 @@ def _compute_nearplane(op, nearplane, psi, scan_, probe, unique_probe,
 
     return weighted_step1, weighted_step2, eigen_probe, eigen_weights
 
-def _update_nearplane(weighted_step1, weighted_step2, psi, probe,
+def _update_nearplane(comm, weighted_step1, weighted_step2, psi, probe,
                      recover_psi, recover_probe, probe_is_orthogonal):
     # Update each direction
     if recover_psi:
         #TODO: REDUCE weighted_step by WEIGHTED AVERAGE
-        print("test3:",x1.shape, weighted_step.shape)
+        weighted_step1[0] = comm.pool.reduce_mean(
+            weighted_step1,
+            axis=-5,
+        )[..., 0, 0, 0]
+        print("test3:",weighted_step1[0].shape, weighted_step1[1].shape)
+        exit()
 
         psi += weighted_step * common_grad_psi
 
