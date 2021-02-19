@@ -77,13 +77,10 @@ def lstsq_grad(
             psi,
         ))
 
-        #cost = comm.pool.reduce_gpu(cost)
         if comm.use_mpi:
             cost = comm.Allreduce_reduce(cost, 'cpu')
         else:
             cost = comm.reduce(cost, 'cpu')
-
-        # v--- requires sycnrhonization ---v
 
         (
             psi,
@@ -104,9 +101,7 @@ def lstsq_grad(
             recover_probe,
             probe_is_orthogonal,
         )
-        # ^--- requires synchronization ---^
 
-        print("test3:",type(psi),type(scan))
     result = {
         'psi': psi,
         'probe': probe,
@@ -142,7 +137,6 @@ def _compute_nearplane(op, m, nearplane, psi, scan_, probe, unique_probe,
 
     if recover_psi:
         grad_psi = cp.conj(unique_probe[..., m:m + 1, :, :]) * diff
-        print("test4:",patches.shape, diff.shape, grad_psi.shape)
 
         # (25b) Common object gradient. Use a weighted (normalized) sum
         # instead of division as described in publication to improve
@@ -152,8 +146,6 @@ def _compute_nearplane(op, m, nearplane, psi, scan_, probe, unique_probe,
             images=cp.zeros(psi.shape, dtype='complex64'),
             positions=scan_,
         )
-
-        #TODO: REDUCE common_grad_psi by ADDITION
 
         dOP = op.diffraction.patch.fwd(
             patches=cp.zeros(patches.shape, dtype='complex64')[..., 0,
@@ -176,9 +168,6 @@ def _compute_nearplane(op, m, nearplane, psi, scan_, probe, unique_probe,
             axis=-5,
             keepdims=True,
         )
-        print("test:",nearplane.shape,grad_probe.shape,common_grad_probe.shape, A1.shape)
-
-        #TODO: REDUCE common_grad_probe by WEIGHTED AVERAGE
 
         dPO = common_grad_probe * patches
         A4 = cp.sum((dPO * dPO.conj()).real + 0.5, axis=(-2, -1))
@@ -249,14 +238,12 @@ def _compute_nearplane(op, m, nearplane, psi, scan_, probe, unique_probe,
         step = x1[..., None, None]
 
         # (27b) Object update
-        #weighted_step1 = cp.mean(step, keepdims=True, axis=-5)[..., 0, 0, 0]
         weighted_step1 = cp.mean(step, keepdims=True, axis=-5)
 
     if recover_probe:
         step = x2[..., None, None]
 
         weighted_step2 = cp.mean(step, axis=-5, keepdims=True)
-    print("test3:",step.shape,weighted_step2.shape, common_grad_probe.shape)
 
     if __debug__:
         patches = op.diffraction.patch.fwd(
@@ -305,9 +292,9 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
         common_grad_probe = list(common_grad_probe)
         weighted_step1 = list(weighted_step1)
         weighted_step2 = list(weighted_step2)
+
         # Update each direction
         if recover_psi:
-            #TODO: REDUCE weighted_step by WEIGHTED AVERAGE
             weighted_step1[0] = comm.pool.reduce_mean(
                 weighted_step1,
                 axis=-5,
@@ -318,7 +305,6 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             psi = comm.pool.bcast(psi[0])
 
         if recover_probe:
-            #TODO: REDUCE weighted_step by WEIGHTED AVERAGE
             weighted_step2[0] = comm.pool.reduce_mean(
                 weighted_step2,
                 axis=-5,
@@ -329,7 +315,8 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             )
 
             # (27a) Probe update
-            probe[0][..., m:m + 1, :, :] += weighted_step2[0] * common_grad_probe[0]
+            probe[0][..., m:m + 1, :, :] += (weighted_step2[0]
+                                             * common_grad_probe[0])
 
         if probe[0].shape[-3] > 1 and probe_is_orthogonal:
             probe[0] = orthogonalize_gs(probe[0], axis=(-2, -1))

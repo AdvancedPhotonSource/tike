@@ -246,7 +246,7 @@ class TestPtychoRecon(unittest.TestCase):
             **params,
             data=self.data,
             algorithm=algorithm,
-            num_iter=1,
+            num_iter=32,
             # Only works when probe recovery is false because scaling
         )
         print()
@@ -300,7 +300,7 @@ class TestPtychoRecon(unittest.TestCase):
             params={
                 # 'subset_is_random': True,
                 # 'batch_size': int(self.data.shape[1] * 0.6),
-                'num_gpu': 2,
+                'num_gpu': 4,
                 'recover_probe': True,
                 'recover_psi': True,
                 'use_mpi': False,
