@@ -182,33 +182,16 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
 
         for c in range(eigen_probe.shape[-4]):
 
-            eigen_probe[..., c:c + 1, m:m + 1, :, :] = update_eigen_probe(
+            (
+                eigen_probe[..., c:c + 1, m:m + 1, :, :],
+                eigen_weights[..., c, m],
+            ) = update_eigen_probe(
                 R,
                 eigen_probe[..., c:c + 1, m:m + 1, :, :],
                 eigen_weights[..., c, m],
+                patches,
+                diff,
                 β=0.01,  # TODO: Adjust according to mini-batch size
-            )
-
-            # Determine new eigen_weights for the updated eigen probe
-            phi = patches * eigen_probe[..., c:c + 1, m:m + 1, :, :]
-            n = cp.mean(
-                cp.real(diff * phi.conj()),
-                axis=(-1, -2),
-                keepdims=True,
-            )
-            norm_phi = cp.square(cp.abs(phi))
-            d = cp.mean(norm_phi, axis=(-1, -2), keepdims=True)
-            # TODO: REDUCE mean_d by WEIGHTED AVERAGE
-            d += 0.1 * cp.mean(d, axis=-5, keepdims=True)
-            weight_update = (n / d).reshape(*eigen_weights[..., 0, 0].shape)
-            assert cp.all(cp.isfinite(weight_update))
-
-            # (33) The sum of all previous steps constrained to zero-mean
-            eigen_weights[..., c, m] += weight_update
-            eigen_weights[..., c, m] -= cp.mean(
-                eigen_weights[..., c, m],
-                axis=-1,
-                keepdims=True,
             )
 
             if eigen_probe.shape[-4] <= c + 1:

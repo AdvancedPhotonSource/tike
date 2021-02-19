@@ -73,7 +73,7 @@ def get_varying_probe(shared_probe, eigen_probe=None, weights=None, m=None):
         return shared_probe[..., :, m, :, :].copy()
 
 
-def update_eigen_probe(R, eigen_probe, weights, β=0.1):
+def update_eigen_probe(R, eigen_probe, weights, patches, diff, β=0.1):
     """Update eigen probes using residual probe updates.
 
     This update is copied from the source code of ptychoshelves. It is similar
@@ -135,7 +135,29 @@ def update_eigen_probe(R, eigen_probe, weights, β=0.1):
 
     eigen_probe /= np.linalg.norm(eigen_probe, axis=(-2, -1), keepdims=True)
 
-    return eigen_probe
+    # Determine new eigen_weights for the updated eigen probe
+    phi = patches * eigen_probe
+    n = cp.mean(
+        cp.real(diff * phi.conj()),
+        axis=(-1, -2),
+        keepdims=True,
+    )
+    norm_phi = cp.square(cp.abs(phi))
+    d = cp.mean(norm_phi, axis=(-1, -2), keepdims=True)
+    # TODO: REDUCE mean_d by WEIGHTED AVERAGE
+    d += 0.1 * cp.mean(d, axis=-5, keepdims=True)
+    weight_update = (n / d).reshape(*weights.shape)
+    assert cp.all(cp.isfinite(weight_update))
+
+    # (33) The sum of all previous steps constrained to zero-mean
+    weights += weight_update
+    weights -= cp.mean(
+        weights,
+        axis=-5,
+        keepdims=True,
+    )
+
+    return eigen_probe, weights[..., 0, 0, 0, 0]
 
 
 def add_modes_random_phase(probe, nmodes):
