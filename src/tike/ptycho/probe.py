@@ -86,7 +86,9 @@ def update_eigen_probe(R, eigen_probe, weights, patches, diff, β=0.1):
     R : (..., POSI, 1, 1, WIDE, HIGH) complex64
         Residual probe updates; what's left after subtracting the shared probe
         update from the varying probe updates for each position
-    eigen_probe : (..., 1, EIGEN, 1, WIDE, HIGH) complex64
+    patches : (..., POSI, 1, 1, WIDE, HIGH) complex64
+    diff : (..., POSI, 1, 1, WIDE, HIGH) complex64
+    eigen_probe : (..., 1, 1, 1, WIDE, HIGH) complex64
         The eigen probe being updated.
     β : float
         A relaxation constant that controls how quickly the eigen probe modes
@@ -137,21 +139,22 @@ def update_eigen_probe(R, eigen_probe, weights, patches, diff, β=0.1):
 
     # Determine new eigen_weights for the updated eigen probe
     phi = patches * eigen_probe
-    n = cp.mean(
-        cp.real(diff * phi.conj()),
+    n = np.mean(
+        np.real(diff * phi.conj()),
         axis=(-1, -2),
         keepdims=True,
     )
-    norm_phi = cp.square(cp.abs(phi))
-    d = cp.mean(norm_phi, axis=(-1, -2), keepdims=True)
+    norm_phi = np.square(np.abs(phi))
+    d = np.mean(norm_phi, axis=(-1, -2), keepdims=True)
     # TODO: REDUCE mean_d by WEIGHTED AVERAGE
-    d += 0.1 * cp.mean(d, axis=-5, keepdims=True)
+    d += 0.1 * np.mean(d, axis=-5, keepdims=True)
+
     weight_update = (n / d).reshape(*weights.shape)
-    assert cp.all(cp.isfinite(weight_update))
+    assert np.all(np.isfinite(weight_update))
 
     # (33) The sum of all previous steps constrained to zero-mean
     weights += weight_update
-    weights -= cp.mean(
+    weights -= np.mean(
         weights,
         axis=-5,
         keepdims=True,

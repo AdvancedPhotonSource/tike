@@ -345,17 +345,21 @@ class TestProbe(unittest.TestCase):
         wide = 18
         high = 21
         posi = 53
-        eigen = 5
+        eigen = 1
 
         R = np.random.rand(*leading, posi, 1, 1, wide, high)
         eigen_probe = np.random.rand(*leading, 1, eigen, 1, wide, high)
         weights = np.random.rand(*leading, posi)
         weights -= np.mean(weights)
+        patches = np.random.rand(*leading, posi, 1, 1, wide, high)
+        diff = np.random.rand(*leading, posi, 1, 1, wide, high)
 
-        new_probe = tike.ptycho.probe.update_eigen_probe(
+        new_probe, new_weights = tike.ptycho.probe.update_eigen_probe(
             R=R,
             eigen_probe=eigen_probe,
             weights=weights,
+            patches=patches,
+            diff=diff,
         )
 
         assert eigen_probe.shape == new_probe.shape
