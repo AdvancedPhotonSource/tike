@@ -60,13 +60,12 @@ def lstsq_grad(
             beigen_probe = [None] * comm.pool.num_workers
             beigen_weights = [None] * comm.pool.num_workers
 
-        unique_probe = list(
-            comm.pool.map(
-                get_varying_probe,
-                probe,
-                beigen_probe,
-                beigen_weights,
-            ))
+        unique_probe = comm.pool.map(
+            get_varying_probe,
+            probe,
+            beigen_probe,
+            beigen_weights,
+        )
 
         nearplane, cost = zip(*comm.pool.map(
             _update_wavefront,
@@ -90,7 +89,7 @@ def lstsq_grad(
         ) = _update_nearplane(
             op,
             comm,
-            list(nearplane),
+            nearplane,
             psi,
             bscan,
             probe,
@@ -266,7 +265,9 @@ def _compute_nearplane(op, m, nearplane, psi, scan_, probe, unique_probe,
 def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                       eigen_probe, eigen_weights, recover_psi, recover_probe,
                       probe_is_orthogonal):
+
     for m in range(probe[0].shape[-3]):
+
         (
             common_grad_psi,
             common_grad_probe,
@@ -274,11 +275,11 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             weighted_step2,
             beigen_probe,
             beigen_weights,
-        ) = zip(*comm.pool.map(
+        ) = (list(a) for a in zip(*comm.pool.map(
             _compute_nearplane,
             [op] * comm.pool.num_workers,
             [m] * comm.pool.num_workers,
-            list(nearplane),
+            nearplane,
             psi,
             scan_,
             probe,
@@ -287,12 +288,7 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             eigen_weights,
             [recover_psi] * comm.pool.num_workers,
             [recover_probe] * comm.pool.num_workers,
-        ))
-
-        common_grad_psi = list(common_grad_psi)
-        common_grad_probe = list(common_grad_probe)
-        weighted_step1 = list(weighted_step1)
-        weighted_step2 = list(weighted_step2)
+        )))
 
         # Update each direction
         if recover_psi:
