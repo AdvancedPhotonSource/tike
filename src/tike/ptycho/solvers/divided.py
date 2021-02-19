@@ -69,11 +69,11 @@ def lstsq_grad(
 
         nearplane, cost = zip(*comm.pool.map(
             _update_wavefront,
-            [op] * comm.pool.num_workers,
             bdata,
             unique_probe,
             bscan,
             psi,
+            op=op,
         ))
 
         if comm.use_mpi:
@@ -114,8 +114,8 @@ def lstsq_grad(
     return result
 
 
-def _get_nearplane_gradients(op, m, nearplane, psi, scan_, probe, unique_probe,
-                             eigen_probe, eigen_weights, recover_psi,
+def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
+                             eigen_probe, eigen_weights, op, m, recover_psi,
                              recover_probe):
 
     pad, end = op.diffraction.pad, op.diffraction.end
@@ -277,8 +277,6 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             beigen_weights,
         ) = (list(a) for a in zip(*comm.pool.map(
             _get_nearplane_gradients,
-            [op] * comm.pool.num_workers,
-            [m] * comm.pool.num_workers,
             nearplane,
             psi,
             scan_,
@@ -286,8 +284,10 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             unique_probe,
             eigen_probe,
             eigen_weights,
-            [recover_psi] * comm.pool.num_workers,
-            [recover_probe] * comm.pool.num_workers,
+            op=op,
+            m=m,
+            recover_psi=recover_psi,
+            recover_probe=recover_probe,
         )))
 
         # Update each direction
@@ -322,7 +322,7 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
     return psi, probe, eigen_probe, eigen_weights
 
 
-def _update_wavefront(op, data, varying_probe, scan, psi):
+def _update_wavefront(data, varying_probe, scan, psi, op):
 
     # Compute the diffraction patterns for all of the probe modes at once.
     # We need access to all of the modes of a position to solve the phase
