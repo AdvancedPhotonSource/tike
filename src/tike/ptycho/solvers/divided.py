@@ -87,7 +87,7 @@ def lstsq_grad(
             probe,
             beigen_probe,
             beigen_weights,
-        ) =  _update_nearplane(
+        ) = _update_nearplane(
             op,
             comm,
             list(nearplane),
@@ -116,7 +116,7 @@ def lstsq_grad(
 
 
 def _compute_nearplane(op, m, nearplane, psi, scan_, probe, unique_probe,
-                      eigen_probe, eigen_weights, recover_psi, recover_probe):
+                       eigen_probe, eigen_weights, recover_psi, recover_probe):
 
     pad, end = op.diffraction.pad, op.diffraction.end
 
@@ -261,6 +261,7 @@ def _compute_nearplane(op, m, nearplane, psi, scan_, probe, unique_probe,
     return (common_grad_psi, common_grad_probe,
             weighted_step1, weighted_step2,
             eigen_probe, eigen_weights)
+
 
 def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                       eigen_probe, eigen_weights, recover_psi, recover_probe,
