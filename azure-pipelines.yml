@@ -63,8 +63,6 @@ jobs:
       pytest -vs
     displayName: Run tests
 
-  - script: conda clean --packages --yes
-
 
 - job: MultiLinux
   pool:
@@ -82,9 +80,6 @@ jobs:
 
   - script: echo "CUDA version is $(CUDA_VERSION)"
     displayName: Print CUDA version
-
-  - script: conda update -n base conda --yes --quiet
-    displayName: Update conda
 
   - script: rm /home/azure/conda/envs/tike -rf
     displayName: Force remove previous environments
