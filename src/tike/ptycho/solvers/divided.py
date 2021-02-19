@@ -114,8 +114,9 @@ def lstsq_grad(
     return result
 
 
-def _compute_nearplane(op, m, nearplane, psi, scan_, probe, unique_probe,
-                       eigen_probe, eigen_weights, recover_psi, recover_probe):
+def _get_nearplane_gradients(op, m, nearplane, psi, scan_, probe, unique_probe,
+                             eigen_probe, eigen_weights, recover_psi,
+                             recover_probe):
 
     pad, end = op.diffraction.pad, op.diffraction.end
 
@@ -230,19 +231,19 @@ def _compute_nearplane(op, m, nearplane, psi, scan_, probe, unique_probe,
     elif recover_probe:
         x2 = b2 / A4
 
-    weighted_step1 = None
-    weighted_step2 = None
+    weighted_step_psi = None
+    weighted_step_probe = None
 
     if recover_psi:
         step = x1[..., None, None]
 
         # (27b) Object update
-        weighted_step1 = cp.mean(step, keepdims=True, axis=-5)
+        weighted_step_psi = cp.mean(step, keepdims=True, axis=-5)
 
     if recover_probe:
         step = x2[..., None, None]
 
-        weighted_step2 = cp.mean(step, axis=-5, keepdims=True)
+        weighted_step_probe = cp.mean(step, axis=-5, keepdims=True)
 
     if __debug__:
         patches = op.diffraction.patch.fwd(
@@ -257,9 +258,8 @@ def _compute_nearplane(op, m, nearplane, psi, scan_, probe, unique_probe,
             norm(probe[..., m:m + 1, :, :] * patches -
                  nearplane[..., m:m + 1, pad:end, pad:end]))
 
-    return (common_grad_psi, common_grad_probe,
-            weighted_step1, weighted_step2,
-            eigen_probe, eigen_weights)
+    return (common_grad_psi, common_grad_probe, weighted_step_psi,
+            weighted_step_probe, eigen_probe, eigen_weights)
 
 
 def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
@@ -271,12 +271,12 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
         (
             common_grad_psi,
             common_grad_probe,
-            weighted_step1,
-            weighted_step2,
+            weighted_step_psi,
+            weighted_step_probe,
             beigen_probe,
             beigen_weights,
         ) = (list(a) for a in zip(*comm.pool.map(
-            _compute_nearplane,
+            _get_nearplane_gradients,
             [op] * comm.pool.num_workers,
             [m] * comm.pool.num_workers,
             nearplane,
@@ -292,18 +292,18 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
 
         # Update each direction
         if recover_psi:
-            weighted_step1[0] = comm.pool.reduce_mean(
-                weighted_step1,
+            weighted_step_psi[0] = comm.pool.reduce_mean(
+                weighted_step_psi,
                 axis=-5,
             )[..., 0, 0, 0]
             common_grad_psi[0] = comm.pool.reduce_gpu(common_grad_psi)
 
-            psi[0] += weighted_step1[0] * common_grad_psi[0]
+            psi[0] += weighted_step_psi[0] * common_grad_psi[0]
             psi = comm.pool.bcast(psi[0])
 
         if recover_probe:
-            weighted_step2[0] = comm.pool.reduce_mean(
-                weighted_step2,
+            weighted_step_probe[0] = comm.pool.reduce_mean(
+                weighted_step_probe,
                 axis=-5,
             )
             common_grad_probe[0] = comm.pool.reduce_mean(
@@ -312,8 +312,8 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             )
 
             # (27a) Probe update
-            probe[0][..., m:m + 1, :, :] += (weighted_step2[0]
-                                             * common_grad_probe[0])
+            probe[0][..., m:m + 1, :, :] += (weighted_step_probe[0] *
+                                             common_grad_probe[0])
 
         if probe[0].shape[-3] > 1 and probe_is_orthogonal:
             probe[0] = orthogonalize_gs(probe[0], axis=(-2, -1))
