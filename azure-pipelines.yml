@@ -112,5 +112,3 @@ jobs:
       mpirun -n 2 pytest tests/test_comm.py
       mpirun -n 2 pytest tests/test_ptycho.py -k cgrad
     displayName: Run tests with MPI
-
-  - script: conda clean --packages --yes
