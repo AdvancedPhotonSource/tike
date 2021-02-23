@@ -51,23 +51,30 @@ class Alignment(Operator):
         unpadded_shape=None,
         cval=0.0,
     ):
-        return self.rotate.fwd(
-            unrotated=self.flow.fwd(
-                f=self.shift.fwd(
-                    a=self.pad.fwd(
-                        unpadded=unpadded,
-                        padded_shape=padded_shape,
-                        cval=cval,
-                    ),
-                    shift=shift,
-                    cval=cval,
-                ),
-                flow=flow,
+        unflowed = self.shift.fwd(
+            a=self.pad.fwd(
+                unpadded=unpadded,
+                padded_shape=padded_shape,
                 cval=cval,
             ),
-            angle=angle,
+            shift=shift,
             cval=cval,
         )
+        if flow is None:
+            return self.rotate.fwd(
+                unrotated=unflowed,
+                angle=angle,
+                cval=cval,
+            )
+        else:
+            if angle is not None:
+                flow = flow + self.rotate._make_flow(unrotated=unflowed,
+                                                     angle=angle)
+            return self.flow.fwd(
+                f=unflowed,
+                flow=flow,
+                cval=cval,
+            )
 
     def adj(
         self,
@@ -79,17 +86,24 @@ class Alignment(Operator):
         padded_shape=None,
         cval=0.0,
     ):
+        if flow is None:
+            unflowed = self.rotate.adj(
+                rotated=rotated,
+                angle=angle,
+                cval=cval,
+            )
+        else:
+            if angle is not None:
+                flow = flow + self.rotate._make_flow(unrotated=rotated,
+                                                     angle=angle)
+            unflowed = self.flow.adj(
+                g=rotated,
+                flow=flow,
+                cval=cval,
+            )
         return self.pad.adj(
             padded=self.shift.adj(
-                a=self.flow.adj(
-                    g=self.rotate.adj(
-                        rotated=rotated,
-                        angle=angle,
-                        cval=cval,
-                    ),
-                    flow=flow,
-                    cval=cval,
-                ),
+                a=unflowed,
                 shift=shift,
                 cval=cval,
             ),

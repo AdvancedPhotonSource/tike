@@ -20,6 +20,20 @@ class Rotate(Operator):
         original image.
     """
 
+    def _make_flow(self, unrotated, angle):
+        """Return a flow that performs the rotation."""
+        cos, sin = np.cos(angle), np.sin(angle)
+        shifti = (unrotated.shape[-2] - 1) / 2.0
+        shiftj = (unrotated.shape[-1] - 1) / 2.0
+
+        i, j = self.xp.mgrid[0:unrotated.shape[-2],
+                             0:unrotated.shape[-1]].astype('float32')
+
+        di = i - ((+cos * (i - shifti) + sin * (j - shiftj)) + shifti)
+        dj = j - ((-sin * (i - shifti) + cos * (j - shiftj)) + shiftj)
+
+        return self.xp.stack([di, dj], axis=-1)
+
     def _make_grid(self, unrotated, angle):
         """Return the points on the rotated grid."""
         cos, sin = np.cos(angle), np.sin(angle)
