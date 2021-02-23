@@ -311,7 +311,10 @@ def reconstruct(
             for k, v in result.items():
                 if isinstance(v, list):
                     result[k] = v[0]
-        return {k: operator.asnumpy(v) for k, v in result.items()}
+        return {
+            k: v if np.ndim(v) < 1 else operator.asnumpy(v)
+            for k, v in result.items()
+        }
     else:
         raise ValueError(f"The '{algorithm}' algorithm is not an option.\n"
                          f"\tAvailable algorithms are : {solvers.__all__}")
