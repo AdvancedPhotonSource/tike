@@ -122,19 +122,7 @@ class ThreadPool(ThreadPoolExecutor):
         if self.num_workers == 1:
             return x[0]
         worker = self.workers[0] if worker is None else worker
-        with cp.cuda.Device(worker):
-            for part in x[:worker]:
-                x[worker] = cp.concatenate(
-                    (x[worker], self._copy_to(part, worker)),
-                    axis=axis,
-                )
-            for part in x[(worker + 1):]:
-                x[worker] = cp.concatenate(
-                    (x[worker], self._copy_to(part, worker)),
-                    axis=axis,
-                )
-            x[worker] = cp.mean(x[worker], keepdims=True, axis=axis)
-            return x[worker]
+            return cp.mean(self.gather(x, worker=worker, axis=axis), keepdims=True, axis=axis)
 
     def map(self, func, *iterables, **kwargs):
         """ThreadPoolExecutor.map, but wraps call in a cuda.Device context."""
