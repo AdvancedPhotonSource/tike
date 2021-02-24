@@ -22,11 +22,9 @@ class TestAlignRecon(unittest.TestCase):
 
         Only called with setUp detects that `dataset_file` has been deleted.
         """
-        import matplotlib.pyplot as plt
-        amplitude = plt.imread(
-            os.path.join(testdir, "data/Cryptomeria_japonica-0128.png"))
-        phase = plt.imread(
-            os.path.join(testdir, "data/Bombus_terrestris-0128.png"))
+        import libimage
+        amplitude = libimage.load("cryptomeria", 128)
+        phase = libimage.load("bombus", 128)
         original = amplitude * np.exp(1j * phase * np.pi)
         self.original = np.expand_dims(original, axis=0).astype('complex64')
 
@@ -34,9 +32,12 @@ class TestAlignRecon(unittest.TestCase):
         self.flow = np.empty((*self.original.shape, 2), dtype='float32')
         self.flow[..., :] = 5 * (np.random.rand(2) - 0.5)
 
+        self.shift = 2 * (np.random.rand(*self.original.shape[:-2], 2) - 0.5)
+
         self.data = tike.align.simulate(
             original=self.original,
             flow=self.flow,
+            shift=self.shift,
             padded_shape=None,
             angle=None,
         )
@@ -45,6 +46,7 @@ class TestAlignRecon(unittest.TestCase):
             self.data,
             self.original,
             self.flow,
+            self.shift,
         ]
 
         with lzma.open(dataset_file, 'wb') as file:
@@ -60,6 +62,7 @@ class TestAlignRecon(unittest.TestCase):
                 self.data,
                 self.original,
                 self.flow,
+                self.shift,
             ] = pickle.load(file)
 
     def test_consistent_simulate(self):
@@ -67,6 +70,7 @@ class TestAlignRecon(unittest.TestCase):
         data = tike.align.simulate(
             original=self.original,
             flow=self.flow,
+            shift=self.shift,
             padded_shape=None,
             angle=None,
         )
@@ -85,21 +89,23 @@ class TestAlignRecon(unittest.TestCase):
         shift = result['shift']
         assert shift.dtype == 'float32', shift.dtype
         # np.testing.assert_array_equal(shift.shape, self.shift.shape)
-        np.testing.assert_allclose(shift, self.flow[:, 0, 0], atol=1e-1)
+        np.testing.assert_allclose(shift,
+                                   self.flow[:, 0, 0] + self.shift,
+                                   atol=1e-1)
 
     def test_align_farneback(self):
         """Check that align.solvers.farneback works."""
         result = tike.align.solvers.farneback(
             op=None,
-            unaligned=self.data,
-            original=self.original,
+            unaligned=np.angle(self.data),
+            original=np.angle(self.original),
         )
         shift = result['flow']
         assert shift.dtype == 'float32', shift.dtype
         np.testing.assert_array_equal(shift.shape, (*self.original.shape, 2))
         h, w = shift.shape[1:3]
         np.testing.assert_allclose(shift[:, h // 2, w // 2, :],
-                                   self.flow[:, 0, 0],
+                                   self.flow[:, 0, 0] + self.shift,
                                    atol=1e-1)
 
 

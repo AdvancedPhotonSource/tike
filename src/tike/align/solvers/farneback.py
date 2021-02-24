@@ -4,15 +4,22 @@ import numpy as np
 from cv2 import calcOpticalFlowFarneback
 
 
-def _rescale_8bit(a, b):
-    """Return a, b rescaled into the same 8-bit range"""
+def _rescale_8bit(a, b, hi=None, lo=None):
+    """Return a, b rescaled into the same 8-bit range.
 
-    h, e = np.histogram(a, 1000)
-    stend = np.where(h > np.max(h) * 0.005)
-    st = stend[0][0]
-    end = stend[0][-1]
-    lo = e[st]
-    hi = e[end + 1]
+    The images are rescaled into the range [lo, hi] if provided; otherwise, the
+    range is decided by clipping the histogram of all bins that are less than
+    0.5 percent of the fullest bin.
+
+    """
+
+    if hi is None or lo is None:
+        h, e = np.histogram(b, 1000)
+        stend = np.where(h > np.max(h) * 0.005)
+        st = stend[0][0]
+        end = stend[0][-1]
+        lo = e[st]
+        hi = e[end + 1]
 
     # Force all values into range [0, 255]
     a = (255 * (a - lo) / (hi - lo))
@@ -37,6 +44,8 @@ def farneback(
     poly_n=5,
     poly_sigma=1.1,
     flow=None,
+    hi=None,
+    lo=None,
     **kwargs,
 ):
     """Find the flow from unaligned to original using Farneback's algorithm
@@ -57,6 +66,8 @@ def farneback(
     Expansion" 2003.
     """
     shape = original.shape
+    assert original.dtype == 'float32', original.dtype
+    assert unaligned.dtype == 'float32', unaligned.dtype
 
     if flow is None:
         flow = np.zeros((*shape, 2), dtype='float32')
@@ -67,7 +78,12 @@ def farneback(
     # Farneback implementation.
     for i in range(len(original)):
         flow[i] = calcOpticalFlowFarneback(
-            *_rescale_8bit(np.abs(original[i]), np.abs(unaligned[i])),
+            *_rescale_8bit(
+                original[i],
+                unaligned[i],
+                hi=hi[i] if hi is not None else None,
+                lo=lo[i] if lo is not None else None,
+            ),
             flow=flow[i],
             pyr_scale=pyr_scale,
             levels=levels,

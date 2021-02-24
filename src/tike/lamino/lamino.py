@@ -91,7 +91,7 @@ def reconstruct(
         theta,
         tilt,
         algorithm,
-        obj=None, num_iter=1, rtol=-1,
+        obj=None, num_iter=1, rtol=-1, eps=1e-3,
         num_gpu=1,
         **kwargs
 ):  # yapf: disable
@@ -113,7 +113,7 @@ def reconstruct(
         with Lamino(
                 n=obj.shape[-1],
                 tilt=tilt,
-                eps=1e-3,
+                eps=eps,
                 **kwargs,
         ) as operator, Comm(num_gpu, mpi=None) as comm:
             # send any array-likes to device
