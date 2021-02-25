@@ -93,6 +93,21 @@ def _get_d(patches, diff, eigen_probe):
     d_mean = np.mean(d, axis=-5, keepdims=True)
     return n, d, d_mean
 
+def _get_weight_mean(n, d, d_mean, weights):
+    d += 0.1 * d_mean
+    #print("probe2:",eigen_probe.shape, phi.shape, n.shape, norm_phi.shape, d.shape)
+
+    weight_update = (n / d).reshape(*weights.shape)
+    assert np.all(np.isfinite(weight_update))
+
+    # (33) The sum of all previous steps constrained to zero-mean
+    weights += weight_update
+    return np.mean(
+        weights,
+        axis=-5,
+        keepdims=True,
+    )
+
 def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
     """Update eigen probes using residual probe updates.
 
@@ -193,22 +208,37 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
         d_mean,
         axis=-5,
     ))
-    d += 0.1 * np.mean(d, axis=-5, keepdims=True)
     print("probe2:",eigen_probe.shape, phi.shape, n.shape, norm_phi.shape, d.shape)
 
-    weight_update = (n / d).reshape(*weights.shape)
-    assert np.all(np.isfinite(weight_update))
-
-    # (33) The sum of all previous steps constrained to zero-mean
-    weights += weight_update
-    weights -= np.mean(
+    weights_mean = list(comm.pool.map(
+        _get_weights_mean,
+        n,
+        d,
+        d_mean,
         weights,
+    ))
+    weights_mean = comm.pool.bcast(comm.pool.reduce_mean(
+        weights_mean,
         axis=-5,
-        keepdims=True,
-    )
+    ))
+
+    def _update_weights(weights, weights_mean):
+        weights -= weights_mean
+        return weights[..., 0, 0, 0, 0]
+
+    weights = list(comm.pool.map(
+        _update_weights,
+        weights,
+        weights_mean,
+    ))
+    #weights -= np.mean(
+    #    weights,
+    #    axis=-5,
+    #    keepdims=True,
+    #)
     print("probe3:",weight_update.shape, weights.shape)
 
-    return eigen_probe, weights[..., 0, 0, 0, 0]
+    return eigen_probe, weights
 
 
 def add_modes_random_phase(probe, nmodes):
