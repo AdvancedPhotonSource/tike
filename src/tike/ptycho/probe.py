@@ -207,11 +207,11 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
         weights -= weights_mean
         return weights[..., 0, 0, 0, 0]
 
-    weights = list(comm.pool.map(
+    weights = comm.pool.map(
         _update_weights,
         weights,
         weights_mean,
-    ))
+    )
 
     return eigen_probe, weights
 
