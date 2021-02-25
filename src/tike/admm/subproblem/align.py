@@ -161,8 +161,12 @@ def align(
             )
 
         if align_method.lower() == 'flow':
-            hi, lo = _find_min_max(np.angle(psi))
-            winsize = max(winsize - 1, 128)
+            if shift is not None:
+                flow = np.zeros((*rotated.shape, 2), dtype='float32')
+                flow[..., :] = shift[..., None, None, :]
+                shift = None
+            hi, lo = _find_min_max(np.angle(rotated))
+            winsize = max(winsize - 1, 32)
             logging.info("Estimate alignment using Farneback.")
             fresult = tike.align.solvers.farneback(
                 op=None,
