@@ -115,8 +115,7 @@ def lstsq_grad(
 
 
 def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
-                             eigen_probe, eigen_weights, op, m, recover_psi,
-                             recover_probe):
+                             op, m, recover_psi, recover_probe):
 
     pad, end = op.diffraction.pad, op.diffraction.end
 
@@ -159,6 +158,7 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
 
     if recover_probe:
         grad_probe = cp.conj(patches) * diff
+        print("test:",grad_probe.shape)
 
         # (25a) Common probe gradient. Use simple average instead of
         # division as described in publication because that's what
@@ -173,34 +173,6 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
         A4 = cp.sum((dPO * dPO.conj()).real + 0.5, axis=(-2, -1))
         A4 += 0.5 * cp.mean(A4, axis=-3, keepdims=True)
         b2 = cp.sum((dPO.conj() * diff).real, axis=(-2, -1))
-
-    if recover_probe and eigen_probe is not None:
-        logger.info('Updating eigen probes')
-        # (30) residual probe updates
-        # TODO: REDUCE mean_grad_probe by WEIGHTED AVERAGE
-        R = grad_probe - cp.mean(grad_probe, axis=-5, keepdims=True)
-
-        for c in range(eigen_probe.shape[-4]):
-
-            (
-                eigen_probe[..., c:c + 1, m:m + 1, :, :],
-                eigen_weights[..., c, m],
-            ) = update_eigen_probe(
-                R,
-                eigen_probe[..., c:c + 1, m:m + 1, :, :],
-                eigen_weights[..., c, m],
-                patches,
-                diff,
-                β=0.01,  # TODO: Adjust according to mini-batch size
-            )
-
-            if eigen_probe.shape[-4] <= c + 1:
-                # Subtract projection of R onto new probe from R
-                R -= projection(
-                    R,
-                    eigen_probe[..., c:c + 1, m:m + 1, :, :],
-                    axis=(-2, -1),
-                )
 
     # (22) Use least-squares to find the optimal step sizes simultaneously
     if recover_psi and recover_probe:
@@ -241,8 +213,8 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
             norm(probe[..., m:m + 1, :, :] * patches -
                  nearplane[..., m:m + 1, pad:end, pad:end]))
 
-    return (common_grad_psi, common_grad_probe, weighted_step_psi,
-            weighted_step_probe, eigen_probe, eigen_weights)
+    return (patches, diff, grad_probe, common_grad_psi, common_grad_probe,
+            weighted_step_psi, weighted_step_probe)
 
 
 def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
@@ -252,12 +224,13 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
     for m in range(probe[0].shape[-3]):
 
         (
+            patches,
+            diff,
+            grad_probe,
             common_grad_psi,
             common_grad_probe,
             weighted_step_psi,
             weighted_step_probe,
-            beigen_probe,
-            beigen_weights,
         ) = (list(a) for a in zip(*comm.pool.map(
             _get_nearplane_gradients,
             nearplane,
@@ -265,13 +238,48 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             scan_,
             probe,
             unique_probe,
-            eigen_probe,
-            eigen_weights,
             op=op,
             m=m,
             recover_psi=recover_psi,
             recover_probe=recover_probe,
         )))
+
+        if recover_probe and eigen_probe is not None:
+            logger.info('Updating eigen probes')
+            # (30) residual probe updates
+            # TODO: REDUCE mean_grad_probe by WEIGHTED AVERAGE
+            grad_probe_mean = comm.pool.reduce_mean(
+                common_grad_probe,
+                axis=-5,
+            )
+            R = [g - grad_probe_mean for g in zip(grad_probe)]
+            #R = grad_probe - cp.mean(grad_probe, axis=-5, keepdims=True)
+
+            for c in range(eigen_probe[0].shape[-4]):
+
+                (
+                    [p[..., c:c + 1, m:m + 1, :, :] for p in zip(
+                        eigen_probe)],
+                    [w[..., c, m] for w in zip(
+                        eigen_weights)],
+                ) = update_eigen_probe(
+                    R,
+                    [p[..., c:c + 1, m:m + 1, :, :] for p in zip(
+                        eigen_probe)],
+                    [w[..., c, m] for w in zip(
+                        eigen_weights)],
+                    patches,
+                    diff,
+                    β=0.01,  # TODO: Adjust according to mini-batch size
+                )
+
+                if eigen_probe[0].shape[-4] <= c + 1:
+                    # Subtract projection of R onto new probe from R
+                    R -= projection(
+                        R,
+                        eigen_probe[..., c:c + 1, m:m + 1, :, :],
+                        axis=(-2, -1),
+                    )
 
         # Update each direction
         if recover_psi:

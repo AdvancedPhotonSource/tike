@@ -300,7 +300,7 @@ class TestPtychoRecon(unittest.TestCase):
             params={
                 # 'subset_is_random': True,
                 # 'batch_size': int(self.data.shape[1] * 0.6),
-                'num_gpu': 4,
+                'num_gpu': 1,
                 'recover_probe': True,
                 'recover_psi': True,
                 'use_mpi': False,
@@ -315,6 +315,7 @@ class TestPtychoRecon(unittest.TestCase):
             *self.probe.shape[-2:]).astype('complex64')
         weights = 1e-6 * np.random.rand(*self.scan.shape[:-1], *
                                         eigen_probe.shape[-4:-2])
+        print("test:",eigen_probe.shape, weights.shape)
         weights -= np.mean(weights, axis=-3, keepdims=True)
         weights = weights.astype('float32')
 

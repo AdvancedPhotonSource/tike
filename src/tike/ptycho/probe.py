@@ -127,6 +127,7 @@ def update_eigen_probe(R, eigen_probe, weights, patches, diff, β=0.1):
         axis=-5,
         keepdims=True,
     )
+    print("probe:",R.shape[:-4],R.shape, norm_weights.shape, proj.shape, np.mean(proj, axis=(-2, -1), keepdims=True).shape)
     # TODO: REDUCE update by WEIGHTED AVERAGE
     eigen_probe += β * update / np.linalg.norm(
         update,
@@ -148,6 +149,7 @@ def update_eigen_probe(R, eigen_probe, weights, patches, diff, β=0.1):
     d = np.mean(norm_phi, axis=(-1, -2), keepdims=True)
     # TODO: REDUCE mean_d by WEIGHTED AVERAGE
     d += 0.1 * np.mean(d, axis=-5, keepdims=True)
+    print("probe2:",eigen_probe.shape, phi.shape, n.shape, norm_phi.shape, d.shape)
 
     weight_update = (n / d).reshape(*weights.shape)
     assert np.all(np.isfinite(weight_update))
@@ -159,6 +161,7 @@ def update_eigen_probe(R, eigen_probe, weights, patches, diff, β=0.1):
         axis=-5,
         keepdims=True,
     )
+    print("probe3:",weight_update.shape, weights.shape)
 
     return eigen_probe, weights[..., 0, 0, 0, 0]
 
