@@ -9,7 +9,7 @@ problems are consistently implemented across different ADMM compositions.
 def update_penalty(comm, g, h, h0, rho, diff=4):
     """Increase rho when L2 error between g and h becomes too large.
 
-    If rho is the penalty parameter associated with the constraint norm(y - x),
+    If rho is the penalty parameter associated with the constraint norm(g - h),
     then rho is increased when
 
         norm(g - h) > diff * rho^2 * norm(h - h0)
