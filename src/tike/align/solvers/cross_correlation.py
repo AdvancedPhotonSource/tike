@@ -36,7 +36,7 @@ def cross_correlation(
     upsample_factor=1,
     space="real",
     num_iter=None,
-    reg_weight=1e-9,
+    reg_weight=0,
 ):
     """Efficient subpixel image translation alignment by cross-correlation.
 
@@ -45,6 +45,13 @@ def cross_correlation(
     It obtains an initial estimate of the cross-correlation peak by an FFT and
     then refines the shift estimation by upsampling the DFT only in a small
     neighborhood of that estimate by means of a matrix-multiply DFT.
+
+    Parameters
+    ----------
+    reg_weight: float [0, 1]
+        Determines how strongly the cross-correlation overlap matters. If C(x) is
+        the cross correlation function and A(x) is the overlap function, then
+        we choose the best alignment where (1 - reg)C + (reg)CA is a maximum.
 
     References
     ----------
@@ -81,11 +88,11 @@ def cross_correlation(
     # the cross_correlation is the same for multiple shifts.
     if reg_weight > 0:
         w = _area_overlap(op, cross_correlation)
-        w = op.xp.fft.fftshift(w) * reg_weight
+        w = reg_weight * op.xp.fft.fftshift(w) + (1 - reg_weight)
     else:
-        w = 0
+        w = 1
 
-    A = np.abs(cross_correlation) + w
+    A = np.abs(cross_correlation) * w
     maxima = A.reshape(A.shape[0], -1).argmax(1)
     maxima = np.column_stack(np.unravel_index(maxima, A[0, :, :].shape))
     shifts = op.xp.array(maxima, dtype='float32')
