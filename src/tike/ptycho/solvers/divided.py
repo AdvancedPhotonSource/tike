@@ -220,10 +220,10 @@ def _get_residuals(grad_probe, grad_probe_mean):
     return grad_probe - grad_probe_mean
 
 
-def _update_residuals(R, eigen_probe, axis):
+def _update_residuals(R, eigen_probe, axis, c, m):
     R -= projection(
         R,
-        eigen_probe,
+        eigen_probe[..., c:c + 1, m:m + 1, :, :],
         axis=axis,
     )
     return R
@@ -286,8 +286,10 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                     R = comm.pool.map(
                         _update_residuals,
                         R,
-                        [p[..., c:c + 1, m:m + 1, :, :] for p in eigen_probe],
+                        eigen_probe,
                         axis=(-2, -1),
+                        c=c,
+                        m=m,
                     )
 
         # Update each direction
