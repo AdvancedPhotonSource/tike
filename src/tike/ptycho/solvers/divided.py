@@ -216,20 +216,22 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
             weighted_step_psi, weighted_step_probe)
 
 
+def _get_residuals(grad_probe, grad_probe_mean):
+    return grad_probe - grad_probe_mean
+
+
+def _update_residuals(R, eigen_probe, axis):
+    R -= projection(
+        R,
+        eigen_probe,
+        axis=axis,
+    )
+    return R
+
+
 def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                       eigen_probe, eigen_weights, recover_psi, recover_probe,
                       probe_is_orthogonal):
-
-    def _get_R(grad_probe, grad_probe_mean):
-        return grad_probe - grad_probe_mean
-
-    def _update_R(R, eigen_probe, axis):
-        R -= projection(
-            R,
-            eigen_probe,
-            axis=axis,
-        )
-        return R
 
     for m in range(probe[0].shape[-3]):
 
@@ -257,11 +259,12 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
         if recover_probe and eigen_probe[0] is not None:
             logger.info('Updating eigen probes')
             # (30) residual probe updates
-            grad_probe_mean = comm.pool.bcast(comm.pool.reduce_mean(
-                common_grad_probe,
-                axis=-5,
-            ))
-            R = comm.pool.map(_get_R, grad_probe, grad_probe_mean)
+            grad_probe_mean = comm.pool.bcast(
+                comm.pool.reduce_mean(
+                    common_grad_probe,
+                    axis=-5,
+                ))
+            R = comm.pool.map(_get_residuals, grad_probe, grad_probe_mean)
 
             for c in range(eigen_probe[0].shape[-4]):
 
@@ -280,13 +283,12 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
 
                 if eigen_probe[0].shape[-4] <= c + 1:
                     # Subtract projection of R onto new probe from R
-                    R = list(comm.pool.map(
-                            _update_R,
-                            R,
-                            [p[..., c:c + 1, m:m + 1, :, :] for
-                             p in eigen_probe],
-                            axis=(-2, -1),
-                    ))
+                    R = comm.pool.map(
+                        _update_residuals,
+                        R,
+                        [p[..., c:c + 1, m:m + 1, :, :] for p in eigen_probe],
+                        axis=(-2, -1),
+                    )
 
         # Update each direction
         if recover_psi:
