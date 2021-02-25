@@ -95,6 +95,7 @@ def align(
     num_iter=1,
     folder=None,
     save_result=False,
+    winsize=0,
 ):
     """
     Parameters
@@ -166,7 +167,7 @@ def align(
                 flow[..., :] = shift[..., None, None, :]
                 shift = None
             hi, lo = _find_min_max(np.angle(rotated))
-            winsize = max(winsize - 1, 32)
+            winsize = max(winsize - 2, 31)
             logging.info("Estimate alignment using Farneback.")
             fresult = tike.align.solvers.farneback(
                 op=None,
@@ -195,7 +196,7 @@ def align(
                 unaligned=rotated,
                 original=padded,
                 upsample_factor=100,
-                reg_weight=0,
+                reg_weight=0.0,
             )
             shift = sresult['shift']
         else:
@@ -231,4 +232,5 @@ def align(
         shift,
         Aφ0,
         cost,
+        winsize,
     )

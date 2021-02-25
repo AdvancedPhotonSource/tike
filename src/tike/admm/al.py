@@ -77,6 +77,7 @@ def ptycho__align_lamino(
                 shift,
                 Aφ,
                 align_cost,
+                winsize,
             ) = tike.admm.subproblem.align(
                 # constants
                 comm=comm,
@@ -93,11 +94,12 @@ def ptycho__align_lamino(
                 shift=shift,
                 Aφ0=None,
                 # parameters
-                align_method=align_method if k > 8 else 'mass',
+                align_method=align_method,
                 cg_iter=cg_iter,
                 num_iter=4,
                 folder=folder,
                 save_result=save_result,
+                winsize=winsize if k > 1 else 129,
             )
 
             (
@@ -142,6 +144,8 @@ def ptycho__align_lamino(
                 print_log_line(
                     k=k,
                     ρ_l=ρ_l,
+                    winsize=winsize,
+                    align_method=align_method,
                     Lagrangian=np.sum(lagrangian[:2]),
                     ψAφ=lagrangian[0],
                     φHu=lagrangian[1],
