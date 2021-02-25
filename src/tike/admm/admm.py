@@ -61,6 +61,8 @@ def print_log_line(**kwargs):
             line.append(f'"{k}": {v:6.3e}')
         elif isinstance(v, (int, np.integer)):
             line.append(f'"{k}": {v:3d}')
+        elif isinstance(v, str):
+            line.append(f'"{k}": "{v}"')
         else:
             line.append(f'"{k}": {v}')
     # Combine all the strings and strip the last comma
