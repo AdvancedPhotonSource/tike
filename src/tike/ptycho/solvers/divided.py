@@ -283,8 +283,9 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                     R = list(comm.pool.map(
                             _update_R,
                             R,
-                            [p[..., c:c + 1, m:m + 1, :, :] for p in eigen_probe],
-                            axis = (-2, -1),
+                            [p[..., c:c + 1, m:m + 1, :, :] for
+                             p in eigen_probe],
+                            axis=(-2, -1),
                     ))
 
         # Update each direction

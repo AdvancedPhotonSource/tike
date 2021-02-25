@@ -122,7 +122,8 @@ class ThreadPool(ThreadPoolExecutor):
         if self.num_workers == 1:
             return x[0]
         worker = self.workers[0] if worker is None else worker
-        return cp.mean(self.gather(x, worker=worker, axis=axis), keepdims=True, axis=axis)
+        return cp.mean(self.gather(x, worker=worker, axis=axis),
+                       keepdims=True, axis=axis)
 
     def map(self, func, *iterables, **kwargs):
         """ThreadPoolExecutor.map, but wraps call in a cuda.Device context."""
