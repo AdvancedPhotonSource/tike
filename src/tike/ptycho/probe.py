@@ -81,6 +81,18 @@ def _get_update(R, eigen_probe, weights, norm_weights):
         keepdims=True,
     )
 
+def _get_d(patches, diff, eigen_probe):
+    phi = patches * eigen_probe
+    n = np.mean(
+        np.real(diff * phi.conj()),
+        axis=(-1, -2),
+        keepdims=True,
+    )
+    norm_phi = np.square(np.abs(phi))
+    d = np.mean(norm_phi, axis=(-1, -2), keepdims=True)
+    d_mean = np.mean(d, axis=-5, keepdims=True)
+    return n, d, d_mean
+
 def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
     """Update eigen probes using residual probe updates.
 
@@ -152,10 +164,11 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
         weights,
         norm_weights,
     ))
-    update[0] = np.sum(
-            comm.pool.gather([n**2 for n in norm_weights], axis=-5),
-            axis=-5,
+    update[0] = comm.pool.reduce_mean(
+        update,
+        axis=-5,
     )
+
     print("probe:",R.shape[:-4],R.shape, norm_weights.shape, proj.shape, np.mean(proj, axis=(-2, -1), keepdims=True).shape)
     # TODO: REDUCE update by WEIGHTED AVERAGE
     eigen_probe[0] += β * update[0] / np.linalg.norm(
@@ -169,15 +182,17 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
     eigen_probe = comm.pool.bcast(eigen_probe)
 
     # Determine new eigen_weights for the updated eigen probe
-    phi = patches * eigen_probe
-    n = np.mean(
-        np.real(diff * phi.conj()),
-        axis=(-1, -2),
-        keepdims=True,
-    )
-    norm_phi = np.square(np.abs(phi))
-    d = np.mean(norm_phi, axis=(-1, -2), keepdims=True)
     # TODO: REDUCE mean_d by WEIGHTED AVERAGE
+    (n, d, d_mean) = (list(a) for a in zip(*comm.pool.map(
+        _get_d,
+        patches,
+        diff,
+        eigen_probe,
+    )))
+    d_mean = comm.pool.bcast(comm.pool.reduce_mean(
+        d_mean,
+        axis=-5,
+    ))
     d += 0.1 * np.mean(d, axis=-5, keepdims=True)
     print("probe2:",eigen_probe.shape, phi.shape, n.shape, norm_phi.shape, d.shape)
 
