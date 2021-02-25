@@ -46,15 +46,15 @@ def lstsq_grad(
     batches = [
         batch_indicies(s.shape[-2], num_batch, subset_is_random) for s in scan
     ]
+
     for n in range(num_batch):
 
         bdata = comm.pool.map(collect_batch, data, batches, n=n)
         bscan = comm.pool.map(collect_batch, scan, batches, n=n)
 
         if isinstance(eigen_probe, list):
-            beigen_weights = [
-                e[:, b[n]] for b, e in zip(batches, eigen_weights)
-            ]
+            beigen_weights = comm.pool.map(collect_batch,
+                                           eigen_weights, batches, n=n)
             beigen_probe = eigen_probe
         else:
             beigen_probe = [None] * comm.pool.num_workers
@@ -158,7 +158,6 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
 
     if recover_probe:
         grad_probe = cp.conj(patches) * diff
-        print("test:",grad_probe.shape)
 
         # (25a) Common probe gradient. Use simple average instead of
         # division as described in publication because that's what
@@ -221,6 +220,17 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                       eigen_probe, eigen_weights, recover_psi, recover_probe,
                       probe_is_orthogonal):
 
+    def _get_R(grad_probe, grad_probe_mean):
+        return grad_probe - grad_probe_mean
+
+    def _update_R(R, eigen_probe, axis):
+        R -= projection(
+            R,
+            eigen_probe,
+            axis=axis,
+        )
+        return R
+
     for m in range(probe[0].shape[-3]):
 
         (
@@ -244,23 +254,18 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             recover_probe=recover_probe,
         )))
 
-        if recover_probe and eigen_probe is not None:
+        if recover_probe and eigen_probe[0] is not None:
             logger.info('Updating eigen probes')
             # (30) residual probe updates
-            # TODO: REDUCE mean_grad_probe by WEIGHTED AVERAGE
-            grad_probe_mean = comm.pool.reduce_mean(
+            grad_probe_mean = comm.pool.bcast(comm.pool.reduce_mean(
                 common_grad_probe,
                 axis=-5,
-            )
-            R = [g - grad_probe_mean for g in grad_probe]
-            #R = grad_probe - cp.mean(grad_probe, axis=-5, keepdims=True)
+            ))
+            R = comm.pool.map(_get_R, grad_probe, grad_probe_mean)
 
             for c in range(eigen_probe[0].shape[-4]):
 
-                (
-                    [p[..., c:c + 1, m:m + 1, :, :] for p in eigen_probe],
-                    [w[..., c, m] for w in eigen_weights],
-                ) = update_eigen_probe(
+                a, b = update_eigen_probe(
                     comm,
                     R,
                     [p[..., c:c + 1, m:m + 1, :, :] for p in eigen_probe],
@@ -269,14 +274,18 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                     diff,
                     β=0.01,  # TODO: Adjust according to mini-batch size
                 )
+                for p, w, x, y in zip(eigen_probe, eigen_weights, a, b):
+                    p[..., c:c + 1, m:m + 1, :, :] = x
+                    w[..., c, m] = y
 
                 if eigen_probe[0].shape[-4] <= c + 1:
                     # Subtract projection of R onto new probe from R
-                    R -= projection(
-                        R,
-                        eigen_probe[..., c:c + 1, m:m + 1, :, :],
-                        axis=(-2, -1),
-                    )
+                    R = list(comm.pool.map(
+                            _update_R,
+                            R,
+                            [p[..., c:c + 1, m:m + 1, :, :] for p in eigen_probe],
+                            axis = (-2, -1),
+                    ))
 
         # Update each direction
         if recover_psi:

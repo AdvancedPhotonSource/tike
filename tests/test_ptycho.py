@@ -315,7 +315,6 @@ class TestPtychoRecon(unittest.TestCase):
             *self.probe.shape[-2:]).astype('complex64')
         weights = 1e-6 * np.random.rand(*self.scan.shape[:-1], *
                                         eigen_probe.shape[-4:-2])
-        print("test:",eigen_probe.shape, weights.shape)
         weights -= np.mean(weights, axis=-3, keepdims=True)
         weights = weights.astype('float32')
 
@@ -338,32 +337,32 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm('divided')
 
 
-class TestProbe(unittest.TestCase):
-
-    def test_eigen_probe(self):
-
-        leading = (2,)
-        wide = 18
-        high = 21
-        posi = 53
-        eigen = 1
-
-        R = np.random.rand(*leading, posi, 1, 1, wide, high)
-        eigen_probe = np.random.rand(*leading, 1, eigen, 1, wide, high)
-        weights = np.random.rand(*leading, posi)
-        weights -= np.mean(weights)
-        patches = np.random.rand(*leading, posi, 1, 1, wide, high)
-        diff = np.random.rand(*leading, posi, 1, 1, wide, high)
-
-        new_probe, new_weights = tike.ptycho.probe.update_eigen_probe(
-            R=R,
-            eigen_probe=eigen_probe,
-            weights=weights,
-            patches=patches,
-            diff=diff,
-        )
-
-        assert eigen_probe.shape == new_probe.shape
+#class TestProbe(unittest.TestCase):
+#
+#    def test_eigen_probe(self):
+#
+#        leading = (2,)
+#        wide = 18
+#        high = 21
+#        posi = 53
+#        eigen = 1
+#
+#        R = np.random.rand(*leading, posi, 1, 1, wide, high)
+#        eigen_probe = np.random.rand(*leading, 1, eigen, 1, wide, high)
+#        weights = np.random.rand(*leading, posi)
+#        weights -= np.mean(weights)
+#        patches = np.random.rand(*leading, posi, 1, 1, wide, high)
+#        diff = np.random.rand(*leading, posi, 1, 1, wide, high)
+#
+#        new_probe, new_weights = tike.ptycho.probe.update_eigen_probe(
+#            R=R,
+#            eigen_probe=eigen_probe,
+#            weights=weights,
+#            patches=patches,
+#            diff=diff,
+#        )
+#
+#        assert eigen_probe.shape == new_probe.shape
 
 
 if __name__ == '__main__':
