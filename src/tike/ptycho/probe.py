@@ -73,6 +73,14 @@ def get_varying_probe(shared_probe, eigen_probe=None, weights=None, m=None):
         return shared_probe[..., :, m, :, :].copy()
 
 
+def _get_update(R, eigen_probe, weights, norm_weights):
+    proj = (np.real(R.conj() * eigen_probe) + weights) / norm_weights
+    return np.mean(
+        R * np.mean(proj, axis=(-2, -1), keepdims=True),
+        axis=-5,
+        keepdims=True,
+    )
+
 def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
     """Update eigen probes using residual probe updates.
 
@@ -121,40 +129,44 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
     # TODO: REDUCE norm_weights by NORM
     #norm_weights = np.linalg.norm(weights, axis=-5, keepdims=True)**2
     norm_weights = list(comm.pool.map(
-            np.linalg.norm,
-            weights,
-            axis=-5,
-            keepdims=True,
-        ))
-    norm_weights[0] = np.sum(
-        comm.pool.gather(
-            [n**2 for n in norm_weights],
-            axis=-5,
-        ),
+        np.linalg.norm,
+        weights,
         axis=-5,
+        keepdims=True,
+    ))
+    norm_weights = comm.pool.bcast(
+        np.sum(
+            comm.pool.gather([n**2 for n in norm_weights], axis=-5),
+            axis=-5,
+        )
     )
-    norm_weights = comm.pool.bcast(norm_weights)
 
     if np.all(norm_weights[0] == 0):
         raise ValueError('eigen_probe weights cannot all be zero?')
 
     # FIXME: What happens when weights is zero!?
-    proj = (np.real(R.conj() * eigen_probe) + weights) / norm_weights
-    update = np.mean(
-        R * np.mean(proj, axis=(-2, -1), keepdims=True),
-        axis=-5,
-        keepdims=True,
+    update = list(comm.pool.map(
+        _get_update,
+        R,
+        eigen_probe,
+        weights,
+        norm_weights,
+    ))
+    update[0] = np.sum(
+            comm.pool.gather([n**2 for n in norm_weights], axis=-5),
+            axis=-5,
     )
     print("probe:",R.shape[:-4],R.shape, norm_weights.shape, proj.shape, np.mean(proj, axis=(-2, -1), keepdims=True).shape)
     # TODO: REDUCE update by WEIGHTED AVERAGE
-    eigen_probe += β * update / np.linalg.norm(
-        update,
+    eigen_probe[0] += β * update[0] / np.linalg.norm(
+        update[0],
         axis=(-2, -1),
         keepdims=True,
     )
-    assert np.all(np.isfinite(eigen_probe))
+    assert np.all(np.isfinite(eigen_probe[0]))
 
-    eigen_probe /= np.linalg.norm(eigen_probe, axis=(-2, -1), keepdims=True)
+    eigen_probe[0] /= np.linalg.norm(eigen_probe[0], axis=(-2, -1), keepdims=True)
+    eigen_probe = comm.pool.bcast(eigen_probe)
 
     # Determine new eigen_weights for the updated eigen probe
     phi = patches * eigen_probe
