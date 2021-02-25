@@ -73,7 +73,7 @@ def get_varying_probe(shared_probe, eigen_probe=None, weights=None, m=None):
         return shared_probe[..., :, m, :, :].copy()
 
 
-def update_eigen_probe(R, eigen_probe, weights, patches, diff, β=0.1):
+def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
     """Update eigen probes using residual probe updates.
 
     This update is copied from the source code of ptychoshelves. It is similar
@@ -83,6 +83,8 @@ def update_eigen_probe(R, eigen_probe, weights, patches, diff, β=0.1):
 
     Parameters
     ----------
+    comm : tike.communicators.Comm
+        An object which manages communications between both GPUs and nodes.
     R : (..., POSI, 1, 1, WIDE, HIGH) complex64
         Residual probe updates; what's left after subtracting the shared probe
         update from the varying probe updates for each position
@@ -107,17 +109,33 @@ def update_eigen_probe(R, eigen_probe, weights, patches, diff, β=0.1):
     least-squares solver for generalized maximum-likelihood ptychography.
     Optics Express. 2018.
     """
-    assert R.shape[-3] == R.shape[-4] == 1
-    assert eigen_probe.shape[-3] == 1 == eigen_probe.shape[-5]
-    assert R.shape[:-5] == eigen_probe.shape[:-5] == weights.shape[:-1]
-    assert weights.shape[-1] == R.shape[-5]
-    assert R.shape[-2:] == eigen_probe.shape[-2:]
+    assert R[0].shape[-3] == R[0].shape[-4] == 1
+    assert eigen_probe[0].shape[-3] == 1 == eigen_probe[0].shape[-5]
+    assert R[0].shape[:-5] == eigen_probe[0].shape[:-5] == weights[0].shape[:-1]
+    assert weights[0].shape[-1] == R[0].shape[-5]
+    assert R[0].shape[-2:] == eigen_probe[0].shape[-2:]
 
     # (..., POSI, 1, 1, 1, 1) to match other arrays
-    weights = weights[..., None, None, None, None]
+    #weights = weights[..., None, None, None, None]
+    weights = [w[..., None, None, None, None] for w in weights]
     # TODO: REDUCE norm_weights by NORM
-    norm_weights = np.linalg.norm(weights, axis=-5, keepdims=True)**2
-    if np.all(norm_weights == 0):
+    #norm_weights = np.linalg.norm(weights, axis=-5, keepdims=True)**2
+    norm_weights = list(comm.pool.map(
+            np.linalg.norm,
+            weights,
+            axis=-5,
+            keepdims=True,
+        ))
+    norm_weights[0] = np.sum(
+        comm.pool.gather(
+            [n**2 for n in norm_weights],
+            axis=-5,
+        ),
+        axis=-5,
+    )
+    norm_weights = comm.pool.bcast(norm_weights)
+
+    if np.all(norm_weights[0] == 0):
         raise ValueError('eigen_probe weights cannot all be zero?')
 
     # FIXME: What happens when weights is zero!?

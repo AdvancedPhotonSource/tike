@@ -252,22 +252,19 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                 common_grad_probe,
                 axis=-5,
             )
-            R = [g - grad_probe_mean for g in zip(grad_probe)]
+            R = [g - grad_probe_mean for g in grad_probe]
             #R = grad_probe - cp.mean(grad_probe, axis=-5, keepdims=True)
 
             for c in range(eigen_probe[0].shape[-4]):
 
                 (
-                    [p[..., c:c + 1, m:m + 1, :, :] for p in zip(
-                        eigen_probe)],
-                    [w[..., c, m] for w in zip(
-                        eigen_weights)],
+                    [p[..., c:c + 1, m:m + 1, :, :] for p in eigen_probe],
+                    [w[..., c, m] for w in eigen_weights],
                 ) = update_eigen_probe(
+                    comm,
                     R,
-                    [p[..., c:c + 1, m:m + 1, :, :] for p in zip(
-                        eigen_probe)],
-                    [w[..., c, m] for w in zip(
-                        eigen_weights)],
+                    [p[..., c:c + 1, m:m + 1, :, :] for p in eigen_probe],
+                    [w[..., c, m] for w in eigen_weights],
                     patches,
                     diff,
                     β=0.01,  # TODO: Adjust according to mini-batch size
