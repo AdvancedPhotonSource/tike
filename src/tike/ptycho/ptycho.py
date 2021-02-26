@@ -64,7 +64,7 @@ import cupy as cp
 
 from tike.operators import Ptycho
 from tike.communicators import Comm, MPIComm
-from tike.opt import randomizer
+from tike.opt import batch_indicies
 from tike.ptycho import solvers
 from .position import check_allowed_positions, get_padded_object
 from .probe import get_varying_probe
@@ -195,6 +195,7 @@ def reconstruct(
         psi=None, num_gpu=1, num_iter=1, rtol=-1,
         model='gaussian', use_mpi=False, cost=None, times=None,
         eigen_probe=None, eigen_weights=None,
+        batch_size=None,
         **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
@@ -208,6 +209,9 @@ def reconstruct(
         less than this amount.
     split : 'grid' or 'stripe'
         The method to use for splitting the scan positions among GPUS.
+    batch_size : int
+        The approximate number of scan positions processed by each GPU
+        simultaneously per view.
     """
     (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
     check_allowed_positions(scan, psi, probe)
@@ -228,6 +232,10 @@ def reconstruct(
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[-3:],
                                              num_iter))
+            num_batch = 1 if batch_size is None else max(
+                1,
+                int(data.shape[-3] / batch_size / pool.num_workers),
+            )
             # Divide the inputs into regions
             odd_pool = comm.pool.num_workers % 2
             order, scan, data, eigen_weights = split_by_scan_grid(
@@ -266,6 +274,7 @@ def reconstruct(
                     result['psi'][0],
                     scan[0],
                     result['probe'][0],
+                    num_batch=num_batch,
                 ))
 
             costs = []
@@ -280,6 +289,7 @@ def reconstruct(
                     operator,
                     comm,
                     data=data,
+                    num_batch=num_batch,
                     **kwargs,
                 )
                 if result['cost'] is not None:
@@ -315,12 +325,15 @@ def reconstruct(
                          f"\tAvailable algorithms are : {solvers.__all__}")
 
 
-def _rescale_obj_probe(operator, comm, data, psi, scan, probe):
+def _rescale_obj_probe(operator, comm, data, psi, scan, probe, num_batch):
     """Keep the object amplitude around 1 by scaling probe by a constant."""
 
-    intensity, _ = operator._compute_intensity(data, psi, scan, probe)
+    i = batch_indicies(data.shape[-3], num_batch, use_random=True)[0]
 
-    rescale = (np.linalg.norm(np.ravel(np.sqrt(data))) /
+    intensity, _ = operator._compute_intensity(data[..., i, :, :], psi,
+                                               scan[..., i, :], probe)
+
+    rescale = (np.linalg.norm(np.ravel(np.sqrt(data[..., i, :, :]))) /
                np.linalg.norm(np.ravel(np.sqrt(intensity))))
 
     logger.info("object and probe rescaled by %f", rescale)
