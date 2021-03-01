@@ -234,7 +234,7 @@ def reconstruct(
                                              num_iter))
             num_batch = 1 if batch_size is None else max(
                 1,
-                int(data.shape[-3] / batch_size / pool.num_workers),
+                int(data.shape[-3] / batch_size / comm.pool.num_workers),
             )
             # Divide the inputs into regions
             odd_pool = comm.pool.num_workers % 2
