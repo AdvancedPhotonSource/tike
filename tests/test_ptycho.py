@@ -282,6 +282,8 @@ class TestPtychoRecon(unittest.TestCase):
         self.template_consistent_algorithm(
             'cgrad',
             params={
+                'subset_is_random': True,
+                'batch_size': int(self.data.shape[1] / 3),
                 'num_gpu': 2,
                 'recover_probe': True,
                 'recover_psi': True,
@@ -298,8 +300,8 @@ class TestPtychoRecon(unittest.TestCase):
         self.template_consistent_algorithm(
             'lstsq_grad',
             params={
-                # 'subset_is_random': True,
-                # 'batch_size': int(self.data.shape[1] * 0.6),
+                'subset_is_random': True,
+                'batch_size': int(self.data.shape[1] / 3),
                 'num_gpu': 2,
                 'recover_probe': True,
                 'recover_psi': True,
@@ -321,8 +323,8 @@ class TestPtychoRecon(unittest.TestCase):
         self.template_consistent_algorithm(
             'lstsq_grad',
             params={
-                # 'subset_is_random': True,
-                # 'batch_size': int(self.data.shape[1] * 0.6),
+                'subset_is_random': True,
+                'batch_size': int(self.data.shape[1] / 3),
                 'num_gpu': 2,
                 'recover_probe': True,
                 'recover_psi': True,
