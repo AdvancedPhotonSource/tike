@@ -27,10 +27,14 @@ def batch_indicies(n, m=1, use_random=False):
     return np.array_split(i, m)
 
 
-def collect_batch(x, b, n):
-    """Returns x[:, b[n]] for use with map()."""
+def get_batch(x, b, n):
+    """Returns x[:, b[n]]; for use with map()."""
     return x[:, b[n]]
 
+
+def put_batch(y, x, b, n):
+    """Assigns y into x[:, b[n]]; for use with map()."""
+    x[:, b[n]] = y
 
 def line_search(
     f,
