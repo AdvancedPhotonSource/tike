@@ -91,7 +91,7 @@ def reconstruct(
         theta,
         tilt,
         algorithm,
-        obj=None, num_iter=1, rtol=-1,
+        obj=None, num_iter=1, rtol=-1, eps=1e-3,
         num_gpu=1,
         **kwargs
 ):  # yapf: disable
@@ -113,7 +113,7 @@ def reconstruct(
         with Lamino(
                 n=obj.shape[-1],
                 tilt=tilt,
-                eps=1e-3,
+                eps=eps,
                 **kwargs,
         ) as operator, Comm(num_gpu, mpi=None) as comm:
             # send any array-likes to device
@@ -133,7 +133,7 @@ def reconstruct(
             logger.info("{} on {:,d} by {:,d} by {:,d} volume for {:,d} "
                         "iterations.".format(algorithm, *obj.shape, num_iter))
 
-            cost = 0
+            costs = []
             for i in range(num_iter):
                 kwargs.update(result)
                 result = getattr(solvers, algorithm)(
@@ -143,14 +143,19 @@ def reconstruct(
                     theta=theta,
                     **kwargs,
                 )
+                if result['cost'] is not None:
+                    costs.append(result['cost'])
                 # Check for early termination
-                if i > 0 and abs((result['cost'] - cost) / cost) < rtol:
+                if (
+                    len(costs) > 1 and
+                    abs((costs[-1] - costs[-2]) / costs[-2]) < rtol
+                ):  # yapf: disable
                     logger.info(
                         "Cost function rtol < %g reached at %d "
                         "iterations.", rtol, i)
                     break
-                cost = result['cost']
 
+        result['cost'] = operator.asarray(costs)
         for k, v in result.items():
             if isinstance(v, list):
                 result[k] = v[0]

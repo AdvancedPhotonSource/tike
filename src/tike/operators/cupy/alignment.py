@@ -44,6 +44,7 @@ class Alignment(Operator):
     def fwd(
         self,
         unpadded,
+        shift,
         flow,
         padded_shape,
         angle,
@@ -52,9 +53,13 @@ class Alignment(Operator):
     ):
         return self.rotate.fwd(
             unrotated=self.flow.fwd(
-                f=self.pad.fwd(
-                    unpadded=unpadded,
-                    padded_shape=padded_shape,
+                f=self.shift.fwd(
+                    a=self.pad.fwd(
+                        unpadded=unpadded,
+                        padded_shape=padded_shape,
+                        cval=cval,
+                    ),
+                    shift=shift,
                     cval=cval,
                 ),
                 flow=flow,
@@ -68,19 +73,52 @@ class Alignment(Operator):
         self,
         rotated,
         flow,
+        shift,
         unpadded_shape,
         angle,
         padded_shape=None,
         cval=0.0,
     ):
         return self.pad.adj(
-            padded=self.flow.adj(
-                g=self.rotate.adj(
-                    rotated=rotated,
-                    angle=angle,
+            padded=self.shift.adj(
+                a=self.flow.adj(
+                    g=self.rotate.adj(
+                        rotated=rotated,
+                        angle=angle,
+                        cval=cval,
+                    ),
+                    flow=flow,
                     cval=cval,
                 ),
-                flow=flow,
+                shift=shift,
+                cval=cval,
+            ),
+            unpadded_shape=unpadded_shape,
+            cval=cval,
+        )
+
+    def inv(
+        self,
+        rotated,
+        flow,
+        shift,
+        unpadded_shape,
+        angle,
+        padded_shape=None,
+        cval=0.0,
+    ):
+        return self.pad.adj(
+            padded=self.shift.adj(
+                a=self.flow.fwd(
+                    f=self.rotate.fwd(
+                        unrotated=rotated,
+                        angle=angle if angle is None else -angle,
+                        cval=cval,
+                    ),
+                    flow=flow if flow is None else -flow,
+                    cval=cval,
+                ),
+                shift=shift,
                 cval=cval,
             ),
             unpadded_shape=unpadded_shape,

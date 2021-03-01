@@ -76,3 +76,10 @@ class Rotate(Operator):
             _remap_lanczos(f[i], coords, 2, g[i], fwd=False, cval=cval)
 
         return f.reshape(shape)
+
+    def inv(self, rotated, angle, cval=0.0):
+        return self.fwd(
+            rotated,
+            angle if angle is None else -angle,
+            cval,
+        )

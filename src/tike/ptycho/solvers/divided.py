@@ -3,7 +3,7 @@ import logging
 import cupy as cp
 
 from tike.linalg import lstsq, projection, norm, orthogonalize_gs
-from tike.opt import batch_indicies, collect_batch
+from tike.opt import batch_indicies, get_batch, put_batch
 
 from ..position import update_positions_pd
 from ..probe import orthogonalize_eig, get_varying_probe, update_eigen_probe
@@ -49,12 +49,16 @@ def lstsq_grad(
 
     for n in range(num_batch):
 
-        bdata = comm.pool.map(collect_batch, data, batches, n=n)
-        bscan = comm.pool.map(collect_batch, scan, batches, n=n)
+        bdata = comm.pool.map(get_batch, data, batches, n=n)
+        bscan = comm.pool.map(get_batch, scan, batches, n=n)
 
         if isinstance(eigen_probe, list):
-            beigen_weights = comm.pool.map(collect_batch,
-                                           eigen_weights, batches, n=n)
+            beigen_weights = comm.pool.map(
+                get_batch,
+                eigen_weights,
+                batches,
+                n=n,
+            )
             beigen_probe = eigen_probe
         else:
             beigen_probe = [None] * comm.pool.num_workers
@@ -100,6 +104,15 @@ def lstsq_grad(
             recover_probe,
             probe_is_orthogonal,
         )
+
+        if isinstance(eigen_probe, list):
+            comm.pool.map(
+                put_batch,
+                beigen_weights,
+                eigen_weights,
+                batches,
+                n=n,
+            )
 
     result = {
         'psi': psi,
