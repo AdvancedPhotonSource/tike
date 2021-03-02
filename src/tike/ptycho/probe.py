@@ -83,7 +83,7 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
 
     Parameters
     ----------
-    comm : tike.communicators.Comm
+    comm : :py:class:`tike.communicators.Comm`
         An object which manages communications between both GPUs and nodes.
     R : (..., POSI, 1, 1, WIDE, HIGH) complex64
         Residual probe updates; what's left after subtracting the shared probe
@@ -319,6 +319,39 @@ def orthogonalize_eig(x):
     assert x_new.shape == x.shape, [x_new.shape, x.shape]
 
     return x_new
+
+
+def gaussian(size, rin=0.8, rout=1.0):
+    """Return a complex gaussian probe distribution.
+
+    Illumination probe represented on a 2D regular grid.
+
+    A finite-extent circular shaped probe is represented as
+    a complex wave. The intensity of the probe is maximum at
+    the center and damps to zero at the borders of the frame.
+
+    Parameters
+    ----------
+    size : int
+        The side length of the distribution
+    rin : float [0, 1) < rout
+        The inner radius of the distribution where the dampening of the
+        intensity will start.
+    rout : float (0, 1] > rin
+        The outer radius of the distribution where the intensity will reach
+        zero.
+
+    """
+    r, c = np.mgrid[:size, :size] + 0.5
+    rs = np.sqrt((r - size / 2)**2 + (c - size / 2)**2)
+    rmax = np.sqrt(2) * 0.5 * rout * rs.max() + 1.0
+    rmin = np.sqrt(2) * 0.5 * rin * rs.max()
+    img = np.zeros((size, size), dtype='float32')
+    img[rs < rmin] = 1.0
+    img[rs > rmax] = 0.0
+    zone = np.logical_and(rs > rmin, rs < rmax)
+    img[zone] = np.divide(rmax - rs[zone], rmax - rmin)
+    return img
 
 
 if __name__ == "__main__":

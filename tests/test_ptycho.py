@@ -70,7 +70,7 @@ class TestPtychoUtils(unittest.TestCase):
     def test_gaussian(self):
         """Check ptycho.gaussian for correctness."""
         fname = os.path.join(testdir, 'data/ptycho_gaussian.pickle.lzma')
-        weights = tike.ptycho.gaussian(15, rin=0.8, rout=1.0)
+        weights = tike.ptycho.probe.gaussian(15, rin=0.8, rout=1.0)
         if os.path.isfile(fname):
             with lzma.open(fname, 'rb') as file:
                 truth = pickle.load(file)
@@ -153,7 +153,7 @@ class TestPtychoRecon(unittest.TestCase):
             axis=0,
         )
         weights = 1.0 / np.arange(1, len(phase) + 1)[:, None, None]
-        weights = weights * tike.ptycho.gaussian(pw, rin=0.8, rout=1.0)
+        weights = weights * tike.ptycho.probe.gaussian(pw, rin=0.8, rout=1.0)
         probe = weights * np.exp(1j * phase * np.pi)
         self.probe = np.tile(
             probe.astype('complex64'),

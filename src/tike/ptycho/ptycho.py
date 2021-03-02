@@ -72,40 +72,7 @@ from .probe import get_varying_probe
 logger = logging.getLogger(__name__)
 
 
-def gaussian(size, rin=0.8, rout=1.0):
-    """Return a complex gaussian probe distribution.
-
-    Illumination probe represented on a 2D regular grid.
-
-    A finite-extent circular shaped probe is represented as
-    a complex wave. The intensity of the probe is maximum at
-    the center and damps to zero at the borders of the frame.
-
-    Parameters
-    ----------
-    size : int
-        The side length of the distribution
-    rin : float [0, 1) < rout
-        The inner radius of the distribution where the dampening of the
-        intensity will start.
-    rout : float (0, 1] > rin
-        The outer radius of the distribution where the intensity will reach
-        zero.
-
-    """
-    r, c = np.mgrid[:size, :size] + 0.5
-    rs = np.sqrt((r - size / 2)**2 + (c - size / 2)**2)
-    rmax = np.sqrt(2) * 0.5 * rout * rs.max() + 1.0
-    rmin = np.sqrt(2) * 0.5 * rin * rs.max()
-    img = np.zeros((size, size), dtype='float32')
-    img[rs < rmin] = 1.0
-    img[rs > rmax] = 0.0
-    zone = np.logical_and(rs > rmin, rs < rmax)
-    img[zone] = np.divide(rmax - rs[zone], rmax - rmin)
-    return img
-
-
-def compute_intensity(
+def _compute_intensity(
     operator,
     psi,
     scan,
@@ -183,7 +150,7 @@ def simulate(
         probe = operator.asarray(probe, dtype='complex64')
         if eigen_weights is not None:
             eigen_weights = operator.asarray(eigen_weights, dtype='float32')
-        data = compute_intensity(operator, psi, scan, probe, eigen_weights,
+        data = _compute_intensity(operator, psi, scan, probe, eigen_weights,
                                  eigen_probe, fly)
         return operator.asnumpy(data.real)
 
