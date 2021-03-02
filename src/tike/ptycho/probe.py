@@ -73,7 +73,7 @@ def get_varying_probe(shared_probe, eigen_probe=None, weights=None, m=None):
         return shared_probe[..., :, m, :, :].copy()
 
 
-def update_eigen_probe(R, eigen_probe, weights, β=0.1):
+def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
     """Update eigen probes using residual probe updates.
 
     This update is copied from the source code of ptychoshelves. It is similar
@@ -83,10 +83,14 @@ def update_eigen_probe(R, eigen_probe, weights, β=0.1):
 
     Parameters
     ----------
+    comm : tike.communicators.Comm
+        An object which manages communications between both GPUs and nodes.
     R : (..., POSI, 1, 1, WIDE, HIGH) complex64
         Residual probe updates; what's left after subtracting the shared probe
         update from the varying probe updates for each position
-    eigen_probe : (..., 1, EIGEN, 1, WIDE, HIGH) complex64
+    patches : (..., POSI, 1, 1, WIDE, HIGH) complex64
+    diff : (..., POSI, 1, 1, WIDE, HIGH) complex64
+    eigen_probe : (..., 1, 1, 1, WIDE, HIGH) complex64
         The eigen probe being updated.
     β : float
         A relaxation constant that controls how quickly the eigen probe modes
@@ -105,35 +109,111 @@ def update_eigen_probe(R, eigen_probe, weights, β=0.1):
     least-squares solver for generalized maximum-likelihood ptychography.
     Optics Express. 2018.
     """
-    assert R.shape[-3] == R.shape[-4] == 1
-    assert eigen_probe.shape[-3] == 1 == eigen_probe.shape[-5]
-    assert R.shape[:-5] == eigen_probe.shape[:-5] == weights.shape[:-1]
-    assert weights.shape[-1] == R.shape[-5]
-    assert R.shape[-2:] == eigen_probe.shape[-2:]
+    assert R[0].shape[-3] == R[0].shape[-4] == 1
+    assert eigen_probe[0].shape[-3] == 1 == eigen_probe[0].shape[-5]
+    assert R[0].shape[:-5] == eigen_probe[0].shape[:-5] == weights[0].shape[:-1]
+    assert weights[0].shape[-1] == R[0].shape[-5]
+    assert R[0].shape[-2:] == eigen_probe[0].shape[-2:]
 
-    # (..., POSI, 1, 1, 1, 1) to match other arrays
-    weights = weights[..., None, None, None, None]
-    norm_weights = np.linalg.norm(weights, axis=-5, keepdims=True)**2
-    if np.all(norm_weights == 0):
-        raise ValueError('eigen_probe weights cannot all be zero?')
+    def _get_update(R, eigen_probe, weights):
+        # (..., POSI, 1, 1, 1, 1) to match other arrays
+        weights = weights[..., None, None, None, None]
+        norm_weights = np.linalg.norm(weights[0], axis=-5, keepdims=True)**2
 
-    # FIXME: What happens when weights is zero!?
-    proj = (np.real(R.conj() * eigen_probe) + weights) / norm_weights
-    update = np.mean(
-        R * np.mean(proj, axis=(-2, -1), keepdims=True),
-        axis=-5,
-        keepdims=True,
-    )
-    eigen_probe += β * update / np.linalg.norm(
+        if np.all(norm_weights[0] == 0):
+            raise ValueError('eigen_probe weights cannot all be zero?')
+
+        # FIXME: What happens when weights is zero!?
+        proj = (np.real(R.conj() * eigen_probe) + weights) / norm_weights
+        return weights, np.mean(
+            R * np.mean(proj, axis=(-2, -1), keepdims=True),
+            axis=-5,
+            keepdims=True,
+        )
+
+    weights, update = (list(a) for a in zip(*comm.pool.map(
+        _get_update,
+        R,
+        eigen_probe,
+        weights,
+    )))
+    update = comm.pool.bcast(comm.pool.reduce_mean(
         update,
-        axis=(-2, -1),
-        keepdims=True,
+        axis=-5,
+    ))
+
+    def _get_d(patches, diff, eigen_probe, update, β):
+        eigen_probe += β * update / np.linalg.norm(
+            update,
+            axis=(-2, -1),
+            keepdims=True,
+        )
+        assert np.all(np.isfinite(eigen_probe))
+
+        eigen_probe /= np.linalg.norm(eigen_probe, axis=(-2, -1), keepdims=True)
+
+        # Determine new eigen_weights for the updated eigen probe
+        phi = patches * eigen_probe
+        n = np.mean(
+            np.real(diff * phi.conj()),
+            axis=(-1, -2),
+            keepdims=True,
+        )
+        norm_phi = np.square(np.abs(phi))
+        d = np.mean(norm_phi, axis=(-1, -2), keepdims=True)
+        d_mean = np.mean(d, axis=-5, keepdims=True)
+        return n, d, d_mean
+
+    (n, d, d_mean) = (list(a) for a in zip(*comm.pool.map(
+        _get_d,
+        patches,
+        diff,
+        eigen_probe,
+        update,
+        β=β,
+    )))
+    d_mean = comm.pool.bcast(comm.pool.reduce_mean(
+        d_mean,
+        axis=-5,
+    ))
+
+    def _get_weights_mean(n, d, d_mean, weights):
+        d += 0.1 * d_mean
+
+        weight_update = (n / d).reshape(*weights.shape)
+        assert np.all(np.isfinite(weight_update))
+
+        # (33) The sum of all previous steps constrained to zero-mean
+        weights += weight_update
+        return np.mean(
+            weights,
+            axis=-5,
+            keepdims=True,
+        )
+
+    weights_mean = list(comm.pool.map(
+        _get_weights_mean,
+        n,
+        d,
+        d_mean,
+        weights,
+    ))
+    weights_mean = comm.pool.bcast(comm.pool.reduce_mean(
+        weights_mean,
+        axis=-5,
+    ))
+
+    def _update_weights(weights, weights_mean):
+        weights -= weights_mean
+        return weights[..., 0, 0, 0, 0]
+
+    weights = comm.pool.map(
+        _update_weights,
+        weights,
+        weights_mean,
     )
-    assert np.all(np.isfinite(eigen_probe))
 
-    eigen_probe /= np.linalg.norm(eigen_probe, axis=(-2, -1), keepdims=True)
-
-    return eigen_probe
+    return eigen_probe, weights
 
 
 def add_modes_random_phase(probe, nmodes):

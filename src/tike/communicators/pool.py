@@ -117,6 +117,14 @@ class ThreadPool(ThreadPoolExecutor):
         buf += sum([self.xp.asnumpy(part) for part in x])
         return buf
 
+    def reduce_mean(self, x: list, axis, worker=None) -> cp.array:
+        """Reduce x by addition to one GPU from all other GPUs."""
+        if self.num_workers == 1:
+            return x[0]
+        worker = self.workers[0] if worker is None else worker
+        return cp.mean(self.gather(x, worker=worker, axis=axis),
+                       keepdims=True, axis=axis)
+
     def map(self, func, *iterables, **kwargs):
         """ThreadPoolExecutor.map, but wraps call in a cuda.Device context."""
 

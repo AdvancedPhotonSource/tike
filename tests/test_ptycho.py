@@ -54,7 +54,7 @@ import unittest
 import numpy as np
 
 import tike.ptycho
-from tike.communicators import MPIComm
+from tike.communicators import Comm, MPIComm
 import tike.random
 
 __author__ = "Daniel Ching"
@@ -282,7 +282,9 @@ class TestPtychoRecon(unittest.TestCase):
         self.template_consistent_algorithm(
             'cgrad',
             params={
-                'num_gpu': 4,
+                'subset_is_random': True,
+                'batch_size': int(self.data.shape[1] / 3),
+                'num_gpu': 2,
                 'recover_probe': True,
                 'recover_psi': True,
                 'use_mpi': True,
@@ -298,9 +300,9 @@ class TestPtychoRecon(unittest.TestCase):
         self.template_consistent_algorithm(
             'lstsq_grad',
             params={
-                # 'subset_is_random': True,
-                # 'batch_size': int(self.data.shape[1] * 0.6),
-                'num_gpu': 1,
+                'subset_is_random': True,
+                'batch_size': int(self.data.shape[1] / 3),
+                'num_gpu': 2,
                 'recover_probe': True,
                 'recover_psi': True,
                 'use_mpi': False,
@@ -321,9 +323,9 @@ class TestPtychoRecon(unittest.TestCase):
         self.template_consistent_algorithm(
             'lstsq_grad',
             params={
-                # 'subset_is_random': True,
-                # 'batch_size': int(self.data.shape[1] * 0.6),
-                'num_gpu': 1,
+                'subset_is_random': True,
+                'batch_size': int(self.data.shape[1] / 3),
+                'num_gpu': 2,
                 'recover_probe': True,
                 'recover_psi': True,
                 'eigen_probe': eigen_probe,
@@ -345,20 +347,30 @@ class TestProbe(unittest.TestCase):
         wide = 18
         high = 21
         posi = 53
-        eigen = 5
+        eigen = 1
+        comm = Comm(2, None)
 
-        R = np.random.rand(*leading, posi, 1, 1, wide, high)
-        eigen_probe = np.random.rand(*leading, 1, eigen, 1, wide, high)
+        R = comm.pool.bcast(np.random.rand(*leading, posi, 1, 1, wide, high))
+        eigen_probe = comm.pool.bcast(np.random.rand(*leading,
+                                                     1, eigen, 1, wide, high))
         weights = np.random.rand(*leading, posi)
         weights -= np.mean(weights)
+        weights = comm.pool.bcast(weights)
+        patches = comm.pool.bcast(np.random.rand(*leading,
+                                                 posi, 1, 1, wide, high))
+        diff = comm.pool.bcast(np.random.rand(*leading,
+                                              posi, 1, 1, wide, high))
 
-        new_probe = tike.ptycho.probe.update_eigen_probe(
+        new_probe, new_weights = tike.ptycho.probe.update_eigen_probe(
+            comm=comm,
             R=R,
             eigen_probe=eigen_probe,
             weights=weights,
+            patches=patches,
+            diff=diff,
         )
 
-        assert eigen_probe.shape == new_probe.shape
+        assert eigen_probe[0].shape == new_probe[0].shape
 
 
 if __name__ == '__main__':
