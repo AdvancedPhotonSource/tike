@@ -171,8 +171,8 @@ def reconstruct(
     Parameters
     ----------
     data : (..., FRAME, WIDE, HIGH) float32
-        The intensity (square of the absolute value) of the propagated wavefront;
-        i.e. what the detector records.
+        The intensity (square of the absolute value) of the propagated
+        wavefront; i.e. what the detector records.
     eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
         The eigen probes for all positions.
     eigen_weights : (..., POSI, EIGEN, SHARED) float32
@@ -183,8 +183,8 @@ def reconstruct(
         The shared complex illumination function amongst all positions.
     scan : (..., POSI, 2) float32
         Coordinates of the minimum corner of the probe grid for each
-        measurement in the coordinate system of psi. Coordinate order consistent
-        with WIDE, HIGH order.
+        measurement in the coordinate system of psi. Coordinate order
+        consistent with WIDE, HIGH order.
     algorithm : string
         The name of one algorithms from :py:mod:`.ptycho.solvers`.
     rtol : float
