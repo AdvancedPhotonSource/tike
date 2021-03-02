@@ -12,9 +12,3 @@ solvers
 
       cgrad
       lstsq_grad
-
-.. automodule:: tike.ptycho.solvers.combined
-   :members:
-
-.. automodule:: tike.ptycho.solvers.divided
-   :members:

@@ -50,7 +50,6 @@ __author__ = "Doga Gursoy, Daniel Ching, Xiaodong Yu"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = [
-    "gaussian",
     "reconstruct",
     "simulate",
 ]
@@ -118,17 +117,19 @@ def simulate(
     ----------
     detector_shape : int
         The pixel width of the detector.
-    probe : (..., POSI, EIGEN, SHARED, WIDE, HIGH) complex64
-        The shared probes.
+    probe : (..., 1, 1, SHARED, WIDE, HIGH) complex64
+        The shared complex illumination function amongst all positions.
     scan : (..., POSI, 2) float32
         Coordinates of the minimum corner of the probe grid for each
         measurement in the coordinate system of psi.
     psi : (..., WIDE, HIGH) complex64
         The complex wavefront modulation of the object.
-    eigen_weights : (..., POSI, EIGEN, SHARED) float32
-        Eigen probe weights for each position.
     fly : int
         The number of scan positions which combine for one detector frame.
+    eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
+        The eigen probes for all positions.
+    eigen_weights : (..., POSI, EIGEN, SHARED) float32
+        The relative intensity of the eigen probes at each position.
 
     Returns
     -------
@@ -169,13 +170,26 @@ def reconstruct(
 
     Parameters
     ----------
+    data : (..., FRAME, WIDE, HIGH) float32
+        The intensity (square of the absolute value) of the propagated wavefront;
+        i.e. what the detector records.
+    eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
+        The eigen probes for all positions.
+    eigen_weights : (..., POSI, EIGEN, SHARED) float32
+        The relative intensity of the eigen probes at each position.
+    psi : (..., WIDE, HIGH) complex64
+        The wavefront modulation coefficients of the object.
+    probe : (..., 1, 1, SHARED, WIDE, HIGH) complex64
+        The shared complex illumination function amongst all positions.
+    scan : (..., POSI, 2) float32
+        Coordinates of the minimum corner of the probe grid for each
+        measurement in the coordinate system of psi. Coordinate order consistent
+        with WIDE, HIGH order.
     algorithm : string
         The name of one algorithms from :py:mod:`.ptycho.solvers`.
     rtol : float
         Terminate early if the relative decrease of the cost function is
         less than this amount.
-    split : 'grid' or 'stripe'
-        The method to use for splitting the scan positions among GPUS.
     batch_size : int
         The approximate number of scan positions processed by each GPU
         simultaneously per view.

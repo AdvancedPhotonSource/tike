@@ -2,11 +2,13 @@
 Installation Instructions
 #########################
 
-****************************
-From the conda-forge channel
-****************************
+****************************************
+From the conda-forge channel using Conda
+****************************************
 
-At this time, `tike` can only be installed from source.
+In theory, `tike` is available via conda from the conda-forge channel.
+However, this distribution will only be updated sporadically and is not
+recommended.
 
 ********************
 From the source code
