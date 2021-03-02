@@ -160,7 +160,8 @@ def reconstruct(
             if isinstance(v, list):
                 result[k] = v[0]
 
-        return {k: operator.asnumpy(v) for k, v in result.items()}
+        return {k: operator.asnumpy(v) if np.ndim(v) > 0 else v
+                for k, v in result.items()}
     else:
         raise ValueError(
             "The '{}' algorithm is not an available.".format(algorithm))

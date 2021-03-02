@@ -349,7 +349,7 @@ def _update_wavefront(data, varying_probe, scan, psi, op):
         positions=scan,
         patch_width=varying_probe.shape[-1],
     )
-    patches = patches.reshape(op.ntheta, scan.shape[-2], 1, 1,
+    patches = patches.reshape(*scan.shape[:-1], 1, 1,
                               op.detector_shape, op.detector_shape)
 
     nearplane = cp.tile(patches, reps=(1, 1, 1, varying_probe.shape[-3], 1, 1))

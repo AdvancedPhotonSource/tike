@@ -26,11 +26,14 @@ def cgrad(
 
     Parameters
     ----------
-    op : tike.operators.Ptycho
+    op : :py:class:`tike.operators.Ptycho`
         A ptychography operator.
-    comm : tike.communicators.Comm
+    comm : :py:class:`tike.communicators.Comm`
         An object which manages communications between both
         GPUs and nodes.
+
+
+    .. seealso:: :py:mod:`tike.ptycho`
 
     """
     cost = np.inf

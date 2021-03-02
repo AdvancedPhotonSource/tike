@@ -50,7 +50,6 @@ __author__ = "Doga Gursoy, Daniel Ching, Xiaodong Yu"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = [
-    "gaussian",
     "reconstruct",
     "simulate",
 ]
@@ -72,40 +71,7 @@ from .probe import get_varying_probe
 logger = logging.getLogger(__name__)
 
 
-def gaussian(size, rin=0.8, rout=1.0):
-    """Return a complex gaussian probe distribution.
-
-    Illumination probe represented on a 2D regular grid.
-
-    A finite-extent circular shaped probe is represented as
-    a complex wave. The intensity of the probe is maximum at
-    the center and damps to zero at the borders of the frame.
-
-    Parameters
-    ----------
-    size : int
-        The side length of the distribution
-    rin : float [0, 1) < rout
-        The inner radius of the distribution where the dampening of the
-        intensity will start.
-    rout : float (0, 1] > rin
-        The outer radius of the distribution where the intensity will reach
-        zero.
-
-    """
-    r, c = np.mgrid[:size, :size] + 0.5
-    rs = np.sqrt((r - size / 2)**2 + (c - size / 2)**2)
-    rmax = np.sqrt(2) * 0.5 * rout * rs.max() + 1.0
-    rmin = np.sqrt(2) * 0.5 * rin * rs.max()
-    img = np.zeros((size, size), dtype='float32')
-    img[rs < rmin] = 1.0
-    img[rs > rmax] = 0.0
-    zone = np.logical_and(rs > rmin, rs < rmax)
-    img[zone] = np.divide(rmax - rs[zone], rmax - rmin)
-    return img
-
-
-def compute_intensity(
+def _compute_intensity(
     operator,
     psi,
     scan,
@@ -151,17 +117,19 @@ def simulate(
     ----------
     detector_shape : int
         The pixel width of the detector.
-    probe : (..., POSI, EIGEN, SHARED, WIDE, HIGH) complex64
-        The shared probes.
+    probe : (..., 1, 1, SHARED, WIDE, HIGH) complex64
+        The shared complex illumination function amongst all positions.
     scan : (..., POSI, 2) float32
         Coordinates of the minimum corner of the probe grid for each
         measurement in the coordinate system of psi.
     psi : (..., WIDE, HIGH) complex64
         The complex wavefront modulation of the object.
-    eigen_weights : (..., POSI, EIGEN, SHARED) float32
-        Eigen probe weights for each position.
     fly : int
         The number of scan positions which combine for one detector frame.
+    eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
+        The eigen probes for all positions.
+    eigen_weights : (..., POSI, EIGEN, SHARED) float32
+        The relative intensity of the eigen probes at each position.
 
     Returns
     -------
@@ -183,7 +151,7 @@ def simulate(
         probe = operator.asarray(probe, dtype='complex64')
         if eigen_weights is not None:
             eigen_weights = operator.asarray(eigen_weights, dtype='float32')
-        data = compute_intensity(operator, psi, scan, probe, eigen_weights,
+        data = _compute_intensity(operator, psi, scan, probe, eigen_weights,
                                  eigen_probe, fly)
         return operator.asnumpy(data.real)
 
@@ -202,13 +170,26 @@ def reconstruct(
 
     Parameters
     ----------
+    data : (..., FRAME, WIDE, HIGH) float32
+        The intensity (square of the absolute value) of the propagated
+        wavefront; i.e. what the detector records.
+    eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
+        The eigen probes for all positions.
+    eigen_weights : (..., POSI, EIGEN, SHARED) float32
+        The relative intensity of the eigen probes at each position.
+    psi : (..., WIDE, HIGH) complex64
+        The wavefront modulation coefficients of the object.
+    probe : (..., 1, 1, SHARED, WIDE, HIGH) complex64
+        The shared complex illumination function amongst all positions.
+    scan : (..., POSI, 2) float32
+        Coordinates of the minimum corner of the probe grid for each
+        measurement in the coordinate system of psi. Coordinate order
+        consistent with WIDE, HIGH order.
     algorithm : string
         The name of one algorithms from :py:mod:`.ptycho.solvers`.
     rtol : float
         Terminate early if the relative decrease of the cost function is
         less than this amount.
-    split : 'grid' or 'stripe'
-        The method to use for splitting the scan positions among GPUS.
     batch_size : int
         The approximate number of scan positions processed by each GPU
         simultaneously per view.

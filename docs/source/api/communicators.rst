@@ -1,6 +1,6 @@
-pool
-====
-.. automodule:: tike.pool
+communicators
+=============
+.. automodule:: tike.communicators
    :inherited-members:
    :members:
    :show-inheritance:

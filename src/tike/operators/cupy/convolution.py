@@ -40,7 +40,7 @@ class Convolution(Operator):
         first, horizontal coordinates second.
 
     """
-    def __init__(self, probe_shape, nz, n, ntheta,
+    def __init__(self, probe_shape, nz, n, ntheta=None,
                  detector_shape=None, **kwargs):  # yapf: disable
         self.probe_shape = probe_shape
         self.nz = nz
