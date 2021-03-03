@@ -1,3 +1,5 @@
+"""Functions for manipulating and updating scanning positions."""
+
 import logging
 
 import numpy as np

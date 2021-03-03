@@ -8,7 +8,7 @@ from .operator import Operator
 class Shift(CachedFFT, Operator):
     """Shift last two dimensions of an array using Fourier method."""
 
-    def fwd(self, a, shift, overwrite=False):
+    def fwd(self, a, shift, overwrite=False, cval=None):
         """Apply shifts along last two dimensions of a.
 
         Parameters
@@ -34,7 +34,9 @@ class Shift(CachedFFT, Operator):
         padded = self._ifft2(padded, axes=(-2, -1), overwrite=True)
         return padded.reshape(*shape)
 
-    def adj(self, a, shift, overwrite=False):
+    def adj(self, a, shift, overwrite=False, cval=None):
         if shift is None:
             return a
-        return self.fwd(a, -shift, overwrite=overwrite)
+        return self.fwd(a, -shift, overwrite=overwrite, cval=cval)
+
+    inv = adj

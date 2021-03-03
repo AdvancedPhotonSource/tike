@@ -18,8 +18,8 @@ def vector_gather(xp, Fe, x, n, m, mu):
     """A faster implementation of sequential_gather"""
     cons = [xp.sqrt(xp.pi / mu)**3, -xp.pi**2 / mu]
 
-    def delta(l, i, x):
-        return ((l + i).astype('float32') / (2 * n) - x)**2
+    def delta(ell, i, x):
+        return ((ell + i).astype('float32') / (2 * n) - x)**2
 
     F = xp.zeros(x.shape[0], dtype="complex64")
     ell = ((2 * n * x) // 1).astype(xp.int32)  # nearest grid to x
@@ -129,14 +129,16 @@ def sequential_scatter(xp, f, x, n, m, mu):
         for i0 in range(-m, m):
             for i1 in range(-m, m):
                 for i2 in range(-m, m):
+                    # yapf: disable
                     Fkernel = cons[0] * xp.exp(cons[1] * (
                         + ((ell0 + i0) / (2 * n) - x[k, 0])**2
                         + ((ell1 + i1) / (2 * n) - x[k, 1])**2
                         + ((ell2 + i2) / (2 * n) - x[k, 2])**2
-                    ))  # yapf: disable
+                    ))
                     G[(n + ell0 + i0) % (2 * n),
                       (n + ell1 + i1) % (2 * n),
-                      (n + ell2 + i2) % (2 * n)] += f[k] * Fkernel  # yapf: disable
+                      (n + ell2 + i2) % (2 * n)] += f[k] * Fkernel
+                    # yapf: enable
     return G
 
 
@@ -144,8 +146,8 @@ def vector_scatter(xp, f, x, n, m, mu, ndim=3):
     """A faster implemenation of sequential_scatter."""
     cons = [xp.sqrt(xp.pi / mu)**ndim, -xp.pi**2 / mu]
 
-    def delta(l, i, x):
-        return ((l + i).astype('float32') / (2 * n) - x)**2
+    def delta(ell, i, x):
+        return ((ell + i).astype('float32') / (2 * n) - x)**2
 
     G = xp.zeros([(2 * n)**ndim], dtype="complex64")
     ell = ((2 * n * x) // 1).astype(xp.int32)  # nearest grid to x
@@ -157,11 +159,9 @@ def vector_scatter(xp, f, x, n, m, mu, ndim=3):
             for i2 in range(-m, m):
                 delta2 = delta(ell[:, 2], i2, x[:, 2])
                 Fkernel = cons[0] * xp.exp(cons[1] * (delta0 + delta1 + delta2))
-                ids = (
-                                  ((n + ell[:, 2] + i2) % (2 * n))
-                    + stride[1] * ((n + ell[:, 1] + i1) % (2 * n))
-                    + stride[0] * ((n + ell[:, 0] + i0) % (2 * n))
-                )  # yapf: disable
+                ids = (((n + ell[:, 2] + i2) % (2 * n)) +
+                       ((n + ell[:, 1] + i1) % (2 * n)) * stride[1] +
+                       ((n + ell[:, 0] + i0) % (2 * n)) * stride[0])
                 vals = f * Fkernel
                 # accumulate by indexes (with possible index intersections),
                 # TODO acceleration of bincount!!

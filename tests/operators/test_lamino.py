@@ -19,7 +19,6 @@ class TestLamino(unittest.TestCase, OperatorTests):
     def setUp(self, n=16, ntheta=8, tilt=np.pi / 3, eps=1e-6):
         self.operator = Lamino(
             n=n,
-            theta=np.linspace(0, 2 * np.pi, ntheta),
             tilt=tilt,
             eps=eps,
         )
@@ -31,11 +30,13 @@ class TestLamino(unittest.TestCase, OperatorTests):
         self.d = self.xp.asarray(random_complex(ntheta, n, n),
                                  dtype='complex64')
         self.d_name = 'data'
-        self.kwargs = {}
+        self.kwargs = {
+            'theta': self.xp.linspace(0, 2 * np.pi, ntheta)
+        }
         print(self.operator)
 
-    @unittest.skip('FIXME: This operator is not normalized.')
-    def test_normalized(self):
+    @unittest.skip('FIXME: This operator is not scaled.')
+    def test_scaled(self):
         pass
 
 

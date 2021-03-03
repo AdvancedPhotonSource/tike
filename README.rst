@@ -13,9 +13,9 @@ The aim of Tike is to provide fast and accurate implementations of a wide
 variety of reconstruction algorithms, and to provide a common platform for the
 synchrotron research community.
 
-**************************
-Current Features (213c543)
-**************************
+*****************************
+Current Features (March 2021)
+*****************************
 
 Scan
 ====
@@ -27,19 +27,20 @@ Ptychography
 
 - FFT-based operator with linear position interpolation
 - single-energy
-- multiple scan positions per diffraction pattern (fly-scans)
-- multiple incoherent modes per diffraction pattern (multi-mode probes)
+- multiple probes per diffraction pattern (multi-mode probes)
+- probe variation correction (eigen probes)
 - one shared (multi-modal) probe per angular view
-- conjugate-gradient descent solver
-- least-squares + gradient descent solver
+- multi-GPU conjugate-gradient descent solver
+- multi-GPU least-squares + gradient descent solver
 
 Laminography
 ============
 
 - USFFT-based operator for cubic field-of-view
 - single tilt angle
-- conjugate-gradient descent solver
+- multi-GPU conjugate-gradient descent solver
 
 Alignment
 ==========
 - Lanczos-based rotation and flow operators
+- Cross-correlation rigid alignment solver

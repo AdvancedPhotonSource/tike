@@ -46,16 +46,15 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-__author__ = "Doga Gursoy, Daniel Ching"
+__author__ = "Doga Gursoy, Daniel Ching, Xiaodong Yu"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = [
-    "gaussian",
     "reconstruct",
     "simulate",
 ]
 
-from itertools import product
+from itertools import product, chain
 import logging
 import time
 
@@ -63,56 +62,81 @@ import numpy as np
 import cupy as cp
 
 from tike.operators import Ptycho
-from tike.opt import randomizer
-from tike.pool import ThreadPool
+from tike.communicators import Comm, MPIComm
+from tike.opt import batch_indicies
 from tike.ptycho import solvers
 from .position import check_allowed_positions, get_padded_object
+from .probe import get_varying_probe
 
 logger = logging.getLogger(__name__)
 
 
-def gaussian(size, rin=0.8, rout=1.0):
-    """Return a complex gaussian probe distribution.
-
-    Illumination probe represented on a 2D regular grid.
-
-    A finite-extent circular shaped probe is represented as
-    a complex wave. The intensity of the probe is maximum at
-    the center and damps to zero at the borders of the frame.
-
-    Parameters
-    ----------
-    size : int
-        The side length of the distribution
-    rin : float [0, 1) < rout
-        The inner radius of the distribution where the dampening of the
-        intensity will start.
-    rout : float (0, 1] > rin
-        The outer radius of the distribution where the intensity will reach
-        zero.
-
-    """
-    r, c = np.mgrid[:size, :size] + 0.5
-    rs = np.sqrt((r - size / 2)**2 + (c - size / 2)**2)
-    rmax = np.sqrt(2) * 0.5 * rout * rs.max() + 1.0
-    rmin = np.sqrt(2) * 0.5 * rin * rs.max()
-    img = np.zeros((size, size), dtype='float32')
-    img[rs < rmin] = 1.0
-    img[rs > rmax] = 0.0
-    zone = np.logical_and(rs > rmin, rs < rmax)
-    img[zone] = np.divide(rmax - rs[zone], rmax - rmin)
-    return img
+def _compute_intensity(
+    operator,
+    psi,
+    scan,
+    probe,
+    eigen_weights=None,
+    eigen_probe=None,
+    fly=1,
+):
+    leading = psi.shape[:-2]
+    intensity = 0
+    for m in range(probe.shape[-3]):
+        farplane = operator.fwd(
+            probe=get_varying_probe(probe, eigen_probe, eigen_weights, m=m),
+            scan=scan,
+            psi=psi,
+        )
+        intensity += np.sum(
+            np.square(np.abs(farplane)).reshape(
+                *leading,
+                scan.shape[-2] // fly,
+                fly,
+                operator.detector_shape,
+                operator.detector_shape,
+            ),
+            axis=-3,
+            keepdims=False,
+        )
+    return intensity
 
 
 def simulate(
         detector_shape,
         probe, scan,
         psi,
+        fly=1,
+        eigen_probe=None,
+        eigen_weights=None,
         **kwargs
 ):  # yapf: disable
-    """Return real-valued detector counts of simulated ptychography data."""
-    assert scan.ndim == 3
-    assert psi.ndim == 3
+    """Return real-valued detector counts of simulated ptychography data.
+
+    Parameters
+    ----------
+    detector_shape : int
+        The pixel width of the detector.
+    probe : (..., 1, 1, SHARED, WIDE, HIGH) complex64
+        The shared complex illumination function amongst all positions.
+    scan : (..., POSI, 2) float32
+        Coordinates of the minimum corner of the probe grid for each
+        measurement in the coordinate system of psi.
+    psi : (..., WIDE, HIGH) complex64
+        The complex wavefront modulation of the object.
+    fly : int
+        The number of scan positions which combine for one detector frame.
+    eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
+        The eigen probes for all positions.
+    eigen_weights : (..., POSI, EIGEN, SHARED) float32
+        The relative intensity of the eigen probes at each position.
+
+    Returns
+    -------
+    data : (..., FRAME, WIDE, HIGH) float32
+        The simulated intensity on the detector.
+
+    """
     check_allowed_positions(scan, psi, probe)
     with Ptycho(
             probe_shape=probe.shape[-1],
@@ -122,47 +146,60 @@ def simulate(
             ntheta=scan.shape[0],
             **kwargs,
     ) as operator:
-        data = 0
-        for mode in np.split(probe, probe.shape[-3], axis=-3):
-            farplane = operator.fwd(
-                probe=operator.asarray(mode, dtype='complex64'),
-                scan=operator.asarray(scan, dtype='float32'),
-                psi=operator.asarray(psi, dtype='complex64'),
-                **kwargs,
-            )
-            data += np.square(
-                np.linalg.norm(
-                    farplane.reshape(operator.ntheta,
-                                     scan.shape[-2] // operator.fly, -1,
-                                     detector_shape, detector_shape),
-                    ord=2,
-                    axis=2,
-                ))
+        scan = operator.asarray(scan, dtype='float32')
+        psi = operator.asarray(psi, dtype='complex64')
+        probe = operator.asarray(probe, dtype='complex64')
+        if eigen_weights is not None:
+            eigen_weights = operator.asarray(eigen_weights, dtype='float32')
+        data = _compute_intensity(operator, psi, scan, probe, eigen_weights,
+                                 eigen_probe, fly)
         return operator.asnumpy(data.real)
+
 
 def reconstruct(
         data,
         probe, scan,
         algorithm,
         psi=None, num_gpu=1, num_iter=1, rtol=-1,
-        model='gaussian', cost=None, times=None,
-        batch_size=None, subset_is_random=None,
+        model='gaussian', use_mpi=False, cost=None, times=None,
+        eigen_probe=None, eigen_weights=None,
+        batch_size=None,
         **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
 
     Parameters
     ----------
+    data : (..., FRAME, WIDE, HIGH) float32
+        The intensity (square of the absolute value) of the propagated
+        wavefront; i.e. what the detector records.
+    eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
+        The eigen probes for all positions.
+    eigen_weights : (..., POSI, EIGEN, SHARED) float32
+        The relative intensity of the eigen probes at each position.
+    psi : (..., WIDE, HIGH) complex64
+        The wavefront modulation coefficients of the object.
+    probe : (..., 1, 1, SHARED, WIDE, HIGH) complex64
+        The shared complex illumination function amongst all positions.
+    scan : (..., POSI, 2) float32
+        Coordinates of the minimum corner of the probe grid for each
+        measurement in the coordinate system of psi. Coordinate order
+        consistent with WIDE, HIGH order.
     algorithm : string
         The name of one algorithms from :py:mod:`.ptycho.solvers`.
     rtol : float
         Terminate early if the relative decrease of the cost function is
         less than this amount.
-    split : 'grid' or 'stripe'
-        The method to use for splitting the scan positions among GPUS.
+    batch_size : int
+        The approximate number of scan positions processed by each GPU
+        simultaneously per view.
     """
     (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
     check_allowed_positions(scan, psi, probe)
+    if use_mpi is True:
+        mpi = MPIComm
+    else:
+        mpi = None
     if algorithm in solvers.__all__:
         # Initialize an operator.
         with Ptycho(
@@ -172,51 +209,53 @@ def reconstruct(
                 n=psi.shape[-1],
                 ntheta=scan.shape[0],
                 model=model,
-        ) as operator, ThreadPool(num_gpu) as pool:
+        ) as operator, Comm(num_gpu, mpi) as comm:
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
-                        "iterations.".format(algorithm, *data.shape[1:],
+                        "iterations.".format(algorithm, *data.shape[-3:],
                                              num_iter))
-            # Divide the inputs into regions and mini-batches
-            num_batch = 1
-            if batch_size is not None:
-                num_batch = max(
-                    1,
-                    int(data.shape[1] / batch_size / pool.num_workers),
-                )
-            odd_pool = pool.num_workers % 2
-            data, scan = split_by_scan_grid(
-                data,
-                scan,
+            num_batch = 1 if batch_size is None else max(
+                1,
+                int(data.shape[-3] / batch_size / comm.pool.num_workers),
+            )
+            # Divide the inputs into regions
+            odd_pool = comm.pool.num_workers % 2
+            order, scan, data, eigen_weights = split_by_scan_grid(
+                comm.pool,
                 (
-                    pool.num_workers if odd_pool else pool.num_workers // 2,
+                    comm.pool.num_workers
+                    if odd_pool else comm.pool.num_workers // 2,
                     1 if odd_pool else 2,
                 ),
-                operator.fly,
-            )
-            data, scan = zip(*pool.map(
-                _make_mini_batches,
-                data,
                 scan,
-                num_batch=num_batch,
-                subset_is_random=subset_is_random,
-            ))
-
+                data,
+                eigen_weights,
+            )
             result = {
-                'psi': pool.bcast(psi.astype('complex64')),
-                'probe': pool.bcast(probe.astype('complex64')),
+                'psi':
+                    comm.pool.bcast(psi.astype('complex64')),
+                'probe':
+                    comm.pool.bcast(probe.astype('complex64')),
+                'eigen_probe':
+                    comm.pool.bcast(eigen_probe.astype('complex64'))
+                    if eigen_probe is not None else None,
+                'scan':
+                    scan,
+                'eigen_weights':
+                    eigen_weights,
             }
             for key, value in kwargs.items():
                 if np.ndim(value) > 0:
-                    kwargs[key] = pool.bcast(value)
+                    kwargs[key] = comm.pool.bcast(value)
 
-            result['probe'] = pool.bcast(
+            result['probe'] = comm.pool.bcast(
                 _rescale_obj_probe(
                     operator,
-                    pool,
-                    data[0][0],
+                    comm,
+                    data[0],
                     result['psi'][0],
-                    scan[0][0],
+                    scan[0],
                     result['probe'][0],
+                    num_batch=num_batch,
                 ))
 
             costs = []
@@ -226,20 +265,16 @@ def reconstruct(
 
                 logger.info(f"{algorithm} epoch {i:,d}")
 
-                for b in range(num_batch):
-                    kwargs.update(result)
-                    kwargs['scan'] = [s[b] for s in scan]
-                    result = getattr(solvers, algorithm)(
-                        operator,
-                        pool,
-                        data=[d[b] for d in data],
-                        **kwargs,
-                    )
-                    if result['cost'] is not None:
-                        costs.append(result['cost'])
-                    for g in range(pool.num_workers):
-                        scan[g][b] = result['scan'][g]
-                    probe = result['probe']
+                kwargs.update(result)
+                result = getattr(solvers, algorithm)(
+                    operator,
+                    comm,
+                    data=data,
+                    num_batch=num_batch,
+                    **kwargs,
+                )
+                if result['cost'] is not None:
+                    costs.append(result['cost'])
 
                 times.append(time.perf_counter() - start)
                 start = time.perf_counter()
@@ -251,11 +286,15 @@ def reconstruct(
                         "iterations.", rtol, i)
                     break
 
-            result['scan'] = pool.gather(
-                list(pool.map(cp.concatenate, scan, axis=1)),
-                axis=1,
-            )
-            result['probe'] = probe[0]
+            reorder = np.argsort(np.concatenate(order))
+            result['scan'] = comm.pool.gather(scan, axis=1)[:, reorder]
+            if 'eigen_weights' in result:
+                result['eigen_weights'] = comm.pool.gather(
+                    eigen_weights,
+                    axis=1,
+                )[:, reorder]
+                result['eigen_probe'] = result['eigen_probe'][0]
+            result['probe'] = result['probe'][0]
             result['cost'] = operator.asarray(costs)
             result['times'] = operator.asarray(times)
             for k, v in result.items():
@@ -267,38 +306,15 @@ def reconstruct(
                          f"\tAvailable algorithms are : {solvers.__all__}")
 
 
-def _make_mini_batches(data, scan, num_batch, subset_is_random=True):
-    """Divide ptycho-inputs into mini-batches along position dimension.
-
-    Parameters
-    ----------
-    data : (M, N, ...)
-    scan : (M, N, 2)
-    probe : (M, N, ...), (M, 1, ...)
-
-    Returns
-    -------
-    data, scan
-        The inputs shuffled in the same way.
-    """
-    # FIXME: fly positions must stay together
-    if subset_is_random:
-        indices = randomizer.permutation(data.shape[1])
-    else:
-        indices = np.arange(data.shape[1])
-    indices = np.array_split(indices, num_batch)
-    return (
-        [cp.asarray(data[:, i], dtype='float32') for i in indices],
-        [cp.asarray(scan[:, i], dtype='float32') for i in indices],
-    )
-
-
-def _rescale_obj_probe(operator, pool, data, psi, scan, probe):
+def _rescale_obj_probe(operator, comm, data, psi, scan, probe, num_batch):
     """Keep the object amplitude around 1 by scaling probe by a constant."""
 
-    intensity = operator._compute_intensity(data, psi, scan, probe)
+    i = batch_indicies(data.shape[-3], num_batch, use_random=True)[0]
 
-    rescale = (np.linalg.norm(np.ravel(np.sqrt(data))) /
+    intensity, _ = operator._compute_intensity(data[..., i, :, :], psi,
+                                               scan[..., i, :], probe)
+
+    rescale = (np.linalg.norm(np.ravel(np.sqrt(data[..., i, :, :]))) /
                np.linalg.norm(np.ravel(np.sqrt(intensity))))
 
     logger.info("object and probe rescaled by %f", rescale)
@@ -308,25 +324,29 @@ def _rescale_obj_probe(operator, pool, data, psi, scan, probe):
     return probe
 
 
-def split_by_scan_grid(data, scan, shape, fly=1):
-    """ split the field of view into a 2D grid.
+def split_by_scan_grid(pool, shape, scan, *args, fly=1):
+    """Split the field of view into a 2D grid.
 
     Mask divide the data into a 2D grid of spatially contiguous regions.
 
     Parameters
     ----------
-    data : (ntheta, nframe, ...)
-    probe : (ntheta, nscan, ...)
-    scan : (ntheta, nscan, 2) float32
-        The 2D coordinates of the scan positions.
     shape : tuple of int
         The number of grid divisions along each dimension.
+    scan : (ntheta, nscan, 2) float32
+        The 2D coordinates of the scan positions.
+    args : (ntheta, nscan, ...) float32
+        The arrays to be split by scan position.
     fly : int
         The number of scan positions per frame.
 
     Returns
     -------
-    data, scan, probe : List[array]
+    order : List[array[int]]
+        The locations of the inputs in the original arrays.
+    scan : List[array[float32]]
+        The divided 2D coordinates of the scan positions.
+    args : List[array[float32]]
         Each input divided into regions.
     """
     if len(shape) != 2:
@@ -334,9 +354,16 @@ def split_by_scan_grid(data, scan, shape, fly=1):
     vstripes = split_by_scan_stripes(scan, shape[0], axis=0, fly=fly)
     hstripes = split_by_scan_stripes(scan, shape[1], axis=1, fly=fly)
     mask = [np.logical_and(*pair) for pair in product(vstripes, hstripes)]
-    data = [data[:, m] for m in mask]
-    scan = [scan[:, m] for m in mask]
-    return data, scan
+
+    order = np.arange(scan.shape[1])
+    order = [order[m] for m in mask]
+
+    def split(m, x):
+        return None if x is None else cp.asarray(x[:, m], dtype='float32')
+
+    split_args = [list(pool.map(split, mask, x=arg)) for arg in [scan, *args]]
+
+    return (order, *split_args)
 
 
 def split_by_scan_stripes(scan, n, fly=1, axis=0):

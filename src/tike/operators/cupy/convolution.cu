@@ -51,7 +51,8 @@ _loop_over_patches(
     float2 *patches,     // has shape (nscan, patch_shape, patch_shape)
     const float2 *scan,  // has shape (nimage, nscan)
     int nimage, int nimagey, int nimagex,
-    int nscan,  // the number of positions per images
+    int nscan,    // the number of positions per images
+    int nrepeat,  // number of times to repeat the patch
     int patch_shape, int padded_shape) {
   const int pad = (padded_shape - patch_shape) / 2;
 
@@ -74,22 +75,24 @@ _loop_over_patches(
       const float syf = scan[ts + ti * nscan].x - sy;
       assert(1.0f >= sxf && sxf >= 0.0f && 1.0f >= syf && syf >= 0.0f);
 
-      // for x,y coords in patch
-      for (int py = blockIdx.z; py < patch_shape; py += gridDim.z) {
-        for (int px = threadIdx.x; px < patch_shape; px += blockDim.x) {
-          // linear patch index (pi)
-          // clang-format off
-          const int pi = (
-            + pad + px + padded_shape * (pad + py)
-            + padded_shape * padded_shape * (ts + nscan * ti)
-          );
-          // clang-format on
+      for (int r = 0; r < nrepeat; ++r) {
+        // for x,y coords in patch
+        for (int py = blockIdx.z; py < patch_shape; py += gridDim.z) {
+          for (int px = threadIdx.x; px < patch_shape; px += blockDim.x) {
+            // linear patch index (pi)
+            // clang-format off
+            const int pi = (
+              + pad + px + padded_shape * (pad + py)
+              + padded_shape * padded_shape * (r + nrepeat * (ts + nscan * ti))
+            );
+            // clang-format on
 
-          // image index (ii)
-          const int ii = sx + px + nimagex * (sy + py + nimagey * ti);
+            // image index (ii)
+            const int ii = sx + px + nimagex * (sy + py + nimagey * ti);
 
-          // Linear interpolation
-          operation(patches, images, nimagex, pi, ii, sxf, syf);
+            // Linear interpolation
+            operation(patches, images, nimagex, pi, ii, sxf, syf);
+          }
         }
       }
     }
@@ -98,16 +101,16 @@ _loop_over_patches(
 
 extern "C" __global__ void
 fwd_patch(float2 *images, float2 *patches, const float2 *scan, int nimage,
-          int nimagey, int nimagex, int nscan, int patch_shape,
+          int nimagey, int nimagex, int nscan, int nrepeat, int patch_shape,
           int padded_shape) {
   _loop_over_patches(_forward, images, patches, scan, nimage, nimagey, nimagex,
-                     nscan, patch_shape, padded_shape);
+                     nscan, nrepeat, patch_shape, padded_shape);
 }
 
 extern "C" __global__ void
 adj_patch(float2 *images, float2 *patches, const float2 *scan, int nimage,
-          int nimagey, int nimagex, int nscan, int patch_shape,
+          int nimagey, int nimagex, int nscan, int nrepeat, int patch_shape,
           int padded_shape) {
   _loop_over_patches(_adjoint, images, patches, scan, nimage, nimagey, nimagex,
-                     nscan, patch_shape, padded_shape);
+                     nscan, nrepeat, patch_shape, padded_shape);
 }

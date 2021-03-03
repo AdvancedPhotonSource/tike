@@ -1,4 +1,5 @@
 cupy>=7
+mpi4py>=3
 importlib_resources
 matplotlib-base
 numpy>=1.17

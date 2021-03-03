@@ -124,15 +124,27 @@ class TestLaminoRecon(unittest.TestCase):
         result = {
             'obj': np.zeros_like(self.original),
         }
-        for _ in range(5):
-            result = tike.lamino.reconstruct(
-                **result,
-                data=self.data,
-                theta=self.theta,
-                tilt=self.tilt,
-                algorithm=algorithm,
-                num_iter=1,
-            )
+        result = tike.lamino.reconstruct(
+            **result,
+            data=self.data,
+            theta=self.theta,
+            tilt=self.tilt,
+            algorithm=algorithm,
+            num_iter=1,
+            num_gpu=2,
+        )
+        result = tike.lamino.reconstruct(
+            **result,
+            data=self.data,
+            theta=self.theta,
+            tilt=self.tilt,
+            algorithm=algorithm,
+            num_iter=30,
+            num_gpu=2,
+        )
+        print()
+        cost = '\n'.join(f'{c:1.3e}' for c in result['cost'])
+        print(cost)
 
         recon_file = os.path.join(testdir,
                                   f'data/lamino_{algorithm}.pickle.lzma')
