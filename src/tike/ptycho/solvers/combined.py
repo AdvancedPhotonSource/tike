@@ -3,8 +3,9 @@ import logging
 import numpy as np
 
 from tike.linalg import orthogonalize_gs
-from tike.opt import conjugate_gradient, batch_indicies, get_batch
+from tike.opt import conjugate_gradient, batch_indicies, get_batch, put_batch
 from ..position import update_positions_pd
+from ..probe import get_varying_probe
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,18 @@ def cgrad(
         bdata = comm.pool.map(get_batch, data, batches, n=n)
         bscan = comm.pool.map(get_batch, scan, batches, n=n)
 
+        if isinstance(eigen_probe, list):
+            beigen_weights = comm.pool.map(
+                get_batch,
+                eigen_weights,
+                batches,
+                n=n,
+            )
+            beigen_probe = eigen_probe
+        else:
+            beigen_probe = [None] * comm.pool.num_workers
+            beigen_weights = [None] * comm.pool.num_workers
+
         if recover_psi:
             psi, cost = _update_object(
                 op,
@@ -54,6 +67,8 @@ def cgrad(
                 psi,
                 bscan,
                 probe,
+                eigen_probe=beigen_probe,
+                eigen_weights=beigen_weights,
                 num_iter=cg_iter,
                 step_length=step_length,
             )
@@ -66,6 +81,8 @@ def cgrad(
                 psi,
                 bscan,
                 probe,
+                eigen_probe=beigen_probe,
+                eigen_weights=beigen_weights,
                 num_iter=cg_iter,
                 step_length=step_length,
                 probe_is_orthogonal=probe_is_orthogonal,
@@ -83,27 +100,48 @@ def cgrad(
             bscan = comm.pool.bcast(bscan)
             # TODO: Assign bscan into scan when positions are updated
 
+        if isinstance(eigen_probe, list):
+            comm.pool.map(
+                put_batch,
+                beigen_weights,
+                eigen_weights,
+                batches,
+                n=n,
+            )
+
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 
 
 def _update_probe(op, comm, data, psi, scan, probe, num_iter, step_length,
-                  probe_is_orthogonal, mode):
+                  probe_is_orthogonal, mode, eigen_probe, eigen_weights):
     """Solve the probe recovery problem."""
 
     def cost_function(probe):
-        cost_out = comm.pool.map(op.cost, data, psi, scan, probe)
+        unique_probe = comm.pool.map(
+            get_varying_probe,
+            probe,
+            eigen_probe,
+            eigen_weights,
+        )
+        cost_out = comm.pool.map(op.cost, data, psi, scan, unique_probe)
         if comm.use_mpi:
             return comm.Allreduce_reduce(cost_out, 'cpu')
         else:
             return comm.reduce(cost_out, 'cpu')
 
     def grad(probe):
+        unique_probe = comm.pool.map(
+            get_varying_probe,
+            probe,
+            eigen_probe,
+            eigen_weights,
+        )
         grad_list = comm.pool.map(
             op.grad_probe,
             data,
             psi,
             scan,
-            probe,
+            unique_probe,
             mode=mode,
         )
         if comm.use_mpi:
@@ -140,18 +178,26 @@ def _update_probe(op, comm, data, psi, scan, probe, num_iter, step_length,
     return probe, cost
 
 
-def _update_object(op, comm, data, psi, scan, probe, num_iter, step_length):
+def _update_object(op, comm, data, psi, scan, probe, num_iter, step_length,
+                   eigen_probe, eigen_weights):
     """Solve the object recovery problem."""
 
+    unique_probe = comm.pool.map(
+        get_varying_probe,
+        probe,
+        eigen_probe,
+        eigen_weights,
+    )
+
     def cost_function_multi(psi, **kwargs):
-        cost_out = comm.pool.map(op.cost, data, psi, scan, probe)
+        cost_out = comm.pool.map(op.cost, data, psi, scan, unique_probe)
         if comm.use_mpi:
             return comm.Allreduce_reduce(cost_out, 'cpu')
         else:
             return comm.reduce(cost_out, 'cpu')
 
     def grad_multi(psi):
-        grad_list = comm.pool.map(op.grad_psi, data, psi, scan, probe)
+        grad_list = comm.pool.map(op.grad_psi, data, psi, scan, unique_probe)
         if comm.use_mpi:
             return comm.Allreduce_reduce(grad_list, 'gpu')
         else:
