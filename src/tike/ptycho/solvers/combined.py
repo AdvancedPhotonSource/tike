@@ -243,7 +243,7 @@ def _update_object(op, comm, data, psi, scan, probe, num_iter, step_length,
 
 
 def _update_eigen_probe(op, comm, data, psi, scan, probe, eigen_probe,
-                        eigen_weights):
+                        eigen_weights, alpha):
     """Update the eigen probes and weights."""
     unique_probe = get_varying_probe(
         probe,
