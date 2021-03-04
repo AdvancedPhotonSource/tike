@@ -354,9 +354,71 @@ def gaussian(size, rin=0.8, rout=1.0):
     return img
 
 
+def opr(probe, n, alpha=0.5, S=None, U=None):
+    """Regularize multiple probes with orthogonal probe relaxation (OPR).
+
+    Corrects for variable illumination across scan positions by regularizing
+    the probe at each position with the first `n` principal components of
+    the probes at all positions.
+
+    The probes are regularized using a weighted sum as below:
+
+    .. math::
+        $$P_{1} = \alpha P_{0} + (1 - \alpha) \sum_{c=0}^{n}P_0^c$$
+
+    where `alpha` is the weighting paramters which determines the relative
+    importance of the regulariation.
+
+    Parameters
+    ----------
+    probe : (..., nscan // fly, fly, nmodes, probe_shape, probe_shape) complex64
+        A bunch of probes that need to be regularized.
+    n : int
+        The number of components to use for regularization.
+
+    Returns
+    -------
+        The regularized probes.
+
+    References
+    ----------
+    Odstrcil, M., P. Baksh, S. A. Boden, R. Card, J. E. Chad, J. G. Frey, and
+    W. S. Brocklesby. 2016. “Ptychographic Coherent Diffractive Imaging with
+    Orthogonal Probe Relaxation.” Optics Express.
+    https://doi.org/10.1364/oe.24.008360.
+
+    """
+    # Flatten the last dimension of the probe and move incoherent mode
+    # dimension so the position dimensions are in the last two dimensions
+    probe = cp.moveaxis(probe, -3, 1)
+    shape = probe.shape
+    probe = probe.reshape(
+        -1,
+        probe.shape[-4] * probe.shape[-3],  # scan positions
+        probe.shape[-2] * probe.shape[-1],  # probe dimensions
+    )
+    assert probe.shape[-2] > n, 'There cannot be more modes than positions.'
+
+    S, U = pca_eig(probe, k=n)
+    compressed_probe = probe @ U @ U.conj().swapaxes(-1, -2)
+    compressed_probe /= cp.linalg.norm(compressed_probe, axis=-1, keepdims=True)
+    compressed_probe *= cp.linalg.norm(probe, axis=-1, keepdims=True)
+    reg_probe = alpha * probe + (1 - alpha) * compressed_probe
+
+    reg_probe = reg_probe.reshape(*shape)
+    reg_probe = cp.moveaxis(reg_probe, 1, -3)
+    return reg_probe, S, U
+
+
 if __name__ == "__main__":
     cp.random.seed(0)
     x = (cp.random.rand(7, 1, 9, 3, 3) +
          1j * cp.random.rand(7, 1, 9, 3, 3)).astype('complex64')
     x1 = orthogonalize_eig(x)
     assert x1.shape == x.shape, x1.shape
+
+    probe_shape = (1, 52, 3, 5, 8, 8)
+    probe = cp.random.rand(*probe_shape) + 1j * cp.random.rand(*probe_shape)
+    probe = probe.astype('complex64')
+    reg_probes = opr(probe, n=7)
+    assert reg_probes.shape == probe_shape
