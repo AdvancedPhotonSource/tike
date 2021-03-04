@@ -137,7 +137,7 @@ def simulate(
         The simulated intensity on the detector.
 
     """
-    check_allowed_positions(scan, psi, probe)
+    check_allowed_positions(scan, psi, probe.shape)
     with Ptycho(
             probe_shape=probe.shape[-1],
             detector_shape=int(detector_shape),
@@ -195,7 +195,7 @@ def reconstruct(
         simultaneously per view.
     """
     (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
-    check_allowed_positions(scan, psi, probe)
+    check_allowed_positions(scan, psi, probe.shape)
     if use_mpi is True:
         mpi = MPIComm
     else:
