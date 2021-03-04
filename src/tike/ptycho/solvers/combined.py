@@ -5,7 +5,7 @@ import numpy as np
 from tike.linalg import orthogonalize_gs
 from tike.opt import conjugate_gradient, batch_indicies, get_batch, put_batch
 from ..position import update_positions_pd
-from ..probe import get_varying_probe
+from ..probe import get_varying_probe, opr
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +87,19 @@ def cgrad(
                 step_length=step_length,
                 probe_is_orthogonal=probe_is_orthogonal,
                 mode=list(range(probe[0].shape[-3])),
+            )
+
+        if isinstance(eigen_probe, list):
+            beigen_probe[0], beigen_weights[0] = _update_eigen_probe(
+                op,
+                comm,
+                bdata[0],
+                psi[0],
+                bscan[0],
+                probe[0],
+                eigen_probe=beigen_probe[0],
+                eigen_weights=beigen_weights[0],
+                alpha=1 / num_batch,
             )
 
         if recover_positions and comm.pool.num_workers == 1:
@@ -227,3 +240,42 @@ def _update_object(op, comm, data, psi, scan, probe, num_iter, step_length,
 
     logger.info('%10s cost is %+12.5e', 'object', cost)
     return psi, cost
+
+
+def _update_eigen_probe(op, comm, data, psi, scan, probe, eigen_probe,
+                        eigen_weights):
+    """Update the eigen probes and weights."""
+    unique_probe = get_varying_probe(
+        probe,
+        eigen_probe,
+        eigen_weights,
+    )
+    # Compute the gradient for each probe positions
+    intensity, farplane = op._compute_intensity(data, psi, scan, unique_probe)
+    gradients = op.adj_probe(
+        farplane=op.propagation.grad(
+            data,
+            farplane,
+            intensity,
+        ),
+        psi=psi,
+        scan=scan,
+        overwrite=True,
+    )
+
+    # Get the residual gradient for each probe position
+    # TODO: Maybe subtracting this mean is not necessary because we already
+    # updated the main probe. Or maybe it is because it keeps the residuals
+    # zero-mean
+    residuals = gradients - np.mean(gradients, axis=-5, keepdims=True)
+
+    # Perform principal component analysis on the residual gradients
+    eigen_probe, eigen_weights = opr(
+        residuals,
+        eigen_probe,
+        eigen_weights,
+        eigen_weights.shape[-2],
+        alpha=alpha,
+    )
+
+    return eigen_probe, eigen_weights

@@ -333,6 +333,29 @@ class TestPtychoRecon(unittest.TestCase):
             },
         )
 
+    def test_consistent_cgrad_variable_probe(self):
+        """Check ptycho.solver.cgrad for consistency."""
+        eigen_probe = tike.random.numpy_complex(
+            *self.scan.shape[:-2], 1, 1, 2,
+            *self.probe.shape[-2:]).astype('complex64')
+        weights = 1e-6 * np.random.rand(*self.scan.shape[:-1], *
+                                        eigen_probe.shape[-4:-2])
+        weights -= np.mean(weights, axis=-3, keepdims=True)
+        weights = weights.astype('float32')
+
+        self.template_consistent_algorithm(
+            'cgrad',
+            params={
+                'subset_is_random': True,
+                'batch_size': int(self.data.shape[1] / 3),
+                'num_gpu': 2,
+                'recover_probe': True,
+                'recover_psi': True,
+                'eigen_probe': eigen_probe,
+                'eigen_weights': weights,
+            },
+        )
+
     def test_invaid_algorithm_name(self):
         """Check that wrong names are handled gracefully."""
         with self.assertRaises(ValueError):
@@ -351,15 +374,14 @@ class TestProbe(unittest.TestCase):
         comm = Comm(2, None)
 
         R = comm.pool.bcast(np.random.rand(*leading, posi, 1, 1, wide, high))
-        eigen_probe = comm.pool.bcast(np.random.rand(*leading,
-                                                     1, eigen, 1, wide, high))
+        eigen_probe = comm.pool.bcast(
+            np.random.rand(*leading, 1, eigen, 1, wide, high))
         weights = np.random.rand(*leading, posi)
         weights -= np.mean(weights)
         weights = comm.pool.bcast(weights)
-        patches = comm.pool.bcast(np.random.rand(*leading,
-                                                 posi, 1, 1, wide, high))
-        diff = comm.pool.bcast(np.random.rand(*leading,
-                                              posi, 1, 1, wide, high))
+        patches = comm.pool.bcast(
+            np.random.rand(*leading, posi, 1, 1, wide, high))
+        diff = comm.pool.bcast(np.random.rand(*leading, posi, 1, 1, wide, high))
 
         new_probe, new_weights = tike.ptycho.probe.update_eigen_probe(
             comm=comm,
