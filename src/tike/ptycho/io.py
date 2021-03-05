@@ -62,9 +62,9 @@ def read_aps_2idd(diffraction_path, parameter_path):
     Parameters
     ----------
     diffraction_path : string
-        The absolute path to the HDF5 file with diffraction patters
+        The absolute path to the HDF5 file containing diffraction patterns.
     parameter_path : string
-        The absolute path to the HDF5 file with
+        The absolute path to the HDF5 file containing position information.
 
     Returns
     -------
