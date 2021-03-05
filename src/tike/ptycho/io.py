@@ -36,3 +36,65 @@ def position_units_to_pixels(
     return positions * ((detector_pixel_width * detector_pixel_count) /
                         (detector_distance * wavelength(energy)))
 
+
+def read_aps_2idd(diffraction_path, parameter_path):
+    """Load ptychogrpahy data collected at the Advanced Photon Source 2-ID-D.
+
+    Expects two HDF5 files with the following organization
+
+    diffraction_path.h5:
+        /df:int[FRAME, WIDE, HIGH] {unit: counts}
+
+    parameter_path.h5:
+        /entry
+            /instrument
+                /detector
+                    /detectorSpecific
+                        /photon_energy:float {unit: eV}
+                    /detector_distance:float {unit: mm}
+                    /x_pixel_size:float {unit: m}
+                    /beam_center_x:float[POSI] {unit: ?}
+                    /beam_center_y:float[POSI] {unit: ?}
+
+    Where FRAME is the number of detector frames recorded, POSI is the
+    number of scan positions recorded, WIDE/HIGH is the width and height.
+
+    Parameters
+    ----------
+    diffraction_path : string
+        The absolute path to the HDF5 file with diffraction patters
+    parameter_path : string
+        The absolute path to the HDF5 file with
+
+    Returns
+    -------
+    data : (..., FRAME, WIDE, HIGH) float32
+        Diffraction patterns; cropped square and centered on peak.
+    scan : (..., POSI, 2) float32
+        Scan positions; rescaled to pixel coordinates but uncentered.
+    """
+    import h5py
+
+    with h5py.File(parameter_path, 'r') as f:
+        photon_energy = f['/entry/instrument/detector'
+                          '/detectorSpecific/photon_energy'][()] / 1000.  # keV
+        detector_dist = f['/entry/instrument/detector'
+                          '/detector_distance'][()] / 1000.  # meter
+        det_pix_width = f['/entry/instrument/detector'
+                          '/x_pixel_size'][()]  # meter
+        scan_coords_x = f['/entry/instrument/detector/beam_center_x'][()]
+        scan_coords_y = f['/entry/instrument/detector/beam_center_y'][()]
+
+    with h5py.File(diffraction_path, 'r') as f:
+        data = f['/dp'][()]
+        # TODO: FFT shift and crop frames to square shape?
+
+    scan = position_units_to_pixels(
+        np.stack([scan_coords_x, scan_coords_y], axis=1),
+        detector_dist,
+        data.shape[-1],
+        det_pix_width,
+        photon_energy,
+    )
+
+    return data.astype('float32'), scan.astype('float32')
