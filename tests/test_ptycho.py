@@ -227,7 +227,17 @@ class TestPtychoRecon(unittest.TestCase):
 
         if params.get('use_mpi') is True:
             with MPIComm() as IO:
-                self.scan, self.data = IO.MPIio(self.scan, self.data)
+                weights = params.get('eigen_weights')
+                if weights is not None:
+                    self.scan, self.data, params['eigen_weights'] = IO.MPIio(
+                        self.scan,
+                        self.data,
+                        weights,
+                    )
+                    print("data",self.data.shape,params['eigen_weights'].shape)
+                else:
+                    self.scan, self.data = IO.MPIio(self.scan, self.data)
+                    print("data",self.data.shape)
 
         result = {
             'psi': np.ones_like(self.original),
@@ -305,7 +315,7 @@ class TestPtychoRecon(unittest.TestCase):
                 'num_gpu': 2,
                 'recover_probe': True,
                 'recover_psi': True,
-                'use_mpi': False,
+                'use_mpi': True,
             },
         )
 
@@ -328,6 +338,7 @@ class TestPtychoRecon(unittest.TestCase):
                 'num_gpu': 2,
                 'recover_probe': True,
                 'recover_psi': True,
+                'use_mpi': True,
                 'eigen_probe': eigen_probe,
                 'eigen_weights': weights,
             },
