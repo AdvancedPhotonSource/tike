@@ -70,12 +70,9 @@ class Comm:
             raise ValueError(f'dest must be gpu or cpu.')
 
     def Allreduce_mean(self, x, **kwargs):
-        """ThreadPool mean coupled with MPI allreduce mean."""
+        """Multi-process multi-GPU based mean."""
 
-        src = self.reduce(x, dest, **kwargs)
-        if dest == 'gpu':
-            return cp.asarray(self.mpi.Allreduce(cp.asnumpy(src)))
-        elif dest == 'cpu':
-            return self.mpi.Allreduce(src)
-        else:
-            raise ValueError(f'dest must be gpu or cpu.')
+        src = self.pool.reduce_mean(x, **kwargs)
+        mean = self.mpi.Allreduce(cp.asnumpy(src)) / self.mpi.size
+
+        return self.pool.bcast(cp.asarray(mean))

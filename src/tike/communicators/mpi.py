@@ -115,13 +115,6 @@ class MPIComm:
                 scan[0, :, 0] <= edges[self.rank + 1])
 
         scan = scan[:, mask]
-        #split_args = []
-        #for arg in args:
-        #    if arg is None:
-        #        split_args.append(None)
-        #    else:
-        #        split_args.append(arg[:, mask])
-
         split_args = [arg[:, mask] for arg in args]
 
         return (scan, *split_args)
