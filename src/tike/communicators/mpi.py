@@ -7,6 +7,7 @@ __docformat__ = 'restructuredtext en'
 from mpi4py import MPI
 
 import numpy as np
+import cupy as cp
 
 
 class MPIComm:
@@ -66,9 +67,10 @@ class MPIComm:
 
         if sendbuf is None:
             raise ValueError(f"Gather data can't be empty.")
+        recvbuf = None
         if self.rank == dest:
-            recvbuf = np.empty(sendbuf.shape, sendbuf.dtype)
-        self.comm.Scatter(sendbuf, recvbuf, dest)
+            recvbuf = np.empty(sendbuf.size*self.size, sendbuf.dtype)
+        self.comm.Gather(sendbuf, recvbuf, dest)
         if self.rank == dest:
             return recvbuf
 
