@@ -47,7 +47,7 @@ def lamino(
     # Gather all to one process
     λ_l, phi, theta = [comm.gather(x) for x in (λ_l, phi, theta)]
 
-    cost = None
+    cost, Hu = None, None
     if comm.rank == 0:
         if save_result:
             # We cannot reorder phi, theta without ruining correspondence
@@ -72,21 +72,23 @@ def lamino(
             algorithm='cgrad',
             num_iter=num_iter,
             cg_iter=cg_iter,
-            num_gpu=comm.size,
+            # FIXME: Communications overhead makes 1 GPU faster than 8.
+            num_gpu=1, #comm.size,
         )
         u = lresult['obj']
         cost = lresult['cost'][-1]
 
-    # Separate again to multiple processes
-    λ_l, phi, theta = [comm.scatter(x) for x in (λ_l, phi, theta)]
-    # FIXME: volume becomes too large to fit in MPI buffer
-    u = comm.broadcast(u)
+        # FIXME: volume becomes too large to fit in MPI buffer.
+        # Used to broadcast u, now broadcast only Hu
+        # u = comm.broadcast(u)
+        Hu = np.exp(1j * tike.lamino.simulate(
+            obj=u,
+            tilt=tilt,
+            theta=theta,
+        ))
 
-    Hu = np.exp(1j * tike.lamino.simulate(
-        obj=u,
-        tilt=tilt,
-        theta=theta,
-    ))
+    # Separate again to multiple processes
+    λ_l, phi, theta, Hu = [comm.scatter(x) for x in (λ_l, phi, theta, Hu)]
 
     logger.info('Update laminography lambdas and rhos.')
 
