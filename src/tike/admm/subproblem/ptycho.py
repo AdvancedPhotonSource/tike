@@ -51,16 +51,18 @@ def ptycho(
 
     logger.info("No update for ptychography lambdas and rhos")
 
-    if comm.rank == 0 and save_result:
+    if save_result:
         dxchange.write_tiff(
             np.abs(presult['psi']),
-            f'{folder}/psi-abs-{save_result:03d}.tiff',
+            f'{folder}/{comm.rank}-psi-abs-{save_result:03d}.tiff',
             dtype='float32',
+            overwrite=True,
         )
         dxchange.write_tiff(
             np.angle(presult['psi']),
-            f'{folder}/psi-angle-{save_result:03d}.tiff',
+            f'{folder}/{comm.rank}-psi-angle-{save_result:03d}.tiff',
             dtype='float32',
+            overwrite=True,
         )
 
     Gψ = tike.ptycho.simulate(

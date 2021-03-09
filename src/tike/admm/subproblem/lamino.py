@@ -57,11 +57,13 @@ def lamino(
                 np.angle(phi[order]),
                 f'{folder}/phi-angle-{save_result:03d}.tiff',
                 dtype='float32',
+                overwrite=True,
             )
             dxchange.write_tiff(
                 np.abs(phi[order]),
                 f'{folder}/phi-abs-{save_result:03d}.tiff',
                 dtype='float32',
+                overwrite=True,
             )
 
         lresult = tike.lamino.reconstruct(
@@ -104,21 +106,25 @@ def lamino(
             u.real,
             f'{folder}/particle-real-{save_result:03d}.tiff',
             dtype='float32',
+            overwrite=True,
         )
         dxchange.write_tiff(
             u.imag,
             f'{folder}/particle-imag-{save_result:03d}.tiff',
             dtype='float32',
+            overwrite=True,
         )
         dxchange.write_tiff(
             np.angle(Hu),
             f'{folder}/Hu-angle-{save_result:03d}.tiff',
             dtype='float32',
+            overwrite=True,
         )
         dxchange.write_tiff(
             np.abs(Hu),
             f'{folder}/Hu-abs-{save_result:03d}.tiff',
             dtype='float32',
+            overwrite=True,
         )
 
     return (
