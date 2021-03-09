@@ -1,7 +1,15 @@
 __author__ = "Tekin Bicer, Daniel Ching"
-__copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
+__copyright__ = "Copyright (c) 2021, UChicago Argonne, LLC."
+
+import warnings
+import logging
+
+import h5py
+import numpy as np
 
 from tike.constants import wavelength
+
+logger = logging.getLogger(__name__)
 
 
 def position_units_to_pixels(
@@ -24,7 +32,7 @@ def position_units_to_pixels(
         detector.
     detector_pixel_width : float [m]
         The width of one detector pixel. Assumes square pixels.
-    photon_energy : float [keV]
+    photon_energy : float [eV]
         The energy of the incident beam.
 
     Returns
@@ -33,8 +41,9 @@ def position_units_to_pixels(
         The scanning positions in pixel coordinates.
 
     """
-    return positions * ((detector_pixel_width * detector_pixel_count) /
-                        (detector_distance * wavelength(energy)))
+    return positions * (
+        (detector_pixel_width * detector_pixel_count) /
+        (detector_distance * wavelength(photon_energy / 1000) / 100))
 
 
 def read_aps_2idd(diffraction_path, position_path):
@@ -81,53 +90,72 @@ def read_aps_2idd(diffraction_path, position_path):
     Returns
     -------
     data : (..., FRAME, WIDE, HIGH) float32
-        Diffraction patterns; cropped square and centered on peak.
+        Diffraction patterns; cropped square and peak FFT shifted to corner.
     scan : (..., POSI, 2) float32
         Scan positions; rescaled to pixel coordinates but uncentered.
 
     """
-    import h5py
-
-    scan = np.genfromtxt(position_path, delimiter=",")
-
-    with h5py.File(parameter_path, 'r') as f:
+    with h5py.File(diffraction_path, 'r') as f:
         photon_energy = f['/entry/instrument/detector'
-                          '/detectorSpecific/photon_energy'][()] / 1000.  # keV
-        detect_width = f['/entry/instrument/detector'
-                         '/detectorSpecific/x_pixels_in_detector'][()]
-        detect_height = f['/entry/instrument/detector'
-                          '/detectorSpecific/y_pixels_in_detector'][()]
+                          '/detectorSpecific/photon_energy'][()]  # eV
+        detect_width = int(f['/entry/instrument/detector'
+                             '/detectorSpecific/x_pixels_in_detector'][()])
+        detect_height = int(f['/entry/instrument/detector'
+                              '/detectorSpecific/y_pixels_in_detector'][()])
         detector_dist = f['/entry/instrument/detector'
                           '/detector_distance'][()]  # meter
         det_pix_width = f['/entry/instrument/detector'
                           '/x_pixel_size'][()]  # meter
-        beam_center_x = f['/entry/instrument/detector/beam_center_x'][()]
-        beam_center_y = f['/entry/instrument/detector/beam_center_y'][()]
+        beam_center_x = int(f['/entry/instrument/detector/beam_center_x'][()])
+        beam_center_y = int(f['/entry/instrument/detector/beam_center_y'][()])
+        logger.info('Loading 2-ID-D ptychography data:\n'
+                    f'\tphoton energy {photon_energy} eV\n'
+                    f'\twidth: {detect_width}, center: {beam_center_x}\n'
+                    f'\theight: {detect_height}, center: {beam_center_y}')
 
-        radius = 256
-        assert beam_center_x + radius < detect_width
-        assert beam_center_y + radius < detect_height
-        assert beam_center_x - radius >= 0
-        assert beam_center_y - radius >= 0
+        # Autodetect the diffraction pattern size by doubling until it
+        # doesn't fit on the detector anymore.
+        radius = 2
+        while (beam_center_x + radius < detect_width
+               and beam_center_y + radius < detect_height
+               and beam_center_x - radius >= 0 and beam_center_y - radius >= 0):
+            radius *= 2
+        radius = radius // 2
+        logger.info(f'Autodetected diffraction size is {2* radius}.')
 
-        # TODO: Should be able to predict the number of datasets. However,
-        # let's just catch exception for now.
         data = []
 
-        def crop_diffraction(x):
-            data.append(x[:, beam_center_x - radius:beam_center_x + radius,
-                          beam_center_y - radius:beam_center_y + radius])
+        def crop_and_shift(x):
+            data.append(
+                np.fft.ifftshift(
+                    x[..., beam_center_y - radius:beam_center_y + radius,
+                      beam_center_x - radius:beam_center_x + radius,],
+                    axes=(-2, -1),
+                ))
 
-        with h5py.File('fly145_master.h5', 'r') as f:
-            for x in f['/entry/data']:
-                try:
-                    crop_diffraction(f[f'/entry/data/{x}'])
-                except KeyError:
-                    break
-            data = np.concatenate(data, axis=0)
+        for x in f['/entry/data']:
+            try:
+                crop_and_shift(f[f'/entry/data/{x}'])
+            except KeyError:
+                # Catches links to non-files.
+                # TODO: Should be able to predict the number of datasets.
+                # However, let's just catch exception for now.
+                break
+            except OSError as error:
+                warnings.warn(
+                    "The HDF5 compression plugin is probably missing. "
+                    "See the conda-forge hdf5-external-filter-plugins package.",
+                )
+                raise error
 
-    assert len(data) == len(scan), ("Number of positions and frames should be "
-                                    f"equal not {data.shape}, {scan.shape}")
+        data = np.concatenate(data, axis=0)
+
+    scan = np.genfromtxt(position_path, delimiter=",")
+    logging.info(f'Loaded {len(scan)} scan positions.')
+
+    if len(data) != len(scan):
+        raise ValueError("The number of positions and frames should be "
+                         f"equal not {data.shape}, {scan.shape}")
 
     scan = position_units_to_pixels(
         scan,
@@ -136,5 +164,8 @@ def read_aps_2idd(diffraction_path, position_path):
         det_pix_width,
         photon_energy,
     )
+
+    data = data[None, ...]
+    scan = scan[None, ...]
 
     return data.astype('float32'), scan.astype('float32')
