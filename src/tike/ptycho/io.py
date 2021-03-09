@@ -129,7 +129,7 @@ def read_aps_2idd(diffraction_path, position_path):
             data.append(
                 np.fft.ifftshift(
                     x[..., beam_center_y - radius:beam_center_y + radius,
-                      beam_center_x - radius:beam_center_x + radius,],
+                      beam_center_x - radius:beam_center_x + radius],
                     axes=(-2, -1),
                 ))
 
