@@ -144,8 +144,7 @@ def read_aps_2idd(diffraction_path, position_path):
             except OSError as error:
                 warnings.warn(
                     "The HDF5 compression plugin is probably missing. "
-                    "See the conda-forge hdf5-external-filter-plugins package.",
-                )
+                    "See the conda-forge hdf5-external-filter-plugins package.")
                 raise error
 
         data = np.concatenate(data, axis=0)
@@ -154,8 +153,12 @@ def read_aps_2idd(diffraction_path, position_path):
     logging.info(f'Loaded {len(scan)} scan positions.')
 
     if len(data) != len(scan):
-        raise ValueError("The number of positions and frames should be "
-                         f"equal not {data.shape}, {scan.shape}")
+        warnings.warn(
+            f"The number of positions {data.shape} and frames {scan.shape}"
+            " is not equal. One of the two will be truncated.")
+        num_frame = min(len(data), len(scan))
+        scan = scan[:num_frame, ...]
+        data = data[:num_frame, ...]
 
     scan = position_units_to_pixels(
         scan,
