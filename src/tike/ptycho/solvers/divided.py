@@ -272,11 +272,18 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
         if recover_probe and eigen_probe[0] is not None:
             logger.info('Updating eigen probes')
             # (30) residual probe updates
-            grad_probe_mean = comm.pool.bcast(
-                comm.pool.reduce_mean(
-                    common_grad_probe,
-                    axis=-5,
-                ))
+            if comm.use_mpi:
+                grad_probe_mean = comm.Allreduce_mean(
+                        common_grad_probe,
+                        axis=-5,
+                    )
+                grad_probe_mean = comm.pool.bcast(grad_probe_mean)
+            else:
+                grad_probe_mean = comm.pool.bcast(
+                    comm.pool.reduce_mean(
+                        common_grad_probe,
+                        axis=-5,
+                    ))
             R = comm.pool.map(_get_residuals, grad_probe, grad_probe_mean)
 
             for c in range(eigen_probe[0].shape[-4]):
@@ -307,7 +314,6 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
 
         # Update each direction
         if recover_psi:
-            #print('test:',weighted_step_psi[0].shape, common_grad_psi[0].shape)
             if comm.use_mpi:
                 weighted_step_psi[0] = comm.Allreduce_mean(
                     weighted_step_psi,
@@ -325,7 +331,6 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             psi = comm.pool.bcast(psi[0])
 
         if recover_probe:
-            #print('test:',weighted_step_probe[0].shape, common_grad_probe[0].shape)
             if comm.use_mpi:
                 weighted_step_probe[0] = comm.Allreduce_mean(
                     weighted_step_probe,
