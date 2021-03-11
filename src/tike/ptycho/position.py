@@ -7,7 +7,7 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-def check_allowed_positions(scan, psi, probe):
+def check_allowed_positions(scan, psi, probe_shape):
     """Check that all positions are within the field of view.
 
     The field of view must have 1 pixel buffer around the edge. i.e. positions
@@ -18,8 +18,8 @@ def check_allowed_positions(scan, psi, probe):
     int_scan = scan // 1
     less_than_one = int_scan < 1
     greater_than_psi = np.stack(
-        (int_scan[..., -2] >= psi.shape[-2] - probe.shape[-2],
-         int_scan[..., -1] >= psi.shape[-1] - probe.shape[-1]),
+        (int_scan[..., -2] >= psi.shape[-2] - probe_shape[-2],
+         int_scan[..., -1] >= psi.shape[-1] - probe_shape[-1]),
         -1,
     )
     if np.any(less_than_one) or np.any(greater_than_psi):
@@ -144,7 +144,7 @@ def update_positions_pd(operator, data, psi, probe, scan,
     center1 = np.mean(scan, axis=-2, keepdims=True)
     scan = scan + (center0 - center1)
 
-    check_allowed_positions(scan, psi, probe)
+    check_allowed_positions(scan, psi, probe.shape)
     cost = operator.cost(data=data, psi=psi, scan=scan, probe=probe)
     logger.info('%10s cost is %+12.5e', 'position', cost)
     return scan, cost
