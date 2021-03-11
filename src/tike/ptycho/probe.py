@@ -117,7 +117,6 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
 
     def _get_update(R, eigen_probe, weights):
         # (..., POSI, 1, 1, 1, 1) to match other arrays
-        #print("weights", weights.shape)
         weights = weights[..., None, None, None, None]
         norm_weights = np.linalg.norm(weights[0], axis=-5, keepdims=True)**2
 

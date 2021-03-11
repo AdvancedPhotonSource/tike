@@ -234,10 +234,8 @@ class TestPtychoRecon(unittest.TestCase):
                         self.data,
                         weights,
                     )
-                    print("data",self.data.shape,params['eigen_weights'].shape)
                 else:
                     self.scan, self.data = IO.MPIio(self.scan, self.data)
-                    print("data",self.data.shape)
 
         result = {
             'psi': np.ones_like(self.original),

@@ -319,7 +319,10 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                     weighted_step_psi,
                     axis=-5,
                 )[..., 0, 0, 0]
-                common_grad_psi[0] = comm.Allreduce_reduce(common_grad_psi, 'gpu')
+                common_grad_psi[0] = comm.Allreduce_reduce(
+                    common_grad_psi,
+                    dest='gpu',
+                )
             else:
                 weighted_step_psi[0] = comm.pool.reduce_mean(
                     weighted_step_psi,
