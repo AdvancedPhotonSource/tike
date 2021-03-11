@@ -75,4 +75,4 @@ class Comm:
         src = self.pool.reduce_mean(x, **kwargs)
         mean = self.mpi.Allreduce(cp.asnumpy(src)) / self.mpi.size
 
-        return self.pool.bcast(cp.asarray(mean))
+        return cp.asarray(mean)

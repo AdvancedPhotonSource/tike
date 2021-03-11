@@ -308,25 +308,42 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
         # Update each direction
         if recover_psi:
             #print('test:',weighted_step_psi[0].shape, common_grad_psi[0].shape)
-            weighted_step_psi[0] = comm.pool.reduce_mean(
-                weighted_step_psi,
-                axis=-5,
-            )[..., 0, 0, 0]
-            common_grad_psi[0] = comm.pool.reduce_gpu(common_grad_psi)
+            if comm.use_mpi:
+                weighted_step_psi[0] = comm.Allreduce_mean(
+                    weighted_step_psi,
+                    axis=-5,
+                )[..., 0, 0, 0]
+                common_grad_psi[0] = comm.Allreduce_reduce(common_grad_psi, 'gpu')
+            else:
+                weighted_step_psi[0] = comm.pool.reduce_mean(
+                    weighted_step_psi,
+                    axis=-5,
+                )[..., 0, 0, 0]
+                common_grad_psi[0] = comm.reduce(common_grad_psi, 'gpu')
 
             psi[0] += weighted_step_psi[0] * common_grad_psi[0]
             psi = comm.pool.bcast(psi[0])
 
         if recover_probe:
             #print('test:',weighted_step_probe[0].shape, common_grad_probe[0].shape)
-            weighted_step_probe[0] = comm.pool.reduce_mean(
-                weighted_step_probe,
-                axis=-5,
-            )
-            common_grad_probe[0] = comm.pool.reduce_mean(
-                common_grad_probe,
-                axis=-5,
-            )
+            if comm.use_mpi:
+                weighted_step_probe[0] = comm.Allreduce_mean(
+                    weighted_step_probe,
+                    axis=-5,
+                )
+                common_grad_probe[0] = comm.Allreduce_mean(
+                    common_grad_probe,
+                    axis=-5,
+                )
+            else:
+                weighted_step_probe[0] = comm.pool.reduce_mean(
+                    weighted_step_probe,
+                    axis=-5,
+                )
+                common_grad_probe[0] = comm.pool.reduce_mean(
+                    common_grad_probe,
+                    axis=-5,
+                )
 
             # (27a) Probe update
             probe[0][..., m:m + 1, :, :] += (weighted_step_probe[0] *
