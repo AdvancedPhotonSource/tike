@@ -195,12 +195,12 @@ def align(
             logging.info("Estimate rigid alignment with cross correlation.")
             sresult = tike.align.reconstruct(
                 algorithm='cross_correlation',
-                unaligned=rotated,
-                original=padded,
+                unaligned=padded,
+                original=rotated,
                 upsample_factor=100,
                 reg_weight=0.0,
             )
-            shift = sresult['shift']
+            shift = -sresult['shift']
         else:
             logging.info("Estimate rigid alignment with center of mass.")
             centers = _center_of_mass(np.abs(np.angle(rotated)), axis=(-2, -1))
