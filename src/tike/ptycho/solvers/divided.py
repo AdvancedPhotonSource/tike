@@ -166,8 +166,6 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
             positions=scan_,
         )[..., None, None, :, :] * unique_probe[..., m:m + 1, :, :]
         A1 = cp.sum((dOP * dOP.conj()).real + 0.5, axis=(-2, -1))
-        A1 += 0.5 * cp.mean(A1, axis=-3, keepdims=True)
-        b1 = cp.sum((dOP.conj() * diff).real, axis=(-2, -1))
 
     if recover_probe:
         grad_probe = cp.conj(patches) * diff
@@ -183,34 +181,11 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
 
         dPO = common_grad_probe * patches
         A4 = cp.sum((dPO * dPO.conj()).real + 0.5, axis=(-2, -1))
-        A4 += 0.5 * cp.mean(A4, axis=-3, keepdims=True)
-        b2 = cp.sum((dPO.conj() * diff).real, axis=(-2, -1))
-
-    # (22) Use least-squares to find the optimal step sizes simultaneously
-    if recover_psi and recover_probe:
-        A2 = cp.sum((dOP * dPO.conj()), axis=(-2, -1))
-        A3 = A2.conj()
-        determinant = A1 * A4 - A2 * A3
-        x1 = -cp.conj(A2 * b2 - A4 * b1) / determinant
-        x2 = cp.conj(A1 * b2 - A3 * b1) / determinant
-    elif recover_psi:
-        x1 = b1 / A1
-    elif recover_probe:
-        x2 = b2 / A4
-
-    weighted_step_psi = None
-    weighted_step_probe = None
-
-    if recover_psi:
-        step = x1[..., None, None]
-
-        # (27b) Object update
-        weighted_step_psi = cp.mean(step, keepdims=True, axis=-5)
-
-    if recover_probe:
-        step = x2[..., None, None]
-
-        weighted_step_probe = cp.mean(step, axis=-5, keepdims=True)
+    else:
+        grad_probe = None
+        common_grad_probe = None
+        dPO = None
+        A4 = None
 
     if __debug__:
         patches = op.diffraction.patch.fwd(
@@ -226,8 +201,45 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
                  nearplane[..., m:m + 1, pad:end, pad:end]))
 
     return (patches, diff, grad_probe, common_grad_psi, common_grad_probe,
-            weighted_step_psi, weighted_step_probe)
+            dOP, dPO, A1, A4)
 
+
+def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe):
+    # (22) Use least-squares to find the optimal step sizes simultaneously
+    if recover_psi and recover_probe:
+        b1 = cp.sum((dOP.conj() * diff).real, axis=(-2, -1))
+        b2 = cp.sum((dPO.conj() * diff).real, axis=(-2, -1))
+        A2 = cp.sum((dOP * dPO.conj()), axis=(-2, -1))
+        A3 = A2.conj()
+        determinant = A1 * A4 - A2 * A3
+        x1 = -cp.conj(A2 * b2 - A4 * b1) / determinant
+        x2 = cp.conj(A1 * b2 - A3 * b1) / determinant
+    elif recover_psi:
+        b1 = cp.sum((dOP.conj() * diff).real, axis=(-2, -1))
+        x1 = b1 / A1
+    elif recover_probe:
+        b2 = cp.sum((dPO.conj() * diff).real, axis=(-2, -1))
+        x2 = b2 / A4
+
+    if recover_psi:
+        step = x1[..., None, None]
+
+        # (27b) Object update
+        weighted_step_psi = cp.mean(step, keepdims=True, axis=-5)
+
+    if recover_probe:
+        step = x2[..., None, None]
+
+        weighted_step_probe = cp.mean(step, axis=-5, keepdims=True)
+    else:
+        weighted_step_probe = None
+
+    return weighted_step_psi, weighted_step_probe
+
+
+def _update_A(A, delta):
+    A += 0.5 * delta
+    return A
 
 def _get_residuals(grad_probe, grad_probe_mean):
     return grad_probe - grad_probe_mean
@@ -254,8 +266,10 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             grad_probe,
             common_grad_psi,
             common_grad_probe,
-            weighted_step_psi,
-            weighted_step_probe,
+            dOP,
+            dPO,
+            A1,
+            A4,
         ) = (list(a) for a in zip(*comm.pool.map(
             _get_nearplane_gradients,
             nearplane,
@@ -265,6 +279,34 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             unique_probe,
             op=op,
             m=m,
+            recover_psi=recover_psi,
+            recover_probe=recover_probe,
+        )))
+
+        if recover_psi:
+            if comm.use_mpi:
+                delta = comm.Allreduce_mean(A1, axis=-3)
+            else:
+                delta = comm.pool.reduce_mean(A1, axis=-3)
+            A1 = comm.pool.map(_update_A, A1, comm.pool.bcast(delta))
+
+        if recover_probe:
+            if comm.use_mpi:
+                delta = comm.Allreduce_mean(A4, axis=-3)
+            else:
+                delta = comm.pool.reduce_mean(A4, axis=-3)
+            A4 = comm.pool.map(_update_A, A4, comm.pool.bcast(delta))
+
+        (
+            weighted_step_psi,
+            weighted_step_probe,
+        ) = (list(a) for a in zip(*comm.pool.map(
+            _get_nearplane_steps,
+            diff,
+            dOP,
+            dPO,
+            A1,
+            A4,
             recover_psi=recover_psi,
             recover_probe=recover_probe,
         )))
