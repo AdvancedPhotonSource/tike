@@ -173,9 +173,9 @@ def align(
             logging.info("Estimate alignment using Farneback.")
             fresult = tike.align.solvers.farneback(
                 op=None,
-                unaligned=np.angle(rotated),
-                original=np.angle(padded),
-                flow=flow,
+                unaligned=np.angle(padded),
+                original=np.angle(rotated),
+                flow=flow if flow is None else -flow,
                 pyr_scale=0.5,
                 levels=4,
                 winsize=winsize,
@@ -183,12 +183,12 @@ def align(
                 hi=hi,
                 lo=lo,
             )
-            flow = fresult['flow']
+            flow = -fresult['flow']
         elif align_method.lower() == 'tvl1':
             logging.info("Estimate alignment using TV-L1.")
-            flow = _optical_flow_tvl1(
-                unaligned=rotated,
-                original=padded,
+            flow = -_optical_flow_tvl1(
+                unaligned=padded,
+                original=rotated,
                 num_iter=cg_iter,
             )
         elif align_method.lower() == 'xcor':
