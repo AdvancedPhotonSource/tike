@@ -8,6 +8,7 @@ launches and memory management may by accessed from Python.
 from .alignment import *
 from .convolution import *
 from .flow import *
+from .gradient import *
 from .lamino import *
 from .operator import *
 from .pad import *
@@ -20,6 +21,7 @@ from .rotate import *
 __all__ = (
     'Alignment',
     'Convolution',
+    'Gradient',
     'Flow',
     'Lamino',
     'Operator',
