@@ -152,7 +152,7 @@ def simulate(
         if eigen_weights is not None:
             eigen_weights = operator.asarray(eigen_weights, dtype='float32')
         data = _compute_intensity(operator, psi, scan, probe, eigen_weights,
-                                 eigen_probe, fly)
+                                  eigen_probe, fly)
         return operator.asnumpy(data.real)
 
 
@@ -172,7 +172,8 @@ def reconstruct(
     ----------
     data : (..., FRAME, WIDE, HIGH) float32
         The intensity (square of the absolute value) of the propagated
-        wavefront; i.e. what the detector records.
+        wavefront; i.e. what the detector records. FFT-shifted so the
+        diffraction peak is at the corners.
     eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
         The eigen probes for all positions.
     eigen_weights : (..., POSI, EIGEN, SHARED) float32
