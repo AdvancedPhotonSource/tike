@@ -89,9 +89,9 @@ def read_aps_velociprobe(diffraction_path, position_path):
 
     Returns
     -------
-    data : (..., FRAME, WIDE, HIGH) float32
+    data : (1, FRAME, WIDE, HIGH) float32
         Diffraction patterns; cropped square and peak FFT shifted to corner.
-    scan : (..., POSI, 2) float32
+    scan : (1, POSI, 2) float32
         Scan positions; rescaled to pixel coordinates but uncentered.
 
     """
