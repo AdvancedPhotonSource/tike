@@ -46,8 +46,8 @@ def position_units_to_pixels(
         (detector_distance * wavelength(photon_energy / 1000) / 100))
 
 
-def read_aps_2idd(diffraction_path, position_path):
-    """Load ptychography data collected at the Advanced Photon Source 2-ID-D.
+def read_aps_velociprobe(diffraction_path, position_path):
+    """Load ptychography data from the Advanced Photon Source Velociprobe.
 
     Expects one HDF5 file and one CSV file with the following organization
 
