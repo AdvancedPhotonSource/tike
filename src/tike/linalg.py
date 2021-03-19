@@ -7,6 +7,11 @@ spotty in the NumPy and CuPy libraries.
 import numpy as np
 
 
+def norm1(x, axis=None, keepdims=None):
+    """Return the vector 1-norm of x along given axis."""
+    return np.sum(np.abs(x), axis=axis, keepdims=keepdims)
+
+
 def norm(x, axis=None, keepdims=None):
     """Return the vector 2-norm of x along given axis."""
     return np.sqrt(np.sum((x * x.conj()).real, axis=axis, keepdims=keepdims))

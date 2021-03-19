@@ -4,19 +4,9 @@ __docformat__ = 'restructuredtext en'
 
 from .operator import Operator
 
+
 class Gradient(Operator):
     """Returns the Gradient approximation of a 3D array."""
-
-# def run(xp, u, mu, tau, alpha):
-#     """Provide some kind of regularization."""
-#     z = fwd(xp, u) + mu / tau
-#     # Soft-thresholding
-#     # za = xp.sqrt(xp.sum(xp.abs(z), axis=0))
-#     za = xp.sqrt(xp.real(xp.sum(z*xp.conj(z), 0)))
-#     zeros = (za <= alpha / tau)
-#     z[:, zeros] = 0
-#     z[:, ~zeros] -= z[:, ~zeros] * alpha / (tau * za[~zeros])
-#     return z
 
     def fwd(self, u):
         """Forward operator for regularization."""
