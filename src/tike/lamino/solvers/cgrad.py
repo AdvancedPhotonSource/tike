@@ -24,6 +24,25 @@ def _estimate_step_length(obj, theta, op):
     return 2 * scaler if op.xp.isfinite(scaler) else 1.0
 
 
+def _cost(data, theta, obj, op):
+    """Cost function for the least-squres laminography problem."""
+    return tike.linalg.norm(op.fwd(
+        u=obj,
+        theta=theta,
+    ) - data)**2
+
+
+def _grad(data, theta, obj, op):
+    """Gradient for the least-squares laminography problem."""
+    return op.adj(
+        data=op.fwd(
+            u=obj,
+            theta=theta,
+        ) - data,
+        theta=theta,
+    )
+
+
 def cgrad(
     op,
     comm,
@@ -59,14 +78,14 @@ def update_obj(op, comm, data, theta, obj, num_iter=1, step_length=1):
     """Solver the object recovery problem."""
 
     def cost_function(obj):
-        cost_out = comm.pool.map(op.cost, data, theta, obj)
+        cost_out = comm.pool.map(_cost, data, theta, obj, op=op)
         if comm.use_mpi:
             return comm.Allreduce_reduce(cost_out, 'cpu')
         else:
             return comm.reduce(cost_out, 'cpu')
 
     def grad(obj):
-        grad_list = comm.pool.map(op.grad, data, theta, obj)
+        grad_list = comm.pool.map(_grad, data, theta, obj, op=op)
         if comm.use_mpi:
             return comm.Allreduce_reduce(grad_list, 'gpu')
         else:
