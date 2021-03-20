@@ -225,8 +225,14 @@ class TestPtychoRecon(unittest.TestCase):
     def template_consistent_algorithm(self, algorithm, params={}):
         """Check ptycho.solver.algorithm for consistency."""
 
+        result = {
+            'psi': np.ones_like(self.original),
+            'probe': self.probe * np.random.rand(*self.probe.shape),
+        }
+
         if params.get('use_mpi') is True:
             with MPIComm() as IO:
+                result['probe'] = IO.Bcast(result['probe'])
                 weights = params.get('eigen_weights')
                 if weights is not None:
                     self.scan, self.data, params['eigen_weights'] = IO.MPIio(
@@ -237,11 +243,8 @@ class TestPtychoRecon(unittest.TestCase):
                 else:
                     self.scan, self.data = IO.MPIio(self.scan, self.data)
 
-        result = {
-            'psi': np.ones_like(self.original),
-            'probe': self.probe * np.random.rand(*self.probe.shape),
-            'scan': self.scan,
-        }
+        result['scan'] = self.scan
+
         result = tike.ptycho.reconstruct(
             **result,
             **params,

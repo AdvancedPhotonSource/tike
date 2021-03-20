@@ -372,7 +372,10 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                 )[..., 0, 0, 0]
                 common_grad_psi[0] = comm.reduce(common_grad_psi, 'gpu')
 
+            #test = cp.ones(common_grad_psi[0].shape, common_grad_psi[0].dtype)
             psi[0] += weighted_step_psi[0] * common_grad_psi[0]
+            #print(psi[0].tolist())
+            #exit()
             psi = comm.pool.bcast(psi[0])
 
         if recover_probe:
@@ -385,6 +388,7 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                     common_grad_probe,
                     axis=-5,
                 )
+                #print(weighted_step_probe[0])
             else:
                 weighted_step_probe[0] = comm.pool.reduce_mean(
                     weighted_step_probe,
