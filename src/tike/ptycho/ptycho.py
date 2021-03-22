@@ -50,7 +50,6 @@ __author__ = "Doga Gursoy, Daniel Ching, Xiaodong Yu"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = [
-    "gaussian",
     "reconstruct",
     "simulate",
 ]
@@ -64,7 +63,7 @@ import cupy as cp
 
 from tike.operators import Ptycho
 from tike.communicators import Comm, MPIComm
-from tike.opt import randomizer
+from tike.opt import batch_indicies
 from tike.ptycho import solvers
 from .position import check_allowed_positions, get_padded_object
 from .probe import get_varying_probe
@@ -72,40 +71,7 @@ from .probe import get_varying_probe
 logger = logging.getLogger(__name__)
 
 
-def gaussian(size, rin=0.8, rout=1.0):
-    """Return a complex gaussian probe distribution.
-
-    Illumination probe represented on a 2D regular grid.
-
-    A finite-extent circular shaped probe is represented as
-    a complex wave. The intensity of the probe is maximum at
-    the center and damps to zero at the borders of the frame.
-
-    Parameters
-    ----------
-    size : int
-        The side length of the distribution
-    rin : float [0, 1) < rout
-        The inner radius of the distribution where the dampening of the
-        intensity will start.
-    rout : float (0, 1] > rin
-        The outer radius of the distribution where the intensity will reach
-        zero.
-
-    """
-    r, c = np.mgrid[:size, :size] + 0.5
-    rs = np.sqrt((r - size / 2)**2 + (c - size / 2)**2)
-    rmax = np.sqrt(2) * 0.5 * rout * rs.max() + 1.0
-    rmin = np.sqrt(2) * 0.5 * rin * rs.max()
-    img = np.zeros((size, size), dtype='float32')
-    img[rs < rmin] = 1.0
-    img[rs > rmax] = 0.0
-    zone = np.logical_and(rs > rmin, rs < rmax)
-    img[zone] = np.divide(rmax - rs[zone], rmax - rmin)
-    return img
-
-
-def compute_intensity(
+def _compute_intensity(
     operator,
     psi,
     scan,
@@ -151,17 +117,19 @@ def simulate(
     ----------
     detector_shape : int
         The pixel width of the detector.
-    probe : (..., POSI, EIGEN, SHARED, WIDE, HIGH) complex64
-        The shared probes.
+    probe : (..., 1, 1, SHARED, WIDE, HIGH) complex64
+        The shared complex illumination function amongst all positions.
     scan : (..., POSI, 2) float32
         Coordinates of the minimum corner of the probe grid for each
         measurement in the coordinate system of psi.
     psi : (..., WIDE, HIGH) complex64
         The complex wavefront modulation of the object.
-    eigen_weights : (..., POSI, EIGEN, SHARED) float32
-        Eigen probe weights for each position.
     fly : int
         The number of scan positions which combine for one detector frame.
+    eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
+        The eigen probes for all positions.
+    eigen_weights : (..., POSI, EIGEN, SHARED) float32
+        The relative intensity of the eigen probes at each position.
 
     Returns
     -------
@@ -169,7 +137,7 @@ def simulate(
         The simulated intensity on the detector.
 
     """
-    check_allowed_positions(scan, psi, probe)
+    check_allowed_positions(scan, psi, probe.shape)
     with Ptycho(
             probe_shape=probe.shape[-1],
             detector_shape=int(detector_shape),
@@ -183,7 +151,7 @@ def simulate(
         probe = operator.asarray(probe, dtype='complex64')
         if eigen_weights is not None:
             eigen_weights = operator.asarray(eigen_weights, dtype='float32')
-        data = compute_intensity(operator, psi, scan, probe, eigen_weights,
+        data = _compute_intensity(operator, psi, scan, probe, eigen_weights,
                                  eigen_probe, fly)
         return operator.asnumpy(data.real)
 
@@ -196,22 +164,39 @@ def reconstruct(
         model='gaussian', use_mpi=False, cost=None, times=None,
         eigen_probe=None, eigen_weights=None,
         rescale=True,
+        batch_size=None,
         **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
 
     Parameters
     ----------
+    data : (..., FRAME, WIDE, HIGH) float32
+        The intensity (square of the absolute value) of the propagated
+        wavefront; i.e. what the detector records.
+    eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
+        The eigen probes for all positions.
+    eigen_weights : (..., POSI, EIGEN, SHARED) float32
+        The relative intensity of the eigen probes at each position.
+    psi : (..., WIDE, HIGH) complex64
+        The wavefront modulation coefficients of the object.
+    probe : (..., 1, 1, SHARED, WIDE, HIGH) complex64
+        The shared complex illumination function amongst all positions.
+    scan : (..., POSI, 2) float32
+        Coordinates of the minimum corner of the probe grid for each
+        measurement in the coordinate system of psi. Coordinate order
+        consistent with WIDE, HIGH order.
     algorithm : string
         The name of one algorithms from :py:mod:`.ptycho.solvers`.
     rtol : float
         Terminate early if the relative decrease of the cost function is
         less than this amount.
-    split : 'grid' or 'stripe'
-        The method to use for splitting the scan positions among GPUS.
+    batch_size : int
+        The approximate number of scan positions processed by each GPU
+        simultaneously per view.
     """
     (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
-    check_allowed_positions(scan, psi, probe)
+    check_allowed_positions(scan, psi, probe.shape)
     if use_mpi is True:
         mpi = MPIComm
     else:
@@ -229,6 +214,10 @@ def reconstruct(
             logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                         "iterations.".format(algorithm, *data.shape[-3:],
                                              num_iter))
+            num_batch = 1 if batch_size is None else max(
+                1,
+                int(data.shape[-3] / batch_size / comm.pool.num_workers),
+            )
             # Divide the inputs into regions
             odd_pool = comm.pool.num_workers % 2
             order, scan, data, eigen_weights = split_by_scan_grid(
@@ -268,6 +257,7 @@ def reconstruct(
                         result['psi'][0],
                         scan[0],
                         result['probe'][0],
+                        num_batch=num_batch,
                     ))
 
             costs = []
@@ -282,6 +272,7 @@ def reconstruct(
                     operator,
                     comm,
                     data=data,
+                    num_batch=num_batch,
                     **kwargs,
                 )
                 if result['cost'] is not None:
@@ -320,12 +311,15 @@ def reconstruct(
                          f"\tAvailable algorithms are : {solvers.__all__}")
 
 
-def _rescale_obj_probe(operator, comm, data, psi, scan, probe):
+def _rescale_obj_probe(operator, comm, data, psi, scan, probe, num_batch):
     """Keep the object amplitude around 1 by scaling probe by a constant."""
 
-    intensity, _ = operator._compute_intensity(data, psi, scan, probe)
+    i = batch_indicies(data.shape[-3], num_batch, use_random=True)[0]
 
-    rescale = (np.linalg.norm(np.ravel(np.sqrt(data))) /
+    intensity, _ = operator._compute_intensity(data[..., i, :, :], psi,
+                                               scan[..., i, :], probe)
+
+    rescale = (np.linalg.norm(np.ravel(np.sqrt(data[..., i, :, :]))) /
                np.linalg.norm(np.ravel(np.sqrt(intensity))))
 
     if abs(1 - rescale) > 0.01:

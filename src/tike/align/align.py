@@ -49,6 +49,23 @@ def invert(
         return operator.asnumpy(unaligned)
 
 
+def invert(
+        original,
+        **kwargs
+):  # yapf: disable
+    """Return original shifted by shift."""
+    with Alignment() as operator:
+        for key, value in kwargs.items():
+            if not isinstance(value, tuple) and np.ndim(value) > 0:
+                kwargs[key] = operator.asarray(value)
+        unaligned = operator.inv(
+            operator.asarray(original, dtype='complex64'),
+            **kwargs,
+        )
+        assert unaligned.dtype == 'complex64', unaligned.dtype
+        return operator.asnumpy(unaligned)
+
+
 def reconstruct(
         original,
         unaligned,

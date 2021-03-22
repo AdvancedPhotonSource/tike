@@ -27,9 +27,14 @@ def batch_indicies(n, m=1, use_random=False):
     return np.array_split(i, m)
 
 
-def collect_batch(x, b, n):
-    """Returns x[:, b[n]] for use with map()."""
+def get_batch(x, b, n):
+    """Returns x[:, b[n]]; for use with map()."""
     return x[:, b[n]]
+
+
+def put_batch(y, x, b, n):
+    """Assigns y into x[:, b[n]]; for use with map()."""
+    x[:, b[n]] = y
 
 
 def line_search(
@@ -150,7 +155,7 @@ def conjugate_gradient(
     grad : func(x) -> array_like
         The gradient of cost_function.
     dir_multi : func(x) -> list_of_array
-        The dir_ in all GPUs.
+        The search direction in all GPUs.
     update_multi : func(x) -> list_of_array
         The updated subimages in all GPUs.
     num_iter : int
@@ -159,6 +164,9 @@ def conjugate_gradient(
         The number of during which to perform line search.
     step_length : float
         The initial multiplier of the search direction.
+    cost : float
+        The current loss function estimate.
+
     """
     num_search = num_iter if num_search is None else num_search
 

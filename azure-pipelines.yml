@@ -34,9 +34,6 @@ jobs:
   - script: echo "CUDA version is $(CUDA_VERSION)"
     displayName: Print CUDA version
 
-  - script: conda update -n base conda --yes --quiet
-    displayName: Update conda
-
   - script: rm /home/azure/conda/envs/tike -rf
     displayName: Force remove previous environments
 
@@ -63,8 +60,6 @@ jobs:
       pytest -vs
     displayName: Run tests
 
-  - script: conda clean --packages --yes
-
 
 - job: MultiLinux
   pool:
@@ -82,9 +77,6 @@ jobs:
 
   - script: echo "CUDA version is $(CUDA_VERSION)"
     displayName: Print CUDA version
-
-  - script: conda update -n base conda --yes --quiet
-    displayName: Update conda
 
   - script: rm /home/azure/conda/envs/tike -rf
     displayName: Force remove previous environments
@@ -117,5 +109,3 @@ jobs:
       mpirun -n 2 pytest tests/test_comm.py
       mpirun -n 2 pytest tests/test_ptycho.py -k cgrad
     displayName: Run tests with MPI
-
-  - script: conda clean --packages --yes

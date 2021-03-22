@@ -3,7 +3,7 @@ import logging
 import numpy as np
 
 from tike.linalg import orthogonalize_gs
-from tike.opt import conjugate_gradient, batch_indicies, collect_batch
+from tike.opt import conjugate_gradient, batch_indicies, get_batch
 from ..position import update_positions_pd
 
 logger = logging.getLogger(__name__)
@@ -26,11 +26,14 @@ def cgrad(
 
     Parameters
     ----------
-    op : tike.operators.Ptycho
+    op : :py:class:`tike.operators.Ptycho`
         A ptychography operator.
-    comm : tike.communicators.Comm
+    comm : :py:class:`tike.communicators.Comm`
         An object which manages communications between both
         GPUs and nodes.
+
+
+    .. seealso:: :py:mod:`tike.ptycho`
 
     """
     cost = np.inf
@@ -40,8 +43,8 @@ def cgrad(
     ]
     for n in range(num_batch):
 
-        bdata = comm.pool.map(collect_batch, data, batches, n=n)
-        bscan = comm.pool.map(collect_batch, scan, batches, n=n)
+        bdata = comm.pool.map(get_batch, data, batches, n=n)
+        bscan = comm.pool.map(get_batch, scan, batches, n=n)
 
         if recover_psi:
             psi, cost = _update_object(
@@ -80,6 +83,7 @@ def cgrad(
                 comm.pool.gather(bscan, axis=1),
             )
             bscan = comm.pool.bcast(bscan)
+            # TODO: Assign bscan into scan when positions are updated
 
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 
