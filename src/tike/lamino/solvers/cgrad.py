@@ -14,9 +14,12 @@ def _estimate_step_length(obj, theta, K, op):
 
     """
     logger.info('Estimate step length from forward adjoint operations.')
-    Kconj = op.xp.conj(K) if K != 1 else K
+    if K is None:
+        KconjK = 1
+    else:
+        KconjK = op.xp.conj(K) * K
     outnback = op.adj(
-        data=Kconj * (K * op.fwd(u=obj, theta=theta)),
+        data=KconjK * op.fwd(u=obj, theta=theta),
         theta=theta,
         overwrite=False,
     )
@@ -30,7 +33,7 @@ def _cost_tv(
     theta,
     obj,
     reg=0,
-    K=1,
+    K=None,
     penalty0=1,
     penalty1=0,
     op=None,
@@ -53,6 +56,7 @@ def _cost_tv(
     wavenumber.
 
     """
+    K = 1 if K is None else K
     cost = penalty0 * tike.linalg.norm(K * op.fwd(
         u=obj,
         theta=theta,
@@ -67,7 +71,7 @@ def _grad_tv(
     theta,
     obj,
     reg=0,
-    K=1,
+    K=None,
     penalty0=1,
     penalty1=0,
     op=None,
@@ -79,11 +83,11 @@ def _grad_tv(
           + penalty1 * J_adj(               J(u) − reg)
 
     """
-    Kconj = op.xp.conj(K) if K != 1 else K
-    grad = penalty0 * op.adj(
-        data=Kconj * (K * op.fwd(u=obj, theta=theta) - data),
-        theta=theta,
-    )
+    if K is None:
+        d = op.fwd(u=obj, theta=theta) - data
+    else:
+        d = op.xp.conj(K) * (K * op.fwd(u=obj, theta=theta) - data)
+    grad = penalty0 * op.adj(data=d, theta=theta)
     if penalty1 > 0:
         grad += penalty1 * op1.adj(op1.fwd(obj) - reg)
     return grad
@@ -100,7 +104,7 @@ def cgrad(
 ):  # yapf: disable
     """Solve the Laminogarphy problem using the conjugate gradients method."""
 
-    K = [1] * comm.pool.num_workers if K is None else K
+    K = [None] * comm.pool.num_workers if K is None else K
 
     step_length = comm.pool.reduce_cpu(
         comm.pool.map(
