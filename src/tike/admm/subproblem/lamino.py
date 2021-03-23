@@ -66,8 +66,12 @@ def lamino(
                 overwrite=True,
             )
 
+        K = 2j * np.pi * (phi + λ_l / ρ_l)
+        data = (phi + λ_l / ρ_l) * np.log(phi + λ_l / ρ_l)
+
         lresult = tike.lamino.reconstruct(
-            data=-1j * np.log(phi + λ_l / ρ_l),
+            data=data,
+            K=K,
             theta=theta,
             tilt=tilt,
             obj=u,
@@ -75,7 +79,7 @@ def lamino(
             num_iter=num_iter,
             cg_iter=cg_iter,
             # FIXME: Communications overhead makes 1 GPU faster than 8.
-            num_gpu=1, #comm.size,
+            num_gpu=1,  # comm.size,
         )
         u = lresult['obj']
         cost = lresult['cost'][-1]

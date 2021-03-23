@@ -6,7 +6,7 @@ from tike.opt import conjugate_gradient, line_search
 logger = logging.getLogger(__name__)
 
 
-def _estimate_step_length(obj, theta, op):
+def _estimate_step_length(obj, theta, K, op):
     """Use norm of forward adjoint operations to estimate step length.
 
     Scaling the adjoint operation by |F*Fm| / |m| puts the step length in the
@@ -14,8 +14,9 @@ def _estimate_step_length(obj, theta, op):
 
     """
     logger.info('Estimate step length from forward adjoint operations.')
+    Kconj = op.xp.conj(K) if K != 1 else K
     outnback = op.adj(
-        data=op.fwd(u=obj, theta=theta),
+        data=Kconj * (K * op.fwd(u=obj, theta=theta)),
         theta=theta,
         overwrite=False,
     )
@@ -94,15 +95,19 @@ def cgrad(
     data, theta, obj,
     cg_iter=4,
     step_length=1,
+    K=None,
     **kwargs
 ):  # yapf: disable
     """Solve the Laminogarphy problem using the conjugate gradients method."""
+
+    K = [1] * comm.pool.num_workers if K is None else K
 
     step_length = comm.pool.reduce_cpu(
         comm.pool.map(
             _estimate_step_length,
             obj,
             theta,
+            K,
             op=op,
         )) / comm.pool.num_workers if step_length == 1 else step_length
 
@@ -112,6 +117,7 @@ def cgrad(
         data,
         theta,
         obj,
+        K,
         num_iter=cg_iter,
         step_length=step_length,
     )
@@ -119,18 +125,18 @@ def cgrad(
     return {'obj': obj, 'cost': cost, 'step_length': step_length}
 
 
-def update_obj(op, comm, data, theta, obj, num_iter=1, step_length=1):
+def update_obj(op, comm, data, theta, obj, K, num_iter=1, step_length=1):
     """Solver the object recovery problem."""
 
     def cost_function(obj):
-        cost_out = comm.pool.map(_cost_tv, data, theta, obj, op=op)
+        cost_out = comm.pool.map(_cost_tv, data, theta, obj, K, op=op)
         if comm.use_mpi:
             return comm.Allreduce_reduce(cost_out, 'cpu')
         else:
             return comm.reduce(cost_out, 'cpu')
 
     def grad(obj):
-        grad_list = comm.pool.map(_grad_tv, data, theta, obj, op=op)
+        grad_list = comm.pool.map(_grad_tv, data, theta, obj, K, op=op)
         if comm.use_mpi:
             return comm.Allreduce_reduce(grad_list, 'gpu')
         else:
