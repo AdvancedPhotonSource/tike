@@ -247,16 +247,15 @@ def reconstruct(
                 if np.ndim(value) > 0:
                     kwargs[key] = comm.pool.bcast(value)
 
-            result['probe'] = comm.pool.bcast(
-                _rescale_obj_probe(
-                    operator,
-                    comm,
-                    data,
-                    result['psi'],
-                    scan,
-                    result['probe'],
-                    num_batch=num_batch,
-                ))
+            result['probe'] = _rescale_obj_probe(
+                operator,
+                comm,
+                data,
+                result['psi'],
+                scan,
+                result['probe'],
+                num_batch=num_batch,
+            )
 
             costs = []
             times = []
@@ -343,7 +342,7 @@ def _rescale_obj_probe(operator, comm, data, psi, scan, probe, num_batch):
 
     probe[0] *= rescale
 
-    return probe[0]
+    return comm.pool.bcast(probe[0])
 
 
 def split_by_scan_grid(pool, shape, scan, *args, fly=1):
