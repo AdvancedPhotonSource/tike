@@ -172,7 +172,8 @@ def reconstruct(
     ----------
     data : (..., FRAME, WIDE, HIGH) float32
         The intensity (square of the absolute value) of the propagated
-        wavefront; i.e. what the detector records.
+        wavefront; i.e. what the detector records. FFT-shifted so the
+        diffraction peak is at the corners.
     eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
         The eigen probes for all positions.
     eigen_weights : (..., POSI, EIGEN, SHARED) float32
