@@ -152,7 +152,7 @@ def simulate(
         if eigen_weights is not None:
             eigen_weights = operator.asarray(eigen_weights, dtype='float32')
         data = _compute_intensity(operator, psi, scan, probe, eigen_weights,
-                                 eigen_probe, fly)
+                                  eigen_probe, fly)
         return operator.asnumpy(data.real)
 
 
@@ -325,7 +325,7 @@ def _rescale_obj_probe(operator, comm, data, psi, scan, probe, num_batch):
         psi,
         scan,
         probe,
-        num_batch = num_batch,
+        num_batch=num_batch,
         operator=operator,
     ))
 
