@@ -128,7 +128,7 @@ def cross_correlation(
         maxima = np.column_stack(np.unravel_index(maxima, A[0, :, :].shape))
         maxima = maxima - dftshift
         shifts = shifts + maxima / upsample_factor
-    return {'shift': shifts.astype('float32'), 'cost': -1}
+    return {'shift': shifts.astype('float32', copy=False), 'cost': -1}
 
 
 def _upsampled_dft(op, data, ups, upsample_factor, axis_offsets):

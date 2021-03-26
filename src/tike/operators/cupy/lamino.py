@@ -124,16 +124,20 @@ class Lamino(CachedFFT, Operator):
         G = cp.zeros([2 * n] * 3, dtype="complex64")
         const = cp.array([cp.sqrt(cp.pi / mu)**3, -cp.pi**2 / mu],
                          dtype='float32')
+        assert G.dtype == cp.complex64
+        assert f.dtype == cp.complex64
+        assert x.dtype == cp.float32
+        assert const.dtype == cp.float32
         block = (min(self.scatter_kernel.max_threads_per_block, (2 * m)**3),)
         grid = (1, 0, min(f.shape[0], 65535))
         self.scatter_kernel(grid, block, (
             G,
-            f.astype('complex64'),
+            f,
             f.shape[0],
-            x.astype('float32'),
+            x,
             n,
             m,
-            const.astype('float32'),
+            const,
         ))
         return G
 
@@ -141,25 +145,28 @@ class Lamino(CachedFFT, Operator):
         F = cp.zeros(x.shape[0], dtype="complex64")
         const = cp.array([cp.sqrt(cp.pi / mu)**3, -cp.pi**2 / mu],
                          dtype='float32')
+        assert F.dtype == cp.complex64
+        assert Fe.dtype == cp.complex64
+        assert x.dtype == cp.float32
+        assert const.dtype == cp.float32
         block = (min(self.scatter_kernel.max_threads_per_block, (2 * m)**3),)
         grid = (1, 0, min(x.shape[0], 65535))
         self.gather_kernel(grid, block, (
             F,
-            Fe.astype('complex64'),
+            Fe,
             x.shape[0],
-            x.astype('float32'),
+            x,
             n,
             m,
-            const.astype('float32'),
+            const,
         ))
         return F
 
     def _make_grids(self, theta):
         """Return (ntheta*n*n, 3) unequally-spaced frequencies for the USFFT."""
-        [kv, ku] = self.xp.mgrid[-self.n // 2:self.n // 2,
-                                 -self.n // 2:self.n // 2] / self.n
-        ku = ku.ravel().astype('float32')
-        kv = kv.ravel().astype('float32')
+        u = self.xp.arange(-self.n // 2, self.n // 2, dtype='float32') / self.n
+        ku = self.xp.broadcast_to(u, (self.n, self.n)).ravel()
+        kv = self.xp.broadcast_to(u[:, None], (self.n, self.n)).ravel()
         xi = self.xp.zeros([theta.shape[-1], self.n * self.n, 3],
                            dtype='float32')
         ctilt, stilt = self.xp.cos(self.tilt), self.xp.sin(self.tilt)

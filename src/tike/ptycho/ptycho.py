@@ -233,11 +233,11 @@ def reconstruct(
             )
             result = {
                 'psi':
-                    comm.pool.bcast(psi.astype('complex64')),
+                    comm.pool.bcast(psi.astype('complex64', copy=False)),
                 'probe':
-                    comm.pool.bcast(probe.astype('complex64')),
+                    comm.pool.bcast(probe.astype('complex64', copy=False)),
                 'eigen_probe':
-                    comm.pool.bcast(eigen_probe.astype('complex64'))
+                    comm.pool.bcast(eigen_probe.astype('complex64', copy=False))
                     if eigen_probe is not None else None,
                 'scan':
                     scan,

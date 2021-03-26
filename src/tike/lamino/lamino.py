@@ -117,14 +117,14 @@ def reconstruct(
                 **kwargs,
         ) as operator, Comm(num_gpu, mpi=None) as comm:
             # send any array-likes to device
-            data = np.array_split(data.astype('complex64'),
+            data = np.array_split(data.astype('complex64', copy=False),
                                   comm.pool.num_workers)
             data = comm.pool.scatter(data)
-            theta = np.array_split(theta.astype('float32'),
+            theta = np.array_split(theta.astype('float32', copy=False),
                                    comm.pool.num_workers)
             theta = comm.pool.scatter(theta)
             result = {
-                'obj': comm.pool.bcast(obj.astype('complex64')),
+                'obj': comm.pool.bcast(obj.astype('complex64', copy=False)),
             }
             for key, value in kwargs.items():
                 if np.ndim(value) > 0:
