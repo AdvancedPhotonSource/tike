@@ -10,8 +10,13 @@ import numpy as np
 
 def _get_kernel(xp, pad, mu):
     """Return the interpolation kernel for the USFFT."""
-    xeq = xp.mgrid[-pad:pad, -pad:pad, -pad:pad]
-    return xp.exp(-mu * xp.sum(xeq**2, axis=0)).astype('float32')
+    u = -mu * xp.arange(-pad, pad, dtype='float32')**2
+    kernel_shape = (len(u), len(u), len(u))
+    norm = xp.zeros(kernel_shape, dtype='float32')
+    norm += u
+    norm += u[:, None]
+    norm += u[:, None, None]
+    return xp.exp(norm)
 
 
 def vector_gather(xp, Fe, x, n, m, mu):
@@ -95,10 +100,12 @@ def eq2us(f, x, n, eps, xp, gather=vector_gather, fftn=None):
 
     # smearing kernel (kernel)
     kernel = _get_kernel(xp, pad, mu)
+    kernel *= (2 * n)**ndim
 
     # FFT and compesantion for smearing
     fe = xp.zeros([2 * n] * ndim, dtype="complex64")
-    fe[pad:end, pad:end, pad:end] = f / ((2 * n)**ndim * kernel)
+    fe[pad:end, pad:end, pad:end] = f
+    fe[pad:end, pad:end, pad:end] / kernel
     Fe = checkerboard(xp, fftn(checkerboard(xp, fe)), inverse=True)
     F = gather(xp, Fe, x, n, m, mu)
 
@@ -199,12 +206,13 @@ def us2eq(f, x, n, eps, xp, scatter=vector_scatter, fftn=None):
 
     # smearing kernel (ker)
     kernel = _get_kernel(xp, pad, mu)
+    kernel *= (2 * n)**3
 
     G = scatter(xp, f, x, n, m, mu)
 
     # FFT and compesantion for smearing
     F = checkerboard(xp, fftn(checkerboard(xp, G)), inverse=True)
-    F = F[pad:end, pad:end, pad:end] / ((2 * n)**3 * kernel)
+    F = F[pad:end, pad:end, pad:end] / kernel
 
     return F
 

@@ -4,6 +4,7 @@ __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 from importlib_resources import files
 
 import cupy as cp
+import numpy as np
 
 from .cache import CachedFFT
 from .usfft import eq2us, us2eq, checkerboard
@@ -44,8 +45,8 @@ class Lamino(CachedFFT, Operator):
                  **kwargs):  # noqa: D102 yapf: disable
         """Please see help(Lamino) for more info."""
         self.n = n
-        self.tilt = tilt
-        self.eps = eps
+        self.tilt = np.float32(tilt)
+        self.eps = np.float32(eps)
 
     def __enter__(self):
         """Return self at start of a with-block."""
@@ -170,12 +171,13 @@ class Lamino(CachedFFT, Operator):
         xi = self.xp.zeros([theta.shape[-1], self.n * self.n, 3],
                            dtype='float32')
         ctilt, stilt = self.xp.cos(self.tilt), self.xp.sin(self.tilt)
+        ctheta, stheta = self.xp.cos(theta), self.xp.sin(theta)
+
         for itheta in range(theta.shape[-1]):
-            ctheta = self.xp.cos(theta[itheta])
-            stheta = self.xp.sin(theta[itheta])
-            xi[itheta, :, 2] = ku * ctheta + kv * stheta * ctilt
-            xi[itheta, :, 1] = -ku * stheta + kv * ctheta * ctilt
-            xi[itheta, :, 0] = kv * stilt
+            xi[itheta, :, 2] = +ku * ctheta[itheta] + kv * stheta[itheta] * ctilt
+            xi[itheta, :, 1] = -ku * stheta[itheta] + kv * ctheta[itheta] * ctilt
+        xi[:, :, 0] = kv * stilt
+
         # make sure coordinates are in (-0.5,0.5), probably unnecessary
         xi[xi >= 0.5] = 0.5 - 1e-5
         xi[xi < -0.5] = -0.5 + 1e-5
