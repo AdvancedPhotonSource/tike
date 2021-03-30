@@ -66,12 +66,8 @@ def lamino(
                 overwrite=True,
             )
 
-        K = 2j * np.pi * (phi + λ_l / ρ_l)
-        data = (phi + λ_l / ρ_l) * np.log(phi + λ_l / ρ_l)
-
         lresult = tike.lamino.reconstruct(
-            data=data,
-            K=K,
+            data=-1j * np.log(phi + λ_l / ρ_l),
             theta=theta,
             tilt=tilt,
             obj=u,
