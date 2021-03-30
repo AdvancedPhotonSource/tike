@@ -13,19 +13,26 @@ def _estimate_step_length(obj, theta, K, op):
     proper order of magnitude.
 
     """
-    logger.info('Estimate step length from forward adjoint operations.')
+    logger.info('Estimate lamino step length from forward adjoint operations.')
     if K is None:
-        KconjK = 1
+        outnback = op.adj(
+            data=op.fwd(u=obj, theta=theta),
+            theta=theta,
+            overwrite=False,
+        )
     else:
-        KconjK = op.xp.conj(K) * K
-    outnback = op.adj(
-        data=KconjK * op.fwd(u=obj, theta=theta),
-        theta=theta,
-        overwrite=False,
-    )
-    scaler = tike.linalg.norm(outnback) / tike.linalg.norm(obj)
+        outnback = op.adj(
+            data=op.xp.conj(K) * K * op.fwd(u=obj, theta=theta),
+            theta=theta,
+            overwrite=False,
+        )
+    scaler = tike.linalg.norm(obj) / tike.linalg.norm(outnback)
     # Multiply by 2 to because we prefer over-estimating the step
-    return 2 * scaler if op.xp.isfinite(scaler) else 1.0
+    if op.xp.isfinite(scaler):
+        return 2 * scaler
+    else:
+        logger.warning('Lamino step length estimate is non-finite.')
+        return 1.0
 
 
 def _cost_tv(
