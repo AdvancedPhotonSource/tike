@@ -248,16 +248,15 @@ def reconstruct(
                 if np.ndim(value) > 0:
                     kwargs[key] = comm.pool.bcast(value)
 
-            result['probe'] = comm.pool.bcast(
-                _rescale_obj_probe(
-                    operator,
-                    comm,
-                    data[0],
-                    result['psi'][0],
-                    scan[0],
-                    result['probe'][0],
-                    num_batch=num_batch,
-                ))
+            result['probe'] = _rescale_obj_probe(
+                operator,
+                comm,
+                data,
+                result['psi'],
+                scan,
+                result['probe'],
+                num_batch=num_batch,
+            )
 
             costs = []
             times = []
@@ -310,19 +309,41 @@ def reconstruct(
 def _rescale_obj_probe(operator, comm, data, psi, scan, probe, num_batch):
     """Keep the object amplitude around 1 by scaling probe by a constant."""
 
-    i = batch_indicies(data.shape[-3], num_batch, use_random=True)[0]
+    def _get_rescale(data, psi, scan, probe, num_batch, operator):
+        i = batch_indicies(data.shape[-3], num_batch, use_random=True)[0]
 
-    intensity, _ = operator._compute_intensity(data[..., i, :, :], psi,
-                                               scan[..., i, :], probe)
+        intensity, _ = operator._compute_intensity(data[..., i, :, :], psi,
+                                                   scan[..., i, :], probe)
 
-    rescale = (np.linalg.norm(np.ravel(np.sqrt(data[..., i, :, :]))) /
-               np.linalg.norm(np.ravel(np.sqrt(intensity))))
+        n1 = np.linalg.norm(np.ravel(np.sqrt(data[..., i, :, :])))**2
+        n2 = np.linalg.norm(np.ravel(np.sqrt(intensity)))**2
+
+        return n1, n2
+
+    n1, n2 = zip(*comm.pool.map(
+        _get_rescale,
+        data,
+        psi,
+        scan,
+        probe,
+        num_batch=num_batch,
+        operator=operator,
+    ))
+
+    if comm.use_mpi:
+        n1 = np.sqrt(comm.Allreduce_reduce(n1, 'cpu'))
+        n2 = np.sqrt(comm.Allreduce_reduce(n2, 'cpu'))
+    else:
+        n1 = np.sqrt(comm.reduce(n1, 'cpu'))
+        n2 = np.sqrt(comm.reduce(n2, 'cpu'))
+
+    rescale = n1 / n2
 
     logger.info("object and probe rescaled by %f", rescale)
 
-    probe *= rescale
+    probe[0] *= rescale
 
-    return probe
+    return comm.pool.bcast(probe[0])
 
 
 def split_by_scan_grid(pool, shape, scan, *args, fly=1):

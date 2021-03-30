@@ -68,3 +68,11 @@ class Comm:
             return self.mpi.Allreduce(src)
         else:
             raise ValueError(f'dest must be gpu or cpu.')
+
+    def Allreduce_mean(self, x, **kwargs):
+        """Multi-process multi-GPU based mean."""
+
+        src = self.pool.reduce_mean(x, **kwargs)
+        mean = self.mpi.Allreduce(cp.asnumpy(src)) / self.mpi.size
+
+        return cp.asarray(mean)
