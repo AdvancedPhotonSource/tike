@@ -10,13 +10,8 @@ import numpy as np
 
 def _get_kernel(xp, pad, mu):
     """Return the interpolation kernel for the USFFT."""
-    u = -mu * xp.arange(-pad, pad, dtype='float32')**2
-    kernel_shape = (len(u), len(u), len(u))
-    norm = xp.zeros(kernel_shape, dtype='float32')
-    norm += u
-    norm += u[:, None]
-    norm += u[:, None, None]
-    return xp.exp(norm)
+    xeq = xp.mgrid[-pad:pad, -pad:pad, -pad:pad]
+    return xp.exp(-mu * xp.sum(xeq**2, axis=0)).astype('float32')
 
 
 def vector_gather(xp, Fe, x, n, m, mu):
@@ -105,7 +100,7 @@ def eq2us(f, x, n, eps, xp, gather=vector_gather, fftn=None):
     # FFT and compesantion for smearing
     fe = xp.zeros([2 * n] * ndim, dtype="complex64")
     fe[pad:end, pad:end, pad:end] = f
-    fe[pad:end, pad:end, pad:end] / kernel
+    fe[pad:end, pad:end, pad:end] /= kernel
     Fe = checkerboard(xp, fftn(checkerboard(xp, fe)), inverse=True)
     F = gather(xp, Fe, x, n, m, mu)
 
