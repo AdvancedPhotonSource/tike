@@ -127,8 +127,8 @@ def lstsq_grad(
     return result
 
 
-def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
-                             op, m, recover_psi, recover_probe):
+def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
+                             recover_psi, recover_probe):
 
     pad, end = op.diffraction.pad, op.diffraction.end
 
@@ -160,8 +160,7 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
         )
 
         dOP = op.diffraction.patch.fwd(
-            patches=cp.zeros(patches.shape, dtype='complex64')[..., 0,
-                                                               0, :, :],
+            patches=cp.zeros(patches.shape, dtype='complex64')[..., 0, 0, :, :],
             images=common_grad_psi,
             positions=scan_,
         )[..., None, None, :, :] * unique_probe[..., m:m + 1, :, :]
@@ -189,8 +188,7 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
 
     if __debug__:
         patches = op.diffraction.patch.fwd(
-            patches=cp.zeros(nearplane[..., m:m + 1, pad:end,
-                                       pad:end].shape,
+            patches=cp.zeros(nearplane[..., m:m + 1, pad:end, pad:end].shape,
                              dtype='complex64')[..., 0, 0, :, :],
             images=psi,
             positions=scan_,
@@ -200,8 +198,8 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
             norm(probe[..., m:m + 1, :, :] * patches -
                  nearplane[..., m:m + 1, pad:end, pad:end]))
 
-    return (patches, diff, grad_probe, common_grad_psi, common_grad_probe,
-            dOP, dPO, A1, A4)
+    return (patches, diff, grad_probe, common_grad_psi, common_grad_probe, dOP,
+            dPO, A1, A4)
 
 
 def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe):
@@ -240,6 +238,7 @@ def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe):
 def _update_A(A, delta):
     A += 0.5 * delta
     return A
+
 
 def _get_residuals(grad_probe, grad_probe_mean):
     return grad_probe - grad_probe_mean
@@ -316,9 +315,9 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             # (30) residual probe updates
             if comm.use_mpi:
                 grad_probe_mean = comm.Allreduce_mean(
-                        common_grad_probe,
-                        axis=-5,
-                    )
+                    common_grad_probe,
+                    axis=-5,
+                )
                 grad_probe_mean = comm.pool.bcast(grad_probe_mean)
             else:
                 grad_probe_mean = comm.pool.bcast(
@@ -418,8 +417,8 @@ def _update_wavefront(data, varying_probe, scan, psi, op):
         positions=scan,
         patch_width=varying_probe.shape[-1],
     )
-    patches = patches.reshape(*scan.shape[:-1], 1, 1,
-                              op.detector_shape, op.detector_shape)
+    patches = patches.reshape(*scan.shape[:-1], 1, 1, op.detector_shape,
+                              op.detector_shape)
 
     nearplane = cp.tile(patches, reps=(1, 1, 1, varying_probe.shape[-3], 1, 1))
     pad, end = op.diffraction.pad, op.diffraction.end
