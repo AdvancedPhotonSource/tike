@@ -5,6 +5,20 @@ Contributing
 Thank you for reading this. We're happy that you have decided to report a bug or
 request a feature; your contribution will help make `tike` better.
 
+**********
+Philosophy
+**********
+
+Simple - Our contributors include non-computer scientists. Our code should be
+easy to understand in order to lower the barrier to entry and promote
+maintainability.
+
+Suboptimal - Your time is precious. Save optimization for 10x improvements not
+2x or 1.2x improvements.
+
+Scalable - We need our code to scale for large data sets. Design should
+consider multi-node applications.
+
 ***********
 Report bugs
 ***********

@@ -1,256 +1,443 @@
 import logging
 
-import numpy as np
+import cupy as cp
 
-from tike.opt import conjugate_gradient, line_search
+from tike.linalg import lstsq, projection, norm, orthogonalize_gs
+from tike.opt import batch_indicies, get_batch, put_batch
+
 from ..position import update_positions_pd
+from ..probe import orthogonalize_eig, get_varying_probe, update_eigen_probe
 
 logger = logging.getLogger(__name__)
 
 
-def divided(
-    op,
+def lstsq_grad(
+    op, comm,
     data, probe, scan, psi,
-    recover_psi=True, recover_probe=True, recover_positions=False,
+    recover_psi=True, recover_probe=False, recover_positions=False,
     cg_iter=4,
-    **kwargs
+    cost=None,
+    eigen_probe=None,
+    eigen_weights=None,
+    num_batch=1,
+    subset_is_random=True,
+    probe_is_orthogonal=False,
 ):  # yapf: disable
-    """Solve near- and farfield- ptychography problems separately.
+    """Solve the ptychography problem using Odstrcil et al's approach.
+
+    The near- and farfield- ptychography problems are solved separately using
+    gradient descent in the farfield and linear-least-squares in the nearfield.
+
+    Parameters
+    ----------
+    op : tike.operators.Ptycho
+        A ptychography operator.
+    comm : tike.communicators.Comm
+        An object which manages communications between GPUs and nodes.
 
     References
     ----------
-    Michal Odstrcil, Andreas Menzel, and Manuel Guizar-Sicaros. Iteraive
+    Michal Odstrcil, Andreas Menzel, and Manuel Guizar-Sicaros. Iterative
     least-squares solver for generalized maximum-likelihood ptychography.
     Optics Express. 2018.
 
-    .. seealso:: tike.ptycho.combined
-
     """
-    farplane = op.fwd(psi=psi, scan=scan, probe=probe)
+    # Unique batch for each device
+    batches = [
+        batch_indicies(s.shape[-2], num_batch, subset_is_random) for s in scan
+    ]
 
-    farplane, cost = update_phase(op, data, farplane, num_iter=cg_iter)
-    nearplane = op.propagation.adj(farplane)
+    for n in range(num_batch):
 
-    if recover_psi:
-        psi, cost = update_object(op, nearplane, probe, scan, psi,
-                                  num_iter=cg_iter)  # yapf: disable
+        bdata = comm.pool.map(get_batch, data, batches, n=n)
+        bscan = comm.pool.map(get_batch, scan, batches, n=n)
 
-    if recover_probe:
-        probe, cost = update_probe(op, nearplane, probe, scan, psi,
-                                   num_iter=cg_iter)  # yapf: disable
+        if isinstance(eigen_probe, list):
+            beigen_weights = comm.pool.map(
+                get_batch,
+                eigen_weights,
+                batches,
+                n=n,
+            )
+            beigen_probe = eigen_probe
+        else:
+            beigen_probe = [None] * comm.pool.num_workers
+            beigen_weights = [None] * comm.pool.num_workers
 
-    if recover_positions:
-        scan, cost = update_positions_pd(op, data, psi, probe, scan)
+        unique_probe = comm.pool.map(
+            get_varying_probe,
+            probe,
+            beigen_probe,
+            beigen_weights,
+        )
 
-    return {
+        nearplane, cost = zip(*comm.pool.map(
+            _update_wavefront,
+            bdata,
+            unique_probe,
+            bscan,
+            psi,
+            op=op,
+        ))
+
+        if comm.use_mpi:
+            cost = comm.Allreduce_reduce(cost, 'cpu')
+        else:
+            cost = comm.reduce(cost, 'cpu')
+
+        (
+            psi,
+            probe,
+            beigen_probe,
+            beigen_weights,
+        ) = _update_nearplane(
+            op,
+            comm,
+            nearplane,
+            psi,
+            bscan,
+            probe,
+            unique_probe,
+            beigen_probe,
+            beigen_weights,
+            recover_psi,
+            recover_probe,
+            probe_is_orthogonal,
+        )
+
+        if isinstance(eigen_probe, list):
+            comm.pool.map(
+                put_batch,
+                beigen_weights,
+                eigen_weights,
+                batches,
+                n=n,
+            )
+
+    result = {
         'psi': psi,
         'probe': probe,
         'cost': cost,
         'scan': scan,
-        'farplane': farplane,
     }
+    if isinstance(eigen_probe, list):
+        result['eigen_probe'] = eigen_probe
+        result['eigen_weights'] = eigen_weights
+
+    return result
 
 
-def update_phase(op, data, farplane, num_iter=1):
-    """Solve the farplane phase problem."""
+def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
+                             op, m, recover_psi, recover_probe):
 
-    def grad(farplane):
-        return op.propagation.grad(data, farplane)
+    pad, end = op.diffraction.pad, op.diffraction.end
 
-    def cost_function(farplane):
-        return op.propagation.cost(data, farplane)
+    patches = op.diffraction.patch.fwd(
+        patches=cp.zeros(nearplane[..., m:m + 1, pad:end, pad:end].shape,
+                         dtype='complex64')[..., 0, 0, :, :],
+        images=psi,
+        positions=scan_,
+    )[..., None, None, :, :]
 
-    farplane, cost = conjugate_gradient(
-        None,
-        x=farplane,
-        cost_function=cost_function,
-        grad=grad,
-        num_iter=num_iter,
-    )
+    # χ (diff) is the target for the nearplane problem; the difference
+    # between the desired nearplane and the current nearplane that we wish
+    # to minimize.
+    diff = nearplane[..., m:m + 1, pad:end,
+                     pad:end] - unique_probe[..., m:m + 1, :, :] * patches
 
-    # print cost function for sanity check
-    logger.info('%10s cost is %+12.5e', 'farplane', cost)
-    return farplane, cost
+    logger.info('%10s cost is %+12.5e', 'nearplane', norm(diff))
 
+    if recover_psi:
+        grad_psi = cp.conj(unique_probe[..., m:m + 1, :, :]) * diff
 
-def update_probe(op, nearplane, probe, scan, psi, num_iter=1):
-    """Solve the nearplane single probe recovery problem."""
-    obj_patches = op.diffraction.fwd(psi=psi,
-                                     scan=scan,
-                                     probe=np.ones_like(probe))
+        # (25b) Common object gradient. Use a weighted (normalized) sum
+        # instead of division as described in publication to improve
+        # numerical stability.
+        common_grad_psi = op.diffraction.patch.adj(
+            patches=grad_psi[..., 0, 0, :, :],
+            images=cp.zeros(psi.shape, dtype='complex64'),
+            positions=scan_,
+        )
 
-    def cost_function(probe):
-        return np.linalg.norm(probe * obj_patches - nearplane)**2
+        dOP = op.diffraction.patch.fwd(
+            patches=cp.zeros(patches.shape, dtype='complex64')[..., 0,
+                                                               0, :, :],
+            images=common_grad_psi,
+            positions=scan_,
+        )[..., None, None, :, :] * unique_probe[..., m:m + 1, :, :]
+        A1 = cp.sum((dOP * dOP.conj()).real + 0.5, axis=(-2, -1))
 
-    def grad(probe):
-        # Use the average gradient for all probe positions
-        return np.mean(
-            np.conj(obj_patches) * (probe * obj_patches - nearplane),
-            axis=(1, 2),
+    if recover_probe:
+        grad_probe = cp.conj(patches) * diff
+
+        # (25a) Common probe gradient. Use simple average instead of
+        # division as described in publication because that's what
+        # ptychoshelves does
+        common_grad_probe = cp.mean(
+            grad_probe,
+            axis=-5,
             keepdims=True,
         )
 
-    probe, cost = conjugate_gradient(
-        None,
-        x=probe,
-        cost_function=cost_function,
-        grad=grad,
-        num_iter=num_iter,
-    )
-
-    logger.info('%10s cost is %+12.5e', 'probe', cost)
-    return probe, cost
-
-
-def update_object(op, nearplane, probe, scan, psi, num_iter=1):
-    """Solve the nearplane object recovery problem."""
-
-    def cost_function(psi):
-        return np.linalg.norm(
-            op.diffraction.fwd(psi=psi, scan=scan, probe=probe) - nearplane)**2
-
-    def grad(psi):
-        return op.diffraction.adj(
-            nearplane=(op.diffraction.fwd(psi=psi, scan=scan, probe=probe) -
-                       nearplane),
-            scan=scan,
-            probe=probe,
-        )
-
-    psi, cost = conjugate_gradient(
-        None,
-        x=psi,
-        cost_function=cost_function,
-        grad=grad,
-        num_iter=num_iter,
-    )
-
-    logger.info('%10s cost is %+12.5e', 'object', cost)
-    return psi, cost
-
-
-def update_positions(self, nearplane0, psi, probe, scan):
-    """Update scan positions by comparing previous iteration object patches."""
-    mode_axis = 2
-    nmode = 1
-
-    # Ensure that the mode dimension is used
-    probe = probe.reshape(
-        (self.ntheta, -1, nmode, self.probe_shape, self.probe_shape),)
-    nearplane0 = nearplane0.reshape(
-        (self.ntheta, -1, nmode, self.probe_shape, self.probe_shape),)
-
-    def least_squares(a, b):
-        """Return the least-squares solution for a @ x = b.
-
-        This implementation, unlike np.linalg.lstsq, allows a stack of
-        matricies to be processed simultaneously. The input sizes of the
-        matricies are as follows:
-            a (..., M, N)
-            b (..., M)
-            x (...,    N)
-
-        ...seealso:: https://github.com/numpy/numpy/issues/8720
-        """
-        shape = a.shape[:-2]
-        a = a.reshape(-1, *a.shape[-2:])
-        b = b.reshape(-1, *b.shape[-1:], 1)
-        x = np.empty((a.shape[0], a.shape[-1]))
-        aT = np.swapaxes(a, -1, -2)
-        x = np.linalg.pinv(aT @ a) @ aT @ b
-        return x.reshape(*shape, a.shape[-1])
-
-    nearplane = np.expand_dims(
-        self.diffraction.fwd(
-            psi=psi,
-            scan=scan,
-        ),
-        axis=mode_axis,
-    ) * probe
-
-    dn = (nearplane0 - nearplane).view('float32')
-    dn = dn.reshape(*dn.shape[:-2], -1)
-
-    ndx = (np.expand_dims(
-        self.diffraction.fwd(
-            psi=psi,
-            scan=scan + np.array((0, 1), dtype='float32'),
-        ),
-        axis=mode_axis,
-    ) * probe - nearplane).view('float32')
-
-    ndy = (np.expand_dims(
-        self.diffraction.fwd(
-            psi=psi,
-            scan=scan + np.array((1, 0), dtype='float32'),
-        ),
-        axis=mode_axis,
-    ) * probe - nearplane).view('float32')
-
-    dxy = np.stack((
-        ndy.reshape(*ndy.shape[:-2], -1),
-        ndx.reshape(*ndx.shape[:-2], -1),
-    ),
-                   axis=-1)
-
-    grad = least_squares(a=dxy, b=dn)
-
-    grad = np.mean(grad, axis=mode_axis)
-
-    def cost_function(scan):
-        nearplane = np.expand_dims(
-            self.diffraction.fwd(
-                psi=psi,
-                scan=scan,
-            ),
-            axis=mode_axis,
-        ) * probe
-        return np.linalg.norm(nearplane - nearplane0)**2
-
-    scan = scan + grad
-    cost = cost_function(scan)
-
-    logger.debug(' position cost is             %+12.5e', cost)
-    return scan, cost
-
-
-def orthogonalize_gs(np, x):
-    """Gram-schmidt orthogonalization for complex arrays.
-
-    x : (..., nmode, :, :) array_like
-        The array with modes in the -3 dimension.
-
-    TODO: Possibly a faster implementation would use QR decomposition.
-    """
-
-    def inner(x, y, axis=None):
-        """Return the complex inner product of x and y along axis."""
-        return np.sum(np.conj(x) * y, axis=axis, keepdims=True)
-
-    def norm(x, axis=None):
-        """Return the complex vector norm of x along axis."""
-        return np.sqrt(inner(x, x, axis=axis))
-
-    # Reshape x into a 2D array
-    unflat_shape = x.shape
-    nmode = unflat_shape[-3]
-    x_ortho = x.reshape(*unflat_shape[:-2], -1)
-
-    for i in range(1, nmode):
-        u = x_ortho[..., 0:i, :]
-        v = x_ortho[..., i:i + 1, :]
-        projections = u * inner(u, v, axis=-1) / inner(u, u, axis=-1)
-        x_ortho[..., i:i + 1, :] -= np.sum(projections, axis=-2, keepdims=True)
+        dPO = common_grad_probe * patches
+        A4 = cp.sum((dPO * dPO.conj()).real + 0.5, axis=(-2, -1))
+    else:
+        grad_probe = None
+        common_grad_probe = None
+        dPO = None
+        A4 = None
 
     if __debug__:
-        # Test each pair of vectors for orthogonality
-        for i in range(nmode):
-            for j in range(i):
-                error = abs(
-                    inner(x_ortho[..., i:i + 1, :],
-                          x_ortho[..., j:j + 1, :],
-                          axis=-1))
-                assert np.all(error < 1e-5), (
-                    f"Some vectors are not orthogonal!, {error}, {error.shape}")
+        patches = op.diffraction.patch.fwd(
+            patches=cp.zeros(nearplane[..., m:m + 1, pad:end,
+                                       pad:end].shape,
+                             dtype='complex64')[..., 0, 0, :, :],
+            images=psi,
+            positions=scan_,
+        )[..., None, None, :, :]
+        logger.info(
+            '%10s cost is %+12.5e', 'nearplane',
+            norm(probe[..., m:m + 1, :, :] * patches -
+                 nearplane[..., m:m + 1, pad:end, pad:end]))
 
-    return x_ortho.reshape(unflat_shape)
+    return (patches, diff, grad_probe, common_grad_psi, common_grad_probe,
+            dOP, dPO, A1, A4)
+
+
+def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe):
+    # (22) Use least-squares to find the optimal step sizes simultaneously
+    if recover_psi and recover_probe:
+        b1 = cp.sum((dOP.conj() * diff).real, axis=(-2, -1))
+        b2 = cp.sum((dPO.conj() * diff).real, axis=(-2, -1))
+        A2 = cp.sum((dOP * dPO.conj()), axis=(-2, -1))
+        A3 = A2.conj()
+        determinant = A1 * A4 - A2 * A3
+        x1 = -cp.conj(A2 * b2 - A4 * b1) / determinant
+        x2 = cp.conj(A1 * b2 - A3 * b1) / determinant
+    elif recover_psi:
+        b1 = cp.sum((dOP.conj() * diff).real, axis=(-2, -1))
+        x1 = b1 / A1
+    elif recover_probe:
+        b2 = cp.sum((dPO.conj() * diff).real, axis=(-2, -1))
+        x2 = b2 / A4
+
+    if recover_psi:
+        step = x1[..., None, None]
+
+        # (27b) Object update
+        weighted_step_psi = cp.mean(step, keepdims=True, axis=-5)
+
+    if recover_probe:
+        step = x2[..., None, None]
+
+        weighted_step_probe = cp.mean(step, axis=-5, keepdims=True)
+    else:
+        weighted_step_probe = None
+
+    return weighted_step_psi, weighted_step_probe
+
+
+def _update_A(A, delta):
+    A += 0.5 * delta
+    return A
+
+def _get_residuals(grad_probe, grad_probe_mean):
+    return grad_probe - grad_probe_mean
+
+
+def _update_residuals(R, eigen_probe, axis, c, m):
+    R -= projection(
+        R,
+        eigen_probe[..., c:c + 1, m:m + 1, :, :],
+        axis=axis,
+    )
+    return R
+
+
+def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
+                      eigen_probe, eigen_weights, recover_psi, recover_probe,
+                      probe_is_orthogonal):
+
+    for m in range(probe[0].shape[-3]):
+
+        (
+            patches,
+            diff,
+            grad_probe,
+            common_grad_psi,
+            common_grad_probe,
+            dOP,
+            dPO,
+            A1,
+            A4,
+        ) = (list(a) for a in zip(*comm.pool.map(
+            _get_nearplane_gradients,
+            nearplane,
+            psi,
+            scan_,
+            probe,
+            unique_probe,
+            op=op,
+            m=m,
+            recover_psi=recover_psi,
+            recover_probe=recover_probe,
+        )))
+
+        if recover_psi:
+            if comm.use_mpi:
+                delta = comm.Allreduce_mean(A1, axis=-3)
+            else:
+                delta = comm.pool.reduce_mean(A1, axis=-3)
+            A1 = comm.pool.map(_update_A, A1, comm.pool.bcast(delta))
+
+        if recover_probe:
+            if comm.use_mpi:
+                delta = comm.Allreduce_mean(A4, axis=-3)
+            else:
+                delta = comm.pool.reduce_mean(A4, axis=-3)
+            A4 = comm.pool.map(_update_A, A4, comm.pool.bcast(delta))
+
+        (
+            weighted_step_psi,
+            weighted_step_probe,
+        ) = (list(a) for a in zip(*comm.pool.map(
+            _get_nearplane_steps,
+            diff,
+            dOP,
+            dPO,
+            A1,
+            A4,
+            recover_psi=recover_psi,
+            recover_probe=recover_probe,
+        )))
+
+        if recover_probe and eigen_probe[0] is not None:
+            logger.info('Updating eigen probes')
+            # (30) residual probe updates
+            if comm.use_mpi:
+                grad_probe_mean = comm.Allreduce_mean(
+                        common_grad_probe,
+                        axis=-5,
+                    )
+                grad_probe_mean = comm.pool.bcast(grad_probe_mean)
+            else:
+                grad_probe_mean = comm.pool.bcast(
+                    comm.pool.reduce_mean(
+                        common_grad_probe,
+                        axis=-5,
+                    ))
+            R = comm.pool.map(_get_residuals, grad_probe, grad_probe_mean)
+
+            for c in range(eigen_probe[0].shape[-4]):
+
+                a, b = update_eigen_probe(
+                    comm,
+                    R,
+                    [p[..., c:c + 1, m:m + 1, :, :] for p in eigen_probe],
+                    [w[..., c, m] for w in eigen_weights],
+                    patches,
+                    diff,
+                    β=0.01,  # TODO: Adjust according to mini-batch size
+                )
+                for p, w, x, y in zip(eigen_probe, eigen_weights, a, b):
+                    p[..., c:c + 1, m:m + 1, :, :] = x
+                    w[..., c, m] = y
+
+                if eigen_probe[0].shape[-4] <= c + 1:
+                    # Subtract projection of R onto new probe from R
+                    R = comm.pool.map(
+                        _update_residuals,
+                        R,
+                        eigen_probe,
+                        axis=(-2, -1),
+                        c=c,
+                        m=m,
+                    )
+
+        # Update each direction
+        if recover_psi:
+            if comm.use_mpi:
+                weighted_step_psi[0] = comm.Allreduce_mean(
+                    weighted_step_psi,
+                    axis=-5,
+                )[..., 0, 0, 0]
+                common_grad_psi[0] = comm.Allreduce_reduce(
+                    common_grad_psi,
+                    dest='gpu',
+                )
+            else:
+                weighted_step_psi[0] = comm.pool.reduce_mean(
+                    weighted_step_psi,
+                    axis=-5,
+                )[..., 0, 0, 0]
+                common_grad_psi[0] = comm.reduce(common_grad_psi, 'gpu')
+
+            psi[0] += weighted_step_psi[0] * common_grad_psi[0]
+            psi = comm.pool.bcast(psi[0])
+
+        if recover_probe:
+            if comm.use_mpi:
+                weighted_step_probe[0] = comm.Allreduce_mean(
+                    weighted_step_probe,
+                    axis=-5,
+                )
+                common_grad_probe[0] = comm.Allreduce_mean(
+                    common_grad_probe,
+                    axis=-5,
+                )
+            else:
+                weighted_step_probe[0] = comm.pool.reduce_mean(
+                    weighted_step_probe,
+                    axis=-5,
+                )
+                common_grad_probe[0] = comm.pool.reduce_mean(
+                    common_grad_probe,
+                    axis=-5,
+                )
+
+            # (27a) Probe update
+            probe[0][..., m:m + 1, :, :] += (weighted_step_probe[0] *
+                                             common_grad_probe[0])
+
+        if probe[0].shape[-3] > 1 and probe_is_orthogonal:
+            probe[0] = orthogonalize_gs(probe[0], axis=(-2, -1))
+        probe = comm.pool.bcast(probe[0])
+
+    return psi, probe, eigen_probe, eigen_weights
+
+
+def _update_wavefront(data, varying_probe, scan, psi, op):
+
+    # Compute the diffraction patterns for all of the probe modes at once.
+    # We need access to all of the modes of a position to solve the phase
+    # problem. The Ptycho operator doesn't do this natively, so it's messy.
+    patches = cp.zeros(data.shape, dtype='complex64')
+    patches = op.diffraction.patch.fwd(
+        patches=patches,
+        images=psi,
+        positions=scan,
+        patch_width=varying_probe.shape[-1],
+    )
+    patches = patches.reshape(*scan.shape[:-1], 1, 1,
+                              op.detector_shape, op.detector_shape)
+
+    nearplane = cp.tile(patches, reps=(1, 1, 1, varying_probe.shape[-3], 1, 1))
+    pad, end = op.diffraction.pad, op.diffraction.end
+    nearplane[..., pad:end, pad:end] *= varying_probe
+
+    # Solve the farplane phase problem ----------------------------------------
+    farplane = op.propagation.fwd(nearplane, overwrite=True)
+    intensity = cp.sum(cp.square(cp.abs(farplane)), axis=(2, 3))
+    cost = op.propagation.cost(data, intensity)
+    logger.info('%10s cost is %+12.5e', 'farplane', cost)
+    farplane -= 0.5 * op.propagation.grad(data, farplane, intensity)
+
+    if __debug__:
+        intensity = cp.sum(cp.square(cp.abs(farplane)), axis=(2, 3))
+        cost = op.propagation.cost(data, intensity)
+        logger.info('%10s cost is %+12.5e', 'farplane', cost)
+        # TODO: Only compute cost every 20 iterations or on a log sampling?
+
+    farplane = op.propagation.adj(farplane, overwrite=True)
+
+    return farplane, cost

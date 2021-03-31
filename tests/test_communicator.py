@@ -1,8 +1,9 @@
 import numpy as np
-from tike.communicator import MPICommunicator
+# from tike.communicator import MPICommunicator
 import unittest
 
 
+@unittest.skip(reason="The communicator module is broken/disabled.")
 class TestMPICommunicator(unittest.TestCase):
     """Test the functions of the MPICommunicator class."""
 
@@ -18,7 +19,7 @@ class TestMPICommunicator(unittest.TestCase):
         # print("{} ptycho_data:\n{}".format(comm.rank, ptycho_data))
         lo = comm.rank * 3
         np.testing.assert_array_equal(ptycho_data[:, 0:3, :],
-                                      ptycho_data[:, lo:lo+3, :])
+                                      ptycho_data[:, lo:lo + 3, :])
         # Assert the reverse transform works
         tomo_data1 = comm.get_tomo_slice(ptycho_data)
         np.testing.assert_array_equal(tomo_data, tomo_data1)
@@ -37,4 +38,4 @@ class TestMPICommunicator(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main(verbosity=2)
+    unittest.main()

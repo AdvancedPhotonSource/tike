@@ -46,8 +46,19 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.imgmath',
               'sphinx.ext.viewcode',
               'sphinxcontrib.bibtex',
+              'sphinx.ext.extlinks',
               'nbsphinx',
               ]
+
+# bibtex setting
+bibtex_bibfiles = [
+    'zrefs.bib',
+]
+
+# extlinks settings
+extlinks = {
+    'doi': ('https://dx.doi.org/%s', 'doi:'),
+}
 
 # Napoleon settings.
 napoleon_google_docstring = True
@@ -118,9 +129,13 @@ htmlhelp_basename = project+'doc'
 # -- Options for autodoc output ------------------------------------------
 
 autodoc_mock_imports = [
+    'cupy',
+    'cupyx',
+    'importlib_resources',
     'matplotlib',
     'matplotlib.pyplot',
     'mpi4py',
     'numpy',
     'scipy',
+    'cv2',
 ]

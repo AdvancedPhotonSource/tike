@@ -1,2 +1,5 @@
+include README.rst
+include LICENSE
+recursive-include src/tike/ *.cu
 prune _skbuild
 global-exclude *.py[co]

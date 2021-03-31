@@ -4,58 +4,38 @@
 import unittest
 
 import numpy as np
-
-from .util import random_complex, inner_complex
 from tike.operators import Propagation
+
+from .util import random_complex, OperatorTests
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 
-class TestPropagation(unittest.TestCase):
+class TestPropagation(unittest.TestCase, OperatorTests):
     """Test the Propagation operator."""
 
-    def setUp(self):
+    def setUp(self, nwaves=13, probe_shape=127):
         """Load a dataset for reconstruction."""
-        self.nwaves = 13
-        self.probe_shape = 127
-        self.detector_shape = self.probe_shape * 3
-
-    def test_adjoint(self):
-        """Check that the adjoint operator is correct."""
+        self.operator = Propagation(
+            nwaves=nwaves,
+            detector_shape=probe_shape,
+            probe_shape=probe_shape,
+        )
+        self.operator.__enter__()
+        self.xp = self.operator.xp
         np.random.seed(0)
-        nearplane = random_complex(self.nwaves, self.probe_shape,
-                                   self.probe_shape)
-        farplane = random_complex(self.nwaves, self.detector_shape,
-                                  self.detector_shape)
-
-        nearplane = nearplane.astype('complex64')
-        farplane = farplane.astype('complex64')
-
-        with Propagation(
-                nwaves=self.nwaves,
-                detector_shape=self.detector_shape,
-                probe_shape=self.probe_shape,
-        ) as op:
-            f = op.fwd(
-                nearplane=nearplane,
-            )
-            assert f.shape == farplane.shape
-            n = op.adj(
-                farplane=farplane,
-            )
-            assert nearplane.shape == n.shape
-            a = inner_complex(nearplane, n)
-            b = inner_complex(f, farplane)
-            print()
-            print('<ψ , F*Ψ> = {:.6f}{:+.6f}j'.format(a.real.item(),
-                                                      a.imag.item()))
-            print('<Fψ,   Ψ> = {:.6f}{:+.6f}j'.format(b.real.item(),
-                                                      b.imag.item()))
-            # Test whether Adjoint fixed probe operator is correct
-            np.testing.assert_allclose(a.real, b.real, rtol=1e-5)
-            np.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
+        self.m = self.xp.asarray(random_complex(nwaves, probe_shape,
+                                                probe_shape),
+                                 dtype='complex64')
+        self.m_name = 'nearplane'
+        self.d = self.xp.asarray(random_complex(nwaves, probe_shape,
+                                                probe_shape),
+                                 dtype='complex64')
+        self.d_name = 'farplane'
+        self.kwargs = {}
+        print(self.operator)
 
 
 if __name__ == '__main__':
