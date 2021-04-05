@@ -165,6 +165,10 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
             positions=scan_,
         )[..., None, None, :, :] * unique_probe[..., m:m + 1, :, :]
         A1 = cp.sum((dOP * dOP.conj()).real + 0.5, axis=(-2, -1))
+    else:
+        common_grad_psi = None
+        dOP = None
+        A1 = None
 
     if recover_probe:
         grad_probe = cp.conj(patches) * diff
@@ -296,19 +300,20 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                 delta = comm.pool.reduce_mean(A4, axis=-3)
             A4 = comm.pool.map(_update_A, A4, comm.pool.bcast(delta))
 
-        (
-            weighted_step_psi,
-            weighted_step_probe,
-        ) = (list(a) for a in zip(*comm.pool.map(
-            _get_nearplane_steps,
-            diff,
-            dOP,
-            dPO,
-            A1,
-            A4,
-            recover_psi=recover_psi,
-            recover_probe=recover_probe,
-        )))
+        if recover_probe or recover_psi:
+            (
+                weighted_step_psi,
+                weighted_step_probe,
+            ) = (list(a) for a in zip(*comm.pool.map(
+                _get_nearplane_steps,
+                diff,
+                dOP,
+                dPO,
+                A1,
+                A4,
+                recover_psi=recover_psi,
+                recover_probe=recover_probe,
+            )))
 
         if recover_probe and eigen_probe[0] is not None:
             logger.info('Updating eigen probes')
