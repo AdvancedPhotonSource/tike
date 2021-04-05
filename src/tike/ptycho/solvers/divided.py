@@ -90,6 +90,7 @@ def lstsq_grad(
             probe,
             beigen_probe,
             beigen_weights,
+            bscan,
         ) = _update_nearplane(
             op,
             comm,
@@ -102,6 +103,7 @@ def lstsq_grad(
             beigen_weights,
             recover_psi,
             recover_probe,
+            recover_positions,
             probe_is_orthogonal,
         )
 
@@ -113,6 +115,14 @@ def lstsq_grad(
                 batches,
                 n=n,
             )
+
+        comm.pool.map(
+            put_batch,
+            bscan,
+            scan,
+            batches,
+            n=n,
+        )
 
     result = {
         'psi': psi,
@@ -128,7 +138,7 @@ def lstsq_grad(
 
 
 def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
-                             recover_psi, recover_probe):
+                             recover_psi, recover_probe, recover_positions):
 
     pad, end = op.diffraction.pad, op.diffraction.end
 
@@ -259,7 +269,7 @@ def _update_residuals(R, eigen_probe, axis, c, m):
 
 def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                       eigen_probe, eigen_weights, recover_psi, recover_probe,
-                      probe_is_orthogonal):
+                      recover_positions, probe_is_orthogonal):
 
     for m in range(probe[0].shape[-3]):
 
@@ -284,6 +294,7 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             m=m,
             recover_psi=recover_psi,
             recover_probe=recover_probe,
+            recover_positions=recover_positions,
         )))
 
         if recover_psi:
@@ -407,7 +418,16 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             probe[0] = orthogonalize_gs(probe[0], axis=(-2, -1))
         probe = comm.pool.bcast(probe[0])
 
-    return psi, probe, eigen_probe, eigen_weights
+        if recover_positions and m == 0:
+            scan_[0] = _update_position(op,
+                                        comm,
+                                        diff[0],
+                                        patches[0],
+                                        scan_[0],
+                                        unique_probe[0],
+                                        m=m)
+
+    return psi, probe, eigen_probe, eigen_weights, scan_
 
 
 def _update_wavefront(data, varying_probe, scan, psi, op):
@@ -445,3 +465,55 @@ def _update_wavefront(data, varying_probe, scan, psi, op):
     farplane = op.propagation.adj(farplane, overwrite=True)
 
     return farplane, cost
+
+
+def _mad(x, **kwargs):
+    """Return the mean absolute deviation around the median."""
+    return cp.mean(cp.abs(x - cp.median(x, **kwargs)), **kwargs)
+
+
+def _update_position(op, comm, diff, patches, scan, unique_probe, m):
+
+    main_probe = unique_probe[..., m:m + 1, :, :]
+
+    ramp = cp.linspace(-0.5, 0.5, unique_probe.shape[-1], dtype='float32')
+
+    # According to the manuscript, we can either shift the probe or the object
+    # and they are equivalent (in theory). Here we shift the probe
+    grad_x = cp.fft.ifft2(2j * cp.pi * ramp * cp.fft.fft2(main_probe))
+    grad_y = cp.fft.ifft2(2j * cp.pi * ramp[:, None] * cp.fft.fft2(main_probe))
+
+    numerator = cp.sum(cp.real(diff * cp.conj(grad_x * patches)), axis=(-2, -1))
+    denominator = cp.sum(cp.abs(grad_x * patches)**2, axis=(-2, -1))
+    step_x = numerator / (denominator + 1e-6)
+
+    numerator = cp.sum(cp.real(diff * cp.conj(grad_y * patches)), axis=(-2, -1))
+    denominator = cp.sum(cp.abs(grad_y * patches)**2, axis=(-2, -1))
+    step_y = numerator / (denominator + 1e-6)
+
+    max_shift = cp.minimum(
+        0.25,
+        _mad(
+            cp.concatenate((step_x, step_y), axis=-3),
+            axis=-3,
+            keepdims=True,
+        ),
+    )
+
+    step_x = cp.maximum(-max_shift, cp.minimum(step_x, max_shift))
+    step_y = cp.maximum(-max_shift, cp.minimum(step_y, max_shift))
+
+    # SYNCHRONIZE ME?
+    # step -= comm.Allreduce_mean(step)
+    # Ensure net movement is zero
+    step_x -= cp.mean(step_x, axis=-3, keepdims=True)
+    step_y -= cp.mean(step_y, axis=-3, keepdims=True)
+    logger.info(f'position update norm is {norm(step_x)}')
+
+    # print(cp.abs(step_x) > 0.5)
+    # print(cp.abs(step_y) > 0.5)
+
+    scan[..., 0] += step_y[..., 0, 0]
+    scan[..., 1] += step_x[..., 0, 0]
+
+    return scan
