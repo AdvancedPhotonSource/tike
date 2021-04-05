@@ -50,23 +50,70 @@
 __author__ = "Doga Gursoy"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = [
-    'plot_complex',
-    'plot_phase',
-    'trajectory',
-    'plot_footprint',
-    'plot_trajectories',
-    'plot_sino_coverage',
-]
+
 
 import logging
 import warnings
 
+from matplotlib import collections
 from matplotlib import ticker
 import matplotlib.pyplot as plt
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+
+def plot_positions(true, current=None, init=None):
+    """Plots true, current, and initial 2D positions on a grid to current axis.
+
+    Used to show the progression of scanning positions when positions are
+    updated.
+
+    Parameters
+    ----------
+    true (N, 2)
+        True scan positions; marked with a plus.
+    current (N, 2)
+        Best current positions; marked with a circle.
+    init (N, 2)
+        Initial positions; marked with a triangle.
+
+    """
+    keys = ['true']
+    plt.scatter(
+        true[..., 0],
+        true[..., 1],
+        marker='+',
+        color='black',
+    )
+    if current is not None:
+        plt.scatter(
+            current[..., 0],
+            current[..., 1],
+            marker='o',
+            color='red',
+            facecolor='None',
+        )
+        keys.append('current')
+    if init is not None:
+        plt.scatter(
+            init[..., 0],
+            init[..., 1],
+            marker='^',
+            color='blue',
+            facecolor='None',
+        )
+        keys.append('initial')
+    plt.axis('equal')
+    plt.legend(keys)
+    if current is not None:
+        lines = zip(true, current)
+        lc = collections.LineCollection(lines, color='red')
+        plt.gca().add_collection(lc)
+        if init is not None:
+            lines = zip(current, init)
+            lc = collections.LineCollection(lines, color='blue')
+            plt.gca().add_collection(lc)
 
 
 def plot_complex(Z, rmin=None, rmax=None, imin=None, imax=None):
@@ -166,8 +213,8 @@ def plot_sino_coverage(
     probe_grid = np.asarray(probe_grid)
     # Create one ray for each pixel in the probe grid
     dv, dh = np.meshgrid(
-        np.linspace(0, probe_shape[0], probe_grid.shape[0],
-                    endpoint=False) + probe_shape[0] / probe_grid.shape[0] / 2,
+        np.linspace(0, probe_shape[0], probe_grid.shape[0], endpoint=False) +
+        probe_shape[0] / probe_grid.shape[0] / 2,
         np.linspace(0, probe_shape[1], probe_grid.shape[1], endpoint=False) +
         probe_shape[1] / probe_grid.shape[1] / 2,
     )
@@ -180,18 +227,20 @@ def plot_sino_coverage(
         if probe_grid[i] > 0:
             # Compute histogram
             sample = np.stack([theta, v + dv[i]], h + dh[i], axis=1)
-            dH, edges = np.histogramdd(
-                sample,
-                bins=bins,
-                range=[[0, np.pi], [-.5, .5], [-.5, .5]],
-                weights=dwell * probe_grid[i])
+            dH, edges = np.histogramdd(sample,
+                                       bins=bins,
+                                       range=[[0, np.pi], [-.5, .5], [-.5, .5]],
+                                       weights=dwell * probe_grid[i])
             H += dH
     ideal_bin_count = np.sum(dwell) * np.sum(probe_grid) / np.prod(bins)
     H /= ideal_bin_count
     # Plot
     ax1a = plt.subplot(1, 3, 2)
-    plt.imshow(
-        np.min(H, axis=0).T, vmin=0, vmax=2, origin="lower", cmap=plt.cm.RdBu)
+    plt.imshow(np.min(H, axis=0).T,
+               vmin=0,
+               vmax=2,
+               origin="lower",
+               cmap=plt.cm.RdBu)
     ax1a.axis('equal')
     plt.xticks(np.array([0, bins[1] / 2, bins[1]]) - 0.5, [-.5, 0, .5])
     plt.yticks(np.array([0, bins[2] / 2, bins[2]]) - 0.5, [-.5, 0, .5])
@@ -199,8 +248,11 @@ def plot_sino_coverage(
     plt.ylabel("v")
 
     ax1b = plt.subplot(1, 3, 3)
-    plt.imshow(
-        np.min(H, axis=1).T, vmin=0, vmax=2, origin="lower", cmap=plt.cm.RdBu)
+    plt.imshow(np.min(H, axis=1).T,
+               vmin=0,
+               vmax=2,
+               origin="lower",
+               cmap=plt.cm.RdBu)
     ax1b.axis('equal')
     plt.xlabel('theta')
     plt.ylabel("v")
@@ -208,8 +260,11 @@ def plot_sino_coverage(
     plt.yticks(np.array([0, bins[2] / 2, bins[2]]) - 0.5, [-.5, 0, .5])
 
     ax1c = plt.subplot(1, 3, 1)
-    plt.imshow(
-        np.min(H, axis=2), vmin=0, vmax=2, origin="lower", cmap=plt.cm.RdBu)
+    plt.imshow(np.min(H, axis=2),
+               vmin=0,
+               vmax=2,
+               origin="lower",
+               cmap=plt.cm.RdBu)
     ax1c.axis('equal')
     plt.ylabel('theta')
     plt.xlabel("h")
