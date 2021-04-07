@@ -63,20 +63,36 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-def plot_positions(true, current=None, init=None):
-    """Plots true, current, and initial 2D positions on a grid to current axis.
+def plot_position_error(true, *args):
+    """Create a spaghetti plot of position errors.
 
-    Used to show the progression of scanning positions when positions are
-    updated.
+    Parameters
+    ----------
+    true (N, 2) arraylike
+        The true positions.
+    args (N, 2) arraylike
+        A sequence of positions.
+    """
+    errors = np.concatenate(
+        [np.linalg.norm(true - p, axis=-1, keepdims=True) for p in args],
+        axis=-1,
+    )
+    plt.plot(np.transpose(errors), color='k', alpha=0.1)
+
+
+def plot_positions(true, *args):
+    """Plot 2D positions to current axis.
+
+    Optionally show the progression of scanning position movement. Draws a line
+    from a starting triangle to an ending circle showing the path taken
+    between with a line.
 
     Parameters
     ----------
     true (N, 2)
         True scan positions; marked with a plus.
-    current (N, 2)
-        Best current positions; marked with a circle.
-    init (N, 2)
-        Initial positions; marked with a triangle.
+    args (N, 2)
+        A sequence of positions; starts with triangle ends with a circle.
 
     """
     keys = ['true']
@@ -86,19 +102,19 @@ def plot_positions(true, current=None, init=None):
         marker='+',
         color='black',
     )
-    if current is not None:
+    if len(args) > 1:
         plt.scatter(
-            current[..., 0],
-            current[..., 1],
+            args[-1][..., 0],
+            args[-1][..., 1],
             marker='o',
             color='red',
             facecolor='None',
         )
         keys.append('current')
-    if init is not None:
+    if len(args) > 0:
         plt.scatter(
-            init[..., 0],
-            init[..., 1],
+            args[0][..., 0],
+            args[0][..., 1],
             marker='^',
             color='blue',
             facecolor='None',
@@ -106,14 +122,16 @@ def plot_positions(true, current=None, init=None):
         keys.append('initial')
     plt.axis('equal')
     plt.legend(keys)
-    if current is not None:
-        lines = zip(true, current)
+
+    if len(args) > 0:
+        lines = zip(true, args[-1])
         lc = collections.LineCollection(lines, color='red')
         plt.gca().add_collection(lc)
-        if init is not None:
-            lines = zip(current, init)
-            lc = collections.LineCollection(lines, color='blue')
-            plt.gca().add_collection(lc)
+
+    for i in range(len(args) - 1, 0, -1):
+        lines = zip(args[i], args[i - 1])
+        lc = collections.LineCollection(lines, color='blue')
+        plt.gca().add_collection(lc)
 
 
 def plot_complex(Z, rmin=None, rmax=None, imin=None, imax=None):
