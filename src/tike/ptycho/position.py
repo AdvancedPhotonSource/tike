@@ -151,7 +151,7 @@ def update_positions_pd(operator, data, psi, probe, scan,
     dI_dxdy = np.stack((dI_dy.reshape(*dI.shape), dI_dx.reshape(*dI.shape)),
                        axis=-1)
 
-    grad = tike.linalg.lstsq(a=dI_dxdy, b=dI, xp=operator.xp)
+    grad = tike.linalg.lstsq(a=dI_dxdy, b=dI[..., None])[..., 0]
 
     logger.debug('grad max: %+12.5e min: %+12.5e', np.max(grad), np.min(grad))
     logger.debug('step size: %3.2g', step)
