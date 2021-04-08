@@ -2,7 +2,6 @@ import unittest
 
 import cupy as cp
 
-import tike.ptycho
 import tike.linalg
 import tike.random
 
