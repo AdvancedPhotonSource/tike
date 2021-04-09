@@ -65,7 +65,8 @@ from tike.operators import Ptycho
 from tike.communicators import Comm, MPIComm
 from tike.opt import batch_indicies
 from tike.ptycho import solvers
-from .position import check_allowed_positions, get_padded_object
+from .position import (check_allowed_positions, get_padded_object,
+                       affine_position_regularization)
 from .probe import get_varying_probe
 
 logger = logging.getLogger(__name__)
@@ -248,6 +249,8 @@ def reconstruct(
                 if np.ndim(value) > 0:
                     kwargs[key] = comm.pool.bcast(value)
 
+            initial_scan = comm.pool.map(cp.copy, scan)
+
             result['probe'] = _rescale_obj_probe(
                 operator,
                 comm,
@@ -275,6 +278,14 @@ def reconstruct(
                 )
                 if result['cost'] is not None:
                     costs.append(result['cost'])
+
+                result['scan'][0], _ = affine_position_regularization(
+                    operator,
+                    result['psi'][0],
+                    result['probe'][0],
+                    initial_scan[0],
+                    result['scan'][0],
+                )
 
                 times.append(time.perf_counter() - start)
                 start = time.perf_counter()

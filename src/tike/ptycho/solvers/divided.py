@@ -5,7 +5,7 @@ import cupy as cp
 from tike.linalg import lstsq, projection, norm, orthogonalize_gs
 from tike.opt import batch_indicies, get_batch, put_batch
 
-from ..position import update_positions_pd
+from ..position import update_positions_pd, _image_grad
 from ..probe import orthogonalize_eig, get_varying_probe, update_eigen_probe
 
 logger = logging.getLogger(__name__)
@@ -476,19 +476,19 @@ def _update_position(op, comm, diff, patches, scan, unique_probe, m):
 
     main_probe = unique_probe[..., m:m + 1, :, :]
 
-    ramp = cp.linspace(-0.5, 0.5, unique_probe.shape[-1], dtype='float32')
-
     # According to the manuscript, we can either shift the probe or the object
-    # and they are equivalent (in theory). Here we shift the probe
-    grad_x = cp.fft.ifft2(2j * cp.pi * ramp * cp.fft.fft2(main_probe))
-    grad_y = cp.fft.ifft2(2j * cp.pi * ramp[:, None] * cp.fft.fft2(main_probe))
+    # and they are equivalent (in theory). Here we shift the object because
+    # that is what ptychoshelves does.
+    grad_x, grad_y = _image_grad(patches)
 
-    numerator = cp.sum(cp.real(diff * cp.conj(grad_x * patches)), axis=(-2, -1))
-    denominator = cp.sum(cp.abs(grad_x * patches)**2, axis=(-2, -1))
+    numerator = cp.sum(cp.real(diff * cp.conj(grad_x * main_probe)),
+                       axis=(-2, -1))
+    denominator = cp.sum(cp.abs(grad_x * main_probe)**2, axis=(-2, -1))
     step_x = numerator / (denominator + 1e-6)
 
-    numerator = cp.sum(cp.real(diff * cp.conj(grad_y * patches)), axis=(-2, -1))
-    denominator = cp.sum(cp.abs(grad_y * patches)**2, axis=(-2, -1))
+    numerator = cp.sum(cp.real(diff * cp.conj(grad_y * main_probe)),
+                       axis=(-2, -1))
+    denominator = cp.sum(cp.abs(grad_y * main_probe)**2, axis=(-2, -1))
     step_y = numerator / (denominator + 1e-6)
 
     max_shift = cp.minimum(
@@ -513,7 +513,7 @@ def _update_position(op, comm, diff, patches, scan, unique_probe, m):
     # print(cp.abs(step_x) > 0.5)
     # print(cp.abs(step_y) > 0.5)
 
-    scan[..., 0] += step_y[..., 0, 0]
-    scan[..., 1] += step_x[..., 0, 0]
+    scan[..., 0] -= step_y[..., 0, 0]
+    scan[..., 1] -= step_x[..., 0, 0]
 
     return scan
