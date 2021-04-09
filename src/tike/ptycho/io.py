@@ -95,7 +95,11 @@ def read_aps_velociprobe(
         other metadata.
     position_path : string
         The absolute path to the CSV file containing position information.
-
+    xy_columns : 2-tuple of int
+        The columns in the 8 column raw position file to use for x,y positions
+    trigger_column : int
+        The column in the 8 column raw position file to use for grouping
+        positions together.
     Returns
     -------
     data : (1, FRAME, WIDE, HIGH) float32
