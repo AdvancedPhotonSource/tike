@@ -4,51 +4,10 @@ import logging
 
 import cupy as cp
 import numpy as np
-from skimage.feature import register_translation
 
 import tike.linalg
 
 logger = logging.getLogger(__name__)
-
-
-def update_positionsn(self,
-                      scan,
-                      target,
-                      source,
-                      probe,
-                      psi,
-                      sample=64,
-                      beta=100):
-    """Update scan positions by comparing previous iteration nearpalne patches."""
-    update = np.empty_like(scan)
-    for angle in range(target.shape[0]):
-        for i in range(target.shape[1]):
-            update[angle, i] = register_translation(
-                src_image=source[angle, i, 0],
-                target_image=target[angle, i, 0],
-                upsample_factor=sample,
-                return_error=False,
-            )
-    scan = beta * update + scan
-    return scan, None
-
-
-def update_positionso(self, scan, nearplane, psi, probe, sample=64, beta=100):
-    """Update scan positions by comparing previous iteration object patches."""
-    source = self.diffraction.fwd(psi=psi, scan=scan)
-    grad = (np.conj(probe[:, :, 0]) * (nearplane[:, :, 0] - source) /
-            np.square(np.max(np.abs(probe[:, :, 0]))))
-    target = source + grad
-    update = np.empty_like(scan)
-    for angle in range(target.shape[0]):
-        for i in range(target.shape[1]):
-            update[angle, i], _, _ = register_translation(
-                src_image=source[angle, i],
-                target_image=target[angle, i],
-                upsample_factor=sample,
-            )
-    scan = beta * update + scan
-    return scan, None
 
 
 def check_allowed_positions(scan, psi, probe_shape):
