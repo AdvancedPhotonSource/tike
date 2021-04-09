@@ -73,6 +73,10 @@ def read_aps_velociprobe(diffraction_path, position_path):
     actual number of files because of some problem where the master file is
     created before the linked files are created.
 
+    We use lz4 to compress the data. In order to open these compressed
+    datasets, you have to install the lz4 filter plugins
+    (https://github.com/nexusformat/HDF5-External-Filter-Plugins).
+
     The CSV position raw data file is a 8 column file with columns
     corresponding to the following parameters: samz, samx, samy, zpx, zpy,
     encoder y, encoder x, trigger number. However, we don't use this file.
