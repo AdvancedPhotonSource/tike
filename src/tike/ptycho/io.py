@@ -117,7 +117,7 @@ def read_aps_velociprobe(
                           '/x_pixel_size'][()]  # meter
         beam_center_x = int(f['/entry/instrument/detector/beam_center_x'][()])
         beam_center_y = int(f['/entry/instrument/detector/beam_center_y'][()])
-        chi = float(f['entry/sample/goniometer/chi'][()])
+        chi = float(f['entry/sample/goniometer/chi'][0])
         logger.info('Loading 2-ID-D ptychography data:\n'
                     f'\tstage rotation {chi} degrees\n'
                     f'\tphoton energy {photon_energy} eV\n'
