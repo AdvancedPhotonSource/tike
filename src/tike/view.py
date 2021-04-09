@@ -51,7 +51,6 @@ __author__ = "Doga Gursoy"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
-
 import logging
 import warnings
 
