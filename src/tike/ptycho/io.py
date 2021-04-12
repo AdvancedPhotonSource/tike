@@ -165,14 +165,19 @@ def read_aps_velociprobe(
         data = np.concatenate(data, axis=0)
 
     # Load data from six column file
-    raw_position = np.genfromtxt(position_path, delimiter=',', dtype='int')
+    raw_position = np.genfromtxt(
+        position_path,
+        usecols=(*xy_columns, trigger_column),
+        delimiter=',',
+        dtype='int',
+    )
 
     # Split positions where trigger number increases by 1. Assumes that
     # positions are ordered by trigger number in file. Shift indices by 1
     # because of how np.diff is defined.
-    sections = np.nonzero(np.diff(raw_position[:, trigger_column]))[0] + 1
+    sections = np.nonzero(np.diff(raw_position[:, -1]))[0] + 1
     groups = np.split(
-        raw_position,
+        raw_position[:, :-1],
         indices_or_sections=sections,
         axis=0,
     )
@@ -180,8 +185,8 @@ def read_aps_velociprobe(
     # Apply a reduction function to handle multiple positions per trigger
     def position_reduce(g):
         """Average of the first and last position in each trigger group."""
-        # return np.mean(g[:, xy_columns], axis=0, keepdims=True)
-        return (g[:1, xy_columns] + g[-1:, xy_columns]) / 2
+        # return np.mean(g, axis=0, keepdims=True)
+        return (g[:1] + g[-1:]) / 2
 
     groups = list(map(position_reduce, groups))
     scan = np.concatenate(groups, axis=0)
