@@ -167,9 +167,9 @@ def read_aps_velociprobe(
     # Load data from six column file
     raw_position = np.genfromtxt(position_path, delimiter=',', dtype='int')
 
-    # Split positions where trigger number increases by 1. Assumes that positions
-    # are ordered by trigger number in file. Shift indices by 1 because of how
-    # np.diff is defined.
+    # Split positions where trigger number increases by 1. Assumes that
+    # positions are ordered by trigger number in file. Shift indices by 1
+    # because of how np.diff is defined.
     sections = np.nonzero(np.diff(raw_position[:, trigger_column]))[0] + 1
     groups = np.split(
         raw_position,
