@@ -64,13 +64,6 @@ _loop_over_patches(
       const float sx = floor(scan[ts + ti * nscan].y);
       const float sy = floor(scan[ts + ti * nscan].x);
 
-      if (sx < 0 || nimagex <= sx + patch_shape || sy < 0
-          || nimagey <= sy + patch_shape) {
-        // printf("%f, %f - %f, %f\n", sx, sy, sxf, syf);
-        assert(false);
-        return;
-      }
-
       const float sxf = scan[ts + ti * nscan].y - sx;
       const float syf = scan[ts + ti * nscan].x - sy;
       assert(1.0f >= sxf && sxf >= 0.0f && 1.0f >= syf && syf >= 0.0f);
@@ -78,7 +71,9 @@ _loop_over_patches(
       for (int r = 0; r < nrepeat; ++r) {
         // for x,y coords in patch
         for (int py = blockIdx.z; py < patch_shape; py += gridDim.z) {
+          if (sy + py < 0 || nimagey <= sy + py + 1) continue;
           for (int px = threadIdx.x; px < patch_shape; px += blockDim.x) {
+            if (sx + px < 0 || nimagex <= sx + px + 1) continue;
             // linear patch index (pi)
             // clang-format off
             const int pi = (
