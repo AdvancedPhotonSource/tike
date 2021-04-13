@@ -165,6 +165,8 @@ def reconstruct(
         model='gaussian', use_mpi=False, cost=None, times=None,
         eigen_probe=None, eigen_weights=None,
         batch_size=None,
+        initial_scan=None,
+        recover_positions=False,
         **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
@@ -221,7 +223,7 @@ def reconstruct(
             )
             # Divide the inputs into regions
             odd_pool = comm.pool.num_workers % 2
-            order, scan, data, eigen_weights = split_by_scan_grid(
+            order, scan, data, eigen_weights, initial_scan = split_by_scan_grid(
                 comm.pool,
                 (
                     comm.pool.num_workers
@@ -231,6 +233,7 @@ def reconstruct(
                 scan,
                 data,
                 eigen_weights,
+                initial_scan,
             )
             result = {
                 'psi':
@@ -249,7 +252,8 @@ def reconstruct(
                 if np.ndim(value) > 0:
                     kwargs[key] = comm.pool.bcast(value)
 
-            initial_scan = comm.pool.map(cp.copy, scan)
+            if initial_scan[0] is None:
+                initial_scan = comm.pool.map(cp.copy, scan)
 
             result['probe'] = _rescale_obj_probe(
                 operator,
@@ -274,18 +278,20 @@ def reconstruct(
                     comm,
                     data=data,
                     num_batch=num_batch,
+                    recover_positions=recover_positions,
                     **kwargs,
                 )
                 if result['cost'] is not None:
                     costs.append(result['cost'])
 
-                result['scan'][0], _ = affine_position_regularization(
-                    operator,
-                    result['psi'][0],
-                    result['probe'][0],
-                    initial_scan[0],
-                    result['scan'][0],
-                )
+                if recover_positions:
+                    result['scan'][0], _ = affine_position_regularization(
+                        operator,
+                        result['psi'][0],
+                        result['probe'][0],
+                        initial_scan[0],
+                        result['scan'][0],
+                    )
 
                 times.append(time.perf_counter() - start)
                 start = time.perf_counter()
@@ -299,6 +305,10 @@ def reconstruct(
 
             reorder = np.argsort(np.concatenate(order))
             result['scan'] = comm.pool.gather(scan, axis=1)[:, reorder]
+
+            if recover_positions:
+                result['initial_scan'] = comm.pool.gather(initial_scan,
+                                                          axis=1)[:, reorder]
             if 'eigen_weights' in result:
                 result['eigen_weights'] = comm.pool.gather(
                     eigen_weights,
