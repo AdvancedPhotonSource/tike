@@ -256,6 +256,8 @@ def affine_position_regularization(
         weights=position_reliability[..., 1],
     )
 
+    logger.info(f'affine position error:\n{X}')
+
     # TODO: Decompose X into scale, rotate, shear operations.
     # Remove non-affine and unwanted transformations
     # scale, rotate, shear = _decompose_transformation()
