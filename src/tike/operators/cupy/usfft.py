@@ -22,12 +22,13 @@ def _get_kernel(xp, pad, mu):
 def vector_gather(xp, Fe, x, n, m, mu):
     """A faster implementation of sequential_gather"""
     cons = [xp.sqrt(xp.pi / mu)**3, -xp.pi**2 / mu]
+    half = n // 2
 
     def delta(ell, i, x):
-        return ((ell + i).astype('float32') / (2 * n) - x)**2
+        return ((ell + i).astype('float32') / n - x)**2
 
     F = xp.zeros(x.shape[0], dtype="complex64")
-    ell = ((2 * n * x) // 1).astype(xp.int32)  # nearest grid to x
+    ell = ((n * x) // 1).astype(xp.int32)  # nearest grid to x
     for i0 in range(-m, m):
         delta0 = delta(ell[:, 0], i0, x[:, 0])
         for i1 in range(-m, m):
@@ -35,9 +36,9 @@ def vector_gather(xp, Fe, x, n, m, mu):
             for i2 in range(-m, m):
                 delta2 = delta(ell[:, 2], i2, x[:, 2])
                 Fkernel = cons[0] * xp.exp(cons[1] * (delta0 + delta1 + delta2))
-                F += Fe[(n + ell[:, 0] + i0) % (2 * n),
-                        (n + ell[:, 1] + i1) % (2 * n),
-                        (n + ell[:, 2] + i2) % (2 * n)] * Fkernel
+                F += Fe[(half + ell[:, 0] + i0) % n,
+                        (half + ell[:, 1] + i1) % n,
+                        (half + ell[:, 2] + i2) % n] * Fkernel
     return F
 
 
@@ -46,7 +47,7 @@ def sequential_gather(xp, Fe, x, n, m, mu):
 
     Parameters
     ----------
-    Fe : (2n, 2n, 2n) complex64
+    Fe : (n, n, n) complex64
         The function at equally spaced frequencies.
     x : (N, 3) float32
         The non-uniform frequencies.
@@ -57,22 +58,23 @@ def sequential_gather(xp, Fe, x, n, m, mu):
         The values at the non-uniform frequencies.
     """
     cons = [xp.sqrt(xp.pi / mu)**3, -xp.pi**2 / mu]
+    half = n // 2
     F = xp.zeros(x.shape[0], dtype="complex64")
     for k in range(x.shape[0]):
-        ell0 = xp.int(xp.floor(2 * n * x[k, 0]))
-        ell1 = xp.int(xp.floor(2 * n * x[k, 1]))
-        ell2 = xp.int(xp.floor(2 * n * x[k, 2]))
+        ell0 = xp.int(xp.floor(n * x[k, 0]))
+        ell1 = xp.int(xp.floor(n * x[k, 1]))
+        ell2 = xp.int(xp.floor(n * x[k, 2]))
         for i0 in range(-m, m):
             for i1 in range(-m, m):
                 for i2 in range(-m, m):
                     kera = cons[0] * xp.exp(cons[1] * (
-                        + ((ell0 + i0) / (2 * n) - x[k, 0])**2
-                        + ((ell1 + i1) / (2 * n) - x[k, 1])**2
-                        + ((ell2 + i2) / (2 * n) - x[k, 2])**2
+                        + ((ell0 + i0) / n - x[k, 0])**2
+                        + ((ell1 + i1) / n - x[k, 1])**2
+                        + ((ell2 + i2) / n - x[k, 2])**2
                     ))  # yapf: disable
-                    F[k] += Fe[(n + ell0 + i0) % (2 * n),
-                               (n + ell1 + i1) % (2 * n),
-                               (n + ell2 + i2) % (2 * n)] * kera
+                    F[k] += Fe[(half + ell0 + i0) % n,
+                               (half + ell1 + i1) % n,
+                               (half + ell2 + i2) % n] * kera
     return F
 
 
@@ -104,10 +106,9 @@ def eq2us(f, x, n, eps, xp, gather=vector_gather, fftn=None):
 
     # FFT and compesantion for smearing
     fe = xp.zeros([2 * n] * ndim, dtype="complex64")
-    fe[pad:end, pad:end, pad:end] = f
-    fe[pad:end, pad:end, pad:end] /= kernel
+    fe[pad:end, pad:end, pad:end] = f / kernel
     Fe = checkerboard(xp, fftn(checkerboard(xp, fe)), inverse=True)
-    F = gather(xp, Fe, x, n, m, mu)
+    F = gather(xp, Fe, x, 2 * n, m, mu)
 
     return F
 
@@ -128,23 +129,24 @@ def sequential_scatter(xp, f, x, n, m, mu):
 
     """
     cons = [xp.sqrt(xp.pi / mu)**3, -xp.pi**2 / mu]
-    G = xp.zeros([2 * n] * 3, dtype="complex64")
+    half = n // 2
+    G = xp.zeros([n] * 3, dtype="complex64")
     for k in range(x.shape[0]):
-        ell0 = xp.int(xp.floor(2 * n * x[k, 0]))
-        ell1 = xp.int(xp.floor(2 * n * x[k, 1]))
-        ell2 = xp.int(xp.floor(2 * n * x[k, 2]))
+        ell0 = xp.int(xp.floor(n * x[k, 0]))
+        ell1 = xp.int(xp.floor(n * x[k, 1]))
+        ell2 = xp.int(xp.floor(n * x[k, 2]))
         for i0 in range(-m, m):
             for i1 in range(-m, m):
                 for i2 in range(-m, m):
                     # yapf: disable
                     Fkernel = cons[0] * xp.exp(cons[1] * (
-                        + ((ell0 + i0) / (2 * n) - x[k, 0])**2
-                        + ((ell1 + i1) / (2 * n) - x[k, 1])**2
-                        + ((ell2 + i2) / (2 * n) - x[k, 2])**2
+                        + ((ell0 + i0) / n - x[k, 0])**2
+                        + ((ell1 + i1) / n - x[k, 1])**2
+                        + ((ell2 + i2) / n - x[k, 2])**2
                     ))
-                    G[(n + ell0 + i0) % (2 * n),
-                      (n + ell1 + i1) % (2 * n),
-                      (n + ell2 + i2) % (2 * n)] += f[k] * Fkernel
+                    G[(half + ell0 + i0) % n,
+                      (half + ell1 + i1) % n,
+                      (half + ell2 + i2) % n] += f[k] * Fkernel
                     # yapf: enable
     return G
 
@@ -152,13 +154,14 @@ def sequential_scatter(xp, f, x, n, m, mu):
 def vector_scatter(xp, f, x, n, m, mu, ndim=3):
     """A faster implemenation of sequential_scatter."""
     cons = [xp.sqrt(xp.pi / mu)**ndim, -xp.pi**2 / mu]
+    half = n // 2
 
     def delta(ell, i, x):
-        return ((ell + i).astype('float32') / (2 * n) - x)**2
+        return ((ell + i).astype('float32') / n - x)**2
 
-    G = xp.zeros([(2 * n)**ndim], dtype="complex64")
-    ell = ((2 * n * x) // 1).astype(xp.int32)  # nearest grid to x
-    stride = ((2 * n)**2, 2 * n)
+    G = xp.zeros([n**ndim], dtype="complex64")
+    ell = ((n * x) // 1).astype(xp.int32)  # nearest grid to x
+    stride = (n**2, n)
     for i0 in range(-m, m):
         delta0 = delta(ell[:, 0], i0, x[:, 0])
         for i1 in range(-m, m):
@@ -166,9 +169,9 @@ def vector_scatter(xp, f, x, n, m, mu, ndim=3):
             for i2 in range(-m, m):
                 delta2 = delta(ell[:, 2], i2, x[:, 2])
                 Fkernel = cons[0] * xp.exp(cons[1] * (delta0 + delta1 + delta2))
-                ids = (((n + ell[:, 2] + i2) % (2 * n)) +
-                       ((n + ell[:, 1] + i1) % (2 * n)) * stride[1] +
-                       ((n + ell[:, 0] + i0) % (2 * n)) * stride[0])
+                ids = (((half + ell[:, 2] + i2) % n) +
+                       ((half + ell[:, 1] + i1) % n) * stride[1] +
+                       ((half + ell[:, 0] + i0) % n) * stride[0])
                 vals = f * Fkernel
                 # accumulate by indexes (with possible index intersections),
                 # TODO acceleration of bincount!!
@@ -176,7 +179,7 @@ def vector_scatter(xp, f, x, n, m, mu, ndim=3):
                         1j * xp.bincount(ids, weights=vals.imag))
                 ids = xp.nonzero(vals)[0]
                 G[ids] += vals[ids]
-    return G.reshape([2 * n] * ndim)
+    return G.reshape([n] * ndim)
 
 
 def us2eq(f, x, n, eps, xp, scatter=vector_scatter, fftn=None):
@@ -208,7 +211,7 @@ def us2eq(f, x, n, eps, xp, scatter=vector_scatter, fftn=None):
     kernel = _get_kernel(xp, pad, mu)
     kernel *= (2 * n)**3
 
-    G = scatter(xp, f, x, n, m, mu)
+    G = scatter(xp, f, x, 2 * n, m, mu)
 
     # FFT and compesantion for smearing
     F = checkerboard(xp, fftn(checkerboard(xp, G)), inverse=True)
