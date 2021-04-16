@@ -48,9 +48,14 @@ def sequential_gather(xp, Fe, x, n, m, mu):
     Parameters
     ----------
     Fe : (n, n, n) complex64
-        The function at equally spaced frequencies.
+        The function at equally spaced frequencies. Frequencies on the grid are
+        like np.fft.fftfreq i.e. [ 0.  ,  0.25, -0.5 , -0.25]
     x : (N, 3) float32
-        The non-uniform frequencies.
+        The non-uniform frequencies in the range [-0.5, 0.5)
+    n : int
+        The width of Fe along each edge
+    m : int
+        The width of the interpolation kernel along each edge.
 
     Returns
     -------
@@ -61,6 +66,7 @@ def sequential_gather(xp, Fe, x, n, m, mu):
     half = n // 2
     F = xp.zeros(x.shape[0], dtype="complex64")
     for k in range(x.shape[0]):
+        # Convert to integer indices in range [-n // 2, n // 2]
         ell0 = xp.int(xp.floor(n * x[k, 0]))
         ell1 = xp.int(xp.floor(n * x[k, 1]))
         ell2 = xp.int(xp.floor(n * x[k, 2]))
