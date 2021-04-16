@@ -115,8 +115,8 @@ class Lamino(CachedFFT, Operator):
             axes=(1, 2),
             inverse=True,
         ).ravel()
-        # Inverse (x->-x) USFFT from unequally-spaced grid to equally-spaced
-        # grid
+        # Inverse (x->-x / n**2) USFFT from unequally-spaced grid to
+        # equally-spaced grid.
         u = us2eq(F, -xi, self.n, self.eps, self.xp, fftn=fftn)
         u /= self.n**2
         return u
