@@ -69,7 +69,7 @@ class Lamino(CachedFFT, Operator):
             return self._fftn(*args, overwrite=True, **kwargs)
 
         # USFFT from equally-spaced grid to unequally-spaced grid
-        F = eq2us(u, xi, self.n, self.eps, self.xp,
+        F = eq2us(u, xi, self.n, self.eps, self.xp, gather=gather,
                   fftn=fftn).reshape([theta.shape[-1], self.n, self.n])
 
         # Inverse 2D FFT
@@ -117,12 +117,12 @@ class Lamino(CachedFFT, Operator):
         ).ravel()
         # Inverse (x->-x / n**2) USFFT from unequally-spaced grid to
         # equally-spaced grid.
-        u = us2eq(F, -xi, self.n, self.eps, self.xp, fftn=fftn)
+        u = us2eq(F, -xi, self.n, self.eps, self.xp, scatter=scatter, fftn=fftn)
         u /= self.n**2
         return u
 
     def scatter(self, f, x, n, m, mu):
-        G = cp.zeros([2 * n] * 3, dtype="complex64")
+        G = cp.zeros([n] * 3, dtype="complex64")
         const = cp.array([cp.sqrt(cp.pi / mu)**3, -cp.pi**2 / mu],
                          dtype='float32')
         assert G.dtype == cp.complex64
@@ -191,8 +191,10 @@ class Lamino(CachedFFT, Operator):
         ctheta, stheta = self.xp.cos(theta), self.xp.sin(theta)
 
         for itheta in range(theta.shape[-1]):
-            xi[itheta, :, 2] = +ku * ctheta[itheta] + kv * stheta[itheta] * ctilt
-            xi[itheta, :, 1] = -ku * stheta[itheta] + kv * ctheta[itheta] * ctilt
+            xi[itheta, :,
+               2] = +ku * ctheta[itheta] + kv * stheta[itheta] * ctilt
+            xi[itheta, :,
+               1] = -ku * stheta[itheta] + kv * ctheta[itheta] * ctilt
         xi[:, :, 0] = kv * stilt
 
         # make sure coordinates are in (-0.5,0.5), probably unnecessary
