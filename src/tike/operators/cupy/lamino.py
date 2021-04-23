@@ -59,8 +59,8 @@ class Lamino(CachedFFT, Operator):
             return self._fftn(*args, overwrite=True, **kwargs)
 
         # USFFT from equally-spaced grid to unequally-spaced grid
-        F = eq2us(u, xi, self.n, self.eps, self.xp,
-                  fftn=fftn).reshape([theta.shape[-1], self.n, self.n])
+        F = eq2us(u, xi, self.n, self.eps, self.xp, fftn=fftn,
+                  upsample=1).reshape([theta.shape[-1], self.n, self.n])
 
         # Inverse 2D FFT
         data = checkerboard(
@@ -104,7 +104,7 @@ class Lamino(CachedFFT, Operator):
         ).ravel()
         # Inverse (x->-x / n**2) USFFT from unequally-spaced grid to
         # equally-spaced grid.
-        u = us2eq(F, -xi, self.n, self.eps, self.xp, fftn=fftn)
+        u = us2eq(F, -xi, self.n, self.eps, self.xp, fftn=fftn, upsample=1)
         u /= self.n**2
         return u
 
