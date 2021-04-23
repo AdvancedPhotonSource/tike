@@ -4,7 +4,8 @@
 import unittest
 
 import numpy as np
-from tike.operators.cupy.usfft import eq2us, us2eq, vector_gather, vector_scatter
+from tike.operators.cupy.usfft import (eq2us, us2eq, vector_gather,
+                                       vector_scatter)
 from tike.operators import Operator
 
 from .util import random_complex, OperatorTests
