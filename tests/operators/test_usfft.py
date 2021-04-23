@@ -91,6 +91,38 @@ class TestUSFFT(unittest.TestCase, OperatorTests):
     def test_scaled(self):
         pass
 
+    @unittest.skip('For debugging only.')
+    def test_image(self, s=32, ntheta=16 * 16 * 16):
+        import libimage
+        import matplotlib.pyplot as plt
+
+        f = libimage.load('satyre', s)
+        f = np.tile(f, (s, 1, 1))
+        f = self.xp.asarray(f, dtype='complex64')
+
+        x = [
+            g.ravel() for g in np.meshgrid(
+                np.linspace(-0.5, 0.5, s),
+                np.linspace(-0.5, 0.5, s),
+                np.linspace(-0.5, 0.5, s),
+            )
+        ]
+
+        x = np.stack(x, -1)
+
+        print(x.shape)
+
+        x = self.xp.asarray(x, dtype='float32')
+
+        d = self.operator.fwd(f, x, s)
+        m = self.operator.adj(d, x, s)
+
+        plt.figure()
+        plt.imshow(m[s // 2].real.get())
+        plt.figure()
+        plt.imshow(f[s // 2].real.get())
+        plt.show()
+
 
 if __name__ == '__main__':
     unittest.main()
