@@ -4,6 +4,10 @@ The USFFT, NUFFT, or NFFT is a fast-fourier transform from an uniform domain to
 a non-uniform domain or vice-versa. This module provides forward Fourier
 transforms for those two cased. The inverser Fourier transforms may be created
 by negating the frequencies on the non-uniform grid.
+
+The implementation of this USFFT is the composition of the following
+operations: zero-padding, interpolation-kernel-correction, FFT, and
+linear-interpolation.
 """
 import cupy as cp
 from importlib_resources import files
@@ -14,9 +18,11 @@ _scatter_kernel = cp.RawKernel(_cu_source, "scatter")
 _gather_kernel = cp.RawKernel(_cu_source, "gather")
 
 
-def _get_kernel(xp, pad, mu):
+def _get_kernel(xp, n, mu):
     """Return the interpolation kernel for the USFFT."""
-    u = -mu * xp.arange(-pad, pad, dtype='float32')**2
+    pad = n // 2
+    end = n - pad
+    u = -mu * xp.arange(-pad, end, dtype='float32')**2
     kernel_shape = (len(u), len(u), len(u))
     norm = xp.zeros(kernel_shape, dtype='float32')
     norm += u
@@ -32,7 +38,7 @@ def vector_gather(xp, Fe, x, n, m, mu):
     ----------
     Fe : (n, n, n) complex64
         The function at equally spaced frequencies. Frequencies on the grid are
-        like np.fft.fftfreq i.e. [ 0.  ,  0.25, -0.5 , -0.25]
+        zero-centered i.e. [ -0.5, 0.25, 0.0,  0.25]
     x : (N, 3) float32
         The non-uniform frequencies in the range [-0.5, 0.5)
     n : int
@@ -67,6 +73,7 @@ def vector_gather(xp, Fe, x, n, m, mu):
 
 
 def gather(_, Fe, x, n, m, mu):
+    """See vector_gather documenation."""
     F = cp.zeros(x.shape[0], dtype="complex64")
     const = cp.array([cp.sqrt(cp.pi / mu)**3, -cp.pi**2 / mu], dtype='float32')
     assert F.dtype == cp.complex64
@@ -87,37 +94,49 @@ def gather(_, Fe, x, n, m, mu):
     return F
 
 
-def eq2us(f, x, n, eps, xp, gather=gather, fftn=None):
+def eq2us(f, x, n, eps, xp, gather=gather, fftn=None, upsample=2):
     """USFFT from equally-spaced grid to unequally-spaced grid.
 
     Parameters
     ----------
     f : (n, n, n) complex64
-        The function to be transformed on a regular-grid of size n.
-    x : (N, 3)
-        The sampled frequencies on unequally-spaced grid.
+        The function at equally-spaced frequencies. Frequencies on the grid are
+        zero-centered i.e. [ -0.5, 0.25, 0.0,  0.25]
+    x : (N, 3) float32
+        The frequencies on the unequally-spaced grid in the range [-0.5, 0.5)
+    n : int
+        The size of the equally-spaced grid along each edge.
     eps : float
-        The desired relative accuracy of the USFFT.
+        The accuracy of computing USFFT.
+    upsample : float >= 1
+        The ratio of the upsampled grid to the equally-spaced grid.
+
+    Returns
+    -------
+    F : (N, ) complex64
+        Values of unequally-spaced function on the grid x.
+
     """
     fftn = xp.fft.fftn if fftn is None else fftn
-    ndim = f.ndim
-    pad = n // 2  # where zero-padding stops
+    upsampled = 2 * int(upsample * n / 2)  # upsampled grid is always even-sized
+    pad = (upsampled - n) // 2  # where zero-padding stops
     end = pad + n  # where f stops
 
     # parameters for the USFFT transform
     mu = -xp.log(eps) / (2 * n**2)
     Te = 1 / xp.pi * xp.sqrt(-mu * xp.log(eps) + (mu * n)**2 / 4)
-    m = xp.int(xp.ceil(2 * n * Te))
+    m = xp.int(xp.ceil(upsampled * Te))
 
-    # smearing kernel (kernel)
-    kernel = _get_kernel(xp, pad, mu)
-    kernel *= (2 * n)**ndim
+    # smearing kernel (ker)
+    kernel = _get_kernel(xp, n, mu)
+    kernel *= upsampled**3
 
     # FFT and compesantion for smearing
-    fe = xp.zeros([2 * n] * ndim, dtype="complex64")
+    fe = xp.zeros([upsampled] * 3, dtype="complex64")
+
     fe[pad:end, pad:end, pad:end] = f / kernel
     Fe = checkerboard(xp, fftn(checkerboard(xp, fe)), inverse=True)
-    F = gather(xp, Fe, x, 2 * n, m, mu)
+    F = gather(xp, Fe, x, upsampled, m, mu)
 
     return F
 
@@ -130,11 +149,17 @@ def vector_scatter(xp, f, x, n, m, mu, ndim=3):
     f : (N, ) complex64
         Values at non-uniform frequencies.
     x : (N, 3) float32
-        Non-uniform frequencies.
+        The non-uniform frequencies in the range [-0.5, 0.5)
+    n : int
+        The width of G along each edge
+    m : int
+        The width of the interpolation kernel along each edge.
 
     Return
     ------
-    G : [2 * (n + m)] * 3 complex64
+    G : (n, n, n) complex64
+        The function at equally spaced frequencies. Frequencies on the grid are
+        zero-centered i.e. [ -0.5, 0.25, 0.0,  0.25]
 
     """
     cons = [xp.sqrt(xp.pi / mu)**ndim, -xp.pi**2 / mu]
@@ -167,6 +192,7 @@ def vector_scatter(xp, f, x, n, m, mu, ndim=3):
 
 
 def scatter(_, f, x, n, m, mu):
+    """See vector_scatter documenation"""
     G = cp.zeros([n] * 3, dtype="complex64")
     const = cp.array([cp.sqrt(cp.pi / mu)**3, -cp.pi**2 / mu], dtype='float32')
     assert G.dtype == cp.complex64
@@ -187,36 +213,45 @@ def scatter(_, f, x, n, m, mu):
     return G
 
 
-def us2eq(f, x, n, eps, xp, scatter=scatter, fftn=None):
+def us2eq(f, x, n, eps, xp, scatter=scatter, fftn=None, upsample=2):
     """USFFT from unequally-spaced grid to equally-spaced grid.
 
     Parameters
     ----------
-    f : (n**3) complex64
+    f : (N, ) complex64
         Values of unequally-spaced function on the grid x
-    x : (n**3) float
-        The frequencies on the unequally-spaced grid
+    x : (N, 3) float
+        The frequencies on the unequally-spaced grid in the range [-0.5, 0.5)
     n : int
-        The size of the equall spaced grid.
+        The size of the equally-spaced grid along each edge.
     eps : float
-        The accuracy of computing USFFT
+        The accuracy of computing USFFT.
     scatter : function
         The scatter function to use.
+    upsample : float >= 1
+        The ratio of the upsampled grid to the equally-spaced grid.
+
+    Returns
+    -------
+    F : (n, n, n) complex64
+        The function at equally spaced frequencies. Frequencies on the grid are
+        zero-centered i.e. [ -0.5, 0.25, 0.0,  0.25]
     """
     fftn = xp.fft.fftn if fftn is None else fftn
-    pad = n // 2  # where zero-padding stops
+    upsampled = 2 * int(upsample * n / 2)  # upsampled grid is always even-sized
+    pad = (upsampled - n) // 2  # where zero-padding stops
     end = pad + n  # where f stops
 
     # parameters for the USFFT transform
     mu = -xp.log(eps) / (2 * n**2)
     Te = 1 / xp.pi * xp.sqrt(-mu * xp.log(eps) + (mu * n)**2 / 4)
-    m = xp.int(xp.ceil(2 * n * Te))
+    m = xp.int(xp.ceil(upsampled * Te))
 
     # smearing kernel (ker)
-    kernel = _get_kernel(xp, pad, mu)
-    kernel *= (2 * n)**3
+    kernel = _get_kernel(xp, n, mu)
+    kernel *= upsampled**3
 
-    G = scatter(xp, f, x, 2 * n, m, mu)
+    G = scatter(xp, f, x, upsampled, m, mu)
 
     # FFT and compesantion for smearing
     F = checkerboard(xp, fftn(checkerboard(xp, G)), inverse=True)
