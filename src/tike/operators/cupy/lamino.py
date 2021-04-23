@@ -1,16 +1,11 @@
 __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
-from importlib_resources import files
-
-import cupy as cp
 import numpy as np
 
 from .cache import CachedFFT
 from .usfft import eq2us, us2eq, checkerboard
 from .operator import Operator
-
-_cu_source = files('tike.operators.cupy').joinpath('usfft.cu').read_text()
 
 
 class Lamino(CachedFFT, Operator):
@@ -53,8 +48,6 @@ class Lamino(CachedFFT, Operator):
         CachedFFT.__enter__(self)
         # Call the __enter__ methods for any composed operators.
         # Allocate special memory objects.
-        self.scatter_kernel = cp.RawKernel(_cu_source, "scatter")
-        self.gather_kernel = cp.RawKernel(_cu_source, "gather")
         return self
 
     def fwd(self, u, theta, **kwargs):
@@ -62,14 +55,11 @@ class Lamino(CachedFFT, Operator):
 
         xi = self._make_grids(theta)
 
-        def gather(xp, Fe, x, n, m, mu):
-            return self.gather(Fe, x, n, m, mu)
-
         def fftn(*args, **kwargs):
             return self._fftn(*args, overwrite=True, **kwargs)
 
         # USFFT from equally-spaced grid to unequally-spaced grid
-        F = eq2us(u, xi, self.n, self.eps, self.xp, gather=gather,
+        F = eq2us(u, xi, self.n, self.eps, self.xp,
                   fftn=fftn).reshape([theta.shape[-1], self.n, self.n])
 
         # Inverse 2D FFT
@@ -94,9 +84,6 @@ class Lamino(CachedFFT, Operator):
 
         xi = self._make_grids(theta)
 
-        def scatter(xp, f, x, n, m, mu):
-            return self.scatter(f, x, n, m, mu)
-
         def fftn(*args, **kwargs):
             return self._fftn(*args, overwrite=True, **kwargs)
 
@@ -117,51 +104,9 @@ class Lamino(CachedFFT, Operator):
         ).ravel()
         # Inverse (x->-x / n**2) USFFT from unequally-spaced grid to
         # equally-spaced grid.
-        u = us2eq(F, -xi, self.n, self.eps, self.xp, scatter=scatter, fftn=fftn)
+        u = us2eq(F, -xi, self.n, self.eps, self.xp, fftn=fftn)
         u /= self.n**2
         return u
-
-    def scatter(self, f, x, n, m, mu):
-        G = cp.zeros([n] * 3, dtype="complex64")
-        const = cp.array([cp.sqrt(cp.pi / mu)**3, -cp.pi**2 / mu],
-                         dtype='float32')
-        assert G.dtype == cp.complex64
-        assert f.dtype == cp.complex64
-        assert x.dtype == cp.float32
-        assert const.dtype == cp.float32
-        block = (min(self.scatter_kernel.max_threads_per_block, (2 * m)**3),)
-        grid = (1, 0, min(f.shape[0], 65535))
-        self.scatter_kernel(grid, block, (
-            G,
-            f,
-            f.shape[0],
-            x,
-            n,
-            m,
-            const,
-        ))
-        return G
-
-    def gather(self, Fe, x, n, m, mu):
-        F = cp.zeros(x.shape[0], dtype="complex64")
-        const = cp.array([cp.sqrt(cp.pi / mu)**3, -cp.pi**2 / mu],
-                         dtype='float32')
-        assert F.dtype == cp.complex64
-        assert Fe.dtype == cp.complex64
-        assert x.dtype == cp.float32
-        assert const.dtype == cp.float32
-        block = (min(self.scatter_kernel.max_threads_per_block, (2 * m)**3),)
-        grid = (1, 0, min(x.shape[0], 65535))
-        self.gather_kernel(grid, block, (
-            F,
-            Fe,
-            x.shape[0],
-            x,
-            n,
-            m,
-            const,
-        ))
-        return F
 
     def cost(self, data, theta, obj):
         "Cost function for the least-squres laminography problem"
