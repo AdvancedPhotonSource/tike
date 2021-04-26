@@ -31,7 +31,7 @@ class TestLamino(unittest.TestCase, OperatorTests):
                                  dtype='complex64')
         self.d_name = 'data'
         self.kwargs = {
-            'theta': self.xp.linspace(0, 2 * np.pi, ntheta)
+            'theta': self.xp.linspace(0, 2 * np.pi, ntheta).astype('float32')
         }
         print(self.operator)
 

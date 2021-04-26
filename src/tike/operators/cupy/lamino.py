@@ -1,11 +1,17 @@
 __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
+from importlib_resources import files
+
+import cupy as cp
 import numpy as np
 
 from .cache import CachedFFT
 from .usfft import eq2us, us2eq, checkerboard
 from .operator import Operator
+
+_cu_source = files('tike.operators.cupy').joinpath('grid.cu').read_text()
+_make_grids_kernel = cp.RawKernel(_cu_source, "make_grids")
 
 
 class Lamino(CachedFFT, Operator):
@@ -127,23 +133,23 @@ class Lamino(CachedFFT, Operator):
 
     def _make_grids(self, theta):
         """Return (ntheta*n*n, 3) unequally-spaced frequencies for the USFFT."""
-        u = self.xp.arange(-self.n // 2, self.n // 2, dtype='float32') / self.n
-        ku = self.xp.broadcast_to(u, (self.n, self.n)).ravel()
-        kv = self.xp.broadcast_to(u[:, None], (self.n, self.n)).ravel()
-        xi = self.xp.zeros([theta.shape[-1], self.n * self.n, 3],
-                           dtype='float32')
-        ctilt, stilt = self.xp.cos(self.tilt), self.xp.sin(self.tilt)
-        ctheta, stheta = self.xp.cos(theta), self.xp.sin(theta)
 
-        for itheta in range(theta.shape[-1]):
-            xi[itheta, :,
-               2] = +ku * ctheta[itheta] + kv * stheta[itheta] * ctilt
-            xi[itheta, :,
-               1] = -ku * stheta[itheta] + kv * ctheta[itheta] * ctilt
-        xi[:, :, 0] = kv * stilt
+        assert self.tilt.dtype == np.float32
+        assert theta.dtype == cp.float32, theta.dtype
 
-        # make sure coordinates are in (-0.5,0.5), probably unnecessary
-        xi[xi >= 0.5] = 0.5 - 1e-5
-        xi[xi < -0.5] = -0.5 + 1e-5
+        xi = cp.empty((theta.shape[-1] * self.n * self.n, 3), dtype="float32")
 
-        return xi.reshape(theta.shape[-1] * self.n * self.n, 3)
+        grid = (
+            -(-self.n // _make_grids_kernel.max_threads_per_block),
+            self.n,
+            theta.shape[-1],
+        )
+        block = (min(self.n, _make_grids_kernel.max_threads_per_block),)
+        _make_grids_kernel(grid, block, (
+            xi,
+            theta,
+            theta.shape[-1],
+            self.n,
+            self.tilt,
+        ))
+        return xi
