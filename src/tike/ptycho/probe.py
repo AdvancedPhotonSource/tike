@@ -21,7 +21,7 @@ eigen probes.
 
 .. code-block:: python
 
-    varying_probe = probe + np.sum(weights * eigen_probes)
+    varying_probe = weights[0] * probe + np.sum(weights[1:] * eigen_probes)
 
 
 Design comments
@@ -41,36 +41,33 @@ import numpy as np
 import tike.random
 
 
-def get_varying_probe(shared_probe, eigen_probe=None, weights=None, m=None):
-    """Construct the varying m-th probes.
+def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
+    """Construct the varying probes.
 
     Parameters
     ----------
-    shared_probe : (..., 1, 1, SHARED, WIDE, HIGH) complex64
+    shared_probe : (..., 1,         1, SHARED, WIDE, HIGH) complex64
         The shared probes amongst all positions.
-    m : int or list(int)
-        The index of the requested probe.
-    eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
+    eigen_probe :  (..., 1,     EIGEN, SHARED, WIDE, HIGH) complex64
         The eigen probes for all positions.
-    weights : (..., POSI, EIGEN, SHARED) float32
+    weights :   (..., POSI, EIGEN + 1, SHARED) float32
         The relative intensity of the eigen probes at each position.
 
     Returns
     -------
     unique_probes : (..., POSI, 1, 1, WIDE, HIGH)
     """
-    if m is None:
-        m = list(range(shared_probe.shape[-3]))
-    if type(m) is not list:
-        m = [m]
-    if weights is not None and eigen_probe is not None:
-        return shared_probe[..., :, m, :, :] + np.sum(
-            weights[..., m, None, None] * eigen_probe[..., m, :, :],
-            axis=-4,
-            keepdims=True,
-        )
+    if weights is not None:
+        # The zeroth eigen_probe is the shared_probe
+        unique_probe = weights[..., [0], :, None, None] * shared_probe
+        for w in range(1, weights.shape[-2]):
+            unique_probe += (
+                weights[..., [w], :, None, None]
+                * eigen_probe[..., [w - 1], :, :, :]
+            )  # yapf: disable
+        return unique_probe
     else:
-        return shared_probe[..., :, m, :, :].copy()
+        return shared_probe.copy()
 
 
 def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
@@ -78,7 +75,7 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
 
     This update is copied from the source code of ptychoshelves. It is similar
     to, but not the same as, equation (31) described by Odstrcil et al (2018).
-    It is is also different from updates described in Odstrcil et al (2016).
+    It is also different from updates described in Odstrcil et al (2016).
     However, they all aim to correct for probe variation.
 
     Parameters
@@ -139,9 +136,9 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
     )))
     if comm.use_mpi:
         update[0] = comm.Allreduce_mean(
-                update,
-                axis=-5,
-            )
+            update,
+            axis=-5,
+        )
         update = comm.pool.bcast(update[0])
     else:
         update = comm.pool.bcast(comm.pool.reduce_mean(
@@ -182,9 +179,9 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
 
     if comm.use_mpi:
         d_mean[0] = comm.Allreduce_mean(
-                d_mean,
-                axis=-5,
-            )
+            d_mean,
+            axis=-5,
+        )
         d_mean = comm.pool.bcast(d_mean[0])
     else:
         d_mean = comm.pool.bcast(comm.pool.reduce_mean(
@@ -215,15 +212,16 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
     ))
     if comm.use_mpi:
         weights_mean[0] = comm.Allreduce_mean(
-                weights_mean,
-                axis=-5,
-            )
-        weights_mean = comm.pool.bcast(weights_mean[0])
-    else:
-        weights_mean = comm.pool.bcast(comm.pool.reduce_mean(
             weights_mean,
             axis=-5,
-        ))
+        )
+        weights_mean = comm.pool.bcast(weights_mean[0])
+    else:
+        weights_mean = comm.pool.bcast(
+            comm.pool.reduce_mean(
+                weights_mean,
+                axis=-5,
+            ))
 
     def _update_weights(weights, weights_mean):
         weights -= weights_mean
@@ -285,10 +283,12 @@ def simulate_varying_weights(scan, eigen_probe):
 
 def init_varying_probe(scan, shared_probe, N):
     """Initialize arrays for N eigen modes."""
+    if N < 1:
+        return None, None
 
     eigen_probe = tike.random.numpy_complex(
         *shared_probe.shape[:-4],
-        N,
+        N - 1,
         *shared_probe.shape[-3:],
     ).astype('complex64')
     eigen_probe /= np.linalg.norm(eigen_probe, axis=(-2, -1), keepdims=True)
@@ -299,6 +299,7 @@ def init_varying_probe(scan, shared_probe, N):
         shared_probe.shape[-3],
     ).astype('float32')
     weights -= np.mean(weights, axis=-3, keepdims=True)
+    weights[0, :] = 1.0  # The weight of the first eigen probe is non-zero
 
     return eigen_probe, weights
 

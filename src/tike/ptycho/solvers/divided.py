@@ -127,13 +127,13 @@ def lstsq_grad(
     return result
 
 
-def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
-                             op, m, recover_psi, recover_probe):
+def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
+                             recover_psi, recover_probe):
 
     pad, end = op.diffraction.pad, op.diffraction.end
 
     patches = op.diffraction.patch.fwd(
-        patches=cp.zeros(nearplane[..., m:m + 1, pad:end, pad:end].shape,
+        patches=cp.zeros(nearplane[..., [m], pad:end, pad:end].shape,
                          dtype='complex64')[..., 0, 0, :, :],
         images=psi,
         positions=scan_,
@@ -142,13 +142,13 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
     # χ (diff) is the target for the nearplane problem; the difference
     # between the desired nearplane and the current nearplane that we wish
     # to minimize.
-    diff = nearplane[..., m:m + 1, pad:end,
-                     pad:end] - unique_probe[..., m:m + 1, :, :] * patches
+    diff = nearplane[..., [m], pad:end,
+                     pad:end] - unique_probe[..., [m], :, :] * patches
 
     logger.info('%10s cost is %+12.5e', 'nearplane', norm(diff))
 
     if recover_psi:
-        grad_psi = cp.conj(unique_probe[..., m:m + 1, :, :]) * diff
+        grad_psi = cp.conj(unique_probe[..., [m], :, :]) * diff
 
         # (25b) Common object gradient. Use a weighted (normalized) sum
         # instead of division as described in publication to improve
@@ -160,11 +160,10 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
         )
 
         dOP = op.diffraction.patch.fwd(
-            patches=cp.zeros(patches.shape, dtype='complex64')[..., 0,
-                                                               0, :, :],
+            patches=cp.zeros(patches.shape, dtype='complex64')[..., 0, 0, :, :],
             images=common_grad_psi,
             positions=scan_,
-        )[..., None, None, :, :] * unique_probe[..., m:m + 1, :, :]
+        )[..., None, None, :, :] * unique_probe[..., [m], :, :]
         A1 = cp.sum((dOP * dOP.conj()).real + 0.5, axis=(-2, -1))
 
     if recover_probe:
@@ -189,19 +188,18 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe,
 
     if __debug__:
         patches = op.diffraction.patch.fwd(
-            patches=cp.zeros(nearplane[..., m:m + 1, pad:end,
-                                       pad:end].shape,
+            patches=cp.zeros(nearplane[..., [m], pad:end, pad:end].shape,
                              dtype='complex64')[..., 0, 0, :, :],
             images=psi,
             positions=scan_,
         )[..., None, None, :, :]
         logger.info(
             '%10s cost is %+12.5e', 'nearplane',
-            norm(probe[..., m:m + 1, :, :] * patches -
-                 nearplane[..., m:m + 1, pad:end, pad:end]))
+            norm(probe[..., [m], :, :] * patches -
+                 nearplane[..., [m], pad:end, pad:end]))
 
-    return (patches, diff, grad_probe, common_grad_psi, common_grad_probe,
-            dOP, dPO, A1, A4)
+    return (patches, diff, grad_probe, common_grad_psi, common_grad_probe, dOP,
+            dPO, A1, A4)
 
 
 def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe):
@@ -241,6 +239,7 @@ def _update_A(A, delta):
     A += 0.5 * delta
     return A
 
+
 def _get_residuals(grad_probe, grad_probe_mean):
     return grad_probe - grad_probe_mean
 
@@ -252,6 +251,14 @@ def _update_residuals(R, eigen_probe, axis, c, m):
         axis=axis,
     )
     return R
+
+
+def _get_coefs_intensity(weights, xi, P, O):
+    OP = O * P
+    num = cp.sum(cp.real(cp.conj(OP) * xi), axis=(-1, -2))
+    den = cp.sum(cp.abs(OP)**2, axis=(-1, -2))
+    weights = weights + 0.1 * num / den
+    return weights
 
 
 def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
@@ -311,46 +318,59 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             recover_probe=recover_probe,
         )))
 
-        if recover_probe and eigen_probe[0] is not None:
+        if recover_probe and eigen_weights[0] is not None:
             logger.info('Updating eigen probes')
+
+            for w, u in zip(
+                    eigen_weights,
+                    comm.pool.map(
+                        _get_coefs_intensity,
+                        [w[..., 0:1, m:m + 1] for w in eigen_weights],
+                        diff,
+                        [p[..., m:m + 1, :, :] for p in probe],
+                        patches,
+                    )):
+                w[..., 0:1, m:m + 1] = u
+
             # (30) residual probe updates
-            if comm.use_mpi:
-                grad_probe_mean = comm.Allreduce_mean(
+            if eigen_weights[0].shape[-2] > 1:
+                if comm.use_mpi:
+                    grad_probe_mean = comm.Allreduce_mean(
                         common_grad_probe,
                         axis=-5,
                     )
-                grad_probe_mean = comm.pool.bcast(grad_probe_mean)
-            else:
-                grad_probe_mean = comm.pool.bcast(
-                    comm.pool.reduce_mean(
-                        common_grad_probe,
-                        axis=-5,
-                    ))
-            R = comm.pool.map(_get_residuals, grad_probe, grad_probe_mean)
+                    grad_probe_mean = comm.pool.bcast(grad_probe_mean)
+                else:
+                    grad_probe_mean = comm.pool.bcast(
+                        comm.pool.reduce_mean(
+                            common_grad_probe,
+                            axis=-5,
+                        ))
+                R = comm.pool.map(_get_residuals, grad_probe, grad_probe_mean)
 
-            for c in range(eigen_probe[0].shape[-4]):
+            for n in range(1, eigen_weights[0].shape[-2]):
 
                 a, b = update_eigen_probe(
                     comm,
                     R,
-                    [p[..., c:c + 1, m:m + 1, :, :] for p in eigen_probe],
-                    [w[..., c, m] for w in eigen_weights],
+                    [p[..., n - 1:n, m:m + 1, :, :] for p in eigen_probe],
+                    [w[..., n, m] for w in eigen_weights],
                     patches,
                     diff,
                     β=0.01,  # TODO: Adjust according to mini-batch size
                 )
                 for p, w, x, y in zip(eigen_probe, eigen_weights, a, b):
-                    p[..., c:c + 1, m:m + 1, :, :] = x
-                    w[..., c, m] = y
+                    p[..., n - 1:n, m:m + 1, :, :] = x
+                    w[..., n, m] = y
 
-                if eigen_probe[0].shape[-4] <= c + 1:
+                if n + 1 < eigen_weights[0].shape[-2]:
                     # Subtract projection of R onto new probe from R
                     R = comm.pool.map(
                         _update_residuals,
                         R,
                         eigen_probe,
                         axis=(-2, -1),
-                        c=c,
+                        c=n - 1,
                         m=m,
                     )
 
@@ -396,8 +416,8 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                 )
 
             # (27a) Probe update
-            probe[0][..., m:m + 1, :, :] += (weighted_step_probe[0] *
-                                             common_grad_probe[0])
+            probe[0][..., [m], :, :] += (weighted_step_probe[0] *
+                                         common_grad_probe[0])
 
         if probe[0].shape[-3] > 1 and probe_is_orthogonal:
             probe[0] = orthogonalize_gs(probe[0], axis=(-2, -1))
@@ -418,8 +438,8 @@ def _update_wavefront(data, varying_probe, scan, psi, op):
         positions=scan,
         patch_width=varying_probe.shape[-1],
     )
-    patches = patches.reshape(*scan.shape[:-1], 1, 1,
-                              op.detector_shape, op.detector_shape)
+    patches = patches.reshape(*scan.shape[:-1], 1, 1, op.detector_shape,
+                              op.detector_shape)
 
     nearplane = cp.tile(patches, reps=(1, 1, 1, varying_probe.shape[-3], 1, 1))
     pad, end = op.diffraction.pad, op.diffraction.end
