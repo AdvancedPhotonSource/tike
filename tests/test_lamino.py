@@ -110,7 +110,12 @@ class TestLaminoRecon(unittest.TestCase):
 
     def test_consistent_simulate(self):
         """Check lamino.simulate for consistency."""
-        data = tike.lamino.simulate(self.original, self.theta, self.tilt)
+        data = tike.lamino.simulate(
+            self.original,
+            self.theta,
+            self.tilt,
+            upsample=2,
+        )
         assert data.dtype == 'complex64', data.dtype
         np.testing.assert_array_equal(data.shape, self.data.shape)
         np.testing.assert_allclose(data, self.data, atol=1e-6)

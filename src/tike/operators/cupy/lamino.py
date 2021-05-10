@@ -42,12 +42,12 @@ class Lamino(CachedFFT, Operator):
         The projection angles; rotation around the vertical axis of the object.
     """
 
-    def __init__(self, n, tilt, eps=1e-3,
-                 **kwargs):  # noqa: D102 yapf: disable
+    def __init__(self, n, tilt, eps=1e-3, upsample=1, **kwargs):
         """Please see help(Lamino) for more info."""
         self.n = n
         self.tilt = np.float32(tilt)
         self.eps = np.float32(eps)
+        self.upsample = upsample
 
     def __enter__(self):
         """Return self at start of a with-block."""
@@ -65,8 +65,15 @@ class Lamino(CachedFFT, Operator):
             return self._fftn(*args, overwrite=True, **kwargs)
 
         # USFFT from equally-spaced grid to unequally-spaced grid
-        F = eq2us(u, xi, self.n, self.eps, self.xp, fftn=fftn,
-                  upsample=1).reshape([theta.shape[-1], self.n, self.n])
+        F = eq2us(
+            u,
+            xi,
+            self.n,
+            self.eps,
+            self.xp,
+            fftn=fftn,
+            upsample=self.upsample,
+        ).reshape([theta.shape[-1], self.n, self.n])
 
         # Inverse 2D FFT
         data = checkerboard(
@@ -110,7 +117,15 @@ class Lamino(CachedFFT, Operator):
         ).ravel()
         # Inverse (x->-x / n**2) USFFT from unequally-spaced grid to
         # equally-spaced grid.
-        u = us2eq(F, -xi, self.n, self.eps, self.xp, fftn=fftn, upsample=1)
+        u = us2eq(
+            F,
+            -xi,
+            self.n,
+            self.eps,
+            self.xp,
+            fftn=fftn,
+            upsample=self.upsample,
+        )
         u /= self.n**2
         return u
 
