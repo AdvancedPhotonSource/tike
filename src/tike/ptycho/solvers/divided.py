@@ -115,6 +115,10 @@ def lstsq_grad(
                 n=n,
             )
 
+        if probe[0].shape[-3] > 1 and probe_is_orthogonal:
+            probe[0] = orthogonalize_gs(probe[0], axis=(-2, -1))
+            probe = comm.pool.bcast(probe[0])
+
     psi = comm.pool.map(_positivity_constraint, psi, r=positivity_constraint)
 
     result = {
@@ -428,10 +432,7 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             # (27a) Probe update
             probe[0][..., [m], :, :] += (weighted_step_probe[0] *
                                          common_grad_probe[0])
-
-        if probe[0].shape[-3] > 1 and probe_is_orthogonal:
-            probe[0] = orthogonalize_gs(probe[0], axis=(-2, -1))
-        probe = comm.pool.bcast(probe[0])
+            probe = comm.pool.bcast(probe[0])
 
     return psi, probe, eigen_probe, eigen_weights
 
