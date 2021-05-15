@@ -22,6 +22,7 @@ def lstsq_grad(
     num_batch=1,
     subset_is_random=True,
     probe_is_orthogonal=False,
+    positivity_constraint=0,
 ):  # yapf: disable
     """Solve the ptychography problem using Odstrcil et al's approach.
 
@@ -114,6 +115,8 @@ def lstsq_grad(
                 n=n,
             )
 
+    psi = comm.pool.map(_positivity_constraint, psi, r=positivity_constraint)
+
     result = {
         'psi': psi,
         'probe': probe,
@@ -125,6 +128,13 @@ def lstsq_grad(
         result['eigen_weights'] = eigen_weights
 
     return result
+
+
+def _positivity_constraint(x, r):
+    if r > 0:
+        return r * cp.abs(x) + (1 - r) * x
+    else:
+        return x
 
 
 def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
