@@ -35,10 +35,14 @@ allowed to vary.
 
 """
 
+import logging
+
 import cupy as cp
 import numpy as np
 
 import tike.random
+
+logger = logging.getLogger(__name__)
 
 
 def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
@@ -68,6 +72,29 @@ def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
         return unique_probe
     else:
         return shared_probe.copy()
+
+
+def constrain_variable_probe(variable_probe, weights):
+    """Add the following constraints to variable probe weights
+
+    1. Remove outliars from weights
+    2. Enforce orthogonality once per epoch
+
+    """
+    logger.info('variable probe constraints')
+
+    variable_probe = tike.linalg.orthogonalize_gs(variable_probe,
+                                                  axis=(-3, -2, -1))
+
+    aevol = cp.abs(weights)
+    weights = cp.minimum(
+        aevol,
+        1.5 * cp.percentile(aevol, [95], axis=[-3], keepdims=True),
+    ) * cp.sign(weights)
+
+    # TODO: Smooth the weigths as a function of the frame index.
+
+    return variable_probe, weights
 
 
 def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):

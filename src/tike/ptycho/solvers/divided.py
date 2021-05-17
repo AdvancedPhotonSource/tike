@@ -6,7 +6,7 @@ from tike.linalg import lstsq, projection, norm, orthogonalize_gs
 from tike.opt import batch_indicies, get_batch, put_batch
 
 from ..position import update_positions_pd
-from ..probe import orthogonalize_eig, get_varying_probe, update_eigen_probe
+from ..probe import orthogonalize_eig, get_varying_probe, update_eigen_probe, constrain_variable_probe
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +120,14 @@ def lstsq_grad(
             probe = comm.pool.bcast(probe[0])
 
     psi = comm.pool.map(_positivity_constraint, psi, r=positivity_constraint)
+
+    if eigen_probe is not None:
+        eigen_probe, eigen_weights = zip(
+            *comm.pool.map(
+                constrain_variable_probe,
+                eigen_probe,
+                eigen_weights,
+            ))
 
     result = {
         'psi': psi,
@@ -267,11 +275,11 @@ def _update_residuals(R, eigen_probe, axis, c, m):
     return R
 
 
-def _get_coefs_intensity(weights, xi, P, O):
+def _get_coefs_intensity(weights, xi, P, O, m):
     OP = O * P
     num = cp.sum(cp.real(cp.conj(OP) * xi), axis=(-1, -2))
     den = cp.sum(cp.abs(OP)**2, axis=(-1, -2))
-    weights = weights + 0.1 * num / den
+    weights[..., 0:1, m:m + 1] = weights[..., 0:1, m:m + 1] + 0.1 * num / den
     return weights
 
 
@@ -335,16 +343,14 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
         if recover_probe and eigen_weights[0] is not None:
             logger.info('Updating eigen probes')
 
-            for w, u in zip(
-                    eigen_weights,
-                    comm.pool.map(
-                        _get_coefs_intensity,
-                        [w[..., 0:1, m:m + 1] for w in eigen_weights],
-                        diff,
-                        [p[..., m:m + 1, :, :] for p in probe],
-                        patches,
-                    )):
-                w[..., 0:1, m:m + 1] = u
+            eigen_weights = comm.pool.map(
+                _get_coefs_intensity,
+                eigen_weights,
+                diff,
+                [p[..., m:m + 1, :, :] for p in probe],
+                patches,
+                m=m,
+            )
 
             # (30) residual probe updates
             if eigen_weights[0].shape[-2] > 1:
