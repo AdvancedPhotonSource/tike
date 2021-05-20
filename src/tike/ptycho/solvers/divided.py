@@ -121,13 +121,12 @@ def lstsq_grad(
 
     psi = comm.pool.map(_positivity_constraint, psi, r=positivity_constraint)
 
-    if eigen_probe is not None:
-        eigen_probe, eigen_weights = zip(
-            *comm.pool.map(
-                constrain_variable_probe,
-                eigen_probe,
-                eigen_weights,
-            ))
+    if isinstance(eigen_probe, list):
+        eigen_probe, eigen_weights = (list(a) for a in zip(*comm.pool.map(
+            constrain_variable_probe,
+            eigen_probe,
+            eigen_weights,
+        )))
 
     result = {
         'psi': psi,

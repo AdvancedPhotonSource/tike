@@ -81,18 +81,25 @@ def constrain_variable_probe(variable_probe, weights):
     2. Enforce orthogonality once per epoch
 
     """
-    logger.info('variable probe constraints')
+    logger.info('Orthogonalize variable probes')
+    variable_probe = tike.linalg.orthogonalize_gs(
+        variable_probe,
+        axis=(-3, -2, -1),
+    )
 
-    variable_probe = tike.linalg.orthogonalize_gs(variable_probe,
-                                                  axis=(-3, -2, -1))
-
+    logger.info('Remove outliars from variable probe weights')
     aevol = cp.abs(weights)
     weights = cp.minimum(
         aevol,
-        1.5 * cp.percentile(aevol, [95], axis=[-3], keepdims=True),
+        1.5 * cp.percentile(
+            aevol,
+            [95],
+            axis=[-3],
+            keepdims=True,
+        ).astype(weights.dtype),
     ) * cp.sign(weights)
 
-    # TODO: Smooth the weigths as a function of the frame index.
+    # TODO: Smooth the weights as a function of the frame index.
 
     return variable_probe, weights
 
