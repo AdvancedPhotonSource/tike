@@ -9,6 +9,9 @@ import numpy as np
 
 from .operator import Operator
 
+_cu_source = files('tike.operators.cupy').joinpath('bucket.cu').read_text()
+_coords_weights_kernel = cp.RawKernel(_cu_source, "coordinates_and_weights")
+
 
 class Bucket(Operator):
     """A Laminography operator.
@@ -42,7 +45,7 @@ class Bucket(Operator):
         """Please see help(Lamino) for more info."""
         self.n = n
         self.tilt = np.float32(tilt)
-        self.precision = 1
+        self.precision = np.int32(1)
 
     def fwd(self, u: cp.array, theta: cp.array):
         """Perform forward laminography operation.
@@ -64,18 +67,25 @@ class Bucket(Operator):
         """
         data = cp.zeros((len(theta), self.n, self.n), dtype='complex64')
         grid = self._make_grid()
+        weight = 1.0 / self.precision**3
+        plane_coords = cp.zeros((len(grid), self.precision**3, 2), dtype='int')
+
         for t in range(len(theta)):
-            plane_coords, weights = get_coordinates_and_weights(
+            _coords_weights_kernel((1,), (1,), (
                 grid,
+                grid.shape[0],
                 self.tilt,
-                theta[t],
-            )
+                theta,
+                t,
+                self.precision,
+                plane_coords,
+            ))
             # Shift zero-centered coordinates to array indices
             plane_index = plane_coords + self.n // 2
             grid_index = grid + self.n // 2
             for g, i in product(range(len(grid)), range(self.precision**3)):
                 data[t, plane_index[g, i, 0], plane_index[g, i, 1]] \
-                    += weights[g, i] \
+                    += weight \
                     * u[grid_index[g, 0], grid_index[g, 1], grid_index[g, 2]]
         return data
 
@@ -99,18 +109,25 @@ class Bucket(Operator):
         """
         u = cp.zeros((self.n, self.n, self.n), dtype='complex64')
         grid = self._make_grid()
+        weight = 1.0 / self.precision**3
+        plane_coords = cp.zeros((len(grid), self.precision**3, 2), dtype='int')
+
         for t in range(len(theta)):
-            plane_coords, weights = get_coordinates_and_weights(
+            _coords_weights_kernel((1,), (1,), (
                 grid,
+                grid.shape[0],
                 self.tilt,
-                theta[t],
-            )
+                theta,
+                t,
+                self.precision,
+                plane_coords,
+            ))
             # Shift zero-centered coordinates to array indices
             plane_index = plane_coords + self.n // 2
             grid_index = grid + self.n // 2
             for g, i in product(range(len(grid)), range(self.precision**3)):
                 u[grid_index[g, 0], grid_index[g, 1], grid_index[g, 2]] \
-                    += weights[g, i] \
+                    += weight \
                     * data[t, plane_index[g, i, 0], plane_index[g, i, 1]]
         return u
 
@@ -123,7 +140,13 @@ class Bucket(Operator):
         ).reshape(self.n**3, 3)
 
 
-def get_coordinates_and_weights(grid, tilt, theta, precision=1):
+def get_coordinates_and_weights(
+    grid,
+    tilt,
+    theta,
+    precision=1,
+    plane_coords=None,
+):
     """Return coordinates and weights of grid points projected onto plane.
 
     Assumes a grid with cells of unit size onto a plane with cells on unit
@@ -138,7 +161,7 @@ def get_coordinates_and_weights(grid, tilt, theta, precision=1):
     ----------
     grid (N, 3) array int
         Coordinates of voxels on the grid. Coordinates are origin center.
-    theta : (T,) array float32
+    theta : (T,) float32
         The projection angles; rotation around the vertical axis of the object.
     tilt : float32
         The tilt angle; the angle between the rotation axis of the object and
@@ -152,15 +175,14 @@ def get_coordinates_and_weights(grid, tilt, theta, precision=1):
     -------
     plane_coords(N, precision**3, 2): int
         The coordinates on the planes into which each grid point is projected.
-    weights(T, N, precision**3, 1):
-        The weight of each projection from grid point to plane.
     """
     N = len(grid)
-    plane_coords = cp.zeros((N, precision**3, 2), dtype='int')
-    weights = cp.ones((N, precision**3), dtype='float32')
+    if plane_coords is None:
+        plane_coords = cp.zeros((N, precision**3, 2), dtype='int')
 
     transformation = compute_transformation(tilt, theta)
     normal = transformation @ cp.array((1, 0, 0), dtype='float32')
+    # print(f'python normal is {normal}')
 
     for cell in range(N):
         for i, j, k in product(range(precision), repeat=3):
@@ -169,14 +191,17 @@ def get_coordinates_and_weights(grid, tilt, theta, precision=1):
                 (j + 0.5) / precision,
                 (k + 0.5) / precision,
             ])
+            # print(f"python {point}")
             chunk = k + precision * (j + precision * i)
-            plane_coords[cell, chunk] = project_point_to_plane(
+            p = project_point_to_plane(
                 point,
                 normal,
                 transformation,
             )
+            # print(f"python {p}")
+            plane_coords[cell, chunk] = p
 
-    return plane_coords, weights / precision**3
+    return plane_coords
 
 
 def compute_transformation(tilt, theta):
@@ -184,10 +209,10 @@ def compute_transformation(tilt, theta):
     transformation = cp.zeros((3, 3), dtype='float32')
     transformation[0, 0] = cp.cos(tilt)
     transformation[0, 1] = cp.sin(tilt)
-    transformation[1, 0] = cp.cos(theta) * -cp.sin(tilt)
+    transformation[1, 0] = -cp.cos(theta) * cp.sin(tilt)
     transformation[1, 1] = cp.cos(theta) * cp.cos(tilt)
     transformation[1, 2] = -cp.sin(theta)
-    transformation[2, 0] = cp.sin(theta) * -cp.sin(tilt)
+    transformation[2, 0] = -cp.sin(theta) * cp.sin(tilt)
     transformation[2, 1] = cp.sin(theta) * cp.cos(tilt)
     transformation[2, 2] = cp.cos(theta)
     return transformation
