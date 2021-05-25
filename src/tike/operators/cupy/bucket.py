@@ -71,15 +71,19 @@ class Bucket(Operator):
         plane_coords = cp.zeros((len(grid), self.precision**3, 2), dtype='int')
 
         for t in range(len(theta)):
-            _coords_weights_kernel((1,), (1,), (
-                grid,
-                grid.shape[0],
-                self.tilt,
-                theta,
-                t,
-                self.precision,
-                plane_coords,
-            ))
+            _coords_weights_kernel(
+                (grid.shape[0],),
+                (self.precision, self.precision, self.precision),
+                (
+                    grid,
+                    grid.shape[0],
+                    self.tilt,
+                    theta,
+                    t,
+                    self.precision,
+                    plane_coords,
+                ),
+            )
             # Shift zero-centered coordinates to array indices
             plane_index = plane_coords + self.n // 2
             grid_index = grid + self.n // 2
@@ -113,15 +117,19 @@ class Bucket(Operator):
         plane_coords = cp.zeros((len(grid), self.precision**3, 2), dtype='int')
 
         for t in range(len(theta)):
-            _coords_weights_kernel((1,), (1,), (
-                grid,
-                grid.shape[0],
-                self.tilt,
-                theta,
-                t,
-                self.precision,
-                plane_coords,
-            ))
+            _coords_weights_kernel(
+                (grid.shape[0],),
+                (self.precision, self.precision, self.precision),
+                (
+                    grid,
+                    grid.shape[0],
+                    self.tilt,
+                    theta,
+                    t,
+                    self.precision,
+                    plane_coords,
+                ),
+            )
             # Shift zero-centered coordinates to array indices
             plane_index = plane_coords + self.n // 2
             grid_index = grid + self.n // 2

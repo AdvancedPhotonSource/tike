@@ -36,6 +36,8 @@ project_point_to_plane(float3& point, const float3& normal) {
 
 // Get the 2D coordinates of each of the 3D grid points projected onto the
 // plane defined by tilt and theta.
+// grid shape (ngrid, 0, 0)
+// block shape (precision, precision, precision)
 extern "C" __global__ void
 coordinates_and_weights(const longlong3* grid, const int ngrid,
                         const float tilt, const float* theta, const int t,
@@ -49,14 +51,14 @@ coordinates_and_weights(const longlong3* grid, const int ngrid,
   forward_rotation(normal, ctilt, stilt, ctheta, stheta);
   // printf("normal is %f, %f, %f\n", normal.x, normal.y, normal.z);
 
-  for (int g = 0; g < ngrid; g++) {
+  for (int g = blockIdx.x; g < ngrid; g += gridDim.x) {
     longlong2* cluster = plane_coords + g * precision * precision * precision;
 
     // Improve the precision of this method by using a cluster of projections
     // instead of a single point for each grid point.
-    for (int i = 0; i < precision; i++) {
-      for (int j = 0; j < precision; j++) {
-        for (int k = 0; k < precision; k++) {
+    for (int i = threadIdx.z; i < precision; i += blockDim.z) {
+      for (int j = threadIdx.y; j < precision; j += blockDim.y) {
+        for (int k = threadIdx.x; k < precision; k += blockDim.x) {
           float3 point;
           point.x = grid[g].x + (i + 0.5f) / precision;
           point.y = grid[g].y + (j + 0.5f) / precision;
