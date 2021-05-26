@@ -8,6 +8,7 @@ import cupy as cp
 import numpy as np
 
 from .operator import Operator
+from .lamino import Lamino
 
 _module = cp.RawModule(
     code=files('tike.operators.cupy').joinpath('bucket.cu').read_text())
@@ -16,7 +17,7 @@ _bucket_fwd = _module.get_function('fwd')
 _bucket_adj = _module.get_function('adj')
 
 
-class Bucket(Operator):
+class Bucket(Lamino):
     """A Laminography operator.
 
     Laminography operators to simulate propagation of the beam through the
@@ -48,10 +49,16 @@ class Bucket(Operator):
         """Please see help(Lamino) for more info."""
         self.n = n
         self.tilt = np.float32(tilt)
-        self.precision = np.int16(4)
+        self.precision = np.int16(1)
         self.weight = np.float32(1.0 / self.precision**3)
 
-    def fwd(self, u: cp.array, theta: cp.array):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        pass
+
+    def fwd(self, u: cp.array, theta: cp.array, **kwargs):
         """Perform forward laminography operation.
 
         Parameters
@@ -100,7 +107,7 @@ class Bucket(Operator):
             grid_index = (grid + self.n // 2) % self.n
             assert data.dtype == 'complex64'
             assert self.weight.dtype == 'float32'
-            assert u.dtype == 'complex64'
+            assert u.dtype == 'complex64', u.dtype
             assert grid_index.dtype == 'int16'
             assert plane_index.dtype == 'int16'
             assert self.precision.dtype == 'int16'
@@ -125,7 +132,7 @@ class Bucket(Operator):
             )
         return data
 
-    def adj(self, data: cp.array, theta: cp.array):
+    def adj(self, data: cp.array, theta: cp.array, **kwargs):
         """Perform adjoint laminography operation.
 
         Parameters
