@@ -48,7 +48,7 @@ class Bucket(Operator):
         """Please see help(Lamino) for more info."""
         self.n = n
         self.tilt = np.float32(tilt)
-        self.precision = np.int32(1)
+        self.precision = np.int16(4)
         self.weight = np.float32(1.0 / self.precision**3)
 
     def fwd(self, u: cp.array, theta: cp.array):
@@ -70,10 +70,17 @@ class Bucket(Operator):
 
         """
         data = cp.zeros((len(theta), self.n, self.n), dtype='complex64')
-        grid = self._make_grid()
-        plane_coords = cp.zeros((len(grid), self.precision**3, 2), dtype='int')
+        grid = self._make_grid().astype('int16')
+        plane_coords = cp.zeros((len(grid), self.precision**3, 2),
+                                dtype='int16')
 
         for t in range(len(theta)):
+            assert grid.dtype == 'int16'
+            assert self.tilt.dtype == 'float32'
+            assert theta.dtype == 'float32'
+            # assert type(t) == 'int'
+            assert self.precision.dtype == 'int16'
+            assert plane_coords.dtype == 'int16'
             _coords_weights_kernel(
                 (grid.shape[0],),
                 (self.precision, self.precision, self.precision),
@@ -94,12 +101,12 @@ class Bucket(Operator):
             assert data.dtype == 'complex64'
             assert self.weight.dtype == 'float32'
             assert u.dtype == 'complex64'
-            assert grid_index.dtype == 'int64'
-            assert plane_index.dtype == 'int64'
-            assert self.precision.dtype == 'int32'
+            assert grid_index.dtype == 'int16'
+            assert plane_index.dtype == 'int16'
+            assert self.precision.dtype == 'int16'
             _bucket_fwd(
-                (1,),
-                (1,),
+                (grid.shape[0],),
+                (self.precision**3,),
                 (
                     data,
                     t,
@@ -137,8 +144,9 @@ class Bucket(Operator):
 
         """
         u = cp.zeros((self.n, self.n, self.n), dtype='complex64')
-        grid = self._make_grid()
-        plane_coords = cp.zeros((len(grid), self.precision**3, 2), dtype='int')
+        grid = self._make_grid().astype('int16')
+        plane_coords = cp.zeros((len(grid), self.precision**3, 2),
+                                dtype='int16')
 
         for t in range(len(theta)):
             _coords_weights_kernel(
@@ -161,12 +169,12 @@ class Bucket(Operator):
             assert data.dtype == 'complex64'
             assert self.weight.dtype == 'float32'
             assert u.dtype == 'complex64'
-            assert grid_index.dtype == 'int64'
-            assert plane_index.dtype == 'int64'
-            assert self.precision.dtype == 'int32'
+            assert grid_index.dtype == 'int16'
+            assert plane_index.dtype == 'int16'
+            assert self.precision.dtype == 'int16'
             _bucket_adj(
-                (1,),
-                (1,),
+                (grid.shape[0],),
+                (self.precision**3,),
                 (
                     data,
                     t,

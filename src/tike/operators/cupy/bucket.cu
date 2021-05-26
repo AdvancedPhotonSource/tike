@@ -39,9 +39,9 @@ project_point_to_plane(float3& point, const float3& normal) {
 // grid shape (ngrid, 0, 0)
 // block shape (precision, precision, precision)
 extern "C" __global__ void
-coordinates_and_weights(const longlong3* grid, const int ngrid,
-                        const float tilt, const float* theta, const int t,
-                        const int precision, longlong2* plane_coords) {
+coordinates_and_weights(const short3* grid, const int ngrid, const float tilt,
+                        const float* theta, const int t, const int precision,
+                        short2* plane_coords) {
   // Compute the normal of the projection plane.
   float ctilt = cosf(tilt);
   float stilt = sinf(tilt);
@@ -52,7 +52,7 @@ coordinates_and_weights(const longlong3* grid, const int ngrid,
   // printf("normal is %f, %f, %f\n", normal.x, normal.y, normal.z);
 
   for (int g = blockIdx.x; g < ngrid; g += gridDim.x) {
-    longlong2* cluster = plane_coords + g * precision * precision * precision;
+    short2* cluster = plane_coords + g * precision * precision * precision;
 
     // Improve the precision of this method by using a cluster of projections
     // instead of a single point for each grid point.
@@ -67,7 +67,7 @@ coordinates_and_weights(const longlong3* grid, const int ngrid,
           project_point_to_plane(point, normal);
           reverse_rotation(point, ctilt, stilt, ctheta, stheta);
 
-          longlong2* chunk = cluster + k + precision * (j + precision * i);
+          short2* chunk = cluster + k + precision * (j + precision * i);
           chunk->x = floorf(point.y);
           chunk->y = floorf(point.z);
           // printf("point is %lld, %lld\n", chunk->x, chunk->y);
@@ -80,37 +80,36 @@ coordinates_and_weights(const longlong3* grid, const int ngrid,
 extern "C" __global__ void
 fwd(float2* data, int t, int datashapex, int datashapey, float weight,
     const float2* u, int ushapex, int ushapey, int ushapez,
-    const longlong2* plane_index, const longlong3* grid_index, int gridshapex,
+    const short2* plane_index, const short3* grid_index, int gridshapex,
     int precision) {
   int nchunk = precision * precision * precision;
   for (int g = blockIdx.x; g < gridshapex; g += gridDim.x) {
-    long long ui = grid_index[g].z
-                   + ushapez * (grid_index[g].y + ushapey * (grid_index[g].x));
+    const float2* ui
+        = u + grid_index[g].z
+          + ushapez * (grid_index[g].y + ushapey * (grid_index[g].x));
     for (int p = threadIdx.x; p < nchunk; p += blockDim.x) {
-      long long pi = p + g * nchunk;
-      long long di = plane_index[pi].y
-                     + datashapey * (plane_index[pi].x + datashapex * (t));
-      atomicAdd(&data[di].x, weight * u[ui].x);
-      atomicAdd(&data[di].y, weight * u[ui].y);
+      const short2* pi = plane_index + p + g * nchunk;
+      float2* di = data + pi->y + datashapey * (pi->x + datashapex * (t));
+      atomicAdd(&(di->x), weight * ui->x);
+      atomicAdd(&(di->y), weight * ui->y);
     }
   }
 }
 
 extern "C" __global__ void
 adj(const float2* data, int t, int datashapex, int datashapey, float weight,
-    float2* u, int ushapex, int ushapey, int ushapez,
-    const longlong2* plane_index, const longlong3* grid_index, int gridshapex,
+    float2* u, int ushapex, int ushapey, int ushapez,  //
+    const short2* plane_index, const short3* grid_index, int gridshapex,
     int precision) {
   int nchunk = precision * precision * precision;
   for (int g = blockIdx.x; g < gridshapex; g += gridDim.x) {
-    long long ui = grid_index[g].z
-                   + ushapez * (grid_index[g].y + ushapey * (grid_index[g].x));
+    float2* ui = u + grid_index[g].z
+                 + ushapez * (grid_index[g].y + ushapey * (grid_index[g].x));
     for (int p = threadIdx.x; p < nchunk; p += blockDim.x) {
-      long long pi = p + g * nchunk;
-      long long di = plane_index[pi].y
-                     + datashapey * (plane_index[pi].x + datashapex * (t));
-      atomicAdd(&u[ui].x, weight * data[di].x);
-      atomicAdd(&u[ui].y, weight * data[di].y);
+      const short2* pi = plane_index + p + g * nchunk;
+      const float2* di = data + pi->y + datashapey * (pi->x + datashapex * (t));
+      atomicAdd(&(ui->x), weight * di->x);
+      atomicAdd(&(ui->y), weight * di->y);
     }
   }
 }
