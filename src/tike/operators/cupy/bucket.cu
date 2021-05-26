@@ -76,3 +76,41 @@ coordinates_and_weights(const longlong3* grid, const int ngrid,
     }
   }
 }
+
+extern "C" __global__ void
+fwd(float2* data, int t, int datashapex, int datashapey, float weight,
+    const float2* u, int ushapex, int ushapey, int ushapez,
+    const longlong2* plane_index, const longlong3* grid_index, int gridshapex,
+    int precision) {
+  int nchunk = precision * precision * precision;
+  for (int g = blockIdx.x; g < gridshapex; g += gridDim.x) {
+    long long ui = grid_index[g].z
+                   + ushapez * (grid_index[g].y + ushapey * (grid_index[g].x));
+    for (int p = threadIdx.x; p < nchunk; p += blockDim.x) {
+      long long pi = p + g * nchunk;
+      long long di = plane_index[pi].y
+                     + datashapey * (plane_index[pi].x + datashapex * (t));
+      atomicAdd(&data[di].x, weight * u[ui].x);
+      atomicAdd(&data[di].y, weight * u[ui].y);
+    }
+  }
+}
+
+extern "C" __global__ void
+adj(const float2* data, int t, int datashapex, int datashapey, float weight,
+    float2* u, int ushapex, int ushapey, int ushapez,
+    const longlong2* plane_index, const longlong3* grid_index, int gridshapex,
+    int precision) {
+  int nchunk = precision * precision * precision;
+  for (int g = blockIdx.x; g < gridshapex; g += gridDim.x) {
+    long long ui = grid_index[g].z
+                   + ushapez * (grid_index[g].y + ushapey * (grid_index[g].x));
+    for (int p = threadIdx.x; p < nchunk; p += blockDim.x) {
+      long long pi = p + g * nchunk;
+      long long di = plane_index[pi].y
+                     + datashapey * (plane_index[pi].x + datashapex * (t));
+      atomicAdd(&u[ui].x, weight * data[di].x);
+      atomicAdd(&u[ui].y, weight * data[di].y);
+    }
+  }
+}

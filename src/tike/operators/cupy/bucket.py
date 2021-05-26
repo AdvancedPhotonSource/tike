@@ -9,8 +9,11 @@ import numpy as np
 
 from .operator import Operator
 
-_cu_source = files('tike.operators.cupy').joinpath('bucket.cu').read_text()
-_coords_weights_kernel = cp.RawKernel(_cu_source, "coordinates_and_weights")
+_module = cp.RawModule(
+    code=files('tike.operators.cupy').joinpath('bucket.cu').read_text())
+_coords_weights_kernel = _module.get_function('coordinates_and_weights')
+_bucket_fwd = _module.get_function('fwd')
+_bucket_adj = _module.get_function('adj')
 
 
 class Bucket(Operator):
@@ -46,6 +49,7 @@ class Bucket(Operator):
         self.n = n
         self.tilt = np.float32(tilt)
         self.precision = np.int32(1)
+        self.weight = np.float32(1.0 / self.precision**3)
 
     def fwd(self, u: cp.array, theta: cp.array):
         """Perform forward laminography operation.
@@ -67,7 +71,6 @@ class Bucket(Operator):
         """
         data = cp.zeros((len(theta), self.n, self.n), dtype='complex64')
         grid = self._make_grid()
-        weight = 1.0 / self.precision**3
         plane_coords = cp.zeros((len(grid), self.precision**3, 2), dtype='int')
 
         for t in range(len(theta)):
@@ -84,13 +87,35 @@ class Bucket(Operator):
                     plane_coords,
                 ),
             )
-            # Shift zero-centered coordinates to array indices
-            plane_index = plane_coords + self.n // 2
-            grid_index = grid + self.n // 2
-            for g, i in product(range(len(grid)), range(self.precision**3)):
-                data[t, plane_index[g, i, 0], plane_index[g, i, 1]] \
-                    += weight \
-                    * u[grid_index[g, 0], grid_index[g, 1], grid_index[g, 2]]
+            # Shift zero-centered coordinates to array indices; wrap negative
+            # indices around
+            plane_index = (plane_coords + self.n // 2) % self.n
+            grid_index = (grid + self.n // 2) % self.n
+            assert data.dtype == 'complex64'
+            assert self.weight.dtype == 'float32'
+            assert u.dtype == 'complex64'
+            assert grid_index.dtype == 'int64'
+            assert plane_index.dtype == 'int64'
+            assert self.precision.dtype == 'int32'
+            _bucket_fwd(
+                (1,),
+                (1,),
+                (
+                    data,
+                    t,
+                    data.shape[1],
+                    data.shape[2],
+                    self.weight,
+                    u,
+                    u.shape[0],
+                    u.shape[1],
+                    u.shape[2],
+                    plane_index,
+                    grid_index,
+                    grid_index.shape[0],
+                    self.precision,
+                ),
+            )
         return data
 
     def adj(self, data: cp.array, theta: cp.array):
@@ -113,7 +138,6 @@ class Bucket(Operator):
         """
         u = cp.zeros((self.n, self.n, self.n), dtype='complex64')
         grid = self._make_grid()
-        weight = 1.0 / self.precision**3
         plane_coords = cp.zeros((len(grid), self.precision**3, 2), dtype='int')
 
         for t in range(len(theta)):
@@ -130,13 +154,35 @@ class Bucket(Operator):
                     plane_coords,
                 ),
             )
-            # Shift zero-centered coordinates to array indices
-            plane_index = plane_coords + self.n // 2
-            grid_index = grid + self.n // 2
-            for g, i in product(range(len(grid)), range(self.precision**3)):
-                u[grid_index[g, 0], grid_index[g, 1], grid_index[g, 2]] \
-                    += weight \
-                    * data[t, plane_index[g, i, 0], plane_index[g, i, 1]]
+            # Shift zero-centered coordinates to array indices; wrap negative
+            # indices around
+            plane_index = (plane_coords + self.n // 2) % self.n
+            grid_index = (grid + self.n // 2) % self.n
+            assert data.dtype == 'complex64'
+            assert self.weight.dtype == 'float32'
+            assert u.dtype == 'complex64'
+            assert grid_index.dtype == 'int64'
+            assert plane_index.dtype == 'int64'
+            assert self.precision.dtype == 'int32'
+            _bucket_adj(
+                (1,),
+                (1,),
+                (
+                    data,
+                    t,
+                    data.shape[1],
+                    data.shape[2],
+                    self.weight,
+                    u,
+                    u.shape[0],
+                    u.shape[1],
+                    u.shape[2],
+                    plane_index,
+                    grid_index,
+                    grid_index.shape[0],
+                    self.precision,
+                ),
+            )
         return u
 
     def _make_grid(self):
