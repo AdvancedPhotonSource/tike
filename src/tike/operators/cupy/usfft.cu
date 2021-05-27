@@ -42,7 +42,7 @@ _loop_over_kernels(scatterOrGather operation, float2* gathered,
                    int radius, const float* cons, int ndim) {
   const int diameter = 2 * radius;  // kernel width
   const int nk = pow(diameter, ndim);
-  const int gw = 2 * n;  // width of G along each dimension
+  const int half = n / 2;  // shifts frequency coordinates to center
   const int max_dim = 3;
   assert(0 < ndim && ndim <= max_dim);
 
@@ -50,7 +50,7 @@ _loop_over_kernels(scatterOrGather operation, float2* gathered,
   for (int fi = blockIdx.z; fi < nf; fi += gridDim.z) {
     int center[max_dim];  // closest ND coord to kernel center
     for (int dim = 0; dim < ndim; dim++) {
-      center[dim] = int(floor(2 * n * x[ndim * fi + dim]));
+      center[dim] = int(floor(n * x[ndim * fi + dim]));
     }
 
     // intra-kernel index (ki)
@@ -72,10 +72,10 @@ _loop_over_kernels(scatterOrGather operation, float2* gathered,
       int gi = 0;
       int stride = 1;
       for (int dim = ndim - 1; dim >= 0; dim--) {
-        delta = (float)(center[dim] + k[dim]) / (2 * n) - x[ndim * fi + dim];
+        delta = (float)(center[dim] + k[dim]) / n - x[ndim * fi + dim];
         ssdelta += delta * delta;
-        gi += mod((n + center[dim] + k[dim]), gw) * stride;
-        stride *= gw;
+        gi += mod((half + center[dim] + k[dim]), n) * stride;
+        stride *= n;
       }
       const float kernel = cons[0] * exp(cons[1] * ssdelta);
 
