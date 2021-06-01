@@ -46,7 +46,12 @@ def position_units_to_pixels(
         (detector_distance * wavelength(photon_energy / 1000) / 100))
 
 
-def read_aps_velociprobe(diffraction_path, position_path):
+def read_aps_velociprobe(
+        diffraction_path,
+        position_path,
+        xy_columns=(5, 1),
+        trigger_column=7,
+):
     """Load ptychography data from the Advanced Photon Source Velociprobe.
 
     Expects one HDF5 file and one CSV file with the following organization
@@ -67,6 +72,9 @@ def read_aps_velociprobe(diffraction_path, position_path):
                         /y_pixels_in_detector:int
                     /detector_distance:float        {unit: m}
                     /x_pixel_size:float             {unit: m}
+            /sample
+                /goniometer
+                    /chi:float[]                    {unit: degree }
 
     Where FRAME is the number of detector frames recorded and WIDE/HIGH is the
     width and height. The number of data_000000 links may be more than the
@@ -79,9 +87,10 @@ def read_aps_velociprobe(diffraction_path, position_path):
 
     The CSV position raw data file is a 8 column file with columns
     corresponding to the following parameters: samz, samx, samy, zpx, zpy,
-    encoder y, encoder x, trigger number. However, we don't use this file.
-    Instead we use a preprocessed file with no header and two colums: the
-    horiztonal and vertical positions.
+    encoder y, encoder x, trigger number. Because the horizontal stage is on
+    top of the rotation, stage, we must use the rotation stage position to
+    correct the horizontal scanning positions. By default we use samx, encoder
+    y for the horizontal and vertical positions.
 
     Parameters
     ----------
@@ -90,7 +99,11 @@ def read_aps_velociprobe(diffraction_path, position_path):
         other metadata.
     position_path : string
         The absolute path to the CSV file containing position information.
-
+    xy_columns : 2-tuple of int
+        The columns in the 8 column raw position file to use for x,y positions
+    trigger_column : int
+        The column in the 8 column raw position file to use for grouping
+        positions together.
     Returns
     -------
     data : (1, FRAME, WIDE, HIGH) float32
@@ -112,7 +125,9 @@ def read_aps_velociprobe(diffraction_path, position_path):
                           '/x_pixel_size'][()]  # meter
         beam_center_x = int(f['/entry/instrument/detector/beam_center_x'][()])
         beam_center_y = int(f['/entry/instrument/detector/beam_center_y'][()])
+        chi = float(f['entry/sample/goniometer/chi'][0])
         logger.info('Loading 2-ID-D ptychography data:\n'
+                    f'\tstage rotation {chi} degrees\n'
                     f'\tphoton energy {photon_energy} eV\n'
                     f'\twidth: {detect_width}, center: {beam_center_x}\n'
                     f'\theight: {detect_height}, center: {beam_center_y}')
@@ -153,7 +168,38 @@ def read_aps_velociprobe(diffraction_path, position_path):
 
         data = np.concatenate(data, axis=0)
 
-    scan = np.genfromtxt(position_path, delimiter=",")
+    # Load data from six column file
+    raw_position = np.genfromtxt(
+        position_path,
+        usecols=(*xy_columns, trigger_column),
+        delimiter=',',
+        dtype='int',
+    )
+
+    # Split positions where trigger number increases by 1. Assumes that
+    # positions are ordered by trigger number in file. Shift indices by 1
+    # because of how np.diff is defined.
+    sections = np.nonzero(np.diff(raw_position[:, -1]))[0] + 1
+    groups = np.split(
+        raw_position[:, :-1],
+        indices_or_sections=sections,
+        axis=0,
+    )
+
+    # Apply a reduction function to handle multiple positions per trigger
+    def position_reduce(g):
+        """Average of the first and last position in each trigger group."""
+        # return np.mean(g, axis=0, keepdims=True)
+        return (g[:1] + g[-1:]) / 2
+
+    groups = list(map(position_reduce, groups))
+    scan = np.concatenate(groups, axis=0)
+
+    # Rescale according to geometry of velociprobe
+    scan[:, 0] *= -1e-9
+    scan -= np.mean(scan, axis=0, keepdims=True)
+    scan[:, 1] *= 1e-9 * np.cos(chi / 180 * np.pi)
+
     logging.info(f'Loaded {len(scan)} scan positions.')
 
     if len(data) != len(scan):

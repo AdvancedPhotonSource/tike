@@ -324,13 +324,8 @@ class TestPtychoRecon(unittest.TestCase):
     def test_consistent_lstsq_grad_variable_probe(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
 
-        eigen_probe = tike.random.numpy_complex(
-            *self.scan.shape[:-2], 1, 1, 2,
-            *self.probe.shape[-2:]).astype('complex64')
-        weights = 1e-6 * np.random.rand(*self.scan.shape[:-1], *
-                                        eigen_probe.shape[-4:-2])
-        weights -= np.mean(weights, axis=-3, keepdims=True)
-        weights = weights.astype('float32')
+        eigen_probe, weights = tike.ptycho.probe.init_varying_probe(
+            self.scan, self.probe, 3)
 
         self.template_consistent_algorithm(
             'lstsq_grad',

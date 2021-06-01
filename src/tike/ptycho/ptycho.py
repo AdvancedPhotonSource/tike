@@ -85,7 +85,11 @@ def _compute_intensity(
     intensity = 0
     for m in range(probe.shape[-3]):
         farplane = operator.fwd(
-            probe=get_varying_probe(probe, eigen_probe, eigen_weights, m=m),
+            probe=get_varying_probe(
+                probe[..., [m], :, :],
+                None if eigen_probe is None else eigen_probe[..., [m], :, :],
+                None if eigen_weights is None else eigen_weights[..., [m]],
+            ),
             scan=scan,
             psi=psi,
         )
