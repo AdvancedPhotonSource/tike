@@ -79,7 +79,7 @@ def update_positions_pd(operator, data, psi, probe, scan,
     https://doi.org/10.1016/j.ultramic.2018.04.004.
     """
     # step 1: the difference between measured and estimate intensity
-    intensity = operator._compute_intensity(data, psi, scan, probe)
+    intensity, _ = operator._compute_intensity(data, psi, scan, probe)
     dI = (data - intensity).reshape(*data.shape[:-2], np.prod(data.shape[-2:]))
 
     dI_dx, dI_dy = 0, 0
