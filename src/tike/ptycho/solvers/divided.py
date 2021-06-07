@@ -1,6 +1,7 @@
 import logging
 
 import cupy as cp
+import cupyx.scipy.ndimage
 
 from tike.linalg import lstsq, projection, norm, orthogonalize_gs
 from tike.opt import batch_indicies, get_batch, put_batch
@@ -23,6 +24,7 @@ def lstsq_grad(
     subset_is_random=True,
     probe_is_orthogonal=False,
     positivity_constraint=0,
+    smoothness_constraint=0,
 ):  # yapf: disable
     """Solve the ptychography problem using Odstrcil et al's approach.
 
@@ -131,6 +133,8 @@ def lstsq_grad(
 
     psi = comm.pool.map(_positivity_constraint, psi, r=positivity_constraint)
 
+    psi = comm.pool.map(_smoothness_constraint, psi, a=smoothness_constraint)
+
     if isinstance(eigen_probe, list):
         eigen_probe, eigen_weights = (list(a) for a in zip(*comm.pool.map(
             constrain_variable_probe,
@@ -156,6 +160,33 @@ def _positivity_constraint(x, r):
         return r * cp.abs(x) + (1 - r) * x
     else:
         return x
+
+
+def _smoothness_constraint(x, a):
+    """Convolves the image with a 3x3 averaging kernel.
+
+    The kernel is defined as
+
+    [[a, a, a]
+     [a, c, a]
+     [a, a, a]]
+
+    where c = 1 - 8 * a
+
+    Parameters
+    ----------
+    a : float [0, 1/8)
+        The non-center weights of the kernel.
+    """
+    if 0 <= a and a < 1.0 / 8.0:
+        weights = cp.ones([1] * (x.ndim - 2) + [3, 3], dtype='float32') * a
+        weights[..., 1, 1] = 1.0 - 8.0 * a
+        x.real = cupyx.scipy.ndimage.convolve(x.real, weights, mode='nearest')
+        x.imag = cupyx.scipy.ndimage.convolve(x.imag, weights, mode='nearest')
+    else:
+        raise ValueError(
+            f"Smoothness constraint must be in range [0, 1/8) not {a}.")
+    return x
 
 
 def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
