@@ -127,9 +127,9 @@ def lstsq_grad(
             n=n,
         )
 
-        if probe[0].shape[-3] > 1 and probe_is_orthogonal:
-            probe[0] = orthogonalize_gs(probe[0], axis=(-2, -1))
-            probe = comm.pool.bcast(probe[0])
+    if probe[0].shape[-3] > 1 and probe_is_orthogonal:
+        probe[0] = orthogonalize_gs(probe[0], axis=(-2, -1))
+        probe = comm.pool.bcast(probe[0])
 
     psi = comm.pool.map(_positivity_constraint, psi, r=positivity_constraint)
 
