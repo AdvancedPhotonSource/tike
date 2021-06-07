@@ -529,7 +529,7 @@ def _update_position(op, comm, diff, patches, scan, unique_probe, m):
     step_y = numerator / (denominator + 1e-6)
 
     max_shift = cp.minimum(
-        0.25,
+        0.5,
         _mad(
             cp.concatenate((step_x, step_y), axis=-3),
             axis=-3,
