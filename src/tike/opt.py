@@ -227,7 +227,7 @@ def adagrad(d, v=None, eps=1e-6):
     return d, v
 
 
-def adam(d, v=None, m=None, vdecay=0.9, mdecay=0.999, eps=1e-6):
+def adam(d, v=None, m=None, vdecay=0.9, mdecay=0.999, eps=1e-8):
     """Return the adaptive moment estimation direction.
 
     Parameters
