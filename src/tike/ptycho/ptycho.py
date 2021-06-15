@@ -171,6 +171,7 @@ def reconstruct(
         batch_size=None,
         initial_scan=None,
         recover_positions=False,
+        position_regularization=True,
         **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
@@ -203,7 +204,7 @@ def reconstruct(
         simultaneously per view.
     """
     (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
-    check_allowed_positions(scan, psi, probe.shape)
+    # check_allowed_positions(scan, psi, probe.shape)
     if use_mpi is True:
         mpi = MPIComm
     else:
@@ -288,7 +289,7 @@ def reconstruct(
                 if result['cost'] is not None:
                     costs.append(result['cost'])
 
-                if recover_positions:
+                if recover_positions and position_regularization:
                     result['scan'][0], _ = affine_position_regularization(
                         operator,
                         result['psi'][0],
