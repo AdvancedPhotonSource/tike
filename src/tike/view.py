@@ -63,7 +63,7 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-def plot_position_error(true, *args):
+def plot_position_error(true, *args, indices=None):
     """Create a spaghetti plot of position errors.
 
     Parameters
@@ -77,7 +77,8 @@ def plot_position_error(true, *args):
         [np.linalg.norm(true - p, axis=-1, keepdims=True) for p in args],
         axis=-1,
     )
-    plt.plot(np.transpose(errors), color='k', alpha=0.1)
+    indices = np.arange(errors.shape[1]) if indices is None else indices
+    plt.plot(indices, np.transpose(errors), color='k', alpha=0.1)
 
 
 def _confidence_ellipse(x, y, ax, n_std=3.0, facecolor='none', **kwargs):
