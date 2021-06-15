@@ -4,7 +4,7 @@ import cupy as cp
 import cupyx.scipy.ndimage
 
 from tike.linalg import lstsq, projection, norm, orthogonalize_gs
-from tike.opt import batch_indicies, get_batch, put_batch
+from tike.opt import batch_indicies, get_batch, put_batch, adam
 
 from ..position import update_positions_pd, _image_grad
 from ..probe import orthogonalize_eig, get_varying_probe, update_eigen_probe, constrain_variable_probe
@@ -25,6 +25,8 @@ def lstsq_grad(
     probe_is_orthogonal=False,
     positivity_constraint=0,
     smoothness_constraint=0,
+    position_momentum=False,
+    vx=None, vy=None, mx=None, my=None,
 ):  # yapf: disable
     """Solve the ptychography problem using Odstrcil et al's approach.
 
@@ -45,6 +47,12 @@ def lstsq_grad(
     Optics Express. 2018.
 
     """
+    if recover_positions and position_momentum and  vx is None:
+        vx = [cp.zeros(scan[0].shape[:2], dtype='float32')]
+        vy = [cp.zeros(scan[0].shape[:2], dtype='float32')]
+        mx = [cp.zeros(scan[0].shape[:2], dtype='float32')]
+        my = [cp.zeros(scan[0].shape[:2], dtype='float32')]
+
     # Unique batch for each device
     batches = [
         batch_indicies(s.shape[-2], num_batch, subset_is_random) for s in scan
@@ -54,6 +62,17 @@ def lstsq_grad(
 
         bdata = comm.pool.map(get_batch, data, batches, n=n)
         bscan = comm.pool.map(get_batch, scan, batches, n=n)
+
+        if vx is not None:
+            bvx = vx[0][:, batches[0][n]]
+            bvy = vy[0][:, batches[0][n]]
+            bmx = mx[0][:, batches[0][n]]
+            bmy = my[0][:, batches[0][n]]
+        else:
+            bvx = None
+            bvy = None
+            bmx = None
+            bmy = None
 
         if isinstance(eigen_probe, list):
             beigen_weights = comm.pool.map(
@@ -88,27 +107,32 @@ def lstsq_grad(
         else:
             cost = comm.reduce(cost, 'cpu')
 
-        (
-            psi,
-            probe,
-            beigen_probe,
-            beigen_weights,
-            bscan,
-        ) = _update_nearplane(
-            op,
-            comm,
-            nearplane,
-            psi,
-            bscan,
-            probe,
-            unique_probe,
-            beigen_probe,
-            beigen_weights,
-            recover_psi,
-            recover_probe,
-            recover_positions,
-            probe_is_orthogonal,
-        )
+        (psi, probe, beigen_probe, beigen_weights, bscan, bvx, bvy, bmx,
+         bmy) = _update_nearplane(
+             op,
+             comm,
+             nearplane,
+             psi,
+             bscan,
+             probe,
+             unique_probe,
+             beigen_probe,
+             beigen_weights,
+             recover_psi,
+             recover_probe,
+             recover_positions,
+             probe_is_orthogonal,
+             bvx,
+             bvy,
+             bmx,
+             bmy,
+         )
+
+        if vx is not None:
+            vx[0][:, batches[0][n]] = bvx
+            vy[0][:, batches[0][n]] = bvy
+            mx[0][:, batches[0][n]] = bmx
+            my[0][:, batches[0][n]] = bmy
 
         if isinstance(eigen_probe, list):
             comm.pool.map(
@@ -151,6 +175,11 @@ def lstsq_grad(
     if isinstance(eigen_probe, list):
         result['eigen_probe'] = eigen_probe
         result['eigen_weights'] = eigen_weights
+    if vx is not None:
+        result['vx'] = vx
+        result['vy'] = vy
+        result['mx'] = mx
+        result['my'] = my
 
     return result
 
@@ -329,7 +358,7 @@ def _get_coefs_intensity(weights, xi, P, O, m):
 
 def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                       eigen_probe, eigen_weights, recover_psi, recover_probe,
-                      recover_positions, probe_is_orthogonal):
+                      recover_positions, probe_is_orthogonal, vx, vy, mx, my):
 
     for m in range(probe[0].shape[-3]):
 
@@ -487,15 +516,21 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             probe = comm.pool.bcast(probe[0])
 
         if recover_positions and m == 0:
-            scan_[0] = _update_position(op,
-                                        comm,
-                                        diff[0],
-                                        patches[0],
-                                        scan_[0],
-                                        unique_probe[0],
-                                        m=m)
+            scan_[0], vx, vy, mx, my = _update_position(
+                op,
+                comm,
+                diff[0],
+                patches[0],
+                scan_[0],
+                unique_probe[0],
+                m=m,
+                vx=vx,
+                vy=vy,
+                mx=mx,
+                my=my,
+            )
 
-    return psi, probe, eigen_probe, eigen_weights, scan_
+    return psi, probe, eigen_probe, eigen_weights, scan_, vx, vy, mx, my
 
 
 def _update_wavefront(data, varying_probe, scan, psi, op):
@@ -540,7 +575,17 @@ def _mad(x, **kwargs):
     return cp.mean(cp.abs(x - cp.median(x, **kwargs)), **kwargs)
 
 
-def _update_position(op, comm, diff, patches, scan, unique_probe, m):
+def _update_position(op,
+                     comm,
+                     diff,
+                     patches,
+                     scan,
+                     unique_probe,
+                     m,
+                     vx=None,
+                     vy=None,
+                     mx=None,
+                     my=None):
 
     main_probe = unique_probe[..., m:m + 1, :, :]
 
@@ -559,29 +604,40 @@ def _update_position(op, comm, diff, patches, scan, unique_probe, m):
     denominator = cp.sum(cp.abs(grad_y * main_probe)**2, axis=(-2, -1))
     step_y = numerator / (denominator + 1e-6)
 
-    max_shift = cp.minimum(
-        0.5,
+    step_x = step_x[..., 0, 0]
+    step_y = step_y[..., 0, 0]
+
+    # Momentum
+    if vx is not None:
+        logger.info(
+            "position correction with ADAptive Momemtum acceleration enabled.")
+        step_x, vx, mx = adam(step_x, vx, mx, vdecay=0.4, mdecay=0.4)
+        step_y, vy, my = adam(step_y, vy, my, vdecay=0.4, mdecay=0.4)
+
+    # Step limit for stability
+    max_shift = patches.shape[-1] * 0.1
+    _max_shift = cp.minimum(
+        max_shift,
         _mad(
-            cp.concatenate((step_x, step_y), axis=-3),
-            axis=-3,
+            cp.concatenate((step_x, step_y), axis=-1),
+            axis=-1,
             keepdims=True,
         ),
     )
-
-    step_x = cp.maximum(-max_shift, cp.minimum(step_x, max_shift))
-    step_y = cp.maximum(-max_shift, cp.minimum(step_y, max_shift))
+    step_x = cp.maximum(-_max_shift, cp.minimum(step_x, _max_shift))
+    step_y = cp.maximum(-_max_shift, cp.minimum(step_y, _max_shift))
 
     # SYNCHRONIZE ME?
     # step -= comm.Allreduce_mean(step)
     # Ensure net movement is zero
-    step_x -= cp.mean(step_x, axis=-3, keepdims=True)
-    step_y -= cp.mean(step_y, axis=-3, keepdims=True)
+    step_x -= cp.mean(step_x, axis=-1, keepdims=True)
+    step_y -= cp.mean(step_y, axis=-1, keepdims=True)
     logger.info(f'position update norm is {norm(step_x)}')
 
     # print(cp.abs(step_x) > 0.5)
     # print(cp.abs(step_y) > 0.5)
 
-    scan[..., 0] -= step_y[..., 0, 0]
-    scan[..., 1] -= step_x[..., 0, 0]
+    scan[..., 0] -= step_y
+    scan[..., 1] -= step_x
 
-    return scan
+    return scan, vx, vy, mx, my
