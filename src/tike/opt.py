@@ -103,6 +103,9 @@ def adadelta(g, d0=None, v=None, m=None, decay=0.9, eps=1e-6):
     Zeiler, Matthew D. "Adadelta: an adaptive learning rate method." arXiv
     preprint arXiv:1212.5701 (2012).
     """
+    v = 0 if v is None else v
+    m = 0 if m is None else m
+    d0 = 0 if d0 is None else d0
     v = v * decay + (1 - decay) * (g * g.conj()).real
     m = m * decay + (1 - decay) * (d0 * d0.conj()).real
     d = np.sqrt((m + eps) / (v + eps)) * g
@@ -145,13 +148,10 @@ def adam(g, v=None, m=None, vdecay=0.9, mdecay=0.999, eps=1e-8):
     """
     v = 0 if v is None else v
     m = 0 if m is None else m
-
     m = mdecay * m + (1 - mdecay) * g
     v = vdecay * v + (1 - vdecay) * (g * g.conj()).real
-
     m_ = m / (1 - mdecay)
     v_ = np.sqrt(v / (1 - vdecay))
-
     return m_ / (v_ + eps), v, m
 
 
