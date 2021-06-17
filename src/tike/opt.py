@@ -43,12 +43,6 @@ def adagrad(g, v=None, eps=1e-6):
     Used to provide a better search direction to stochastic gradient
     descent.
 
-    References
-    ----------
-    Duchi, John, Elad Hazan, and Yoram Singer. "Adaptive subgradient methods
-    for online learning and stochastic optimization." Journal of machine
-    learning research 12, no. 7 (2011).
-
     Parameters
     ----------
     g : vector
@@ -65,6 +59,11 @@ def adagrad(g, v=None, eps=1e-6):
     v : vector
         The new gradient weights.
 
+    References
+    ----------
+    Duchi, John, Elad Hazan, and Yoram Singer. "Adaptive subgradient methods
+    for online learning and stochastic optimization." Journal of machine
+    learning research 12, no. 7 (2011).
     """
     if v is None:
         return g, (g * g.conj()).real
@@ -78,11 +77,6 @@ def adadelta(g, d0=None, v=None, m=None, decay=0.9, eps=1e-6):
 
     Used to provide a better search direction to stochastic gradient
     descent.
-
-    References
-    ----------
-    Kingma, Diederik P., and Jimmy Ba. "Adam: A method for stochastic
-    optimization." arXiv preprint arXiv:1412.6980 (2014).
 
     Parameters
     ----------
@@ -104,6 +98,10 @@ def adadelta(g, d0=None, v=None, m=None, decay=0.9, eps=1e-6):
     v : vector
         The new gradient weights.
 
+    References
+    ----------
+    Zeiler, Matthew D. "Adadelta: an adaptive learning rate method." arXiv
+    preprint arXiv:1212.5701 (2012).
     """
     v = v * decay + (1 - decay) * (g * g.conj()).real
     m = m * decay + (1 - decay) * (d0 * d0.conj()).real
@@ -113,6 +111,9 @@ def adadelta(g, d0=None, v=None, m=None, decay=0.9, eps=1e-6):
 
 def adam(g, v=None, m=None, vdecay=0.9, mdecay=0.999, eps=1e-8):
     """Return the adaptive moment estimation direction.
+
+    Used to provide a better search direction to stochastic gradient
+    descent.
 
     Parameters
     ----------
@@ -137,6 +138,10 @@ def adam(g, v=None, m=None, vdecay=0.9, mdecay=0.999, eps=1e-8):
     m : vector
         The new momentum weights.
 
+    References
+    ----------
+    Kingma, Diederik P., and Jimmy Ba. "Adam: A method for stochastic
+    optimization." arXiv preprint arXiv:1412.6980 (2014).
     """
     v = 0 if v is None else v
     m = 0 if m is None else m
