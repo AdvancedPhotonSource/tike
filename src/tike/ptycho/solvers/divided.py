@@ -7,7 +7,8 @@ from tike.linalg import lstsq, projection, norm, orthogonalize_gs
 from tike.opt import batch_indicies, get_batch, put_batch, adam
 
 from ..position import update_positions_pd, _image_grad
-from ..probe import orthogonalize_eig, get_varying_probe, update_eigen_probe, constrain_variable_probe
+from ..probe import (orthogonalize_eig, get_varying_probe, update_eigen_probe,
+                     constrain_variable_probe)
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ def lstsq_grad(
     Optics Express. 2018.
 
     """
-    if recover_positions and position_momentum and  vx is None:
+    if recover_positions and position_momentum and vx is None:
         vx = [cp.zeros(scan[0].shape[:2], dtype='float32')]
         vy = [cp.zeros(scan[0].shape[:2], dtype='float32')]
         mx = [cp.zeros(scan[0].shape[:2], dtype='float32')]
