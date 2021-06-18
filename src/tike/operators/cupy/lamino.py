@@ -130,21 +130,24 @@ class Lamino(CachedFFT, Operator):
         return u
 
     def cost(self, data, theta, obj):
-        "Cost function for the least-squres laminography problem"
+        """Cost function for the least-squres laminography problem"""
         return self.xp.linalg.norm((self.fwd(
             u=obj,
             theta=theta,
         ) - data).ravel())**2
 
     def grad(self, data, theta, obj):
-        "Gradient for the least-squares laminography problem"
-        return self.adj(
+        """Gradient for the least-squares laminography problem"""
+        out = self.adj(
             data=self.fwd(
                 u=obj,
                 theta=theta,
             ) - data,
             theta=theta,
-        ) / (data.shape[-3] * self.n**3)
+        )
+        # BUG? Cannot joint line below and above otherwise types are promoted?
+        out /= (data.shape[-3] * self.n**3)
+        return out
 
     def _make_grids(self, theta):
         """Return (ntheta*n*n, 3) unequally-spaced frequencies for the USFFT."""
