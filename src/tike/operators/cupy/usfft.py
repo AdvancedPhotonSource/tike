@@ -4,47 +4,47 @@ The USFFT, NUFFT, or NFFT is a fast-fourier transform from an uniform domain to
 a non-uniform domain or vice-versa. This module provides forward Fourier
 transforms for those two cased. The inverser Fourier transforms may be created
 by negating the frequencies on the non-uniform grid.
+
+The implementation of this USFFT is the composition of the following
+operations: zero-padding, interpolation-kernel-correction, FFT, and
+linear-interpolation.
 """
-import numpy as np
+import cupy as cp
+from importlib_resources import files
+
+_cu_source = files('tike.operators.cupy').joinpath('usfft.cu').read_text()
+
+_scatter_kernel = cp.RawKernel(_cu_source, "scatter")
+_gather_kernel = cp.RawKernel(_cu_source, "gather")
 
 
-def _get_kernel(xp, pad, mu):
+def _get_kernel(xp, n, mu):
     """Return the interpolation kernel for the USFFT."""
-    xeq = xp.mgrid[-pad:pad, -pad:pad, -pad:pad]
-    return xp.exp(-mu * xp.sum(xeq**2, axis=0)).astype('float32')
+    pad = n // 2
+    end = n - pad
+    u = -mu * xp.arange(-pad, end, dtype='float32')**2
+    kernel_shape = (len(u), len(u), len(u))
+    norm = xp.zeros(kernel_shape, dtype='float32')
+    norm += u
+    norm += u[:, None]
+    norm += u[:, None, None]
+    return xp.exp(norm)
 
 
 def vector_gather(xp, Fe, x, n, m, mu):
-    """A faster implementation of sequential_gather"""
-    cons = [xp.sqrt(xp.pi / mu)**3, -xp.pi**2 / mu]
-
-    def delta(ell, i, x):
-        return ((ell + i).astype('float32') / (2 * n) - x)**2
-
-    F = xp.zeros(x.shape[0], dtype="complex64")
-    ell = ((2 * n * x) // 1).astype(xp.int32)  # nearest grid to x
-    for i0 in range(-m, m):
-        delta0 = delta(ell[:, 0], i0, x[:, 0])
-        for i1 in range(-m, m):
-            delta1 = delta(ell[:, 1], i1, x[:, 1])
-            for i2 in range(-m, m):
-                delta2 = delta(ell[:, 2], i2, x[:, 2])
-                Fkernel = cons[0] * xp.exp(cons[1] * (delta0 + delta1 + delta2))
-                F += Fe[(n + ell[:, 0] + i0) % (2 * n),
-                        (n + ell[:, 1] + i1) % (2 * n),
-                        (n + ell[:, 2] + i2) % (2 * n)] * Fkernel
-    return F
-
-
-def sequential_gather(xp, Fe, x, n, m, mu):
     """Gather F from the regular grid.
 
     Parameters
     ----------
-    Fe : (2n, 2n, 2n) complex64
-        The function at equally spaced frequencies.
+    Fe : (n, n, n) complex64
+        The function at equally spaced frequencies. Frequencies on the grid are
+        zero-centered i.e. [ -0.5, 0.25, 0.0,  0.25]
     x : (N, 3) float32
-        The non-uniform frequencies.
+        The non-uniform frequencies in the range [-0.5, 0.5)
+    n : int
+        The width of Fe along each edge
+    m : int
+        The width of the interpolation kernel along each edge.
 
     Returns
     -------
@@ -52,106 +52,13 @@ def sequential_gather(xp, Fe, x, n, m, mu):
         The values at the non-uniform frequencies.
     """
     cons = [xp.sqrt(xp.pi / mu)**3, -xp.pi**2 / mu]
-    F = xp.zeros(x.shape[0], dtype="complex64")
-    for k in range(x.shape[0]):
-        ell0 = xp.int(xp.floor(2 * n * x[k, 0]))
-        ell1 = xp.int(xp.floor(2 * n * x[k, 1]))
-        ell2 = xp.int(xp.floor(2 * n * x[k, 2]))
-        for i0 in range(-m, m):
-            for i1 in range(-m, m):
-                for i2 in range(-m, m):
-                    kera = cons[0] * xp.exp(cons[1] * (
-                        + ((ell0 + i0) / (2 * n) - x[k, 0])**2
-                        + ((ell1 + i1) / (2 * n) - x[k, 1])**2
-                        + ((ell2 + i2) / (2 * n) - x[k, 2])**2
-                    ))  # yapf: disable
-                    F[k] += Fe[(n + ell0 + i0) % (2 * n),
-                               (n + ell1 + i1) % (2 * n),
-                               (n + ell2 + i2) % (2 * n)] * kera
-    return F
-
-
-def eq2us(f, x, n, eps, xp, gather=vector_gather, fftn=None):
-    """USFFT from equally-spaced grid to unequally-spaced grid.
-
-    Parameters
-    ----------
-    f : (n, n, n) complex64
-        The function to be transformed on a regular-grid of size n.
-    x : (N, 3)
-        The sampled frequencies on unequally-spaced grid.
-    eps : float
-        The desired relative accuracy of the USFFT.
-    """
-    fftn = xp.fft.fftn if fftn is None else fftn
-    ndim = f.ndim
-    pad = n // 2  # where zero-padding stops
-    end = pad + n  # where f stops
-
-    # parameters for the USFFT transform
-    mu = -xp.log(eps) / (2 * n**2)
-    Te = 1 / xp.pi * xp.sqrt(-mu * xp.log(eps) + (mu * n)**2 / 4)
-    m = xp.int(xp.ceil(2 * n * Te))
-
-    # smearing kernel (kernel)
-    kernel = _get_kernel(xp, pad, mu)
-
-    # FFT and compesantion for smearing
-    fe = xp.zeros([2 * n] * ndim, dtype="complex64")
-    fe[pad:end, pad:end, pad:end] = f / ((2 * n)**ndim * kernel)
-    Fe = checkerboard(xp, fftn(checkerboard(xp, fe)), inverse=True)
-    F = gather(xp, Fe, x, n, m, mu)
-
-    return F
-
-
-def sequential_scatter(xp, f, x, n, m, mu):
-    """Scatter f to the regular grid.
-
-    Parameters
-    ----------
-    f : (N, ) complex64
-        Values at non-uniform frequencies.
-    x : (N, 3) float32
-        Non-uniform frequencies.
-
-    Return
-    ------
-    G : [2 * (n + m)] * 3 complex64
-
-    """
-    cons = [xp.sqrt(xp.pi / mu)**3, -xp.pi**2 / mu]
-    G = xp.zeros([2 * n] * 3, dtype="complex64")
-    for k in range(x.shape[0]):
-        ell0 = xp.int(xp.floor(2 * n * x[k, 0]))
-        ell1 = xp.int(xp.floor(2 * n * x[k, 1]))
-        ell2 = xp.int(xp.floor(2 * n * x[k, 2]))
-        for i0 in range(-m, m):
-            for i1 in range(-m, m):
-                for i2 in range(-m, m):
-                    # yapf: disable
-                    Fkernel = cons[0] * xp.exp(cons[1] * (
-                        + ((ell0 + i0) / (2 * n) - x[k, 0])**2
-                        + ((ell1 + i1) / (2 * n) - x[k, 1])**2
-                        + ((ell2 + i2) / (2 * n) - x[k, 2])**2
-                    ))
-                    G[(n + ell0 + i0) % (2 * n),
-                      (n + ell1 + i1) % (2 * n),
-                      (n + ell2 + i2) % (2 * n)] += f[k] * Fkernel
-                    # yapf: enable
-    return G
-
-
-def vector_scatter(xp, f, x, n, m, mu, ndim=3):
-    """A faster implemenation of sequential_scatter."""
-    cons = [xp.sqrt(xp.pi / mu)**ndim, -xp.pi**2 / mu]
+    half = n // 2
 
     def delta(ell, i, x):
-        return ((ell + i).astype('float32') / (2 * n) - x)**2
+        return ((ell + i).astype('float32') / n - x)**2
 
-    G = xp.zeros([(2 * n)**ndim], dtype="complex64")
-    ell = ((2 * n * x) // 1).astype(xp.int32)  # nearest grid to x
-    stride = ((2 * n)**2, 2 * n)
+    F = xp.zeros(x.shape[0], dtype="complex64")
+    ell = ((n * x) // 1).astype(xp.int32)  # nearest grid to x
     for i0 in range(-m, m):
         delta0 = delta(ell[:, 0], i0, x[:, 0])
         for i1 in range(-m, m):
@@ -159,9 +66,121 @@ def vector_scatter(xp, f, x, n, m, mu, ndim=3):
             for i2 in range(-m, m):
                 delta2 = delta(ell[:, 2], i2, x[:, 2])
                 Fkernel = cons[0] * xp.exp(cons[1] * (delta0 + delta1 + delta2))
-                ids = (((n + ell[:, 2] + i2) % (2 * n)) +
-                       ((n + ell[:, 1] + i1) % (2 * n)) * stride[1] +
-                       ((n + ell[:, 0] + i0) % (2 * n)) * stride[0])
+                F += Fe[(half + ell[:, 0] + i0) % n,
+                        (half + ell[:, 1] + i1) % n,
+                        (half + ell[:, 2] + i2) % n] * Fkernel
+    return F
+
+
+def gather(_, Fe, x, n, m, mu):
+    """See vector_gather documenation."""
+    F = cp.zeros(x.shape[0], dtype="complex64")
+    const = cp.array([cp.sqrt(cp.pi / mu)**3, -cp.pi**2 / mu], dtype='float32')
+    assert F.dtype == cp.complex64
+    assert Fe.dtype == cp.complex64
+    assert x.dtype == cp.float32
+    assert const.dtype == cp.float32
+    block = (min(_scatter_kernel.max_threads_per_block, (2 * m)**3),)
+    grid = (1, 0, min(x.shape[0], 65535))
+    _gather_kernel(grid, block, (
+        F,
+        Fe,
+        x.shape[0],
+        x,
+        n,
+        m,
+        const,
+    ))
+    return F
+
+
+def eq2us(f, x, n, eps, xp, gather=gather, fftn=None, upsample=2):
+    """USFFT from equally-spaced grid to unequally-spaced grid.
+
+    Parameters
+    ----------
+    f : (n, n, n) complex64
+        The function at equally-spaced frequencies. Frequencies on the grid are
+        zero-centered i.e. [ -0.5, 0.25, 0.0,  0.25]
+    x : (N, 3) float32
+        The frequencies on the unequally-spaced grid in the range [-0.5, 0.5)
+    n : int
+        The size of the equally-spaced grid along each edge.
+    eps : float
+        The accuracy of computing USFFT.
+    upsample : float >= 1
+        The ratio of the upsampled grid to the equally-spaced grid.
+
+    Returns
+    -------
+    F : (N, ) complex64
+        Values of unequally-spaced function on the grid x.
+
+    """
+    fftn = xp.fft.fftn if fftn is None else fftn
+    upsampled = 2 * int(upsample * n / 2)  # upsampled grid is always even-sized
+    pad = (upsampled - n) // 2  # where zero-padding stops
+    end = pad + n  # where f stops
+
+    # parameters for the USFFT transform
+    mu = -xp.log(eps) / (2 * n**2)
+    Te = 1 / xp.pi * xp.sqrt(-mu * xp.log(eps) + (mu * n)**2 / 4)
+    m = xp.int(xp.ceil(upsampled * Te))
+
+    # smearing kernel (ker)
+    kernel = _get_kernel(xp, n, mu)
+    kernel *= upsampled**3
+
+    # FFT and compesantion for smearing
+    fe = xp.zeros([upsampled] * 3, dtype="complex64")
+
+    fe[pad:end, pad:end, pad:end] = f / kernel
+    Fe = checkerboard(xp, fftn(checkerboard(xp, fe)), inverse=True)
+    F = gather(xp, Fe, x, upsampled, m, mu)
+
+    return F
+
+
+def vector_scatter(xp, f, x, n, m, mu, ndim=3):
+    """Scatter f to the regular grid.
+
+    Parameters
+    ----------
+    f : (N, ) complex64
+        Values at non-uniform frequencies.
+    x : (N, 3) float32
+        The non-uniform frequencies in the range [-0.5, 0.5)
+    n : int
+        The width of G along each edge
+    m : int
+        The width of the interpolation kernel along each edge.
+
+    Return
+    ------
+    G : (n, n, n) complex64
+        The function at equally spaced frequencies. Frequencies on the grid are
+        zero-centered i.e. [ -0.5, 0.25, 0.0,  0.25]
+
+    """
+    cons = [xp.sqrt(xp.pi / mu)**ndim, -xp.pi**2 / mu]
+    half = n // 2
+
+    def delta(ell, i, x):
+        return ((ell + i).astype('float32') / n - x)**2
+
+    G = xp.zeros([n**ndim], dtype="complex64")
+    ell = ((n * x) // 1).astype(xp.int32)  # nearest grid to x
+    stride = (n**2, n)
+    for i0 in range(-m, m):
+        delta0 = delta(ell[:, 0], i0, x[:, 0])
+        for i1 in range(-m, m):
+            delta1 = delta(ell[:, 1], i1, x[:, 1])
+            for i2 in range(-m, m):
+                delta2 = delta(ell[:, 2], i2, x[:, 2])
+                Fkernel = cons[0] * xp.exp(cons[1] * (delta0 + delta1 + delta2))
+                ids = (((half + ell[:, 2] + i2) % n) +
+                       ((half + ell[:, 1] + i1) % n) * stride[1] +
+                       ((half + ell[:, 0] + i0) % n) * stride[0])
                 vals = f * Fkernel
                 # accumulate by indexes (with possible index intersections),
                 # TODO acceleration of bincount!!
@@ -169,72 +188,76 @@ def vector_scatter(xp, f, x, n, m, mu, ndim=3):
                         1j * xp.bincount(ids, weights=vals.imag))
                 ids = xp.nonzero(vals)[0]
                 G[ids] += vals[ids]
-    return G.reshape([2 * n] * ndim)
+    return G.reshape([n] * ndim)
 
 
-def us2eq(f, x, n, eps, xp, scatter=vector_scatter, fftn=None):
+def scatter(_, f, x, n, m, mu):
+    """See vector_scatter documenation"""
+    G = cp.zeros([n] * 3, dtype="complex64")
+    const = cp.array([cp.sqrt(cp.pi / mu)**3, -cp.pi**2 / mu], dtype='float32')
+    assert G.dtype == cp.complex64
+    assert f.dtype == cp.complex64
+    assert x.dtype == cp.float32
+    assert const.dtype == cp.float32
+    block = (min(_scatter_kernel.max_threads_per_block, (2 * m)**3),)
+    grid = (1, 0, min(f.shape[0], 65535))
+    _scatter_kernel(grid, block, (
+        G,
+        f,
+        f.shape[0],
+        x,
+        n,
+        m,
+        const,
+    ))
+    return G
+
+
+def us2eq(f, x, n, eps, xp, scatter=scatter, fftn=None, upsample=2):
     """USFFT from unequally-spaced grid to equally-spaced grid.
 
     Parameters
     ----------
-    f : (n**3) complex64
+    f : (N, ) complex64
         Values of unequally-spaced function on the grid x
-    x : (n**3) float
-        The frequencies on the unequally-spaced grid
+    x : (N, 3) float
+        The frequencies on the unequally-spaced grid in the range [-0.5, 0.5)
     n : int
-        The size of the equall spaced grid.
+        The size of the equally-spaced grid along each edge.
     eps : float
-        The accuracy of computing USFFT
+        The accuracy of computing USFFT.
     scatter : function
         The scatter function to use.
+    upsample : float >= 1
+        The ratio of the upsampled grid to the equally-spaced grid.
+
+    Returns
+    -------
+    F : (n, n, n) complex64
+        The function at equally spaced frequencies. Frequencies on the grid are
+        zero-centered i.e. [ -0.5, 0.25, 0.0,  0.25]
     """
     fftn = xp.fft.fftn if fftn is None else fftn
-    pad = n // 2  # where zero-padding stops
+    upsampled = 2 * int(upsample * n / 2)  # upsampled grid is always even-sized
+    pad = (upsampled - n) // 2  # where zero-padding stops
     end = pad + n  # where f stops
 
     # parameters for the USFFT transform
     mu = -xp.log(eps) / (2 * n**2)
     Te = 1 / xp.pi * xp.sqrt(-mu * xp.log(eps) + (mu * n)**2 / 4)
-    m = xp.int(xp.ceil(2 * n * Te))
+    m = xp.int(xp.ceil(upsampled * Te))
 
     # smearing kernel (ker)
-    kernel = _get_kernel(xp, pad, mu)
+    kernel = _get_kernel(xp, n, mu)
+    kernel *= upsampled**3
 
-    G = scatter(xp, f, x, n, m, mu)
+    G = scatter(xp, f, x, upsampled, m, mu)
 
     # FFT and compesantion for smearing
     F = checkerboard(xp, fftn(checkerboard(xp, G)), inverse=True)
-    F = F[pad:end, pad:end, pad:end] / ((2 * n)**3 * kernel)
+    F = F[pad:end, pad:end, pad:end] / kernel
 
     return F
-
-
-def _unpad(array, width, mode='wrap'):
-    """Remove padding from an array in-place.
-
-    Parameters
-    ----------
-    array : array
-        The array to strip.
-    width : int
-        The number of indices to remove from both sides along each dimension.
-    mode : string
-        'wrap' - Add the discarded regions to the array by wrapping them. The
-        end regions are added to the beginning and the beginning regions are
-        added the end of the new array.
-
-    Returns
-    -------
-    array : array
-        A view of the original array.
-    """
-    twice = 2 * width
-    for _ in range(array.ndim):
-        array[+width:+twice] += array[-width:]
-        array[-twice:-width] += array[:width]
-        array = array[width:-width]
-        array = np.moveaxis(array, 0, -1)
-    return array
 
 
 def _g(x):
