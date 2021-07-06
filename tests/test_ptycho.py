@@ -316,6 +316,7 @@ class TestPtychoRecon(unittest.TestCase):
                 'num_gpu': 2,
                 'recover_probe': True,
                 'recover_psi': True,
+                'recover_positions': True,
                 'use_mpi': True,
             },
         )
@@ -334,6 +335,7 @@ class TestPtychoRecon(unittest.TestCase):
                 'num_gpu': 2,
                 'recover_probe': True,
                 'recover_psi': True,
+                'recover_positions': True,
                 'use_mpi': True,
                 'eigen_probe': eigen_probe,
                 'eigen_weights': weights,
@@ -358,15 +360,14 @@ class TestProbe(unittest.TestCase):
         comm = Comm(2, None)
 
         R = comm.pool.bcast(np.random.rand(*leading, posi, 1, 1, wide, high))
-        eigen_probe = comm.pool.bcast(np.random.rand(*leading,
-                                                     1, eigen, 1, wide, high))
+        eigen_probe = comm.pool.bcast(
+            np.random.rand(*leading, 1, eigen, 1, wide, high))
         weights = np.random.rand(*leading, posi)
         weights -= np.mean(weights)
         weights = comm.pool.bcast(weights)
-        patches = comm.pool.bcast(np.random.rand(*leading,
-                                                 posi, 1, 1, wide, high))
-        diff = comm.pool.bcast(np.random.rand(*leading,
-                                              posi, 1, 1, wide, high))
+        patches = comm.pool.bcast(
+            np.random.rand(*leading, posi, 1, 1, wide, high))
+        diff = comm.pool.bcast(np.random.rand(*leading, posi, 1, 1, wide, high))
 
         new_probe, new_weights = tike.ptycho.probe.update_eigen_probe(
             comm=comm,
