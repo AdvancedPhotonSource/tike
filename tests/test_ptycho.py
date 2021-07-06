@@ -54,6 +54,7 @@ import unittest
 import numpy as np
 
 import tike.ptycho
+from tike.ptycho.position import PositionOptions
 from tike.communicators import Comm, MPIComm
 import tike.random
 
@@ -316,8 +317,8 @@ class TestPtychoRecon(unittest.TestCase):
                 'num_gpu': 2,
                 'recover_probe': True,
                 'recover_psi': True,
-                'recover_positions': True,
                 'use_mpi': True,
+                'position_options': PositionOptions(self.scan.shape[0:-1])
             },
         )
 
@@ -335,10 +336,10 @@ class TestPtychoRecon(unittest.TestCase):
                 'num_gpu': 2,
                 'recover_probe': True,
                 'recover_psi': True,
-                'recover_positions': True,
                 'use_mpi': True,
                 'eigen_probe': eigen_probe,
                 'eigen_weights': weights,
+                'position_options': PositionOptions(self.scan.shape[0:-1])
             },
         )
 

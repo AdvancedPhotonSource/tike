@@ -10,6 +10,68 @@ import tike.linalg
 logger = logging.getLogger(__name__)
 
 
+class PositionOptions:
+    """Manage data and settings related to position correction.
+
+    Properties
+    ----------
+    vx, vy, mx, my
+
+    """
+
+    def __init__(
+        self,
+        N,
+        use_adaptive_moment=False,
+        use_position_regularization=False,
+    ) -> None:
+        self.use_adaptive_moment = use_adaptive_moment
+        self.use_position_regularization = use_position_regularization
+        if use_adaptive_moment:
+            self._momentum = cp.zeros((*N, 4), dtype='float32')
+
+    def split(self, indices):
+        new = PositionOptions(0, use_adaptive_moment=False)
+        new.use_adaptive_moment = self.use_adaptive_moment
+        new._momentum = self._momentum[..., indices, :]
+        return new
+
+    def join(self, other, indices):
+        self._momentum[..., indices, :] = other._momentum
+
+    @property
+    def vx(self):
+        return self._momentum[..., 0]
+
+    @vx.setter
+    def vx(self, x):
+        self._momentum[..., 0] = x
+
+    @property
+    def vy(self):
+        return self._momentum[..., 1]
+
+    @vx.setter
+    def vy(self, x):
+        self._momentum[..., 1] = x
+
+    @property
+    def mx(self):
+        return self._momentum[..., 2]
+
+    @vx.setter
+    def mx(self, x):
+        self._momentum[..., 2] = x
+
+    @property
+    def my(self):
+        return self._momentum[..., 3]
+
+    @vx.setter
+    def my(self, x):
+        self._momentum[..., 3] = x
+
+
 def check_allowed_positions(scan, psi, probe_shape):
     """Check that all positions are within the field of view.
 

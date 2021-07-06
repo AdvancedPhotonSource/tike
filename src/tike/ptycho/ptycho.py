@@ -170,8 +170,7 @@ def reconstruct(
         eigen_probe=None, eigen_weights=None,
         batch_size=None,
         initial_scan=None,
-        recover_positions=False,
-        position_regularization=True,
+        position_options=None,
         **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
@@ -202,6 +201,8 @@ def reconstruct(
     batch_size : int
         The approximate number of scan positions processed by each GPU
         simultaneously per view.
+    position_options : PositionOptions
+        A class containing settings related to position correction.
     """
     (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
     # check_allowed_positions(scan, psi, probe.shape)
@@ -240,6 +241,8 @@ def reconstruct(
                 eigen_weights,
                 initial_scan,
             )
+            if position_options is not None:
+                position_options = [position_options]
             result = {
                 'psi':
                     comm.pool.bcast(psi.astype('complex64')),
@@ -283,13 +286,13 @@ def reconstruct(
                     comm,
                     data=data,
                     num_batch=num_batch,
-                    recover_positions=recover_positions,
                     **kwargs,
                 )
                 if result['cost'] is not None:
                     costs.append(result['cost'])
 
-                if recover_positions and position_regularization:
+                if (position_options
+                        and position_options[0].use_position_regularization):
                     result['scan'][0], _ = affine_position_regularization(
                         operator,
                         result['psi'][0],
@@ -311,7 +314,7 @@ def reconstruct(
             reorder = np.argsort(np.concatenate(order))
             result['scan'] = comm.pool.gather(scan, axis=1)[:, reorder]
 
-            if recover_positions:
+            if position_options:
                 result['initial_scan'] = comm.pool.gather(initial_scan,
                                                           axis=1)[:, reorder]
             if 'eigen_weights' in result:
