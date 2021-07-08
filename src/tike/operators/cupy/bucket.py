@@ -10,11 +10,10 @@ import numpy as np
 from .operator import Operator
 from .lamino import Lamino
 
-_module = cp.RawModule(
-    code=files('tike.operators.cupy').joinpath('bucket.cu').read_text())
-_coords_weights_kernel = _module.get_function('coordinates_and_weights')
-_bucket_fwd = _module.get_function('fwd')
-_bucket_adj = _module.get_function('adj')
+_cu_source = files('tike.operators.cupy').joinpath('bucket.cu').read_text()
+_coords_weights_kernel = cp.RawKernel(_cu_source, 'coordinates_and_weights')
+_bucket_fwd = cp.RawKernel(_cu_source, 'fwd')
+_bucket_adj = cp.RawKernel(_cu_source, 'adj')
 
 
 class Bucket(Lamino):
