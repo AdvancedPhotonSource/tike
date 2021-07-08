@@ -208,7 +208,7 @@ class Bucket(Lamino):
         ).reshape(self.n**3, 3)
 
 
-def get_coordinates_and_weights(
+def _get_coordinates_and_weights(
     grid,
     tilt,
     theta,
@@ -272,7 +272,7 @@ def get_coordinates_and_weights(
     return plane_coords
 
 
-def compute_transformation(tilt, theta):
+def _compute_transformation(tilt, theta):
     """Return a transformation which aligns [1, 0, 0] with the plane normal."""
     transformation = cp.zeros((3, 3), dtype='float32')
     transformation[0, 0] = cp.cos(tilt)
@@ -286,7 +286,7 @@ def compute_transformation(tilt, theta):
     return transformation
 
 
-def project_point_to_plane(point, normal, transformation):
+def _project_point_to_plane(point, normal, transformation):
     """Return the integer coordinate of the point projected to the plane."""
     distance = cp.sum(point * normal)
     projected = point - distance * normal
