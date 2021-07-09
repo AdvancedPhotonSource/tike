@@ -504,14 +504,12 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
 
         if position_options and m == 0:
             scan_[0], position_options[0] = _update_position(
-                op,
-                comm,
+                position_options[0],
                 diff[0],
                 patches[0],
                 scan_[0],
                 unique_probe[0],
                 m=m,
-                position_options=position_options[0],
             )
 
     return psi, probe, eigen_probe, eigen_weights, scan_, position_options
@@ -559,14 +557,14 @@ def _mad(x, **kwargs):
     return cp.mean(cp.abs(x - cp.median(x, **kwargs)), **kwargs)
 
 
-def _update_position(op,
-                     comm,
-                     diff,
-                     patches,
-                     scan,
-                     unique_probe,
-                     m,
-                     position_options=None):
+def _update_position(
+    position_options,
+    diff,
+    patches,
+    scan,
+    unique_probe,
+    m,
+):
 
     main_probe = unique_probe[..., m:m + 1, :, :]
 
@@ -589,7 +587,7 @@ def _update_position(op,
     step_y = step_y[..., 0, 0]
 
     # Momentum
-    if position_options and position_options.use_adaptive_moment:
+    if position_options.use_adaptive_moment:
         logger.info(
             "position correction with ADAptive Momemtum acceleration enabled.")
         step_x, position_options.vx, position_options.mx = adam(
