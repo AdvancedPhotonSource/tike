@@ -3,6 +3,7 @@
 import logging
 
 import cupy as cp
+from cupyx.scipy.fft import fft2, ifft2
 import numpy as np
 
 import tike.linalg
@@ -224,9 +225,15 @@ def update_positions_pd(operator, data, psi, probe, scan,
     return scan, cost
 
 
+from cupy.fft.config import get_plan_cache
+
 def _image_grad(x):
     """Return the gradient of the x for each of the last two dimesions."""
+    # FIXME: Use different gradient approximation that does not use FFT. Because
+    # FFT caches are per-thread and per-device, using FFT is inefficient.
     ramp = 2j * cp.pi * cp.linspace(-0.5, 0.5, x.shape[-1], dtype='float32')
+    cache = get_plan_cache()
+    cache.set_size(0)
     grad_x = cp.fft.ifft2(ramp * cp.fft.fft2(x))
     grad_y = cp.fft.ifft2(ramp[:, None] * cp.fft.fft2(x))
     return grad_x, grad_y

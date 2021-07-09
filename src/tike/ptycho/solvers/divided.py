@@ -12,7 +12,6 @@ from ..probe import (orthogonalize_eig, get_varying_probe, update_eigen_probe,
 
 logger = logging.getLogger(__name__)
 
-
 def lstsq_grad(
     op, comm,
     data, probe, scan, psi,
@@ -503,14 +502,15 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             probe = comm.pool.bcast(probe[0])
 
         if position_options and m == 0:
-            scan_[0], position_options[0] = _update_position(
-                position_options[0],
-                diff[0],
-                patches[0],
-                scan_[0],
-                unique_probe[0],
+            scan_, position_options = zip(*comm.pool.map(
+                _update_position,
+                position_options,
+                diff,
+                patches,
+                scan_,
+                unique_probe,
                 m=m,
-            )
+            ))
 
     return psi, probe, eigen_probe, eigen_weights, scan_, position_options
 
@@ -565,7 +565,6 @@ def _update_position(
     unique_probe,
     m,
 ):
-
     main_probe = unique_probe[..., m:m + 1, :, :]
 
     # According to the manuscript, we can either shift the probe or the object
