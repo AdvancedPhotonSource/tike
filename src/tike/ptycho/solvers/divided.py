@@ -131,6 +131,14 @@ def lstsq_grad(
                 n=n,
             )
 
+        comm.pool.map(
+            put_batch,
+            bscan,
+            scan,
+            batches,
+            n=n,
+        )
+
     if probe[0].shape[-3] > 1 and probe_is_orthogonal:
         probe[0] = orthogonalize_gs(probe[0], axis=(-2, -1))
         probe = comm.pool.bcast(probe[0])
