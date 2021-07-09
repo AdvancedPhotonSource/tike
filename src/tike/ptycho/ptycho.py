@@ -65,8 +65,8 @@ from tike.operators import Ptycho
 from tike.communicators import Comm, MPIComm
 from tike.opt import batch_indicies
 from tike.ptycho import solvers
-from .position import (check_allowed_positions, get_padded_object,
-                       affine_position_regularization)
+from .position import (PositionOptions, check_allowed_positions,
+                       get_padded_object, affine_position_regularization)
 from .probe import get_varying_probe
 
 logger = logging.getLogger(__name__)
@@ -241,8 +241,6 @@ def reconstruct(
                 eigen_weights,
                 initial_scan,
             )
-            if position_options is not None:
-                position_options = [position_options]
             result = {
                 'psi':
                     comm.pool.bcast(psi.astype('complex64')),
@@ -256,6 +254,14 @@ def reconstruct(
                 'eigen_weights':
                     eigen_weights,
             }
+            if position_options:
+                result['position_options'] = [
+                    position_options.split(x) for x in order
+                ]
+                result['position_options'] = comm.pool.map(
+                    PositionOptions.put,
+                    result['position_options'],
+                )
             for key, value in kwargs.items():
                 if np.ndim(value) > 0:
                     kwargs[key] = comm.pool.bcast(value)
@@ -292,7 +298,8 @@ def reconstruct(
                     costs.append(result['cost'])
 
                 if (position_options
-                        and position_options[0].use_position_regularization):
+                        and position_options.use_position_regularization):
+                    # TODO: Regularize on all GPUs
                     result['scan'][0], _ = affine_position_regularization(
                         operator,
                         result['psi'][0],
@@ -317,6 +324,16 @@ def reconstruct(
             if position_options:
                 result['initial_scan'] = comm.pool.gather(initial_scan,
                                                           axis=1)[:, reorder]
+                result['position_options'] = comm.pool.map(
+                    PositionOptions.get,
+                    result['position_options'],
+                )
+                [
+                    position_options.join(x, o)
+                    for x, o in zip(result['position_options'], order)
+                ]
+                result['position_options'] = position_options
+
             if 'eigen_weights' in result:
                 result['eigen_weights'] = comm.pool.gather(
                     eigen_weights,
@@ -329,7 +346,10 @@ def reconstruct(
             for k, v in result.items():
                 if isinstance(v, list):
                     result[k] = v[0]
-        return {k: operator.asnumpy(v) for k, v in result.items()}
+        return {
+            k: operator.asnumpy(v) if isinstance(v, cp.ndarray) else v
+            for k, v in result.items()
+        }
     else:
         raise ValueError(f"The '{algorithm}' algorithm is not an option.\n"
                          f"\tAvailable algorithms are : {solvers.__all__}")

@@ -15,7 +15,11 @@ class PositionOptions:
 
     Properties
     ----------
-    vx, vy, mx, my
+    use_adaptive_moment : bool
+        Whether AdaM is used to accelerate the position correction updates.
+    use_position_regularization : bool
+        Whether the positions are constrained to fit a random error plus affine
+        error model.
 
     """
 
@@ -23,21 +27,51 @@ class PositionOptions:
         self,
         N,
         use_adaptive_moment=False,
+        vdecay=0.9,
+        mdecay=0.999,
         use_position_regularization=False,
-    ) -> None:
+    ):
         self.use_adaptive_moment = use_adaptive_moment
-        self.use_position_regularization = use_position_regularization
+        self.vdecay = vdecay
+        self.mdecay = mdecay
         if use_adaptive_moment:
-            self._momentum = cp.zeros((*N, 4), dtype='float32')
+            self._momentum = np.zeros((*N, 4), dtype='float32')
+
+        self.use_position_regularization = use_position_regularization
+        if use_position_regularization:
+            # TODO: Initialize affine transformation matrix
+            pass
 
     def split(self, indices):
-        new = PositionOptions(0, use_adaptive_moment=False)
-        new.use_adaptive_moment = self.use_adaptive_moment
-        new._momentum = self._momentum[..., indices, :]
+        """Split the PositionOption meta-data along indices."""
+        new = PositionOptions(
+            (0,),
+            use_adaptive_moment=self.use_adaptive_moment,
+            vdecay=self.vdecay,
+            mdecay=self.mdecay,
+            use_position_regularization=self.use_position_regularization,
+        )
+        if self.use_adaptive_moment:
+            new._momentum = self._momentum[..., indices, :]
         return new
 
     def join(self, other, indices):
-        self._momentum[..., indices, :] = other._momentum
+        """Replace the PositionOption meta-data with other data."""
+        if self.use_adaptive_moment:
+            self._momentum[..., indices, :] = other._momentum
+        return self
+
+    def put(self):
+        """Copy to the current GPU memory."""
+        if self.use_adaptive_moment:
+            self._momentum = cp.asarray(self._momentum)
+        return self
+
+    def get(self):
+        """Copy to the host CPU memory."""
+        if self.use_adaptive_moment:
+            self._momentum = cp.asnumpy(self._momentum)
+        return self
 
     @property
     def vx(self):

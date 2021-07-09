@@ -59,7 +59,9 @@ def lstsq_grad(
         bscan = comm.pool.map(get_batch, scan, batches, n=n)
 
         if position_options:
-            bposition_options = position_options[0].split(batches[0][n])
+            bposition_options = comm.pool.map(PositionOptions.split,
+                                              position_options,
+                                              [b[n] for b in batches])
         else:
             bposition_options = None
 
@@ -119,8 +121,9 @@ def lstsq_grad(
             probe_is_orthogonal,
         )
 
-        if position_options is not None:
-            position_options[0].join(bposition_options, batches[0][n])
+        if position_options:
+            comm.pool.map(PositionOptions.join, position_options,
+                          bposition_options, [b[n] for b in batches])
 
         if isinstance(eigen_probe, list):
             comm.pool.map(
@@ -163,7 +166,7 @@ def lstsq_grad(
     if isinstance(eigen_probe, list):
         result['eigen_probe'] = eigen_probe
         result['eigen_weights'] = eigen_weights
-    if position_options is not None:
+    if position_options:
         result['position_options'] = position_options
 
     return result
@@ -500,7 +503,7 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             probe = comm.pool.bcast(probe[0])
 
         if position_options and m == 0:
-            scan_[0], position_options = _update_position(
+            scan_[0], position_options[0] = _update_position(
                 op,
                 comm,
                 diff[0],
@@ -508,7 +511,7 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                 scan_[0],
                 unique_probe[0],
                 m=m,
-                position_options=position_options,
+                position_options=position_options[0],
             )
 
     return psi, probe, eigen_probe, eigen_weights, scan_, position_options
@@ -593,14 +596,14 @@ def _update_position(op,
             step_x,
             position_options.vx,
             position_options.mx,
-            vdecay=0.4,
-            mdecay=0.4)
+            vdecay=position_options.vdecay,
+            mdecay=position_options.mdecay)
         step_y, position_options.vy, position_options.my = adam(
             step_y,
             position_options.vy,
             position_options.my,
-            vdecay=0.4,
-            mdecay=0.4)
+            vdecay=position_options.vdecay,
+            mdecay=position_options.mdecay)
 
     # Step limit for stability
     max_shift = patches.shape[-1] * 0.1
@@ -620,7 +623,7 @@ def _update_position(op,
     # Ensure net movement is zero
     step_x -= cp.mean(step_x, axis=-1, keepdims=True)
     step_y -= cp.mean(step_y, axis=-1, keepdims=True)
-    logger.info(f'position update norm is {norm(step_x)}')
+    logger.info('position update norm is %+.3e', norm(step_x))
 
     # print(cp.abs(step_x) > 0.5)
     # print(cp.abs(step_y) > 0.5)
