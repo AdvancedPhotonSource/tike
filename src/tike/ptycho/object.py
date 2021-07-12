@@ -1,3 +1,9 @@
+"""Functions related to creating and manipulating probe arrays.
+
+Ptychographic objects are stored as a single complex array.
+
+"""
+
 from dataclasses import dataclass
 import logging
 
