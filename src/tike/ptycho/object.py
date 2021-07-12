@@ -43,11 +43,11 @@ def positivity_constraint(x, r):
 def smoothness_constraint(x, a):
     """Convolves the image with a 3x3 averaging kernel.
 
-    The kernel is defined as
+    The kernel is defined as::
 
-    [[a, a, a]
-     [a, c, a]
-     [a, a, a]]
+        [[a, a, a]
+         [a, c, a]
+         [a, a, a]]
 
     where c = 1 - 8 * a
 
