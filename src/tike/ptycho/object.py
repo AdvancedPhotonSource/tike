@@ -4,7 +4,6 @@ Ptychographic objects are stored as a single complex array.
 
 """
 
-from dataclasses import dataclass
 import logging
 
 import cupy as cp
@@ -13,12 +12,13 @@ import cupyx.scipy.ndimage
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+# TODO: Use dataclass decorator when python 3.6 reaches EOL
 class ObjectOptions:
     """Manage data and setting related to object correction."""
 
-    positivity_constraint = 0
-    smoothness_constraint = 0
+    def __init__(self, positivity_constraint=0, smoothness_constraint=0):
+        self.positivity_constraint = positivity_constraint
+        self.smoothness_constraint = positivity_constraint
 
 
 def positivity_constraint(x, r):
