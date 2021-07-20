@@ -1,6 +1,7 @@
-"""Functions related to creating and manipulating probe arrays.
+"""Functions related to creating and manipulating ptychographic object arrays.
 
-Ptychographic objects are stored as a single complex array.
+Ptychographic objects are stored as a single complex array which represent
+the complex refractive indices in the field of view.
 
 """
 
