@@ -1,12 +1,12 @@
 import logging
 
 import cupy as cp
-import cupyx.scipy.ndimage
 
 from tike.linalg import lstsq, projection, norm, orthogonalize_gs
 from tike.opt import batch_indicies, get_batch, put_batch, adam
 
 from ..position import PositionOptions, update_positions_pd, _image_grad
+from ..object import positivity_constraint, smoothness_constraint
 from ..probe import (orthogonalize_eig, get_varying_probe, update_eigen_probe,
                      constrain_variable_probe)
 
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 def lstsq_grad(
     op, comm,
     data, probe, scan, psi,
-    recover_psi=True, recover_probe=False,
+    recover_probe=False,
     cg_iter=4,
     cost=None,
     eigen_probe=None,
@@ -23,9 +23,8 @@ def lstsq_grad(
     num_batch=1,
     subset_is_random=True,
     probe_is_orthogonal=False,
-    positivity_constraint=0,
-    smoothness_constraint=0,
     position_options=None,
+    object_options=None,
 ):  # yapf: disable
     """Solve the ptychography problem using Odstrcil et al's approach.
 
@@ -114,7 +113,7 @@ def lstsq_grad(
             unique_probe,
             beigen_probe,
             beigen_weights,
-            recover_psi,
+            object_options is not None,
             recover_probe,
             bposition_options,
             probe_is_orthogonal,
@@ -145,9 +144,14 @@ def lstsq_grad(
         probe[0] = orthogonalize_gs(probe[0], axis=(-2, -1))
         probe = comm.pool.bcast(probe[0])
 
-    psi = comm.pool.map(_positivity_constraint, psi, r=positivity_constraint)
+    if object_options:
+        psi = comm.pool.map(positivity_constraint,
+                            psi,
+                            r=object_options.positivity_constraint)
 
-    psi = comm.pool.map(_smoothness_constraint, psi, a=smoothness_constraint)
+        psi = comm.pool.map(smoothness_constraint,
+                            psi,
+                            a=object_options.smoothness_constraint)
 
     if isinstance(eigen_probe, list):
         eigen_probe, eigen_weights = (list(a) for a in zip(*comm.pool.map(
@@ -169,40 +173,6 @@ def lstsq_grad(
         result['position_options'] = position_options
 
     return result
-
-
-def _positivity_constraint(x, r):
-    if r > 0:
-        return r * cp.abs(x) + (1 - r) * x
-    else:
-        return x
-
-
-def _smoothness_constraint(x, a):
-    """Convolves the image with a 3x3 averaging kernel.
-
-    The kernel is defined as
-
-    [[a, a, a]
-     [a, c, a]
-     [a, a, a]]
-
-    where c = 1 - 8 * a
-
-    Parameters
-    ----------
-    a : float [0, 1/8)
-        The non-center weights of the kernel.
-    """
-    if 0 <= a and a < 1.0 / 8.0:
-        weights = cp.ones([1] * (x.ndim - 2) + [3, 3], dtype='float32') * a
-        weights[..., 1, 1] = 1.0 - 8.0 * a
-        x.real = cupyx.scipy.ndimage.convolve(x.real, weights, mode='nearest')
-        x.imag = cupyx.scipy.ndimage.convolve(x.imag, weights, mode='nearest')
-    else:
-        raise ValueError(
-            f"Smoothness constraint must be in range [0, 1/8) not {a}.")
-    return x
 
 
 def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
