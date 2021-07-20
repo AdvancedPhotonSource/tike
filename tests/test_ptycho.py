@@ -54,6 +54,7 @@ import unittest
 import numpy as np
 
 import tike.ptycho
+from tike.ptycho.object import ObjectOptions
 from tike.communicators import Comm, MPIComm
 import tike.random
 
@@ -297,7 +298,7 @@ class TestPtychoRecon(unittest.TestCase):
                 'batch_size': int(self.data.shape[1] / 3),
                 'num_gpu': 2,
                 'recover_probe': True,
-                'recover_psi': True,
+                'object_options': ObjectOptions(),
                 'use_mpi': True,
             },
         )
@@ -315,7 +316,7 @@ class TestPtychoRecon(unittest.TestCase):
                 'batch_size': int(self.data.shape[1] / 3),
                 'num_gpu': 2,
                 'recover_probe': True,
-                'recover_psi': True,
+                'object_options': ObjectOptions(),
                 'recover_positions': True,
                 'use_mpi': True,
             },
@@ -334,7 +335,7 @@ class TestPtychoRecon(unittest.TestCase):
                 'batch_size': int(self.data.shape[1] / 3),
                 'num_gpu': 2,
                 'recover_probe': True,
-                'recover_psi': True,
+                'object_options': ObjectOptions(),
                 'recover_positions': True,
                 'use_mpi': True,
                 'eigen_probe': eigen_probe,
