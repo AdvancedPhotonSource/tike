@@ -146,6 +146,7 @@ def adam(g, v=None, m=None, vdecay=0.9, mdecay=0.999, eps=1e-8):
     Kingma, Diederik P., and Jimmy Ba. "Adam: A method for stochastic
     optimization." arXiv preprint arXiv:1412.6980 (2014).
     """
+    logger.info("ADAM decay m=%+.3e, v=%+.3e; eps=%+.3e", mdecay, vdecay, eps)
     v = 0 if v is None else v
     m = 0 if m is None else m
     m = mdecay * m + (1 - mdecay) * g

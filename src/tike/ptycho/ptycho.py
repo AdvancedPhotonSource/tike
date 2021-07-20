@@ -65,8 +65,8 @@ from tike.operators import Ptycho
 from tike.communicators import Comm, MPIComm
 from tike.opt import batch_indicies
 from tike.ptycho import solvers
-from .position import (check_allowed_positions, get_padded_object,
-                       affine_position_regularization)
+from .position import (PositionOptions, check_allowed_positions,
+                       get_padded_object, affine_position_regularization)
 from .probe import get_varying_probe
 
 logger = logging.getLogger(__name__)
@@ -170,8 +170,7 @@ def reconstruct(
         eigen_probe=None, eigen_weights=None,
         batch_size=None,
         initial_scan=None,
-        recover_positions=False,
-        position_regularization=True,
+        position_options=None,
         **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
@@ -202,6 +201,8 @@ def reconstruct(
     batch_size : int
         The approximate number of scan positions processed by each GPU
         simultaneously per view.
+    position_options : PositionOptions
+        A class containing settings related to position correction.
     """
     (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
     # check_allowed_positions(scan, psi, probe.shape)
@@ -253,6 +254,14 @@ def reconstruct(
                 'eigen_weights':
                     eigen_weights,
             }
+            if position_options:
+                result['position_options'] = [
+                    position_options.split(x) for x in order
+                ]
+                result['position_options'] = comm.pool.map(
+                    PositionOptions.put,
+                    result['position_options'],
+                )
             for key, value in kwargs.items():
                 if np.ndim(value) > 0:
                     kwargs[key] = comm.pool.bcast(value)
@@ -283,13 +292,14 @@ def reconstruct(
                     comm,
                     data=data,
                     num_batch=num_batch,
-                    recover_positions=recover_positions,
                     **kwargs,
                 )
                 if result['cost'] is not None:
                     costs.append(result['cost'])
 
-                if recover_positions and position_regularization:
+                if (position_options
+                        and position_options.use_position_regularization):
+                    # TODO: Regularize on all GPUs
                     result['scan'][0], _ = affine_position_regularization(
                         operator,
                         result['psi'][0],
@@ -311,9 +321,19 @@ def reconstruct(
             reorder = np.argsort(np.concatenate(order))
             result['scan'] = comm.pool.gather(scan, axis=1)[:, reorder]
 
-            if recover_positions:
+            if position_options:
                 result['initial_scan'] = comm.pool.gather(initial_scan,
                                                           axis=1)[:, reorder]
+                result['position_options'] = comm.pool.map(
+                    PositionOptions.get,
+                    result['position_options'],
+                )
+                [
+                    position_options.join(x, o)
+                    for x, o in zip(result['position_options'], order)
+                ]
+                result['position_options'] = position_options
+
             if 'eigen_weights' in result:
                 result['eigen_weights'] = comm.pool.gather(
                     eigen_weights,
@@ -326,7 +346,10 @@ def reconstruct(
             for k, v in result.items():
                 if isinstance(v, list):
                     result[k] = v[0]
-        return {k: operator.asnumpy(v) for k, v in result.items()}
+        return {
+            k: operator.asnumpy(v) if isinstance(v, cp.ndarray) else v
+            for k, v in result.items()
+        }
     else:
         raise ValueError(f"The '{algorithm}' algorithm is not an option.\n"
                          f"\tAvailable algorithms are : {solvers.__all__}")
