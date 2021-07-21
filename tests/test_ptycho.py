@@ -54,6 +54,8 @@ import unittest
 import numpy as np
 
 import tike.ptycho
+from tike.ptycho.position import PositionOptions
+from tike.ptycho.object import ObjectOptions
 from tike.communicators import Comm, MPIComm
 import tike.random
 
@@ -225,15 +227,26 @@ class TestPtychoRecon(unittest.TestCase):
     def template_consistent_algorithm(self, algorithm, params={}):
         """Check ptycho.solver.algorithm for consistency."""
 
-        if params.get('use_mpi') is True:
-            with MPIComm() as IO:
-                self.scan, self.data = IO.MPIio(self.scan, self.data)
-
         result = {
             'psi': np.ones_like(self.original),
             'probe': self.probe * np.random.rand(*self.probe.shape),
-            'scan': self.scan,
         }
+
+        if params.get('use_mpi') is True:
+            with MPIComm() as IO:
+                result['probe'] = IO.Bcast(result['probe'])
+                weights = params.get('eigen_weights')
+                if weights is not None:
+                    self.scan, self.data, params['eigen_weights'] = IO.MPIio(
+                        self.scan,
+                        self.data,
+                        weights,
+                    )
+                else:
+                    self.scan, self.data = IO.MPIio(self.scan, self.data)
+
+        result['scan'] = self.scan
+
         result = tike.ptycho.reconstruct(
             **result,
             **params,
@@ -286,7 +299,7 @@ class TestPtychoRecon(unittest.TestCase):
                 'batch_size': int(self.data.shape[1] / 3),
                 'num_gpu': 2,
                 'recover_probe': True,
-                'recover_psi': True,
+                'object_options': ObjectOptions(),
                 'use_mpi': True,
             },
         )
@@ -304,32 +317,41 @@ class TestPtychoRecon(unittest.TestCase):
                 'batch_size': int(self.data.shape[1] / 3),
                 'num_gpu': 2,
                 'recover_probe': True,
-                'recover_psi': True,
-                'use_mpi': False,
+                'object_options': ObjectOptions(),
+                'use_mpi': True,
+                'position_options': PositionOptions(self.scan.shape[0:-1])
             },
         )
 
     def test_consistent_lstsq_grad_variable_probe(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
 
-        eigen_probe = tike.random.numpy_complex(
-            *self.scan.shape[:-2], 1, 1, 2,
-            *self.probe.shape[-2:]).astype('complex64')
-        weights = 1e-6 * np.random.rand(*self.scan.shape[:-1], *
-                                        eigen_probe.shape[-4:-2])
-        weights -= np.mean(weights, axis=-3, keepdims=True)
-        weights = weights.astype('float32')
+        eigen_probe, weights = tike.ptycho.probe.init_varying_probe(
+            self.scan, self.probe, 3)
 
         self.template_consistent_algorithm(
             'lstsq_grad',
             params={
-                'subset_is_random': True,
-                'batch_size': int(self.data.shape[1] / 3),
-                'num_gpu': 2,
-                'recover_probe': True,
-                'recover_psi': True,
-                'eigen_probe': eigen_probe,
-                'eigen_weights': weights,
+                'subset_is_random':
+                    True,
+                'batch_size':
+                    int(self.data.shape[1] / 3),
+                'num_gpu':
+                    2,
+                'recover_probe':
+                    True,
+                'object_options': ObjectOptions(),
+                'use_mpi':
+                    True,
+                'eigen_probe':
+                    eigen_probe,
+                'eigen_weights':
+                    weights,
+                'position_options':
+                    PositionOptions(
+                        self.scan.shape[0:-1],
+                        use_adaptive_moment=True,
+                    )
             },
         )
 
@@ -351,15 +373,14 @@ class TestProbe(unittest.TestCase):
         comm = Comm(2, None)
 
         R = comm.pool.bcast(np.random.rand(*leading, posi, 1, 1, wide, high))
-        eigen_probe = comm.pool.bcast(np.random.rand(*leading,
-                                                     1, eigen, 1, wide, high))
+        eigen_probe = comm.pool.bcast(
+            np.random.rand(*leading, 1, eigen, 1, wide, high))
         weights = np.random.rand(*leading, posi)
         weights -= np.mean(weights)
         weights = comm.pool.bcast(weights)
-        patches = comm.pool.bcast(np.random.rand(*leading,
-                                                 posi, 1, 1, wide, high))
-        diff = comm.pool.bcast(np.random.rand(*leading,
-                                              posi, 1, 1, wide, high))
+        patches = comm.pool.bcast(
+            np.random.rand(*leading, posi, 1, 1, wide, high))
+        diff = comm.pool.bcast(np.random.rand(*leading, posi, 1, 1, wide, high))
 
         new_probe, new_weights = tike.ptycho.probe.update_eigen_probe(
             comm=comm,

@@ -104,7 +104,17 @@ def reconstruct(
     rtol : float
         Terminate early if the relative decrease of the cost function is
         less than this amount.
-
+    tilt : float32 [radians]
+        The tilt angle; the angle between the rotation axis of the object and
+        the light source. π / 2 for conventional tomography. 0 for a beam path
+        along the rotation axis.
+    obj : (nz, n, n) complex64
+        The complex refractive index of the object. nz is the axis
+        corresponding to the rotation axis.
+    data : (ntheta, n, n) complex64
+        The complex projection data of the object.
+    theta : array-like float32 [radians]
+        The projection angles; rotation around the vertical axis of the object.
     """
     n = data.shape[2]
     obj = np.zeros([n, n, n], dtype='complex64') if obj is None else obj

@@ -37,6 +37,125 @@ def put_batch(y, x, b, n):
     x[:, b[n]] = y
 
 
+def adagrad(g, v=None, eps=1e-6):
+    """Return the adaptive gradient algorithm direction.
+
+    Used to provide a better search direction to stochastic gradient
+    descent.
+
+    Parameters
+    ----------
+    g : vector
+        The current gradient.
+    v : vector
+        The adagrad gradient weights.
+    eps : float
+        A tiny constant to prevent zero division.
+
+    Returns
+    -------
+    d : vector
+        The new search direction.
+    v : vector
+        The new gradient weights.
+
+    References
+    ----------
+    Duchi, John, Elad Hazan, and Yoram Singer. "Adaptive subgradient methods
+    for online learning and stochastic optimization." Journal of machine
+    learning research 12, no. 7 (2011).
+    """
+    if v is None:
+        return g, (g * g.conj()).real
+    v += (g * g.conj()).real
+    d = g / np.sqrt(v + eps)
+    return d, v
+
+
+def adadelta(g, d0=None, v=None, m=None, decay=0.9, eps=1e-6):
+    """Return the adadelta algorithm direction.
+
+    Used to provide a better search direction to stochastic gradient
+    descent.
+
+    Parameters
+    ----------
+    g : vector
+        The current gradient.
+    d0: vector
+        The previous search direction.
+    v : vector
+        The adadelta gradient weights.
+    m : vector
+        The adadelta direction weights.
+    eps : float
+        A tiny constant to prevent zero division.
+
+    Returns
+    -------
+    d : vector
+        The new search direction.
+    v : vector
+        The new gradient weights.
+
+    References
+    ----------
+    Zeiler, Matthew D. "Adadelta: an adaptive learning rate method." arXiv
+    preprint arXiv:1212.5701 (2012).
+    """
+    v = 0 if v is None else v
+    m = 0 if m is None else m
+    d0 = 0 if d0 is None else d0
+    v = v * decay + (1 - decay) * (g * g.conj()).real
+    m = m * decay + (1 - decay) * (d0 * d0.conj()).real
+    d = np.sqrt((m + eps) / (v + eps)) * g
+    return d, v, m
+
+
+def adam(g, v=None, m=None, vdecay=0.9, mdecay=0.999, eps=1e-8):
+    """Return the adaptive moment estimation direction.
+
+    Used to provide a better search direction to stochastic gradient
+    descent.
+
+    Parameters
+    ----------
+    g : vector
+        The current search direction.
+    v : vector
+        Second moment estimate.
+    m : vector
+        First moment estimate.
+    vdecay, mdecay : float [0, 1)
+        A factor which determines how quickly information from previous steps
+        decays.
+    eps : float
+        A tiny constant to prevent zero division.
+
+    Returns
+    -------
+    d : vector
+        The new search direction.
+    v : vector
+        The new gradient weights.
+    m : vector
+        The new momentum weights.
+
+    References
+    ----------
+    Kingma, Diederik P., and Jimmy Ba. "Adam: A method for stochastic
+    optimization." arXiv preprint arXiv:1412.6980 (2014).
+    """
+    logger.info("ADAM decay m=%+.3e, v=%+.3e; eps=%+.3e", mdecay, vdecay, eps)
+    v = 0 if v is None else v
+    m = 0 if m is None else m
+    m = mdecay * m + (1 - mdecay) * g
+    v = vdecay * v + (1 - vdecay) * (g * g.conj()).real
+    m_ = m / (1 - mdecay)
+    v_ = np.sqrt(v / (1 - vdecay))
+    return m_ / (v_ + eps), v, m
+
+
 def line_search(
     f,
     x,

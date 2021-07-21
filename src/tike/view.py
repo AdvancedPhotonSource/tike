@@ -50,23 +50,231 @@
 __author__ = "Doga Gursoy"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
-__all__ = [
-    'plot_complex',
-    'plot_phase',
-    'trajectory',
-    'plot_footprint',
-    'plot_trajectories',
-    'plot_sino_coverage',
-]
 
 import logging
 import warnings
 
-from matplotlib import ticker
+from matplotlib.patches import Ellipse
+import matplotlib.transforms as transforms
+from matplotlib import collections
 import matplotlib.pyplot as plt
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+
+def plot_position_error(true, *args, indices=None):
+    """Create a spaghetti plot of position errors.
+
+    Parameters
+    ----------
+    true (N, 2) arraylike
+        The true positions.
+    args (N, 2) arraylike
+        A sequence of positions.
+    """
+    errors = np.concatenate(
+        [np.linalg.norm(true - p, axis=-1, keepdims=True) for p in args],
+        axis=-1,
+    )
+    indices = np.arange(errors.shape[1]) if indices is None else indices
+    plt.plot(indices, np.transpose(errors), color='k', alpha=0.1)
+
+
+def _confidence_ellipse(x, y, ax, n_std=3.0, facecolor='none', **kwargs):
+    """
+    Create a plot of the covariance confidence ellipse of `x` and `y`
+
+    Parameters
+    ----------
+    x, y : array_like, shape (n, )
+        Input data.
+
+    ax : matplotlib.axes.Axes
+        The axes object to draw the ellipse into.
+
+    n_std : float
+        The number of standard deviations to determine the ellipse's radiuses.
+
+    Returns
+    -------
+    matplotlib.patches.Ellipse
+
+    Other parameters
+    ----------------
+    kwargs : `~matplotlib.patches.Patch` properties
+    """
+    if x.size != y.size:
+        raise ValueError("x and y must be the same size")
+
+    cov = np.cov(x, y)
+    pearson = cov[0, 1] / np.sqrt(cov[0, 0] * cov[1, 1])
+    # Using a special case to obtain the eigenvalues of this
+    # two-dimensionl dataset.
+    ell_radius_x = np.sqrt(1 + pearson)
+    ell_radius_y = np.sqrt(1 - pearson)
+    ellipse = Ellipse((0, 0),
+                      width=ell_radius_x * 2,
+                      height=ell_radius_y * 2,
+                      facecolor=facecolor,
+                      **kwargs)
+
+    # Calculating the stdandard deviation of x from
+    # the squareroot of the variance and multiplying
+    # with the given number of standard deviations.
+    scale_x = np.sqrt(cov[0, 0]) * n_std
+    mean_x = np.mean(x)
+
+    # calculating the stdandard deviation of y ...
+    scale_y = np.sqrt(cov[1, 1]) * n_std
+    mean_y = np.mean(y)
+
+    transf = transforms.Affine2D() \
+        .rotate_deg(45) \
+        .scale(scale_x, scale_y) \
+        .translate(mean_x, mean_y)
+
+    ellipse.set_transform(transf + ax.transData)
+    return ax.add_patch(ellipse)
+
+
+def plot_positions_convergence(true, *args):
+    """Plot position error in 2D.
+
+    Shows the progression of scanning position movement toward the "true"
+    position. Shifts the coordinates of each position, so the true positions
+    are at the origin. Draws a line from a starting triangle to an ending
+    circle showing the path taken between with a line.
+
+    Parameters
+    ----------
+    true (N, 2)
+        True scan positions; marked with a plus.
+    args (N, 2)
+        A sequence of positions; starts with triangle ends with a circle.
+
+    """
+    s = 5  # only show every sth point
+    args = np.stack(args, axis=0)
+    args = args - true
+    true = np.zeros_like(true)
+
+    keys = ['true']
+    plt.scatter(
+        [0],
+        [0],
+        marker='+',
+        color='black',
+    )
+    if len(args) > 1:
+        plt.scatter(
+            args[-1][..., ::s, 0],
+            args[-1][..., ::s, 1],
+            marker='o',
+            color='red',
+            facecolor='None',
+            zorder=3,
+        )
+        keys.append('final')
+
+        plt.scatter(
+            args[0][..., ::s, 0],
+            args[0][..., ::s, 1],
+            marker='^',
+            color='blue',
+            facecolor='None',
+            zorder=2,
+        )
+        keys.append('initial')
+
+    plt.axis('equal')
+    plt.legend(keys)
+
+    for i in range(len(args) - 1, 0, -1):
+        lines = zip(args[i, ::s], args[i - 1, ::s])
+        lc = collections.LineCollection(lines,
+                                        color='black',
+                                        alpha=0.1,
+                                        zorder=1)
+        plt.gca().add_collection(lc)
+
+    limits = np.amax(np.abs(args), axis=(-3, -2))
+    plt.xlim([-limits[0], limits[0]])
+    plt.ylim([-limits[1], limits[1]])
+
+    if len(args) > 1:
+        _confidence_ellipse(
+            args[-1][..., 0],
+            args[-1][..., 1],
+            plt.gca(),
+            zorder=5,
+            facecolor='red',
+            alpha=0.1,
+        )
+
+    if len(args) > 0:
+        _confidence_ellipse(
+            args[0][..., 0],
+            args[0][..., 1],
+            plt.gca(),
+            zorder=5,
+            facecolor='blue',
+            alpha=0.05,
+        )
+
+
+def plot_positions(true, *args):
+    """Plot 2D positions to current axis.
+
+    Optionally show the progression of scanning position movement. Draws a line
+    from a starting triangle to an ending circle showing the path taken
+    between with a line.
+
+    Parameters
+    ----------
+    true (N, 2)
+        True scan positions; marked with a plus.
+    args (N, 2)
+        A sequence of positions; starts with triangle ends with a circle.
+
+    """
+    keys = ['true']
+    plt.scatter(
+        true[..., 0],
+        true[..., 1],
+        marker='+',
+        color='black',
+    )
+    if len(args) > 1:
+        plt.scatter(
+            args[-1][..., 0],
+            args[-1][..., 1],
+            marker='o',
+            color='red',
+            facecolor='None',
+        )
+        keys.append('current')
+    if len(args) > 0:
+        plt.scatter(
+            args[0][..., 0],
+            args[0][..., 1],
+            marker='^',
+            color='blue',
+            facecolor='None',
+        )
+        keys.append('initial')
+    plt.axis('equal')
+    plt.legend(keys)
+
+    if len(args) > 0:
+        lines = zip(true, args[-1])
+        lc = collections.LineCollection(lines, color='red', linestyle='dashed')
+        plt.gca().add_collection(lc)
+
+    for i in range(len(args) - 1, 0, -1):
+        lines = zip(args[i], args[i - 1])
+        lc = collections.LineCollection(lines, color='blue')
+        plt.gca().add_collection(lc)
 
 
 def plot_complex(Z, rmin=None, rmax=None, imin=None, imax=None):
@@ -166,8 +374,8 @@ def plot_sino_coverage(
     probe_grid = np.asarray(probe_grid)
     # Create one ray for each pixel in the probe grid
     dv, dh = np.meshgrid(
-        np.linspace(0, probe_shape[0], probe_grid.shape[0],
-                    endpoint=False) + probe_shape[0] / probe_grid.shape[0] / 2,
+        np.linspace(0, probe_shape[0], probe_grid.shape[0], endpoint=False) +
+        probe_shape[0] / probe_grid.shape[0] / 2,
         np.linspace(0, probe_shape[1], probe_grid.shape[1], endpoint=False) +
         probe_shape[1] / probe_grid.shape[1] / 2,
     )
@@ -180,18 +388,20 @@ def plot_sino_coverage(
         if probe_grid[i] > 0:
             # Compute histogram
             sample = np.stack([theta, v + dv[i]], h + dh[i], axis=1)
-            dH, edges = np.histogramdd(
-                sample,
-                bins=bins,
-                range=[[0, np.pi], [-.5, .5], [-.5, .5]],
-                weights=dwell * probe_grid[i])
+            dH, edges = np.histogramdd(sample,
+                                       bins=bins,
+                                       range=[[0, np.pi], [-.5, .5], [-.5, .5]],
+                                       weights=dwell * probe_grid[i])
             H += dH
     ideal_bin_count = np.sum(dwell) * np.sum(probe_grid) / np.prod(bins)
     H /= ideal_bin_count
     # Plot
     ax1a = plt.subplot(1, 3, 2)
-    plt.imshow(
-        np.min(H, axis=0).T, vmin=0, vmax=2, origin="lower", cmap=plt.cm.RdBu)
+    plt.imshow(np.min(H, axis=0).T,
+               vmin=0,
+               vmax=2,
+               origin="lower",
+               cmap=plt.cm.RdBu)
     ax1a.axis('equal')
     plt.xticks(np.array([0, bins[1] / 2, bins[1]]) - 0.5, [-.5, 0, .5])
     plt.yticks(np.array([0, bins[2] / 2, bins[2]]) - 0.5, [-.5, 0, .5])
@@ -199,8 +409,11 @@ def plot_sino_coverage(
     plt.ylabel("v")
 
     ax1b = plt.subplot(1, 3, 3)
-    plt.imshow(
-        np.min(H, axis=1).T, vmin=0, vmax=2, origin="lower", cmap=plt.cm.RdBu)
+    plt.imshow(np.min(H, axis=1).T,
+               vmin=0,
+               vmax=2,
+               origin="lower",
+               cmap=plt.cm.RdBu)
     ax1b.axis('equal')
     plt.xlabel('theta')
     plt.ylabel("v")
@@ -208,8 +421,11 @@ def plot_sino_coverage(
     plt.yticks(np.array([0, bins[2] / 2, bins[2]]) - 0.5, [-.5, 0, .5])
 
     ax1c = plt.subplot(1, 3, 1)
-    plt.imshow(
-        np.min(H, axis=2), vmin=0, vmax=2, origin="lower", cmap=plt.cm.RdBu)
+    plt.imshow(np.min(H, axis=2),
+               vmin=0,
+               vmax=2,
+               origin="lower",
+               cmap=plt.cm.RdBu)
     ax1c.axis('equal')
     plt.ylabel('theta')
     plt.xlabel("h")

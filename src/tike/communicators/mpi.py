@@ -7,6 +7,7 @@ __docformat__ = 'restructuredtext en'
 from mpi4py import MPI
 
 import numpy as np
+import cupy as cp
 
 
 class MPIComm:
@@ -66,9 +67,10 @@ class MPIComm:
 
         if sendbuf is None:
             raise ValueError(f"Gather data can't be empty.")
+        recvbuf = None
         if self.rank == dest:
-            recvbuf = np.empty(sendbuf.shape, sendbuf.dtype)
-        self.comm.Scatter(sendbuf, recvbuf, dest)
+            recvbuf = np.empty(sendbuf.size*self.size, sendbuf.dtype)
+        self.comm.Gather(sendbuf, recvbuf, dest)
         if self.rank == dest:
             return recvbuf
 
@@ -92,7 +94,7 @@ class MPIComm:
 
         return recvbuf
 
-    def MPIio(self, scan, data):
+    def MPIio(self, scan, *args):
         """Read data parts to different processes."""
 
         # Determine the edges of the stripes
@@ -113,5 +115,6 @@ class MPIComm:
                 scan[0, :, 0] <= edges[self.rank + 1])
 
         scan = scan[:, mask]
-        data = data[:, mask]
-        return scan, data
+        split_args = [arg[:, mask] for arg in args]
+
+        return (scan, *split_args)

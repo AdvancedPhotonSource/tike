@@ -28,25 +28,32 @@ def inner(x, y, axis=None, keepdims=False):
     return (x.conj() * y).sum(axis=axis, keepdims=keepdims)
 
 
-def lstsq(a, b):
+def lstsq(a, b, weights=None):
     """Return the least-squares solution for a @ x = b.
 
     This implementation, unlike cp.linalg.lstsq, allows a stack of matricies to
     be processed simultaneously. The input sizes of the matricies are as
     follows:
         a (..., M, N)
-        b (..., M)
-        x (..., N)
+        b (..., M, K)
+        x (..., N, K)
+
+    Optionally include weights (..., M) for weighted-least-squares if the
+    errors are uncorrelated.
 
     ...seealso:: https://github.com/numpy/numpy/issues/8720
                  https://github.com/cupy/cupy/issues/3062
     """
     # TODO: Using 'out' parameter of cp.matmul() may reduce memory footprint
-    assert a.shape[:-1] == b.shape, (f"Leading dims of a {a.shape}"
-                                     f"and b {b.shape} must be same!")
+    assert a.shape[:-1] == b.shape[:-1], (f"Leading dims of a {a.shape}"
+                                          f"and b {b.shape} must be same!")
+    if weights is not None:
+        assert weights.shape == a.shape[:-1]
+        a = a * np.sqrt(weights[..., None])
+        b = b * np.sqrt(weights[..., None])
     aT = hermitian(a)
-    x = np.linalg.inv(aT @ a) @ aT @ b[..., None]
-    return x[..., 0]
+    x = np.linalg.inv(aT @ a) @ aT @ b
+    return x
 
 
 def orthogonalize_gs(x, axis=-1):

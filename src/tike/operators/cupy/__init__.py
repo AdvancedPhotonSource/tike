@@ -17,9 +17,11 @@ from .propagation import *
 from .ptycho import *
 from .shift import *
 from .rotate import *
+from .bucket import *
 
 __all__ = (
     'Alignment',
+    'Bucket',
     'Convolution',
     'Gradient',
     'Flow',

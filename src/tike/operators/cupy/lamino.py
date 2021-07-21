@@ -10,7 +10,8 @@ from .cache import CachedFFT
 from .usfft import eq2us, us2eq, checkerboard
 from .operator import Operator
 
-_cu_source = files('tike.operators.cupy').joinpath('usfft.cu').read_text()
+_cu_source = files('tike.operators.cupy').joinpath('grid.cu').read_text()
+_make_grids_kernel = cp.RawKernel(_cu_source, "make_grids")
 
 
 class Lamino(CachedFFT, Operator):
@@ -25,7 +26,7 @@ class Lamino(CachedFFT, Operator):
     ----------
     n : int
         The pixel width of the cubic reconstructed grid.
-    tilt : float32
+    tilt : float32 [radians]
         The tilt angle; the angle between the rotation axis of the object and
         the light source. π / 2 for conventional tomography. 0 for a beam path
         along the rotation axis.
@@ -37,24 +38,22 @@ class Lamino(CachedFFT, Operator):
         corresponding to the rotation axis.
     data : (ntheta, n, n) complex64
         The complex projection data of the object.
-    theta : array-like float32
+    theta : array-like float32 [radians]
         The projection angles; rotation around the vertical axis of the object.
     """
 
-    def __init__(self, n, tilt, eps=1e-3,
-                 **kwargs):  # noqa: D102 yapf: disable
+    def __init__(self, n, tilt, eps=1e-3, upsample=1, **kwargs):
         """Please see help(Lamino) for more info."""
         self.n = n
         self.tilt = np.float32(tilt)
         self.eps = np.float32(eps)
+        self.upsample = upsample
 
     def __enter__(self):
         """Return self at start of a with-block."""
         CachedFFT.__enter__(self)
         # Call the __enter__ methods for any composed operators.
         # Allocate special memory objects.
-        self.scatter_kernel = cp.RawKernel(_cu_source, "scatter")
-        self.gather_kernel = cp.RawKernel(_cu_source, "gather")
         return self
 
     def fwd(self, u, theta, **kwargs):
@@ -62,15 +61,19 @@ class Lamino(CachedFFT, Operator):
 
         xi = self._make_grids(theta)
 
-        def gather(xp, Fe, x, n, m, mu):
-            return self.gather(Fe, x, n, m, mu)
-
         def fftn(*args, **kwargs):
             return self._fftn(*args, overwrite=True, **kwargs)
 
         # USFFT from equally-spaced grid to unequally-spaced grid
-        F = eq2us(u, xi, self.n, self.eps, self.xp, gather,
-                  fftn).reshape([theta.shape[-1], self.n, self.n])
+        F = eq2us(
+            u,
+            xi,
+            self.n,
+            self.eps,
+            self.xp,
+            fftn=fftn,
+            upsample=self.upsample,
+        ).reshape([theta.shape[-1], self.n, self.n])
 
         # Inverse 2D FFT
         data = checkerboard(
@@ -94,9 +97,6 @@ class Lamino(CachedFFT, Operator):
 
         xi = self._make_grids(theta)
 
-        def scatter(xp, f, x, n, m, mu):
-            return self.scatter(f, x, n, m, mu)
-
         def fftn(*args, **kwargs):
             return self._fftn(*args, overwrite=True, **kwargs)
 
@@ -115,71 +115,59 @@ class Lamino(CachedFFT, Operator):
             axes=(1, 2),
             inverse=True,
         ).ravel()
-        # Inverse (x->-x) USFFT from unequally-spaced grid to equally-spaced
-        # grid
-        u = us2eq(F, -xi, self.n, self.eps, self.xp, scatter, fftn)
+        # Inverse (x->-x / n**2) USFFT from unequally-spaced grid to
+        # equally-spaced grid.
+        u = us2eq(
+            F,
+            -xi,
+            self.n,
+            self.eps,
+            self.xp,
+            fftn=fftn,
+            upsample=self.upsample,
+        )
         u /= self.n**2
         return u
 
-    def scatter(self, f, x, n, m, mu):
-        G = cp.zeros([2 * n] * 3, dtype="complex64")
-        const = cp.array([cp.sqrt(cp.pi / mu)**3, -cp.pi**2 / mu],
-                         dtype='float32')
-        assert G.dtype == cp.complex64
-        assert f.dtype == cp.complex64
-        assert x.dtype == cp.float32
-        assert const.dtype == cp.float32
-        block = (min(self.scatter_kernel.max_threads_per_block, (2 * m)**3),)
-        grid = (1, 0, min(f.shape[0], 65535))
-        self.scatter_kernel(grid, block, (
-            G,
-            f,
-            f.shape[0],
-            x,
-            n,
-            m,
-            const,
-        ))
-        return G
+    def cost(self, data, theta, obj):
+        """Cost function for the least-squres laminography problem"""
+        return self.xp.linalg.norm((self.fwd(
+            u=obj,
+            theta=theta,
+        ) - data).ravel())**2
 
-    def gather(self, Fe, x, n, m, mu):
-        F = cp.zeros(x.shape[0], dtype="complex64")
-        const = cp.array([cp.sqrt(cp.pi / mu)**3, -cp.pi**2 / mu],
-                         dtype='float32')
-        assert F.dtype == cp.complex64
-        assert Fe.dtype == cp.complex64
-        assert x.dtype == cp.float32
-        assert const.dtype == cp.float32
-        block = (min(self.scatter_kernel.max_threads_per_block, (2 * m)**3),)
-        grid = (1, 0, min(x.shape[0], 65535))
-        self.gather_kernel(grid, block, (
-            F,
-            Fe,
-            x.shape[0],
-            x,
-            n,
-            m,
-            const,
-        ))
-        return F
+    def grad(self, data, theta, obj):
+        """Gradient for the least-squares laminography problem"""
+        out = self.adj(
+            data=self.fwd(
+                u=obj,
+                theta=theta,
+            ) - data,
+            theta=theta,
+        )
+        # BUG? Cannot joint line below and above otherwise types are promoted?
+        out /= (data.shape[-3] * self.n**3)
+        return out
 
     def _make_grids(self, theta):
         """Return (ntheta*n*n, 3) unequally-spaced frequencies for the USFFT."""
-        u = self.xp.arange(-self.n // 2, self.n // 2, dtype='float32') / self.n
-        ku = self.xp.broadcast_to(u, (self.n, self.n)).ravel()
-        kv = self.xp.broadcast_to(u[:, None], (self.n, self.n)).ravel()
-        xi = self.xp.zeros([theta.shape[-1], self.n * self.n, 3],
-                           dtype='float32')
-        ctilt, stilt = self.xp.cos(self.tilt), self.xp.sin(self.tilt)
-        ctheta, stheta = self.xp.cos(theta), self.xp.sin(theta)
 
-        for itheta in range(theta.shape[-1]):
-            xi[itheta, :, 2] = +ku * ctheta[itheta] + kv * stheta[itheta] * ctilt
-            xi[itheta, :, 1] = -ku * stheta[itheta] + kv * ctheta[itheta] * ctilt
-        xi[:, :, 0] = kv * stilt
+        assert self.tilt.dtype == np.float32
+        assert theta.dtype == cp.float32, theta.dtype
 
-        # make sure coordinates are in (-0.5,0.5), probably unnecessary
-        xi[xi >= 0.5] = 0.5 - 1e-5
-        xi[xi < -0.5] = -0.5 + 1e-5
+        xi = cp.empty((theta.shape[-1] * self.n * self.n, 3), dtype="float32")
 
-        return xi.reshape(theta.shape[-1] * self.n * self.n, 3)
+        grid = (
+            -(-self.n // _make_grids_kernel.max_threads_per_block),
+            self.n,
+            theta.shape[-1],
+        )
+        block = (min(self.n, _make_grids_kernel.max_threads_per_block),)
+        _make_grids_kernel(grid, block, (
+            xi,
+            theta,
+            theta.shape[-1],
+            self.n,
+            self.tilt,
+        ))
+        return xi

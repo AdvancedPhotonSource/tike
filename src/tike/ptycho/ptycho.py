@@ -65,7 +65,8 @@ from tike.operators import Ptycho
 from tike.communicators import Comm, MPIComm
 from tike.opt import batch_indicies
 from tike.ptycho import solvers
-from .position import check_allowed_positions, get_padded_object
+from .position import (PositionOptions, check_allowed_positions,
+                       get_padded_object, affine_position_regularization)
 from .probe import get_varying_probe
 
 logger = logging.getLogger(__name__)
@@ -84,7 +85,11 @@ def _compute_intensity(
     intensity = 0
     for m in range(probe.shape[-3]):
         farplane = operator.fwd(
-            probe=get_varying_probe(probe, eigen_probe, eigen_weights, m=m),
+            probe=get_varying_probe(
+                probe[..., [m], :, :],
+                None if eigen_probe is None else eigen_probe[..., [m], :, :],
+                None if eigen_weights is None else eigen_weights[..., [m]],
+            ),
             scan=scan,
             psi=psi,
         )
@@ -152,7 +157,7 @@ def simulate(
         if eigen_weights is not None:
             eigen_weights = operator.asarray(eigen_weights, dtype='float32')
         data = _compute_intensity(operator, psi, scan, probe, eigen_weights,
-                                 eigen_probe, fly)
+                                  eigen_probe, fly)
         return operator.asnumpy(data.real)
 
 
@@ -165,6 +170,8 @@ def reconstruct(
         eigen_probe=None, eigen_weights=None,
         rescale=True,
         batch_size=None,
+        initial_scan=None,
+        position_options=None,
         **kwargs
 ):  # yapf: disable
     """Solve the ptychography problem using the given `algorithm`.
@@ -173,7 +180,8 @@ def reconstruct(
     ----------
     data : (..., FRAME, WIDE, HIGH) float32
         The intensity (square of the absolute value) of the propagated
-        wavefront; i.e. what the detector records.
+        wavefront; i.e. what the detector records. FFT-shifted so the
+        diffraction peak is at the corners.
     eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
         The eigen probes for all positions.
     eigen_weights : (..., POSI, EIGEN, SHARED) float32
@@ -194,9 +202,11 @@ def reconstruct(
     batch_size : int
         The approximate number of scan positions processed by each GPU
         simultaneously per view.
+    position_options : PositionOptions
+        A class containing settings related to position correction.
     """
     (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
-    check_allowed_positions(scan, psi, probe.shape)
+    # check_allowed_positions(scan, psi, probe.shape)
     if use_mpi is True:
         mpi = MPIComm
     else:
@@ -220,7 +230,7 @@ def reconstruct(
             )
             # Divide the inputs into regions
             odd_pool = comm.pool.num_workers % 2
-            order, scan, data, eigen_weights = split_by_scan_grid(
+            order, scan, data, eigen_weights, initial_scan = split_by_scan_grid(
                 comm.pool,
                 (
                     comm.pool.num_workers
@@ -230,6 +240,7 @@ def reconstruct(
                 scan,
                 data,
                 eigen_weights,
+                initial_scan,
             )
             result = {
                 'psi':
@@ -244,21 +255,31 @@ def reconstruct(
                 'eigen_weights':
                     eigen_weights,
             }
+            if position_options:
+                result['position_options'] = [
+                    position_options.split(x) for x in order
+                ]
+                result['position_options'] = comm.pool.map(
+                    PositionOptions.put,
+                    result['position_options'],
+                )
             for key, value in kwargs.items():
                 if np.ndim(value) > 0:
                     kwargs[key] = comm.pool.bcast(value)
 
+            if initial_scan[0] is None:
+                initial_scan = comm.pool.map(cp.copy, scan)
+
             if rescale:
-                result['probe'] = comm.pool.bcast(
-                    _rescale_obj_probe(
-                        operator,
-                        comm,
-                        data[0],
-                        result['psi'][0],
-                        scan[0],
-                        result['probe'][0],
-                        num_batch=num_batch,
-                    ))
+                result['probe'] = _rescale_obj_probe(
+                    operator,
+                    comm,
+                    data,
+                    result['psi'],
+                    scan,
+                    result['probe'],
+                    num_batch=num_batch,
+                )
 
             costs = []
             times = []
@@ -278,6 +299,17 @@ def reconstruct(
                 if result['cost'] is not None:
                     costs.append(result['cost'])
 
+                if (position_options
+                        and position_options.use_position_regularization):
+                    # TODO: Regularize on all GPUs
+                    result['scan'][0], _ = affine_position_regularization(
+                        operator,
+                        result['psi'][0],
+                        result['probe'][0],
+                        initial_scan[0],
+                        result['scan'][0],
+                    )
+
                 times.append(time.perf_counter() - start)
                 start = time.perf_counter()
 
@@ -290,6 +322,20 @@ def reconstruct(
 
             reorder = np.argsort(np.concatenate(order))
             result['scan'] = comm.pool.gather(scan, axis=1)[:, reorder]
+
+            if position_options:
+                result['initial_scan'] = comm.pool.gather(initial_scan,
+                                                          axis=1)[:, reorder]
+                result['position_options'] = comm.pool.map(
+                    PositionOptions.get,
+                    result['position_options'],
+                )
+                [
+                    position_options.join(x, o)
+                    for x, o in zip(result['position_options'], order)
+                ]
+                result['position_options'] = position_options
+
             if 'eigen_weights' in result:
                 result['eigen_weights'] = comm.pool.gather(
                     eigen_weights,
@@ -303,7 +349,7 @@ def reconstruct(
                 if isinstance(v, list):
                     result[k] = v[0]
         return {
-            k: v if np.ndim(v) < 1 else operator.asnumpy(v)
+            k: v if np.ndim(v) < 1 else operator.asnumpy(v) if isinstance(v, cp.ndarray) else v
             for k, v in result.items()
         }
     else:
@@ -314,19 +360,41 @@ def reconstruct(
 def _rescale_obj_probe(operator, comm, data, psi, scan, probe, num_batch):
     """Keep the object amplitude around 1 by scaling probe by a constant."""
 
-    i = batch_indicies(data.shape[-3], num_batch, use_random=True)[0]
+    def _get_rescale(data, psi, scan, probe, num_batch, operator):
+        i = batch_indicies(data.shape[-3], num_batch, use_random=True)[0]
 
-    intensity, _ = operator._compute_intensity(data[..., i, :, :], psi,
-                                               scan[..., i, :], probe)
+        intensity, _ = operator._compute_intensity(data[..., i, :, :], psi,
+                                                   scan[..., i, :], probe)
 
-    rescale = (np.linalg.norm(np.ravel(np.sqrt(data[..., i, :, :]))) /
-               np.linalg.norm(np.ravel(np.sqrt(intensity))))
+        n1 = np.linalg.norm(np.ravel(np.sqrt(data[..., i, :, :])))**2
+        n2 = np.linalg.norm(np.ravel(np.sqrt(intensity)))**2
+
+        return n1, n2
+
+    n1, n2 = zip(*comm.pool.map(
+        _get_rescale,
+        data,
+        psi,
+        scan,
+        probe,
+        num_batch=num_batch,
+        operator=operator,
+    ))
+
+    if comm.use_mpi:
+        n1 = np.sqrt(comm.Allreduce_reduce(n1, 'cpu'))
+        n2 = np.sqrt(comm.Allreduce_reduce(n2, 'cpu'))
+    else:
+        n1 = np.sqrt(comm.reduce(n1, 'cpu'))
+        n2 = np.sqrt(comm.reduce(n2, 'cpu'))
+
+    rescale = n1 / n2
 
     if abs(1 - rescale) > 0.01:
         logger.info("object and probe rescaled by %f", rescale)
-        probe *= rescale
+        probe[0] *= rescale
 
-    return probe
+    return comm.pool.bcast(probe[0])
 
 
 def split_by_scan_grid(pool, shape, scan, *args, fly=1):

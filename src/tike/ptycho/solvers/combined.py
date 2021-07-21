@@ -10,9 +10,16 @@ logger = logging.getLogger(__name__)
 
 
 def cgrad(
-    op, comm,
-    data, probe, scan, psi, rho=None, reg=None,
-    recover_psi=True, recover_probe=True, recover_positions=False,
+    op,
+    comm,
+    data,
+    probe,
+    scan,
+    psi,
+    rho=None,
+    reg=None,
+    recover_probe=True,
+    recover_positions=False,
     cg_iter=4,
     cost=None,
     eigen_probe=None,
@@ -21,7 +28,8 @@ def cgrad(
     subset_is_random=None,
     step_length=1,
     probe_is_orthogonal=False,
-):  # yapf: disable
+    object_options=None,
+):
     """Solve the ptychography problem using conjugate gradient.
 
     Parameters
@@ -46,7 +54,7 @@ def cgrad(
         bdata = comm.pool.map(get_batch, data, batches, n=n)
         bscan = comm.pool.map(get_batch, scan, batches, n=n)
 
-        if recover_psi:
+        if object_options:
             psi, cost = _update_object(
                 op,
                 comm,
