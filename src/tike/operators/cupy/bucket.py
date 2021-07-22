@@ -205,7 +205,7 @@ class Bucket(Lamino):
         return cp.stack(
             cp.mgrid[lo:hi, lo:hi, lo:hi],
             axis=-1,
-        ).reshape(self.n**3, 3)
+        )
 
 
 def _get_coordinates_and_weights(

@@ -99,6 +99,38 @@ class ThreadPool(ThreadPoolExecutor):
 
         return self.map(f, self.workers, x)
 
+    def scatter_bcast(self, x: cp.array, stride=1):
+        """Send x chunks to some workers and then copy to remaining workers."""
+
+        def s(bworkers, chunk):
+
+            def b(worker):
+                return self._copy_to(chunk, worker)
+
+            return list(self.map(b, bworkers, workers=bworkers))
+
+        bworkers = []
+        if stride is 1:
+            sworkers = self.workers[:len(x)]
+            for i in range(len(x)):
+                bworkers.append(self.workers[i::len(x)])
+        else:
+            sworkers = self.workers[::stride]
+            for i in sworkers:
+                bworkers.append(self.workers[i:(i+stride)])
+
+        a = self.map(s, bworkers, x, workers=sworkers)
+        output = [None] * self.num_workers
+        i, j = 0, 0
+        for si in bworkers:
+            for bi in si:
+                output[bi]=a[i][j]
+                j += 1
+            i += 1
+            j = 0
+
+        return output
+
     def reduce_gpu(self, x: list, worker=None) -> cp.array:
         """Reduce x by addition to one GPU from all other GPUs."""
         if self.num_workers == 1:
@@ -132,4 +164,10 @@ class ThreadPool(ThreadPoolExecutor):
             with cp.cuda.Device(worker):
                 return func(*args, **kwargs)
 
-        return list(super().map(f, self.workers, *iterables))
+        if 'workers' in kwargs:
+            workers = kwargs.get("workers")
+            kwargs.pop("workers")
+        else:
+            workers = self.workers
+
+        return list(super().map(f, workers, *iterables))
