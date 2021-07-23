@@ -257,6 +257,7 @@ def conjugate_gradient(
     update_multi=update_single,
     num_iter=1,
     step_length=1,
+    fwd_op=None,
     num_search=None,
     cost=None,
 ):
@@ -290,7 +291,9 @@ def conjugate_gradient(
 
     for i in range(num_iter):
 
-        grad1 = grad(x)
+        y = fwd_op(x) if fwd_op is not None else x
+        grad1 = grad(y)
+        exit()
         if i == 0:
             dir_ = -grad1
         else:

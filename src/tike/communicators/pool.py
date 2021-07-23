@@ -160,7 +160,7 @@ class ThreadPool(ThreadPoolExecutor):
     def grouped_allreduce(self, x: list, s: int):
         """All-reduce x by addition within a subset of GPUs."""
 
-        def f(worker: int, buf, stride: int):
+        def f(worker, buf, stride):
             idx = worker // s * s + (worker + stride) % s
             return cp.add(buf, self._copy_to(x[idx], worker))
 
@@ -172,6 +172,20 @@ class ThreadPool(ThreadPoolExecutor):
             buff = self.map(f, self.workers, buff, stride=stride)
 
         return buff
+
+    def grouped_reduce(self, x: list, s: int, workers=None):
+        """Reduce x by addition to a group (subset) of GPUs."""
+
+        def f(worker):
+            for part in x[(worker + 1)::s]:
+                x[worker] += self._copy_to(part, worker)
+            return x[worker]
+
+        if self.num_workers == 1:
+            return x
+
+        workers = self.workers[:s] if workers is None else workers
+        return self.map(f, workers, workers=workers)
 
     def map(self, func, *iterables, **kwargs):
         """ThreadPoolExecutor.map, but wraps call in a cuda.Device context."""

@@ -199,6 +199,21 @@ class Bucket(Lamino):
             )
         return u
 
+    def cost(self, data, fwd_data):
+        """Cost function for the least-squres laminography problem"""
+        return self.xp.linalg.norm((fwd_data - data).ravel())**2
+
+    def grad(self, data, theta, fwd_data, grid):
+        """Gradient for the least-squares laminography problem"""
+        out = self.adj(
+            data=(fwd_data - data),
+            theta=theta,
+            grid=grid,
+        )
+        # BUG? Cannot joint line below and above otherwise types are promoted?
+        out /= (data.shape[-3] * self.n**3)
+        return out
+
     def _make_grid(self):
         """Return integer coordinates in the grid; origin centered."""
         lo, hi = -self.n // 2, self.n // 2

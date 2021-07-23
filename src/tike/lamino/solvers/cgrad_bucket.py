@@ -41,16 +41,18 @@ def cgrad(
         return comm.pool.grouped_allreduce(fwd_data, obj_split)
 
     fwd_data = fwd_op(obj)
-    step_length = comm.pool.reduce_cpu(
-        comm.pool.map(
-            _estimate_step_length,
-            obj,
-            fwd_data,
-            theta,
-            grid,
-            op=op,
-        )) / comm.pool.num_workers if step_length == 1 else step_length
-    exit()
+    if step_length == 1:
+        step_length = comm.pool.reduce_cpu(
+            comm.pool.map(
+                _estimate_step_length,
+                obj,
+                fwd_data,
+                theta,
+                grid,
+                op=op,
+            )) / (comm.pool.num_workers // obj_split)
+    else:
+        step_length = step_length
 
     obj, cost = update_obj(
         op,
@@ -59,6 +61,7 @@ def cgrad(
         theta,
         obj,
         grid,
+        obj_split,
         fwd_op=fwd_op,
         num_iter=cg_iter,
         step_length=step_length,
@@ -67,22 +70,27 @@ def cgrad(
     return {'obj': obj, 'cost': cost, 'step_length': step_length}
 
 
-def update_obj(op, comm, data, theta, obj, fwd_op, num_iter=1, step_length=1):
+def update_obj(
+    op,
+    comm,
+    data, theta, obj, grid,
+    obj_split,
+    fwd_op,
+    num_iter=1,
+    step_length=1,
+):
     """Solver the object recovery problem."""
 
-    def cost_function(obj):
-        cost_out = comm.pool.map(op.cost, data, theta, obj)
+    def cost_function(fwd_data):
+        cost_out = comm.pool.map(op.cost, data, fwd_data)
         if comm.use_mpi:
             return comm.Allreduce_reduce(cost_out, 'cpu')
         else:
             return comm.reduce(cost_out, 'cpu')
 
-    def grad(obj):
-        grad_list = comm.pool.map(op.grad, data, theta, obj)
-        if comm.use_mpi:
-            return comm.Allreduce_reduce(grad_list, 'gpu')
-        else:
-            return comm.reduce(grad_list, 'gpu')
+    def grad(fwd_data):
+        grad_list = comm.pool.map(op.grad, data, theta, fwd_data, grid)
+        return comm.pool.grouped_reduce(grad_list, obj_split)
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""
@@ -100,6 +108,7 @@ def update_obj(op, comm, data, theta, obj, fwd_op, num_iter=1, step_length=1):
         x=obj,
         cost_function=cost_function,
         grad=grad,
+        fwd_op=fwd_op,
         dir_multi=dir_multi,
         update_multi=update_multi,
         num_iter=num_iter,
