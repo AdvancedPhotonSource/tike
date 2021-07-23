@@ -157,6 +157,22 @@ class ThreadPool(ThreadPoolExecutor):
         return cp.mean(self.gather(x, worker=worker, axis=axis),
                        keepdims=True, axis=axis)
 
+    def grouped_allreduce(self, x: list, s: int):
+        """All-reduce x by addition within a subset of GPUs."""
+
+        def f(worker, buf, stride):
+            idx = worker / s * s + (worker + stride) % s
+            return buf += self._copy_to(x[idx], worker)
+
+        if self.num_workers == 1:
+            return x
+
+        buff = list(x)
+        for stride in range(s):
+            buff = self.map(f, self.workers, buff, stride)
+
+        return buff
+
     def map(self, func, *iterables, **kwargs):
         """ThreadPoolExecutor.map, but wraps call in a cuda.Device context."""
 

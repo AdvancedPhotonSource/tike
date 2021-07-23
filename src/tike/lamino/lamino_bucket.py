@@ -133,9 +133,9 @@ def reconstruct(
             grid = operator._make_grid()
             grid = np.array_split(grid.astype('int16'),
                                    obj_split)
+            grid = comm.pool.scatter_bcast(grid)
             result = {
                 'obj': comm.pool.scatter_bcast(obj),
-                'grid': comm.pool.scatter_bcast(grid),
             }
             for key, value in kwargs.items():
                 if np.ndim(value) > 0:
@@ -152,6 +152,7 @@ def reconstruct(
                     comm,
                     data=data,
                     theta=theta,
+                    grid=grid,
                     **kwargs,
                 )
                 if result['cost'] is not None:
