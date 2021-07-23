@@ -27,6 +27,7 @@ def ptycho__align_lamino(
     folder=None,
     cg_iter=4,
     align_method=False,
+    skip_ptycho=False,
 ):
     """Solve the joint ptycho-lamino problem using ADMM."""
     presult = {
@@ -47,23 +48,24 @@ def ptycho__align_lamino(
 
     with cp.cuda.Device(comm.rank if comm.size > 1 else None):
 
-        presult, _ = tike.admm.subproblem.ptycho(
-            # constants
-            comm=comm,
-            data=data,
-            λ=None,
-            ρ=None,
-            Aφ=None,
-            # updated
-            presult=presult,
-            # parameters
-            num_iter=4 * niter,
-            cg_iter=cg_iter,
-            folder=folder,
-            save_result=niter + 1,
-            rescale=True,
-            rtol=1e-6,
-        )
+        if not skip_ptycho:
+            presult, _ = tike.admm.subproblem.ptycho(
+                # constants
+                comm=comm,
+                data=data,
+                λ=None,
+                ρ=None,
+                Aφ=None,
+                # updated
+                presult=presult,
+                # parameters
+                num_iter=4 * niter,
+                cg_iter=cg_iter,
+                folder=folder,
+                save_result=niter + 1,
+                rescale=True,
+                rtol=1e-6,
+            )
 
         for k in range(1, niter + 1):
             logger.info(f"Start ADMM iteration {k}.")
