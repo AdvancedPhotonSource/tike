@@ -73,17 +73,18 @@ def simulate(
     """Return complex values of simulated laminography data."""
     assert obj.ndim == 3
     assert theta.ndim == 1
-    with Lamino(
-            n=obj.shape[-1],
-            tilt=tilt,
-            **kwargs,
-    ) as operator:
-        data = operator.fwd(
-            u=operator.asarray(obj, dtype='complex64'),
-            theta=operator.asarray(theta, dtype='float32'),
-        )
-        assert data.dtype == 'complex64', data.dtype
-        return operator.asnumpy(data)
+    return
+    #with Lamino(
+    #        n=obj.shape[-1],
+    #        tilt=tilt,
+    #        **kwargs,
+    #) as operator:
+    #    data = operator.fwd(
+    #        u=operator.asarray(obj, dtype='complex64'),
+    #        theta=operator.asarray(theta, dtype='float32'),
+    #    )
+    #    assert data.dtype == 'complex64', data.dtype
+    #    return operator.asnumpy(data)
 
 
 def reconstruct(
@@ -118,16 +119,13 @@ def reconstruct(
                 **kwargs,
         ) as operator, Comm(num_gpu, mpi=None) as comm:
             # send any array-likes to device
-            data_split = comm.pool.num_workers / obj_split
+            data_split = comm.pool.num_workers // obj_split
             data = np.array_split(data.astype('complex64'),
                                   data_split)
             data = comm.pool.scatter_bcast(data, obj_split)
-            exit()
-            data = comm.pool.scatter(data)
             theta = np.array_split(theta.astype('float32'),
                                    data_split)
             theta = comm.pool.scatter_bcast(theta, obj_split)
-            theta = comm.pool.scatter(theta)
             obj = np.array_split(obj.astype('complex64'),
                                    obj_split)
             grid = operator._make_grid()
@@ -142,7 +140,7 @@ def reconstruct(
                     kwargs[key] = comm.pool.bcast(value)
 
             logger.info("{} on {:,d} by {:,d} by {:,d} volume for {:,d} "
-                        "iterations.".format(algorithm, *obj.shape, num_iter))
+                        "iterations.".format(algorithm, *obj[0].shape, num_iter))
 
             costs = []
             for i in range(num_iter):

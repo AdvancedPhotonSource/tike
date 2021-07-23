@@ -6,7 +6,7 @@ from tike.opt import conjugate_gradient, line_search
 logger = logging.getLogger(__name__)
 
 
-def _estimate_step_length(obj, theta, op):
+def _estimate_step_length(obj, fwd_data, theta, grid, op):
     """Use norm of forward adjoint operations to estimate step length.
 
     Scaling the adjoint operation by |F*Fm| / |m| puts the step length in the
@@ -15,8 +15,9 @@ def _estimate_step_length(obj, theta, op):
     """
     logger.info('Estimate step length from forward adjoint operations.')
     outnback = op.adj(
-        data=op.fwd(u=obj, theta=theta),
+        data=fwd_data,
         theta=theta,
+        grid=grid,
         overwrite=False,
     )
     scaler = tike.linalg.norm(outnback) / tike.linalg.norm(obj)
@@ -35,13 +36,21 @@ def cgrad(
 ):  # yapf: disable
     """Solve the Laminogarphy problem using the conjugate gradients method."""
 
+    def fwd_op(u):
+        fwd_data = comm.pool.map(op.fwd, u, theta, grid)
+        return comm.pool.grouped_allreduce(fwd_data, obj_split)
+
+    fwd_data = fwd_op(obj)
     step_length = comm.pool.reduce_cpu(
         comm.pool.map(
             _estimate_step_length,
             obj,
+            fwd_data,
             theta,
+            grid,
             op=op,
         )) / comm.pool.num_workers if step_length == 1 else step_length
+    exit()
 
     obj, cost = update_obj(
         op,
@@ -50,18 +59,15 @@ def cgrad(
         theta,
         obj,
         grid,
+        fwd_op=fwd_op,
         num_iter=cg_iter,
         step_length=step_length,
     )
 
     return {'obj': obj, 'cost': cost, 'step_length': step_length}
 
-def fwd_op(op, comm, u, theta, grid, obj_split):
-    fwd_out = comm.pool.map(op.fwd, u, theta, grid)
-    comm.pool.grouped_allreduce(fwd_out, obj_split)
-    return
 
-def update_obj(op, comm, data, theta, obj, num_iter=1, step_length=1):
+def update_obj(op, comm, data, theta, obj, fwd_op, num_iter=1, step_length=1):
     """Solver the object recovery problem."""
 
     def cost_function(obj):

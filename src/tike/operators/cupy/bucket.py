@@ -57,7 +57,7 @@ class Bucket(Lamino):
     def __exit__(self, type, value, traceback):
         pass
 
-    def fwd(self, u: cp.array, theta: cp.array, **kwargs):
+    def fwd(self, u: cp.array, theta: cp.array, grid: cp.array, **kwargs):
         """Perform forward laminography operation.
 
         Parameters
@@ -76,7 +76,7 @@ class Bucket(Lamino):
 
         """
         data = cp.zeros((len(theta), self.n, self.n), dtype='complex64')
-        grid = self._make_grid().astype('int16')
+        grid = grid.reshape(grid.shape[0] * (self.n**2), 3)
         plane_coords = cp.zeros((len(grid), self.precision**3, 2),
                                 dtype='int16')
 
@@ -131,7 +131,7 @@ class Bucket(Lamino):
             )
         return data
 
-    def adj(self, data: cp.array, theta: cp.array, **kwargs):
+    def adj(self, data: cp.array, theta: cp.array, grid: cp.array, **kwargs):
         """Perform adjoint laminography operation.
 
         Parameters
@@ -150,7 +150,7 @@ class Bucket(Lamino):
 
         """
         u = cp.zeros((self.n, self.n, self.n), dtype='complex64')
-        grid = self._make_grid().astype('int16')
+        grid = grid.reshape(grid.shape[0] * (self.n**2), 3)
         plane_coords = cp.zeros((len(grid), self.precision**3, 2),
                                 dtype='int16')
 
