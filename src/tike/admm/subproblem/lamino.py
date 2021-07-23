@@ -104,13 +104,13 @@ def lamino(
     if comm.rank == 0 and save_result:
         dxchange.write_tiff(
             u.real,
-            f'{folder}/particle-real-{save_result:03d}.tiff',
+            f'{folder}/object-real-{save_result:03d}.tiff',
             dtype='float32',
             overwrite=True,
         )
         dxchange.write_tiff(
             u.imag,
-            f'{folder}/particle-imag-{save_result:03d}.tiff',
+            f'{folder}/object-imag-{save_result:03d}.tiff',
             dtype='float32',
             overwrite=True,
         )
