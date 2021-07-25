@@ -117,8 +117,8 @@ def update_obj(
             return comm.pool.map(init, grad1, workers=workers)
 
         n = comm.pool.map(f, grad1, workers=workers)
-        norm_ = comm.pool.reduce(n, 'cpu')
-        print("test1", len(n), norm_)
+        norm_ = comm.pool.reduce_cpu(n)
+        print("test2", len(n), norm_)
         return comm.pool.map(
             d,
             grad0,

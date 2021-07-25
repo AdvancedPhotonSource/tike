@@ -300,8 +300,7 @@ def conjugate_gradient(
         else:
             dir_ = direction_dy(array_module, grad1, grad0, dir_)
         grad0 = grad1
-        print("test", type(dir_), len(dir_))
-        exit()
+        print("test", type(dir_), len(dir_), x[0].shape)
 
         dir_list = dir_multi(dir_)
 

@@ -76,7 +76,7 @@ class Bucket(Lamino):
 
         """
         data = cp.zeros((len(theta), self.n, self.n), dtype='complex64')
-        grid = grid.reshape(grid.shape[0] * (self.n**2), 3)
+        grid = grid.reshape(len(grid) * (self.n**2), 3)
         plane_coords = cp.zeros((len(grid), self.precision**3, 2),
                                 dtype='int16')
 
@@ -149,8 +149,8 @@ class Bucket(Lamino):
             corresponding to the rotation axis.
 
         """
-        u = cp.zeros((self.n, self.n, self.n), dtype='complex64')
-        grid = grid.reshape(grid.shape[0] * (self.n**2), 3)
+        u = cp.zeros((len(grid), self.n, self.n), dtype='complex64')
+        grid = grid.reshape(len(grid) * (self.n**2), 3)
         plane_coords = cp.zeros((len(grid), self.precision**3, 2),
                                 dtype='int16')
 

@@ -170,6 +170,8 @@ def reconstruct(
         for k, v in result.items():
             if isinstance(v, list):
                 result[k] = v[0]
+                print("pp", k)
+        exit()
 
         return {k: operator.asnumpy(v) if np.ndim(v) > 0 else v
                 for k, v in result.items()}
