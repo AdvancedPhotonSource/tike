@@ -242,11 +242,11 @@ def reconstruct(
             )
             result = {
                 'psi':
-                    comm.pool.bcast(psi.astype('complex64')),
+                    comm.pool.bcast([psi.astype('complex64')]),
                 'probe':
-                    comm.pool.bcast(probe.astype('complex64')),
+                    comm.pool.bcast([probe.astype('complex64')]),
                 'eigen_probe':
-                    comm.pool.bcast(eigen_probe.astype('complex64'))
+                    comm.pool.bcast([eigen_probe.astype('complex64')])
                     if eigen_probe is not None else None,
                 'scan':
                     scan,
@@ -255,7 +255,7 @@ def reconstruct(
             }
             for key, value in kwargs.items():
                 if np.ndim(value) > 0:
-                    kwargs[key] = comm.pool.bcast(value)
+                    kwargs[key] = comm.pool.bcast([value])
 
             if initial_scan[0] is None:
                 initial_scan = comm.pool.map(cp.copy, scan)
@@ -369,7 +369,7 @@ def _rescale_obj_probe(operator, comm, data, psi, scan, probe, num_batch):
 
     probe[0] *= rescale
 
-    return comm.pool.bcast(probe[0])
+    return comm.pool.bcast([probe[0]])
 
 
 def split_by_scan_grid(pool, shape, scan, *args, fly=1):

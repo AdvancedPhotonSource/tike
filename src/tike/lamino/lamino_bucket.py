@@ -137,7 +137,7 @@ def reconstruct(
             }
             for key, value in kwargs.items():
                 if np.ndim(value) > 0:
-                    kwargs[key] = comm.pool.bcast(value)
+                    kwargs[key] = comm.pool.bcast([value])
 
             logger.info("{} on {:,d} by {:,d} by {:,d} volume for {:,d} "
                         "iterations.".format(algorithm, *obj[0].shape, num_iter))

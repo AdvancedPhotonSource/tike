@@ -80,7 +80,7 @@ def cgrad(
                 probe[0],
                 comm.pool.gather(bscan, axis=1),
             )
-            bscan = comm.pool.bcast(bscan)
+            bscan = comm.pool.bcast([bscan])
             # TODO: Assign bscan into scan when positions are updated
 
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
@@ -113,7 +113,7 @@ def _update_probe(op, comm, data, psi, scan, probe, num_iter, step_length,
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""
-        return comm.pool.bcast(dir[0])
+        return comm.pool.bcast(dir)
 
     def update_multi(x, gamma, d):
 
@@ -159,7 +159,7 @@ def _update_object(op, comm, data, psi, scan, probe, num_iter, step_length):
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""
-        return comm.pool.bcast(dir[0])
+        return comm.pool.bcast(dir)
 
     def update_multi(psi, gamma, dir):
 

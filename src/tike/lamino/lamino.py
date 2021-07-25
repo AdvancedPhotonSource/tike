@@ -124,11 +124,11 @@ def reconstruct(
                                    comm.pool.num_workers)
             theta = comm.pool.scatter(theta)
             result = {
-                'obj': comm.pool.bcast(obj.astype('complex64')),
+                'obj': comm.pool.bcast([obj.astype('complex64')]),
             }
             for key, value in kwargs.items():
                 if np.ndim(value) > 0:
-                    kwargs[key] = comm.pool.bcast(value)
+                    kwargs[key] = comm.pool.bcast([value])
 
             logger.info("{} on {:,d} by {:,d} by {:,d} volume for {:,d} "
                         "iterations.".format(algorithm, *obj.shape, num_iter))

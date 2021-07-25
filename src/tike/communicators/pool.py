@@ -64,14 +64,13 @@ class ThreadPool(ThreadPoolExecutor):
         with cp.cuda.Device(worker):
             return self.xp.asarray(x)
 
-    def bcast(self, x: cp.array, s=1) -> list:
+    def bcast(self, x: list, s=1) -> list:
         """Send a copy of x to all workers."""
 
         def f(worker):
-            return self._copy_to(x, worker)
+            idx = worker % s
+            return self._copy_to(x[idx], worker)
 
-        workers = self.workers[:s] if workers is None else workers
-        return self.map(f, workers, workers=workers)
         return list(self.map(f, self.workers))
 
     def gather(self, x: list, worker=None, axis=0) -> cp.array:

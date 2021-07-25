@@ -359,15 +359,15 @@ class TestProbe(unittest.TestCase):
         eigen = 1
         comm = Comm(2, None)
 
-        R = comm.pool.bcast(np.random.rand(*leading, posi, 1, 1, wide, high))
+        R = comm.pool.bcast([np.random.rand(*leading, posi, 1, 1, wide, high)])
         eigen_probe = comm.pool.bcast(
-            np.random.rand(*leading, 1, eigen, 1, wide, high))
+            [np.random.rand(*leading, 1, eigen, 1, wide, high)])
         weights = np.random.rand(*leading, posi)
         weights -= np.mean(weights)
-        weights = comm.pool.bcast(weights)
+        weights = comm.pool.bcast([weights])
         patches = comm.pool.bcast(
-            np.random.rand(*leading, posi, 1, 1, wide, high))
-        diff = comm.pool.bcast(np.random.rand(*leading, posi, 1, 1, wide, high))
+            [np.random.rand(*leading, posi, 1, 1, wide, high)])
+        diff = comm.pool.bcast([np.random.rand(*leading, posi, 1, 1, wide, high)])
 
         new_probe, new_weights = tike.ptycho.probe.update_eigen_probe(
             comm=comm,

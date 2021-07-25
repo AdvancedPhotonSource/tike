@@ -130,7 +130,7 @@ def update_obj(
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""
-        return comm.pool.bcast(dir)
+        return comm.pool.bcast(dir, obj_split)
 
     def update_multi(x, gamma, dir):
 
