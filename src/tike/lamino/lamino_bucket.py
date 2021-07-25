@@ -151,6 +151,7 @@ def reconstruct(
                     data=data,
                     theta=theta,
                     grid=grid,
+                    obj_split=obj_split,
                     **kwargs,
                 )
                 if result['cost'] is not None:

@@ -113,7 +113,7 @@ def _update_probe(op, comm, data, psi, scan, probe, num_iter, step_length,
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""
-        return comm.pool.bcast(dir)
+        return comm.pool.bcast(dir[0])
 
     def update_multi(x, gamma, d):
 
@@ -159,7 +159,7 @@ def _update_object(op, comm, data, psi, scan, probe, num_iter, step_length):
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""
-        return comm.pool.bcast(dir)
+        return comm.pool.bcast(dir[0])
 
     def update_multi(psi, gamma, dir):
 

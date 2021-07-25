@@ -81,16 +81,52 @@ def update_obj(
 ):
     """Solver the object recovery problem."""
 
-    def cost_function(fwd_data):
+    def cost_function(obj):
+        fwd_data = fwd_op(obj)
         cost_out = comm.pool.map(op.cost, data, fwd_data)
         if comm.use_mpi:
             return comm.Allreduce_reduce(cost_out, 'cpu')
         else:
             return comm.reduce(cost_out, 'cpu')
 
-    def grad(fwd_data):
+    def grad(obj):
+        fwd_data = fwd_op(obj)
         grad_list = comm.pool.map(op.grad, data, theta, fwd_data, grid)
-        return comm.pool.grouped_reduce(grad_list, obj_split)
+        return comm.pool.reduce_gpu(grad_list, s=obj_split)
+
+    def direction_dy(xp, grad1, grad0=None, dir_=None):
+        """Return the Dai-Yuan search direction."""
+
+        def init(grad1):
+            return -grad1
+
+        def f(grad1):
+            return xp.linalg.norm(grad1.ravel())**2
+
+        def d(grad0, grad1, dir_, norm_):
+            return (
+                - grad1
+                + dir_ * norm_
+                / (xp.sum(dir_.conj() * (grad1 - grad0)) + 1e-32)
+            )  # yapf: disable
+
+        workers = comm.pool.workers[:obj_split]
+        print("test1", len(workers), type(grad1))
+
+        if dir_ is None:
+            return comm.pool.map(init, grad1, workers=workers)
+
+        n = comm.pool.map(f, grad1, workers=workers)
+        norm_ = comm.pool.reduce(n, 'cpu')
+        print("test1", len(n), norm_)
+        return comm.pool.map(
+            d,
+            grad0,
+            grad1,
+            dir_,
+            norm_=norm_,
+            workers=workers,
+        )
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""
@@ -108,7 +144,7 @@ def update_obj(
         x=obj,
         cost_function=cost_function,
         grad=grad,
-        fwd_op=fwd_op,
+        direction_dy=direction_dy,
         dir_multi=dir_multi,
         update_multi=update_multi,
         num_iter=num_iter,

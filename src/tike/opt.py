@@ -220,7 +220,7 @@ def line_search(
     return step_length, fxsd, xsd
 
 
-def direction_dy(xp, grad0, grad1, dir_):
+def direction_dy(xp, grad1, grad0=None, dir_=None):
     """Return the Dai-Yuan search direction.
 
     Parameters
@@ -233,11 +233,14 @@ def direction_dy(xp, grad0, grad1, dir_):
         The previous search direction.
 
     """
-    return (
-        - grad1
-        + dir_ * xp.linalg.norm(grad1.ravel())**2
-        / (xp.sum(dir_.conj() * (grad1 - grad0)) + 1e-32)
-    )  # yapf: disable
+    if dir_ is None:
+        return [-g for g in grad1]
+
+    return [
+        - grad1[0]
+        + dir_[0] * xp.linalg.norm(grad1[0].ravel())**2
+        / (xp.sum(dir_[0].conj() * (grad1[0] - grad0[0])) + 1e-32)
+    ]  # yapf: disable
 
 
 def update_single(x, step_length, d):
@@ -253,11 +256,11 @@ def conjugate_gradient(
     x,
     cost_function,
     grad,
+    direction_dy=direction_dy,
     dir_multi=dir_single,
     update_multi=update_single,
     num_iter=1,
     step_length=1,
-    fwd_op=None,
     num_search=None,
     cost=None,
 ):
@@ -291,14 +294,14 @@ def conjugate_gradient(
 
     for i in range(num_iter):
 
-        y = fwd_op(x) if fwd_op is not None else x
-        grad1 = grad(y)
-        exit()
+        grad1 = grad(x)
         if i == 0:
-            dir_ = -grad1
+            dir_ = direction_dy(array_module, grad1)
         else:
-            dir_ = direction_dy(array_module, grad0, grad1, dir_)
+            dir_ = direction_dy(array_module, grad1, grad0, dir_)
         grad0 = grad1
+        print("test", type(dir_), len(dir_))
+        exit()
 
         dir_list = dir_multi(dir_)
 
