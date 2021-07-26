@@ -210,6 +210,7 @@ class Bucket(Lamino):
             theta=theta,
             grid=grid,
         )
+        print("tt", len(out), type(out), out.shape)
         # BUG? Cannot joint line below and above otherwise types are promoted?
         out /= (data.shape[-3] * self.n**3)
         return out

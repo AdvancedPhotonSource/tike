@@ -122,18 +122,21 @@ def reconstruct(
             data_split = comm.pool.num_workers // obj_split
             data = np.array_split(data.astype('complex64'),
                                   data_split)
-            data = comm.pool.scatter_bcast(data, obj_split)
+            #data = comm.pool.scatter_bcast(data, obj_split)
+            data = comm.pool.scatter(data, obj_split)
             theta = np.array_split(theta.astype('float32'),
                                    data_split)
-            theta = comm.pool.scatter_bcast(theta, obj_split)
+            #theta = comm.pool.scatter_bcast(theta, obj_split)
+            theta = comm.pool.scatter(theta, obj_split)
             obj = np.array_split(obj.astype('complex64'),
                                    obj_split)
             grid = operator._make_grid()
             grid = np.array_split(grid.astype('int16'),
                                    obj_split)
-            grid = comm.pool.scatter_bcast(grid)
+            #grid = comm.pool.scatter_bcast(grid)
+            grid = comm.pool.bcast(grid, obj_split)
             result = {
-                'obj': comm.pool.scatter_bcast(obj),
+                'obj': comm.pool.bcast(obj, obj_split),
             }
             for key, value in kwargs.items():
                 if np.ndim(value) > 0:

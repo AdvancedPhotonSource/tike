@@ -136,7 +136,7 @@ class TestLaminoRecon(unittest.TestCase):
             tilt=self.tilt,
             algorithm=algorithm,
             num_iter=1,
-            num_gpu=4,
+            num_gpu=2,
             obj_split=2,
         )
         result = tike.lamino.reconstruct(
@@ -146,7 +146,7 @@ class TestLaminoRecon(unittest.TestCase):
             tilt=self.tilt,
             algorithm=algorithm,
             num_iter=30,
-            num_gpu=4,
+            num_gpu=2,
             obj_split=2,
         )
         print()

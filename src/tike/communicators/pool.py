@@ -92,13 +92,14 @@ class ThreadPool(ThreadPoolExecutor):
 
         return list(self.map(f, self.workers))
 
-    def scatter(self, x):
+    def scatter(self, x, s=1) -> list:
         """Split x along 0th dimension and send chunks to workers`."""
 
-        def f(worker, chunk):
-            return self._copy_to(chunk, worker)
+        def f(worker):
+            idx = worker // s
+            return self._copy_to(x[idx], worker)
 
-        return self.map(f, self.workers, x)
+        return self.map(f, self.workers)
 
     def scatter_bcast(self, x: list, stride=1):
         """Send x chunks to some workers and then copy to remaining workers."""
