@@ -56,9 +56,12 @@ class ThreadPool(ThreadPoolExecutor):
                 f"Use `with cupy.cuda.Device({workers[0]}):` to set the "
                 "current device.")
         self.workers = workers
-        self.num_workers = len(workers)
         self.xp = cp
         super().__init__(self.num_workers)
+
+    @property
+    def num_workers(self):
+        return len(self.workers)
 
     def _copy_to(self, x, worker: int) -> cp.array:
         with cp.cuda.Device(worker):
