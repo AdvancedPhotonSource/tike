@@ -168,6 +168,7 @@ def reconstruct(
         psi=None, num_gpu=1, num_iter=1, rtol=-1,
         model='gaussian', use_mpi=False, cost=None, times=None,
         eigen_probe=None, eigen_weights=None,
+        rescale=True,
         batch_size=None,
         initial_scan=None,
         position_options=None,
@@ -243,11 +244,11 @@ def reconstruct(
             )
             result = {
                 'psi':
-                    comm.pool.bcast(psi.astype('complex64')),
+                    comm.pool.bcast(psi.astype('complex64', copy=False)),
                 'probe':
-                    comm.pool.bcast(probe.astype('complex64')),
+                    comm.pool.bcast(probe.astype('complex64', copy=False)),
                 'eigen_probe':
-                    comm.pool.bcast(eigen_probe.astype('complex64'))
+                    comm.pool.bcast(eigen_probe.astype('complex64', copy=False))
                     if eigen_probe is not None else None,
                 'scan':
                     scan,
@@ -269,15 +270,16 @@ def reconstruct(
             if initial_scan[0] is None:
                 initial_scan = comm.pool.map(cp.copy, scan)
 
-            result['probe'] = _rescale_obj_probe(
-                operator,
-                comm,
-                data,
-                result['psi'],
-                scan,
-                result['probe'],
-                num_batch=num_batch,
-            )
+            if rescale:
+                result['probe'] = _rescale_obj_probe(
+                    operator,
+                    comm,
+                    data,
+                    result['psi'],
+                    scan,
+                    result['probe'],
+                    num_batch=num_batch,
+                )
 
             costs = []
             times = []
@@ -347,7 +349,7 @@ def reconstruct(
                 if isinstance(v, list):
                     result[k] = v[0]
         return {
-            k: operator.asnumpy(v) if isinstance(v, cp.ndarray) else v
+            k: v if np.ndim(v) < 1 else operator.asnumpy(v) if isinstance(v, cp.ndarray) else v
             for k, v in result.items()
         }
     else:
@@ -388,9 +390,9 @@ def _rescale_obj_probe(operator, comm, data, psi, scan, probe, num_batch):
 
     rescale = n1 / n2
 
-    logger.info("object and probe rescaled by %f", rescale)
-
-    probe[0] *= rescale
+    if abs(1 - rescale) > 0.01:
+        logger.info("object and probe rescaled by %f", rescale)
+        probe[0] *= rescale
 
     return comm.pool.bcast(probe[0])
 

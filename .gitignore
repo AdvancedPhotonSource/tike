@@ -118,5 +118,7 @@ core
 .DS_Store
 .nfs*
 
+*.tiff
+
 # MPI host files
 host_list

@@ -4,7 +4,7 @@
 import unittest
 
 import numpy as np
-from tike.operators import Rotate
+from tike.operators import Rotate, Flow
 
 from .util import random_complex, OperatorTests
 
@@ -33,19 +33,24 @@ class TestRotate(unittest.TestCase, OperatorTests):
         }
         print(self.operator)
 
-    def debug_show(self):
+    def debug_show(self, angle=19 * np.pi / 6):
         import libimage
         import matplotlib.pyplot as plt
         x = self.xp.asarray(libimage.load('coins', 256), dtype='complex64')
-        y = self.operator.fwd(x[None], 4 * np.pi)
+        y = self.operator.fwd(x[None], angle)
+        flow = self.operator._make_flow(unrotated=x, angle=angle)
+        y1 = Flow().fwd(x, flow)
 
-        print(x.shape, y.shape)
+        print(x.shape, y.shape, y1.shape)
 
         plt.figure()
         plt.imshow(x.real.get())
 
         plt.figure()
         plt.imshow(y[0].real.get())
+
+        plt.figure()
+        plt.imshow(y1.real.get())
         plt.show()
 
     @unittest.skip('FIXME: This operator is not scaled.')

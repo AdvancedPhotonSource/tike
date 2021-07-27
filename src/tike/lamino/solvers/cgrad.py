@@ -6,22 +6,98 @@ from tike.opt import conjugate_gradient, line_search
 logger = logging.getLogger(__name__)
 
 
-def _estimate_step_length(obj, theta, op):
+def _estimate_step_length(obj, theta, K, op):
     """Use norm of forward adjoint operations to estimate step length.
 
     Scaling the adjoint operation by |F*Fm| / |m| puts the step length in the
     proper order of magnitude.
 
     """
-    logger.info('Estimate step length from forward adjoint operations.')
-    outnback = op.adj(
-        data=op.fwd(u=obj, theta=theta),
-        theta=theta,
-        overwrite=False,
-    )
-    scaler = tike.linalg.norm(outnback) / tike.linalg.norm(obj)
+    logger.info('Estimate lamino step length from forward adjoint operations.')
+    if K is None:
+        outnback = op.adj(
+            data=op.fwd(u=obj, theta=theta),
+            theta=theta,
+            overwrite=False,
+        )
+    else:
+        outnback = op.adj(
+            data=op.xp.conj(K) * K * op.fwd(u=obj, theta=theta),
+            theta=theta,
+            overwrite=False,
+        )
+    scaler = tike.linalg.norm(obj) / tike.linalg.norm(outnback)
     # Multiply by 2 to because we prefer over-estimating the step
-    return 2 * scaler if op.xp.isfinite(scaler) else 1.0
+    if op.xp.isfinite(scaler):
+        return 2 * scaler
+    else:
+        logger.warning('Lamino step length estimate is non-finite.')
+        return 1.0
+
+
+def _cost_tv(
+    data,
+    theta,
+    obj,
+    reg=0,
+    K=None,
+    penalty0=1,
+    penalty1=0,
+    op=None,
+    op1=None,
+):
+    """Cost function for the regularized laminography problem.
+
+    The cost function F(u) is a two term function as follows:
+
+    F(u) = penalty0 * norm(K * R(u) − data)**2
+         + penalty1 * norm(    J(u) − reg)**2
+
+    where
+
+    K = 1j / v * 2π * (ψ − dual0 / penalty0)
+    data = (ψ − dual0 / penalty0) * log(ψ − dual0/penalty0)
+    reg = ω − dual1 / penalty1
+
+    where ψ is the projection through the object and ω is J(obj) and v is the
+    wavenumber.
+
+    """
+    K = 1 if K is None else K
+    cost = penalty0 * tike.linalg.norm(K * op.fwd(
+        u=obj,
+        theta=theta,
+    ) - data)**2
+    if penalty1 > 0:
+        cost += penalty1 * tike.linalg.norm(op1.fwd(obj) - reg)**2
+    return cost
+
+
+def _grad_tv(
+    data,
+    theta,
+    obj,
+    reg=0,
+    K=None,
+    penalty0=1,
+    penalty1=0,
+    op=None,
+    op1=None,
+):
+    """Gradient for the regularized laminography problem.
+
+    ∇F(u) = penalty0 * R_adj(conj(K) * (K * R(u) − data))
+          + penalty1 * J_adj(               J(u) − reg)
+
+    """
+    if K is None:
+        d = op.fwd(u=obj, theta=theta) - data
+    else:
+        d = op.xp.conj(K) * (K * op.fwd(u=obj, theta=theta) - data)
+    grad = penalty0 * op.adj(data=d, theta=theta)
+    if penalty1 > 0:
+        grad += penalty1 * op1.adj(op1.fwd(obj) - reg)
+    return grad
 
 
 def cgrad(
@@ -30,15 +106,19 @@ def cgrad(
     data, theta, obj,
     cg_iter=4,
     step_length=1,
+    K=None,
     **kwargs
 ):  # yapf: disable
     """Solve the Laminogarphy problem using the conjugate gradients method."""
+
+    K = [None] * comm.pool.num_workers if K is None else K
 
     step_length = comm.pool.reduce_cpu(
         comm.pool.map(
             _estimate_step_length,
             obj,
             theta,
+            K,
             op=op,
         )) / comm.pool.num_workers if step_length == 1 else step_length
 
@@ -48,6 +128,7 @@ def cgrad(
         data,
         theta,
         obj,
+        K,
         num_iter=cg_iter,
         step_length=step_length,
     )
@@ -55,18 +136,18 @@ def cgrad(
     return {'obj': obj, 'cost': cost, 'step_length': step_length}
 
 
-def update_obj(op, comm, data, theta, obj, num_iter=1, step_length=1):
+def update_obj(op, comm, data, theta, obj, K, num_iter=1, step_length=1):
     """Solver the object recovery problem."""
 
     def cost_function(obj):
-        cost_out = comm.pool.map(op.cost, data, theta, obj)
+        cost_out = comm.pool.map(_cost_tv, data, theta, obj, K, op=op)
         if comm.use_mpi:
             return comm.Allreduce_reduce(cost_out, 'cpu')
         else:
             return comm.reduce(cost_out, 'cpu')
 
     def grad(obj):
-        grad_list = comm.pool.map(op.grad, data, theta, obj)
+        grad_list = comm.pool.map(_grad_tv, data, theta, obj, K, op=op)
         if comm.use_mpi:
             return comm.Allreduce_reduce(grad_list, 'gpu')
         else:

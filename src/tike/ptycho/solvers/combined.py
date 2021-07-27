@@ -10,9 +10,16 @@ logger = logging.getLogger(__name__)
 
 
 def cgrad(
-    op, comm,
-    data, probe, scan, psi,
-    recover_probe=True, recover_positions=False,
+    op,
+    comm,
+    data,
+    probe,
+    scan,
+    psi,
+    rho=None,
+    reg=None,
+    recover_probe=True,
+    recover_positions=False,
     cg_iter=4,
     cost=None,
     eigen_probe=None,
@@ -22,7 +29,7 @@ def cgrad(
     step_length=1,
     probe_is_orthogonal=False,
     object_options=None,
-):  # yapf: disable
+):
     """Solve the ptychography problem using conjugate gradient.
 
     Parameters
@@ -55,6 +62,8 @@ def cgrad(
                 psi,
                 bscan,
                 probe,
+                rho,
+                reg,
                 num_iter=cg_iter,
                 step_length=step_length,
             )
@@ -141,22 +150,30 @@ def _update_probe(op, comm, data, psi, scan, probe, num_iter, step_length,
     return probe, cost
 
 
-def _update_object(op, comm, data, psi, scan, probe, num_iter, step_length):
+def _update_object(op, comm, data, psi, scan, probe, rho, reg, num_iter,
+                   step_length):
     """Solve the object recovery problem."""
 
     def cost_function_multi(psi, **kwargs):
         cost_out = comm.pool.map(op.cost, data, psi, scan, probe)
         if comm.use_mpi:
-            return comm.Allreduce_reduce(cost_out, 'cpu')
+            result = comm.Allreduce_reduce(cost_out, 'cpu')
         else:
-            return comm.reduce(cost_out, 'cpu')
+            result = comm.reduce(cost_out, 'cpu')
+        if reg is not None:
+            result += op.asnumpy(rho * op.xp.linalg.norm(
+                (psi[0] + reg[0]).ravel())**2)
+        return result
 
     def grad_multi(psi):
         grad_list = comm.pool.map(op.grad_psi, data, psi, scan, probe)
         if comm.use_mpi:
-            return comm.Allreduce_reduce(grad_list, 'gpu')
+            result = comm.Allreduce_reduce(grad_list, 'gpu')
         else:
-            return comm.reduce(grad_list, 'gpu')
+            result = comm.reduce(grad_list, 'gpu')
+        if reg is not None:
+            result += rho * (psi[0] + reg[0])
+        return result
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""
