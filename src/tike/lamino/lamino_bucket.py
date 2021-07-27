@@ -173,7 +173,7 @@ def reconstruct(
         for k, v in result.items():
             if isinstance(v, list):
                 result[k] = np.concatenate(
-                    [operator.asnumpy(part) for part in v],
+                    [operator.asnumpy(part) for part in v[:obj_split]],
                     axis=0,
                 )
             elif np.ndim(v) > 0:
