@@ -31,6 +31,9 @@ class Pad(Operator):
         """
         if padded_shape is None:
             padded_shape = unpadded.shape
+        elif (padded_shape[-1] < unpadded.shape[-1]
+              or padded_shape[-2] < unpadded.shape[-2]):
+            raise ValueError("Padded shape must be larger than unpadded.")
         if corner is None:
             corner = self.xp.tile(
                 (((padded_shape[-2] - unpadded.shape[-2]) // 2,
@@ -64,6 +67,9 @@ class Pad(Operator):
         """
         if unpadded_shape is None:
             unpadded_shape = padded.shape
+        elif (padded.shape[-1] < unpadded_shape[-1]
+              or padded.shape[-2] < unpadded_shape[-2]):
+            raise ValueError("Padded shape must be larger than unpadded.")
         if corner is None:
             corner = self.xp.tile(
                 (((padded.shape[-2] - unpadded_shape[-2]) // 2,
