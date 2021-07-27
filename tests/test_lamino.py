@@ -138,7 +138,7 @@ class TestLaminoRecon(unittest.TestCase):
             algorithm=algorithm,
             num_iter=1,
             num_gpu=2,
-            obj_split=1,
+            obj_split=2,
         )
         result = tike.lamino.reconstruct(
             **result,
@@ -148,7 +148,7 @@ class TestLaminoRecon(unittest.TestCase):
             algorithm=algorithm,
             num_iter=30,
             num_gpu=2,
-            obj_split=1,
+            obj_split=2,
         )
         print()
         cost = '\n'.join(f'{c:1.3e}' for c in result['cost'])

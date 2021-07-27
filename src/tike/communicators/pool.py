@@ -92,8 +92,6 @@ class ThreadPool(ThreadPoolExecutor):
             [self.xp.asnumpy(part) for part in x],
             axis,
         )
-        print("pp3", type(a), a.shape)
-        exit()
         worker = self.workers[0] if worker is None else worker
         with cp.cuda.Device(worker):
             return self.xp.concatenate(

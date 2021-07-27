@@ -91,12 +91,14 @@ def update_obj(
 
     def grad(obj):
         fwd_data = fwd_op(obj)
+        print("pp", fwd_data[0].shape)
         grad_list = comm.pool.map(op.grad, data, theta, fwd_data, grid)
         return comm.pool.reduce_gpu(grad_list, s=obj_split)
 
     def direction_dy(xp, grad1, grad0=None, dir_=None):
         """Return the Dai-Yuan search direction."""
 
+        #grad1 = grad1[:1]
         def init(grad1):
             return -grad1
 
@@ -111,14 +113,12 @@ def update_obj(
             )  # yapf: disable
 
         workers = comm.pool.workers[:obj_split]
-        print("test1", len(workers), type(grad1))
 
         if dir_ is None:
             return comm.pool.map(init, grad1, workers=workers)
 
         n = comm.pool.map(f, grad1, workers=workers)
         norm_ = comm.pool.reduce_cpu(n)
-        print("test2", len(n), norm_)
         return comm.pool.map(
             d,
             grad0,

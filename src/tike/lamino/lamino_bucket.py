@@ -130,11 +130,16 @@ def reconstruct(
             theta = comm.pool.scatter(theta, obj_split)
             obj = np.array_split(obj.astype('complex64'),
                                    obj_split)
-            grid = operator._make_grid()
+            grid = operator._make_grid2()
             grid = np.array_split(grid.astype('int16'),
                                    obj_split)
+            grid = [x.reshape(x.shape[0]*x.shape[1]*x.shape[2], 3) for x in grid]
             #grid = comm.pool.scatter_bcast(grid)
+            print("test1", grid[0].shape, grid[1].shape, type(grid[0]), type(grid[1]))
+            print("test3", obj[0].shape, obj[1].shape, type(obj[0]), type(obj[1]))
             grid = comm.pool.bcast(grid, obj_split)
+            print("test2", grid[0].shape, grid[1].shape, type(grid[0]), type(grid[1]))
+            #grid = comm.pool.scatter(grid, data_split)
             result = {
                 'obj': comm.pool.bcast(obj, obj_split),
             }
@@ -178,8 +183,6 @@ def reconstruct(
                 )
             elif np.ndim(v) > 0:
                 result[k] = operator.asnumpy(v)
-        for k, v in result.items():
-            print("pp2", k, type(v), v.shape)
 
         return result
         #return {k: operator.asnumpy(v) if np.ndim(v) > 0 else v

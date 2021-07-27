@@ -76,7 +76,8 @@ class Bucket(Lamino):
 
         """
         data = cp.zeros((len(theta), self.n, self.n), dtype='complex64')
-        grid = grid.reshape(len(grid) * (self.n**2), 3)
+        #grid = grid.reshape(len(grid) * (self.n**2), 3)
+        #grid = self._make_grid().astype('int16')
         plane_coords = cp.zeros((len(grid), self.precision**3, 2),
                                 dtype='int16')
 
@@ -103,7 +104,14 @@ class Bucket(Lamino):
             # Shift zero-centered coordinates to array indices; wrap negative
             # indices around
             plane_index = (plane_coords + self.n // 2) % self.n
-            grid_index = (grid + self.n // 2) % self.n
+            #grid_index = (grid + self.n // 2) % self.n
+            gmax, gmin = grid[:, :1].max(), grid[:, :1].min()
+            grid_index = cp.concatenate(
+                [(grid[:, :1] + cp.abs(gmin)) % (gmax - gmin),
+                 (grid[:, 1:] + self.n // 2) % self.n,
+                ],
+                axis=-1,
+            )
             assert data.dtype == 'complex64'
             assert self.weight.dtype == 'float32'
             assert u.dtype == 'complex64', u.dtype
@@ -149,8 +157,15 @@ class Bucket(Lamino):
             corresponding to the rotation axis.
 
         """
-        u = cp.zeros((len(grid), self.n, self.n), dtype='complex64')
-        grid = grid.reshape(len(grid) * (self.n**2), 3)
+        u = cp.zeros(
+            (len(grid) // (self.n**2), self.n, self.n),
+            dtype='complex64',
+        )
+        #grid = grid.reshape(grid.shape[0] * self.n**2, 3)
+        print("test", grid.shape)
+        #grid = grid.reshape(len(grid) * (self.n**2), 3)
+        #grid = self._make_grid().astype('int16')
+        print("test1", grid.shape)
         plane_coords = cp.zeros((len(grid), self.precision**3, 2),
                                 dtype='int16')
 
@@ -171,7 +186,14 @@ class Bucket(Lamino):
             # Shift zero-centered coordinates to array indices; wrap negative
             # indices around
             plane_index = (plane_coords + self.n // 2) % self.n
-            grid_index = (grid + self.n // 2) % self.n
+            #grid_index = (grid + self.n // 2) % self.n
+            gmax, gmin = grid[:, :1].max(), grid[:, :1].min()
+            grid_index = cp.concatenate(
+                [(grid[:, :1] + cp.abs(gmin)) % (gmax - gmin),
+                 (grid[:, 1:] + self.n // 2) % self.n,
+                ],
+                axis=-1,
+            )
             assert data.dtype == 'complex64'
             assert self.weight.dtype == 'float32'
             assert u.dtype == 'complex64'
@@ -210,7 +232,6 @@ class Bucket(Lamino):
             theta=theta,
             grid=grid,
         )
-        print("tt", len(out), type(out), out.shape)
         # BUG? Cannot joint line below and above otherwise types are promoted?
         out /= (data.shape[-3] * self.n**3)
         return out
@@ -219,10 +240,17 @@ class Bucket(Lamino):
         """Return integer coordinates in the grid; origin centered."""
         lo, hi = -self.n // 2, self.n // 2
         return cp.stack(
-            cp.mgrid[lo:hi, lo:hi, lo:hi],
+            cp.mgrid[lo//2:hi//2, lo:hi, lo:hi],
+            axis=-1,
+        ).reshape((self.n//2)*self.n*self.n, 3)
+
+    def _make_grid2(self):
+        """Return integer coordinates in the grid; origin centered."""
+        lo, hi = -self.n // 2, self.n // 2
+        return np.stack(
+            np.mgrid[lo:hi, lo:hi, lo:hi],
             axis=-1,
         )
-
 
 def _get_coordinates_and_weights(
     grid,
