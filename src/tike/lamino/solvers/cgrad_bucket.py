@@ -92,7 +92,6 @@ def update_obj(
     def grad(obj):
         fwd_data = fwd_op(obj)
         grad_list = comm.pool.map(op.grad, data, theta, fwd_data, grid)
-        exit()
         return comm.pool.reduce_gpu(grad_list, s=obj_split)
 
     def direction_dy(xp, grad1, grad0=None, dir_=None):

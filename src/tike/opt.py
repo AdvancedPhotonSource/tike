@@ -294,15 +294,12 @@ def conjugate_gradient(
 
     for i in range(num_iter):
 
-        print("test1", type(x), len(x), x[0].shape)
         grad1 = grad(x)
-        exit()
         if i == 0:
             dir_ = direction_dy(array_module, grad1)
         else:
             dir_ = direction_dy(array_module, grad1, grad0, dir_)
         grad0 = grad1
-        print("test", type(dir_), len(dir_), x[0].shape)
 
         dir_list = dir_multi(dir_)
 
@@ -318,7 +315,6 @@ def conjugate_gradient(
         else:
             x = update_multi(x, step_length, dir_list)
             logger.info("Blind update; length %.3e", step_length)
-        print("test2", type(x[0]), len(x), x[0].shape)
 
     if __debug__ and num_search < num_iter:
         cost = cost_function(x)

@@ -84,6 +84,23 @@ class ThreadPool(ThreadPoolExecutor):
                 axis,
             )
 
+    def gather_cpu(self, x: list, worker=None, axis=0):
+        """Concatenate x on a single worker along the given axis."""
+        if self.num_workers == 1:
+            return self.xp.asnumpy(x[0])
+        a = self.xp.concatenate(
+            [self.xp.asnumpy(part) for part in x],
+            axis,
+        )
+        print("pp3", type(a), a.shape)
+        exit()
+        worker = self.workers[0] if worker is None else worker
+        with cp.cuda.Device(worker):
+            return self.xp.concatenate(
+                [self._copy_to(part, worker) for part in x],
+                axis,
+            )
+
     def all_gather(self, x: list, axis=0) -> list:
         """Concatenate x on all workers along the given axis."""
 
