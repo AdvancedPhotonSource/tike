@@ -235,7 +235,13 @@ def reconstruct(
                 )
                 # Divide the inputs into regions
                 odd_pool = comm.pool.num_workers % 2
-                order, scan, data, eigen_weights, initial_scan = split_by_scan_grid(
+                (
+                    order,
+                    scan,
+                    data,
+                    eigen_weights,
+                    initial_scan,
+                ) = split_by_scan_grid(
                     comm.pool,
                     (
                         comm.pool.num_workers
@@ -305,6 +311,7 @@ def reconstruct(
 
                     if (position_options
                             and position_options.use_position_regularization):
+
                         # TODO: Regularize on all GPUs
                         result['scan'][0], _ = affine_position_regularization(
                             operator,
