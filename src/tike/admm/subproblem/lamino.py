@@ -76,6 +76,7 @@ def lamino(
             cg_iter=cg_iter,
             # FIXME: Communications overhead makes 1 GPU faster than 8.
             num_gpu=1,  # comm.size,
+            upsample=2,
         )
         u = lresult['obj']
         cost = lresult['cost'][-1]
