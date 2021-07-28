@@ -26,7 +26,7 @@ class Lamino(CachedFFT, Operator):
     ----------
     n : int
         The pixel width of the cubic reconstructed grid.
-    tilt : float32
+    tilt : float32 [radians]
         The tilt angle; the angle between the rotation axis of the object and
         the light source. π / 2 for conventional tomography. 0 for a beam path
         along the rotation axis.
@@ -38,7 +38,7 @@ class Lamino(CachedFFT, Operator):
         corresponding to the rotation axis.
     data : (ntheta, n, n) complex64
         The complex projection data of the object.
-    theta : array-like float32
+    theta : array-like float32 [radians]
         The projection angles; rotation around the vertical axis of the object.
     """
 

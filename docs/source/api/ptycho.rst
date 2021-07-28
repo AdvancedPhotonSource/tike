@@ -22,6 +22,7 @@ ptycho
    :maxdepth: 3
    :hidden:
 
+   ptycho.object
    ptycho.position
    ptycho.probe
    ptycho.solvers

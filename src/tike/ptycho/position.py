@@ -3,11 +3,108 @@
 import logging
 
 import cupy as cp
+from cupyx.scipy.fft import fft2, ifft2
 import numpy as np
 
 import tike.linalg
 
 logger = logging.getLogger(__name__)
+
+
+class PositionOptions:
+    """Manage data and settings related to position correction.
+
+    Properties
+    ----------
+    use_adaptive_moment : bool
+        Whether AdaM is used to accelerate the position correction updates.
+    use_position_regularization : bool
+        Whether the positions are constrained to fit a random error plus affine
+        error model.
+
+    """
+
+    def __init__(
+        self,
+        N,
+        use_adaptive_moment=False,
+        vdecay=0.9,
+        mdecay=0.999,
+        use_position_regularization=False,
+    ):
+        self.use_adaptive_moment = use_adaptive_moment
+        self.vdecay = vdecay
+        self.mdecay = mdecay
+        if use_adaptive_moment:
+            self._momentum = np.zeros((*N, 4), dtype='float32')
+
+        self.use_position_regularization = use_position_regularization
+        if use_position_regularization:
+            # TODO: Initialize affine transformation matrix
+            pass
+
+    def split(self, indices):
+        """Split the PositionOption meta-data along indices."""
+        new = PositionOptions(
+            (0,),
+            use_adaptive_moment=self.use_adaptive_moment,
+            vdecay=self.vdecay,
+            mdecay=self.mdecay,
+            use_position_regularization=self.use_position_regularization,
+        )
+        if self.use_adaptive_moment:
+            new._momentum = self._momentum[..., indices, :]
+        return new
+
+    def join(self, other, indices):
+        """Replace the PositionOption meta-data with other data."""
+        if self.use_adaptive_moment:
+            self._momentum[..., indices, :] = other._momentum
+        return self
+
+    def put(self):
+        """Copy to the current GPU memory."""
+        if self.use_adaptive_moment:
+            self._momentum = cp.asarray(self._momentum)
+        return self
+
+    def get(self):
+        """Copy to the host CPU memory."""
+        if self.use_adaptive_moment:
+            self._momentum = cp.asnumpy(self._momentum)
+        return self
+
+    @property
+    def vx(self):
+        return self._momentum[..., 0]
+
+    @vx.setter
+    def vx(self, x):
+        self._momentum[..., 0] = x
+
+    @property
+    def vy(self):
+        return self._momentum[..., 1]
+
+    @vx.setter
+    def vy(self, x):
+        self._momentum[..., 1] = x
+
+    @property
+    def mx(self):
+        return self._momentum[..., 2]
+
+    @vx.setter
+    def mx(self, x):
+        self._momentum[..., 2] = x
+
+    @property
+    def my(self):
+        return self._momentum[..., 3]
+
+    @vx.setter
+    def my(self, x):
+        self._momentum[..., 3] = x
 
 
 def check_allowed_positions(scan, psi, probe_shape):
@@ -128,9 +225,15 @@ def update_positions_pd(operator, data, psi, probe, scan,
     return scan, cost
 
 
+from cupy.fft.config import get_plan_cache
+
 def _image_grad(x):
     """Return the gradient of the x for each of the last two dimesions."""
+    # FIXME: Use different gradient approximation that does not use FFT. Because
+    # FFT caches are per-thread and per-device, using FFT is inefficient.
     ramp = 2j * cp.pi * cp.linspace(-0.5, 0.5, x.shape[-1], dtype='float32')
+    cache = get_plan_cache()
+    cache.set_size(0)
     grad_x = cp.fft.ifft2(ramp * cp.fft.fft2(x))
     grad_y = cp.fft.ifft2(ramp[:, None] * cp.fft.fft2(x))
     return grad_x, grad_y

@@ -54,6 +54,8 @@ import unittest
 import numpy as np
 
 import tike.ptycho
+from tike.ptycho.position import PositionOptions
+from tike.ptycho.object import ObjectOptions
 from tike.communicators import Comm, MPIComm
 import tike.random
 
@@ -297,7 +299,7 @@ class TestPtychoRecon(unittest.TestCase):
                 'batch_size': int(self.data.shape[1] / 3),
                 'num_gpu': 2,
                 'recover_probe': True,
-                'recover_psi': True,
+                'object_options': ObjectOptions(),
                 'use_mpi': True,
             },
         )
@@ -315,9 +317,9 @@ class TestPtychoRecon(unittest.TestCase):
                 'batch_size': int(self.data.shape[1] / 3),
                 'num_gpu': 2,
                 'recover_probe': True,
-                'recover_psi': True,
-                'recover_positions': True,
+                'object_options': ObjectOptions(),
                 'use_mpi': True,
+                'position_options': PositionOptions(self.scan.shape[0:-1])
             },
         )
 
@@ -330,15 +332,26 @@ class TestPtychoRecon(unittest.TestCase):
         self.template_consistent_algorithm(
             'lstsq_grad',
             params={
-                'subset_is_random': True,
-                'batch_size': int(self.data.shape[1] / 3),
-                'num_gpu': 2,
-                'recover_probe': True,
-                'recover_psi': True,
-                'recover_positions': True,
-                'use_mpi': True,
-                'eigen_probe': eigen_probe,
-                'eigen_weights': weights,
+                'subset_is_random':
+                    True,
+                'batch_size':
+                    int(self.data.shape[1] / 3),
+                'num_gpu':
+                    2,
+                'recover_probe':
+                    True,
+                'object_options': ObjectOptions(),
+                'use_mpi':
+                    True,
+                'eigen_probe':
+                    eigen_probe,
+                'eigen_weights':
+                    weights,
+                'position_options':
+                    PositionOptions(
+                        self.scan.shape[0:-1],
+                        use_adaptive_moment=True,
+                    )
             },
         )
 
