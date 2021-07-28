@@ -105,8 +105,7 @@ class Bucket(Lamino):
             gmax, gmin = grid[:, :1].max(), grid[:, :1].min()
             grid_index = cp.concatenate(
                 [(grid[:, :1] + cp.abs(gmin)) % (gmax - gmin),
-                 (grid[:, 1:] + self.n // 2) % self.n,
-                ],
+                 (grid[:, 1:] + self.n // 2) % self.n],
                 axis=-1,
             )
             assert data.dtype == 'complex64'
@@ -181,8 +180,7 @@ class Bucket(Lamino):
             gmax, gmin = grid[:, :1].max(), grid[:, :1].min()
             grid_index = cp.concatenate(
                 [(grid[:, :1] + cp.abs(gmin)) % (gmax - gmin),
-                 (grid[:, 1:] + self.n // 2) % self.n,
-                ],
+                 (grid[:, 1:] + self.n // 2) % self.n],
                 axis=-1,
             )
             assert data.dtype == 'complex64'

@@ -367,7 +367,9 @@ class TestProbe(unittest.TestCase):
         weights = comm.pool.bcast([weights])
         patches = comm.pool.bcast(
             [np.random.rand(*leading, posi, 1, 1, wide, high)])
-        diff = comm.pool.bcast([np.random.rand(*leading, posi, 1, 1, wide, high)])
+        diff = comm.pool.bcast(
+            [np.random.rand(*leading, posi, 1, 1, wide, high)]
+        )
 
         new_probe, new_weights = tike.ptycho.probe.update_eigen_probe(
             comm=comm,

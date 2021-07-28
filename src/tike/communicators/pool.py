@@ -141,7 +141,7 @@ class ThreadPool(ThreadPoolExecutor):
         i, j = 0, 0
         for si in bworkers:
             for bi in si:
-                output[bi]=a[i][j]
+                output[bi] = a[i][j]
                 j += 1
             i += 1
             j = 0

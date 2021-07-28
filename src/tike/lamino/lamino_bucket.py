@@ -128,10 +128,10 @@ def reconstruct(
                                    data_split)
             theta = comm.pool.scatter(theta, obj_split)
             obj = np.array_split(obj.astype('complex64'),
-                                   obj_split)
+                                 obj_split)
             grid = operator._make_grid()
             grid = np.array_split(grid.astype('int16'),
-                                   obj_split)
+                                  obj_split)
             grid = [x.reshape(x.shape[0] * n * n, 3) for x in grid]
             grid = comm.pool.bcast(grid, obj_split)
             result = {
@@ -142,7 +142,8 @@ def reconstruct(
                     kwargs[key] = comm.pool.bcast([value])
 
             logger.info("{} on {:,d} by {:,d} by {:,d} volume for {:,d} "
-                        "iterations.".format(algorithm, *obj[0].shape, num_iter))
+                        "iterations.".format(algorithm,
+                                             *obj[0].shape, num_iter))
 
             costs = []
             for i in range(num_iter):
