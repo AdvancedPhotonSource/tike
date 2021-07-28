@@ -111,15 +111,15 @@ class TestLaminoRecon(unittest.TestCase):
     def test_consistent_simulate(self):
         """Check lamino.simulate for consistency."""
         return
-        #data = tike.lamino.simulate(
-        #    self.original,
-        #    self.theta,
-        #    self.tilt,
-        #    upsample=2,
-        #)
-        #assert data.dtype == 'complex64', data.dtype
-        #np.testing.assert_array_equal(data.shape, self.data.shape)
-        #np.testing.assert_allclose(data, self.data, atol=1e-6)
+        data = tike.lamino.simulate(
+            self.original,
+            self.theta,
+            self.tilt,
+            upsample=2,
+        )
+        assert data.dtype == 'complex64', data.dtype
+        np.testing.assert_array_equal(data.shape, self.data.shape)
+        np.testing.assert_allclose(data, self.data, atol=1e-6)
 
     def error_metric(self, x):
         """Return the error between two arrays."""
@@ -137,7 +137,7 @@ class TestLaminoRecon(unittest.TestCase):
             tilt=self.tilt,
             algorithm=algorithm,
             num_iter=1,
-            num_gpu=2,
+            num_gpu=4,
             obj_split=2,
         )
         result = tike.lamino.reconstruct(
@@ -147,7 +147,7 @@ class TestLaminoRecon(unittest.TestCase):
             tilt=self.tilt,
             algorithm=algorithm,
             num_iter=30,
-            num_gpu=2,
+            num_gpu=4,
             obj_split=2,
         )
         print()
@@ -188,26 +188,26 @@ class TestLaminoRadon(unittest.TestCase):
 
     def test_radon_equal(self):
         return
-        #for tilt, axis, theta in zip(
-        #    [0, np.pi / 2,  np.pi / 2],
-        #    [0,         1,          2],
-        #    [0,         0, -np.pi / 2],
-        #):
-        #    projection = tike.lamino.simulate(
-        #        obj=self.original,
-        #        theta=np.array([theta]),
-        #        tilt=tilt,
-        #        eps=1e-12,
-        #        sample=4,
-        #    )
-        #    direct_sum = np.sum(self.original, axis=axis)
-        #    try:
-        #        np.testing.assert_allclose(projection[0], direct_sum, atol=1e-2)
-        #    except AssertionError:
-        #        print()
-        #        print(tilt, axis, theta)
-        #        print(direct_sum)
-        #        print(np.around(projection[0], 3))
+        for tilt, axis, theta in zip(
+            [0, np.pi / 2,  np.pi / 2],
+            [0,         1,          2],
+            [0,         0, -np.pi / 2],
+        ):
+            projection = tike.lamino.simulate(
+                obj=self.original,
+                theta=np.array([theta]),
+                tilt=tilt,
+                eps=1e-12,
+                sample=4,
+            )
+            direct_sum = np.sum(self.original, axis=axis)
+            try:
+                np.testing.assert_allclose(projection[0], direct_sum, atol=1e-2)
+            except AssertionError:
+                print()
+                print(tilt, axis, theta)
+                print(direct_sum)
+                print(np.around(projection[0], 3))
 
     @unittest.skip("TODO: Something is wrong with indexing.")
     def test_radon_equal_reverse(self):

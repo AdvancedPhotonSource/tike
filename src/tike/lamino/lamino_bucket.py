@@ -73,18 +73,19 @@ def simulate(
     """Return complex values of simulated laminography data."""
     assert obj.ndim == 3
     assert theta.ndim == 1
-    return
-    #with Lamino(
-    #        n=obj.shape[-1],
-    #        tilt=tilt,
-    #        **kwargs,
-    #) as operator:
-    #    data = operator.fwd(
-    #        u=operator.asarray(obj, dtype='complex64'),
-    #        theta=operator.asarray(theta, dtype='float32'),
-    #    )
-    #    assert data.dtype == 'complex64', data.dtype
-    #    return operator.asnumpy(data)
+    with Lamino(
+            n=obj.shape[-1],
+            tilt=tilt,
+            **kwargs,
+    ) as operator:
+        grid = operator._make_grid().reshape(obj.size**3, 3)
+        data = operator.fwd(
+            u=operator.asarray(obj, dtype='complex64'),
+            theta=operator.asarray(theta, dtype='float32'),
+            grid=operator.asarray(grid, dtype='int16'),
+        )
+        assert data.dtype == 'complex64', data.dtype
+        return operator.asnumpy(data)
 
 
 def reconstruct(
