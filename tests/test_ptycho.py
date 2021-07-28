@@ -59,7 +59,7 @@ from tike.ptycho.object import ObjectOptions
 from tike.communicators import Comm, MPIComm
 import tike.random
 
-__author__ = "Daniel Ching"
+__author__ = "Daniel Ching, Xiaodong Yu"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 

@@ -1,6 +1,6 @@
 """Defines a worker Pool for multi-device managerment."""
 
-__author__ = "Daniel Ching"
+__author__ = "Daniel Ching, Xiaodong Yu"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 

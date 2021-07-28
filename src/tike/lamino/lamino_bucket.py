@@ -46,7 +46,7 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-__author__ = "Daniel Ching, Viktor Nikitin"
+__author__ = "Daniel Ching, Viktor Nikitin, Xiaodong Yu"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = [

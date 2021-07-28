@@ -8,7 +8,7 @@ from tike.operators import Lamino, Bucket
 
 from .util import random_complex, OperatorTests
 
-__author__ = "Daniel Ching, Viktor Nikitin"
+__author__ = "Daniel Ching, Viktor Nikitin, Xiaodong Yu"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
@@ -58,7 +58,9 @@ class TestLaminoBucket(unittest.TestCase, OperatorTests):
                                  dtype='complex64')
         self.d_name = 'data'
         self.kwargs = {
-            'theta': self.xp.linspace(0, 2 * np.pi, ntheta).astype('float32')
+            'theta': self.xp.linspace(0, 2 * np.pi, ntheta).astype('float32'),
+            'grid': self.xp.asarray(self.operator._make_grid().reshape(n**3, 3),
+                                    dtype='int16'),
         }
         print(self.operator)
 
