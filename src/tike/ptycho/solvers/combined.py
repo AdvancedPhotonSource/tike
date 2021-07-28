@@ -5,6 +5,7 @@ import numpy as np
 from tike.linalg import orthogonalize_gs
 from tike.opt import conjugate_gradient, batch_indicies, get_batch
 from ..position import update_positions_pd
+from ..object import positivity_constraint, smoothness_constraint
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 def cgrad(
     op, comm,
     data, probe, scan, psi,
-    recover_probe=True, recover_positions=False,
+    recover_probe=True,
     cg_iter=4,
     cost=None,
     eigen_probe=None,
@@ -21,6 +22,7 @@ def cgrad(
     subset_is_random=None,
     step_length=1,
     probe_is_orthogonal=False,
+    position_options=None,
     object_options=None,
 ):  # yapf: disable
     """Solve the ptychography problem using conjugate gradient.
@@ -58,6 +60,13 @@ def cgrad(
                 num_iter=cg_iter,
                 step_length=step_length,
             )
+            psi = comm.pool.map(positivity_constraint,
+                                psi,
+                                r=object_options.positivity_constraint)
+
+            psi = comm.pool.map(smoothness_constraint,
+                                psi,
+                                a=object_options.smoothness_constraint)
 
         if recover_probe:
             probe, cost = _update_probe(
@@ -73,7 +82,7 @@ def cgrad(
                 mode=list(range(probe[0].shape[-3])),
             )
 
-        if recover_positions and comm.pool.num_workers == 1:
+        if position_options and comm.pool.num_workers == 1:
             bscan, cost = update_positions_pd(
                 op,
                 comm.pool.gather(bdata, axis=1),
