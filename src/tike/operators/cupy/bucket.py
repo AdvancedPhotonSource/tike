@@ -76,8 +76,6 @@ class Bucket(Lamino):
 
         """
         data = cp.zeros((len(theta), self.n, self.n), dtype='complex64')
-        #grid = grid.reshape(len(grid) * (self.n**2), 3)
-        #grid = self._make_grid().astype('int16')
         plane_coords = cp.zeros((len(grid), self.precision**3, 2),
                                 dtype='int16')
 
@@ -104,7 +102,6 @@ class Bucket(Lamino):
             # Shift zero-centered coordinates to array indices; wrap negative
             # indices around
             plane_index = (plane_coords + self.n // 2) % self.n
-            #grid_index = (grid + self.n // 2) % self.n
             gmax, gmin = grid[:, :1].max(), grid[:, :1].min()
             grid_index = cp.concatenate(
                 [(grid[:, :1] + cp.abs(gmin)) % (gmax - gmin),
@@ -161,11 +158,6 @@ class Bucket(Lamino):
             (len(grid) // (self.n**2), self.n, self.n),
             dtype='complex64',
         )
-        #grid = grid.reshape(grid.shape[0] * self.n**2, 3)
-        print("test", grid.shape)
-        #grid = grid.reshape(len(grid) * (self.n**2), 3)
-        #grid = self._make_grid().astype('int16')
-        print("test1", grid.shape)
         plane_coords = cp.zeros((len(grid), self.precision**3, 2),
                                 dtype='int16')
 
@@ -186,7 +178,6 @@ class Bucket(Lamino):
             # Shift zero-centered coordinates to array indices; wrap negative
             # indices around
             plane_index = (plane_coords + self.n // 2) % self.n
-            #grid_index = (grid + self.n // 2) % self.n
             gmax, gmin = grid[:, :1].max(), grid[:, :1].min()
             grid_index = cp.concatenate(
                 [(grid[:, :1] + cp.abs(gmin)) % (gmax - gmin),
@@ -237,14 +228,6 @@ class Bucket(Lamino):
         return out
 
     def _make_grid(self):
-        """Return integer coordinates in the grid; origin centered."""
-        lo, hi = -self.n // 2, self.n // 2
-        return cp.stack(
-            cp.mgrid[lo//2:hi//2, lo:hi, lo:hi],
-            axis=-1,
-        ).reshape((self.n//2)*self.n*self.n, 3)
-
-    def _make_grid2(self):
         """Return integer coordinates in the grid; origin centered."""
         lo, hi = -self.n // 2, self.n // 2
         return np.stack(

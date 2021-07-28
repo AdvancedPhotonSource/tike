@@ -122,24 +122,17 @@ def reconstruct(
             data_split = comm.pool.num_workers // obj_split
             data = np.array_split(data.astype('complex64'),
                                   data_split)
-            #data = comm.pool.scatter_bcast(data, obj_split)
             data = comm.pool.scatter(data, obj_split)
             theta = np.array_split(theta.astype('float32'),
                                    data_split)
-            #theta = comm.pool.scatter_bcast(theta, obj_split)
             theta = comm.pool.scatter(theta, obj_split)
             obj = np.array_split(obj.astype('complex64'),
                                    obj_split)
-            grid = operator._make_grid2()
+            grid = operator._make_grid()
             grid = np.array_split(grid.astype('int16'),
                                    obj_split)
-            grid = [x.reshape(x.shape[0]*x.shape[1]*x.shape[2], 3) for x in grid]
-            #grid = comm.pool.scatter_bcast(grid)
-            print("test1", grid[0].shape, grid[1].shape, type(grid[0]), type(grid[1]))
-            print("test3", obj[0].shape, obj[1].shape, type(obj[0]), type(obj[1]))
+            grid = [x.reshape(x.shape[0] * n * n, 3) for x in grid]
             grid = comm.pool.bcast(grid, obj_split)
-            print("test2", grid[0].shape, grid[1].shape, type(grid[0]), type(grid[1]))
-            #grid = comm.pool.scatter(grid, data_split)
             result = {
                 'obj': comm.pool.bcast(obj, obj_split),
             }
@@ -185,8 +178,6 @@ def reconstruct(
                 result[k] = operator.asnumpy(v)
 
         return result
-        #return {k: operator.asnumpy(v) if np.ndim(v) > 0 else v
-        #        for k, v in result.items()}
     else:
         raise ValueError(
             "The '{}' algorithm is not an available.".format(algorithm))
