@@ -45,6 +45,21 @@ import tike.random
 logger = logging.getLogger(__name__)
 
 
+class ProbeOptions:
+    """Manage data and setting related to probe correction.
+
+    Attributes
+    ----------
+    orthogonality_constraint : bool
+        Forces probes to be orthogonal each iteration.
+
+    """
+
+    def __init__(self, orthogonality_constraint=True):
+        self.orthogonality_constraint=orthogonality_constraint
+        self._weights = None
+        self._eigen_vectors = None
+
 def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
     """Construct the varying probes.
 
