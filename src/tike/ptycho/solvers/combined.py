@@ -13,13 +13,13 @@ logger = logging.getLogger(__name__)
 def cgrad(
     op, comm,
     data, probe, scan, psi,
-    recover_probe=True,
+    recover_probe=False,
     cg_iter=4,
     cost=None,
     eigen_probe=None,
     eigen_weights=None,
     num_batch=1,
-    subset_is_random=None,
+    subset_is_random=True,
     step_length=1,
     probe_is_orthogonal=False,
     position_options=None,
@@ -49,6 +49,13 @@ def cgrad(
         bdata = comm.pool.map(get_batch, data, batches, n=n)
         bscan = comm.pool.map(get_batch, scan, batches, n=n)
 
+        if position_options:
+            bposition_options = comm.pool.map(PositionOptions.split,
+                                              position_options,
+                                              [b[n] for b in batches])
+        else:
+            bposition_options = None
+
         if object_options:
             psi, cost = _update_object(
                 op,
@@ -63,7 +70,6 @@ def cgrad(
             psi = comm.pool.map(positivity_constraint,
                                 psi,
                                 r=object_options.positivity_constraint)
-
             psi = comm.pool.map(smoothness_constraint,
                                 psi,
                                 a=object_options.smoothness_constraint)
@@ -81,6 +87,10 @@ def cgrad(
                 probe_is_orthogonal=probe_is_orthogonal,
                 mode=list(range(probe[0].shape[-3])),
             )
+
+            if probe[0].shape[-3] > 1 and probe_is_orthogonal:
+                probe[0] = orthogonalize_gs(probe[0], axis=(-2, -1))
+                probe = comm.pool.bcast(probe[0])
 
         if position_options and comm.pool.num_workers == 1:
             bscan, cost = update_positions_pd(
