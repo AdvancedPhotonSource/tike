@@ -127,7 +127,7 @@ class ThreadPool(ThreadPoolExecutor):
             return list(self.map(b, bworkers, workers=bworkers))
 
         bworkers = []
-        if stride is 1:
+        if stride == 1:
             sworkers = self.workers[:len(x)]
             for i in range(len(x)):
                 bworkers.append(self.workers[i::len(x)])
@@ -189,7 +189,7 @@ class ThreadPool(ThreadPoolExecutor):
             return x
 
         buff = list(x)
-        for stride in range(s):
+        for stride in range(1, s):
             buff = self.map(f, self.workers, buff, stride=stride)
 
         return buff
