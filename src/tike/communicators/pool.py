@@ -56,9 +56,12 @@ class ThreadPool(ThreadPoolExecutor):
                 f"Use `with cupy.cuda.Device({workers[0]}):` to set the "
                 "current device.")
         self.workers = workers
-        self.num_workers = len(workers)
         self.xp = cp
         super().__init__(self.num_workers)
+
+    @property
+    def num_workers(self):
+        return len(self.workers)
 
     def _copy_to(self, x, worker: int) -> cp.array:
         with cp.cuda.Device(worker):
@@ -105,11 +108,12 @@ class ThreadPool(ThreadPoolExecutor):
             return x[0]
         worker = self.workers[0] if worker is None else worker
         with cp.cuda.Device(worker):
-            for part in x[:worker]:
-                x[worker] += self._copy_to(part, worker)
-            for part in x[(worker + 1):]:
-                x[worker] += self._copy_to(part, worker)
-            return x[worker]
+            i = self.workers.index(worker)
+            for part in x[:i]:
+                x[i] += self._copy_to(part, worker)
+            for part in x[(i + 1):]:
+                x[i] += self._copy_to(part, worker)
+            return x[i]
 
     def reduce_cpu(self, x, buf=None):
         """Reduce x by addition from all GPUs to a CPU buffer."""
@@ -122,8 +126,11 @@ class ThreadPool(ThreadPoolExecutor):
         if self.num_workers == 1:
             return x[0]
         worker = self.workers[0] if worker is None else worker
-        return cp.mean(self.gather(x, worker=worker, axis=axis),
-                       keepdims=True, axis=axis)
+        return cp.mean(
+            self.gather(x, worker=worker, axis=axis),
+            keepdims=True,
+            axis=axis,
+        )
 
     def map(self, func, *iterables, **kwargs):
         """ThreadPoolExecutor.map, but wraps call in a cuda.Device context."""
