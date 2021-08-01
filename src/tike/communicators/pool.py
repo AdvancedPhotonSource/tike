@@ -71,7 +71,7 @@ class ThreadPool(ThreadPoolExecutor):
         """Send a copy of x to all workers."""
 
         def f(worker):
-            idx = worker % s
+            idx = self.workers.index(worker) % s
             return self._copy_to(x[idx], worker)
 
         return list(self.map(f, self.workers))
@@ -80,21 +80,6 @@ class ThreadPool(ThreadPoolExecutor):
         """Concatenate x on a single worker along the given axis."""
         if self.num_workers == 1:
             return x[0]
-        worker = self.workers[0] if worker is None else worker
-        with cp.cuda.Device(worker):
-            return self.xp.concatenate(
-                [self._copy_to(part, worker) for part in x],
-                axis,
-            )
-
-    def gather_cpu(self, x: list, worker=None, axis=0):
-        """Concatenate x on a single worker along the given axis."""
-        if self.num_workers == 1:
-            return self.xp.asnumpy(x[0])
-        a = self.xp.concatenate(
-            [self.xp.asnumpy(part) for part in x],
-            axis,
-        )
         worker = self.workers[0] if worker is None else worker
         with cp.cuda.Device(worker):
             return self.xp.concatenate(
@@ -114,7 +99,7 @@ class ThreadPool(ThreadPoolExecutor):
         """Split x along 0th dimension and send chunks to workers`."""
 
         def f(worker):
-            idx = worker // s
+            idx = self.workers.index(worker) // s
             return self._copy_to(x[idx], worker)
 
         return self.map(f, self.workers)
