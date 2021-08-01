@@ -203,6 +203,11 @@ def reconstruct(
         simultaneously per view.
     position_options : PositionOptions
         A class containing settings related to position correction.
+    num_gpu : int, tuple(int)
+        The number of GPUs to use or a tuple of the device numbers of the GPUs
+        to use. If the number of GPUs is less than the requested number, only
+        workers for the available GPUs are allocated.
+
     """
     (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
     # check_allowed_positions(scan, psi, probe.shape)
@@ -211,145 +216,155 @@ def reconstruct(
     else:
         mpi = None
     if algorithm in solvers.__all__:
-        # Initialize an operator.
-        with Ptycho(
-                probe_shape=probe.shape[-1],
-                detector_shape=data.shape[-1],
-                nz=psi.shape[-2],
-                n=psi.shape[-1],
-                ntheta=scan.shape[0],
-                model=model,
-        ) as operator, Comm(num_gpu, mpi) as comm:
-            logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
-                        "iterations.".format(algorithm, *data.shape[-3:],
-                                             num_iter))
-            num_batch = 1 if batch_size is None else max(
-                1,
-                int(data.shape[-3] / batch_size / comm.pool.num_workers),
-            )
-            # Divide the inputs into regions
-            odd_pool = comm.pool.num_workers % 2
-            order, scan, data, eigen_weights, initial_scan = split_by_scan_grid(
-                comm.pool,
-                (
-                    comm.pool.num_workers
-                    if odd_pool else comm.pool.num_workers // 2,
-                    1 if odd_pool else 2,
-                ),
-                scan,
-                data,
-                eigen_weights,
-                initial_scan,
-            )
-            result = {
-                'psi':
-                    comm.pool.bcast([psi.astype('complex64')]),
-                'probe':
-                    comm.pool.bcast([probe.astype('complex64')]),
-                'eigen_probe':
-                    comm.pool.bcast([eigen_probe.astype('complex64')])
-                    if eigen_probe is not None else None,
-                'scan':
-                    scan,
-                'eigen_weights':
-                    eigen_weights,
-            }
-            if position_options:
-                result['position_options'] = [
-                    position_options.split(x) for x in order
-                ]
-                result['position_options'] = comm.pool.map(
-                    PositionOptions.put,
-                    result['position_options'],
+        with cp.cuda.Device(num_gpu[0] if isinstance(num_gpu, tuple) else None):
+            # Initialize an operator.
+            with Ptycho(
+                    probe_shape=probe.shape[-1],
+                    detector_shape=data.shape[-1],
+                    nz=psi.shape[-2],
+                    n=psi.shape[-1],
+                    ntheta=scan.shape[0],
+                    model=model,
+            ) as operator, Comm(num_gpu, mpi) as comm:
+                logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
+                            "iterations.".format(algorithm, *data.shape[-3:],
+                                                 num_iter))
+                num_batch = 1 if batch_size is None else max(
+                    1,
+                    int(data.shape[-3] / batch_size / comm.pool.num_workers),
                 )
-            for key, value in kwargs.items():
-                if np.ndim(value) > 0:
-                    kwargs[key] = comm.pool.bcast([value])
+                # Divide the inputs into regions
+                odd_pool = comm.pool.num_workers % 2
+                (
+                    order,
+                    scan,
+                    data,
+                    eigen_weights,
+                    initial_scan,
+                ) = split_by_scan_grid(
+                    comm.pool,
+                    (
+                        comm.pool.num_workers
+                        if odd_pool else comm.pool.num_workers // 2,
+                        1 if odd_pool else 2,
+                    ),
+                    scan,
+                    data,
+                    eigen_weights,
+                    initial_scan,
+                )
+                result = {
+                    'psi':
+                        comm.pool.bcast(psi.astype('complex64')),
+                    'probe':
+                        comm.pool.bcast(probe.astype('complex64')),
+                    'eigen_probe':
+                        comm.pool.bcast(eigen_probe.astype('complex64'))
+                        if eigen_probe is not None else None,
+                    'scan':
+                        scan,
+                    'eigen_weights':
+                        eigen_weights,
+                }
+                if position_options:
+                    result['position_options'] = [
+                        position_options.split(x) for x in order
+                    ]
+                    result['position_options'] = comm.pool.map(
+                        PositionOptions.put,
+                        result['position_options'],
+                    )
+                for key, value in kwargs.items():
+                    if np.ndim(value) > 0:
+                        kwargs[key] = comm.pool.bcast(value)
 
-            if initial_scan[0] is None:
-                initial_scan = comm.pool.map(cp.copy, scan)
+                if initial_scan[0] is None:
+                    initial_scan = comm.pool.map(cp.copy, scan)
 
-            result['probe'] = _rescale_obj_probe(
-                operator,
-                comm,
-                data,
-                result['psi'],
-                scan,
-                result['probe'],
-                num_batch=num_batch,
-            )
-
-            costs = []
-            times = []
-            start = time.perf_counter()
-            for i in range(num_iter):
-
-                logger.info(f"{algorithm} epoch {i:,d}")
-
-                kwargs.update(result)
-                result = getattr(solvers, algorithm)(
+                result['probe'] = _rescale_obj_probe(
                     operator,
                     comm,
-                    data=data,
+                    data,
+                    result['psi'],
+                    scan,
+                    result['probe'],
                     num_batch=num_batch,
-                    **kwargs,
                 )
-                if result['cost'] is not None:
-                    costs.append(result['cost'])
 
-                if (position_options
-                        and position_options.use_position_regularization):
-                    # TODO: Regularize on all GPUs
-                    result['scan'][0], _ = affine_position_regularization(
-                        operator,
-                        result['psi'][0],
-                        result['probe'][0],
-                        initial_scan[0],
-                        result['scan'][0],
-                    )
-
-                times.append(time.perf_counter() - start)
+                costs = []
+                times = []
                 start = time.perf_counter()
+                for i in range(num_iter):
 
-                # Check for early termination
-                if i > 0 and abs((costs[-1] - costs[-2]) / costs[-2]) < rtol:
-                    logger.info(
-                        "Cost function rtol < %g reached at %d "
-                        "iterations.", rtol, i)
-                    break
+                    logger.info(f"{algorithm} epoch {i:,d}")
 
-            reorder = np.argsort(np.concatenate(order))
-            result['scan'] = comm.pool.gather(scan, axis=1)[:, reorder]
+                    kwargs.update(result)
+                    result = getattr(solvers, algorithm)(
+                        operator,
+                        comm,
+                        data=data,
+                        num_batch=num_batch,
+                        **kwargs,
+                    )
+                    if result['cost'] is not None:
+                        costs.append(result['cost'])
 
-            if position_options:
-                result['initial_scan'] = comm.pool.gather(initial_scan,
-                                                          axis=1)[:, reorder]
-                result['position_options'] = comm.pool.map(
-                    PositionOptions.get,
-                    result['position_options'],
-                )
-                [
-                    position_options.join(x, o)
-                    for x, o in zip(result['position_options'], order)
-                ]
-                result['position_options'] = position_options
+                    if (position_options
+                            and position_options.use_position_regularization):
 
-            if 'eigen_weights' in result:
-                result['eigen_weights'] = comm.pool.gather(
-                    eigen_weights,
-                    axis=1,
-                )[:, reorder]
-                result['eigen_probe'] = result['eigen_probe'][0]
-            result['probe'] = result['probe'][0]
-            result['cost'] = operator.asarray(costs)
-            result['times'] = operator.asarray(times)
-            for k, v in result.items():
-                if isinstance(v, list):
-                    result[k] = v[0]
-        return {
-            k: operator.asnumpy(v) if isinstance(v, cp.ndarray) else v
-            for k, v in result.items()
-        }
+                        # TODO: Regularize on all GPUs
+                        result['scan'][0], _ = affine_position_regularization(
+                            operator,
+                            result['psi'][0],
+                            result['probe'][0],
+                            initial_scan[0],
+                            result['scan'][0],
+                        )
+
+                    times.append(time.perf_counter() - start)
+                    start = time.perf_counter()
+
+                    # Check for early termination
+                    if i > 0 and abs(
+                        (costs[-1] - costs[-2]) / costs[-2]) < rtol:
+                        logger.info(
+                            "Cost function rtol < %g reached at %d "
+                            "iterations.", rtol, i)
+                        break
+
+                reorder = np.argsort(np.concatenate(order))
+                result['scan'] = comm.pool.gather(scan, axis=1)[:, reorder]
+
+                if position_options:
+                    result['initial_scan'] = comm.pool.gather(initial_scan,
+                                                              axis=1)[:,
+                                                                      reorder]
+                    result['position_options'] = comm.pool.map(
+                        PositionOptions.get,
+                        result['position_options'],
+                    )
+                    [
+                        position_options.join(x, o)
+                        for x, o in zip(result['position_options'], order)
+                    ]
+                    result['position_options'] = position_options
+
+                if 'eigen_weights' in result:
+                    result['eigen_weights'] = comm.pool.gather(
+                        eigen_weights,
+                        axis=1,
+                    )[:, reorder]
+                    result['eigen_probe'] = result['eigen_probe'][0]
+                result['probe'] = result['probe'][0]
+                result['cost'] = operator.asarray(costs)
+                result['times'] = operator.asarray(times)
+                for k, v in result.items():
+                    if isinstance(v, list):
+                        result[k] = v[0]
+            return {
+                k: operator.asnumpy(v) if isinstance(v, cp.ndarray) else v
+                for k, v in result.items()
+            }
     else:
         raise ValueError(f"The '{algorithm}' algorithm is not an option.\n"
                          f"\tAvailable algorithms are : {solvers.__all__}")
