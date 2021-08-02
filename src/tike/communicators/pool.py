@@ -68,8 +68,18 @@ class ThreadPool(ThreadPoolExecutor):
             return self.xp.asarray(x)
 
     def bcast(self, x: list, s=1) -> list:
-        """Send a copy of x to all workers."""
+        """Send a copy of x to all workers.
 
+        Parameters
+        ----------
+        x : list
+            A list of data to be broadcast.
+        s : int
+            The stride length of the devices receiving the copy.
+            e.g., s=2 and num_gpu=8, then x[0] will be broadcast
+            to workers[::2] while x[1] will go to workers[1::2].
+
+        """
         def f(worker):
             idx = self.workers.index(worker) % s
             return self._copy_to(x[idx], worker)
@@ -96,8 +106,18 @@ class ThreadPool(ThreadPoolExecutor):
         return list(self.map(f, self.workers))
 
     def scatter(self, x, s=1) -> list:
-        """Split x along 0th dimension and send chunks to workers`."""
+        """Split x along 0th dimension and send chunks to workers`.
 
+        Parameters
+        ----------
+        x : list
+            Chunks to be sent to other devices.
+        s : int
+            The size of a device group.
+            e.g., s=4 and num_gpu=8, then x[0] will be scattered
+            to workers[:4] while x[1] will go to workers[4:].
+
+        """
         def f(worker):
             idx = self.workers.index(worker) // s
             return self._copy_to(x[idx], worker)
@@ -105,8 +125,18 @@ class ThreadPool(ThreadPoolExecutor):
         return self.map(f, self.workers)
 
     def scatter_bcast(self, x: list, stride=1):
-        """Send x chunks to some workers and then copy to remaining workers."""
+        """Send x chunks to some workers and then copy to remaining workers.
 
+        Parameters
+        ----------
+        x : list
+            Chunks to be sent and copied.
+        stride : int
+            The stride length of the scatter.
+            e.g., s=4 and num_gpu=8, then x[0] will be broadcast
+            to workers[:4] while x[1] will go to workers[4:].
+
+        """
         def s(bworkers, chunk):
 
             def b(worker):
@@ -137,8 +167,18 @@ class ThreadPool(ThreadPoolExecutor):
         return output
 
     def reduce_gpu(self, x: list, s=1, workers=None):
-        """Reduce x by addition to a subset of GPUs from all other GPUs."""
+        """Reduce x by addition to a subset of GPUs from all other GPUs.
 
+        Parameters
+        ----------
+        x : list
+            Chunks to be reduced to a subset of devices.
+        s : int
+            The size of the device subset.
+            e.g., s=2 and num_gpu=8, then x[::2] will be reduced to
+            workers[0] while x[1::2] will be reduced to workers[1].
+
+        """
         def f(worker):
             i = self.workers.index(worker)
             for part in x[(i % s):i:s]:
@@ -171,8 +211,18 @@ class ThreadPool(ThreadPoolExecutor):
         )
 
     def grouped_allreduce(self, x: list, s: int):
-        """All-reduce x by addition within a subset of GPUs."""
+        """All-reduce x by addition within a subset of GPUs.
 
+        Parameters
+        ----------
+        x : list
+            Chunks to be all-reduced in grouped devices context.
+        s : int
+            The size of a device group.
+            e.g., s=4 and num_gpu=8, then x[:4] will perform all-reduce within
+            workers[:4] while x[4:] will perform all-reduce within workers[4:].
+
+        """
         def f(worker, buf, stride):
             idx = worker // s * s + (worker + stride) % s
             return cp.add(buf, self._copy_to(x[idx], worker))
