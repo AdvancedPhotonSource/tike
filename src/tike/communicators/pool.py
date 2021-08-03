@@ -167,7 +167,7 @@ class ThreadPool(ThreadPoolExecutor):
         return output
 
     def reduce_gpu(self, x: list, s=1, workers=None):
-        """Reduce x by addition to a subset of GPUs from all other GPUs.
+        """Reduce each x by addition to the first device group.
 
         Parameters
         ----------
