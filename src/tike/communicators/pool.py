@@ -68,7 +68,7 @@ class ThreadPool(ThreadPoolExecutor):
             return self.xp.asarray(x)
 
     def bcast(self, x: list, s=1) -> list:
-        """Send a copy of x to all workers.
+        """Send each x to all device groups.
 
         Parameters
         ----------
