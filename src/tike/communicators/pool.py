@@ -74,7 +74,7 @@ class ThreadPool(ThreadPoolExecutor):
         ----------
         x : list
             A list of data to be broadcast.
-        s : int
+        s : int > 0
             The stride length of the devices receiving the copy.
             e.g., s=2 and num_gpu=8, then x[0] will be broadcast
             to workers[::2] while x[1] will go to workers[1::2].
