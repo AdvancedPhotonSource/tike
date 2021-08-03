@@ -106,7 +106,7 @@ class ThreadPool(ThreadPoolExecutor):
         return list(self.map(f, self.workers))
 
     def scatter(self, x: list, s=1) -> list:
-        """Split x along 0th dimension and send chunks to workers`.
+        """Send each x to a different device group`.
 
         Parameters
         ----------
