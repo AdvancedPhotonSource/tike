@@ -31,4 +31,5 @@ scan : (..., POSI, 2) float32
 
 """
 from .ptycho import *
-from .position import check_allowed_positions
+from .position import check_allowed_positions, PositionOptions
+from .object import ObjectOptions
