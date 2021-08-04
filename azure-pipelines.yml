@@ -60,6 +60,12 @@ jobs:
       pytest -vs
     displayName: Run tests
 
+  - task: PublishBuildArtifacts@1
+    condition: eq(variables['python.version'], '3.9')
+    inputs:
+      pathToPublish: 'tests/result'
+      artifactName: NO MPI reconstructed images
+
 
 - job: MultiLinux
   pool:
@@ -109,3 +115,8 @@ jobs:
       mpirun -n 2 pytest tests/test_comm.py
       mpirun -n 2 pytest tests/test_ptycho.py -k cgrad
     displayName: Run tests with MPI
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathToPublish: 'tests/result'
+      artifactName: MPI reconstructed images
