@@ -32,3 +32,4 @@ scan : (..., POSI, 2) float32
 """
 from .ptycho import *
 from .position import check_allowed_positions
+from .probe import ProbeOptions
