@@ -131,30 +131,6 @@ def check_allowed_positions(scan, psi, probe_shape):
                          f"{scan[np.logical_or(x[..., 0], x[..., 1])]}")
 
 
-def get_padded_object(scan, probe):
-    """Return a ones-initialized object and shifted scan positions.
-
-    An complex object array is initialized with shape such that the area
-    covered by the probe is padded on each edge by a full probe width. The scan
-    positions are shifted to be centered in this newly initialized object
-    array.
-    """
-    # Shift scan positions to zeros
-    scan[..., 0] -= np.min(scan[..., 0])
-    scan[..., 1] -= np.min(scan[..., 1])
-
-    # Add padding to scan positions of field-of-view / 8
-    span = np.max(scan[..., 0]), np.max(scan[..., 1])
-    scan[..., 0] += probe.shape[-2]
-    scan[..., 1] += probe.shape[-1]
-
-    ntheta = probe.shape[0]
-    height = 3 * probe.shape[-2] + int(span[0])
-    width = 3 * probe.shape[-1] + int(span[1])
-
-    return np.ones((ntheta, height, width), dtype='complex64'), scan
-
-
 def update_positions_pd(operator, data, psi, probe, scan,
                         dx=-1, step=0.05):  # yapf: disable
     """Update scan positions using the gradient of intensity method.
