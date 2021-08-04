@@ -46,6 +46,7 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
+import bz2
 import lzma
 import os
 import pickle
@@ -114,8 +115,7 @@ class TestPtychoUtils(unittest.TestCase):
         np.testing.assert_equal(split, solution)
 
 
-class TestPtychoRecon(unittest.TestCase):
-    """Test various ptychography reconstruction methods for consistency."""
+class TestPtychoSimulate(unittest.TestCase):
 
     def create_dataset(
         self,
@@ -220,15 +220,23 @@ class TestPtychoRecon(unittest.TestCase):
         np.testing.assert_array_equal(data.shape, self.data.shape)
         np.testing.assert_allclose(np.sqrt(data), np.sqrt(self.data), atol=1e-6)
 
-    def error_metric(self, x):
-        """Return the error between two arrays."""
-        return np.linalg.norm(x - self.original)
+
+class TestPtychoRecon(unittest.TestCase):
+    """Test various ptychography reconstruction methods for consistency."""
+
+    def setUp(self, filename='data/siemens-star-small.npz.bz2'):
+        """Load a dataset for reconstruction."""
+        dataset_file = os.path.join(testdir, filename)
+        with bz2.open(dataset_file, 'rb') as f:
+            archive = np.load(f)
+            self.scan = archive['scan']
+            self.data = archive['data']
+            self.probe = archive['probe']
 
     def template_consistent_algorithm(self, algorithm, params={}):
         """Check ptycho.solver.algorithm for consistency."""
 
         result = {
-            'psi': np.ones_like(self.original),
             'probe': self.probe * np.random.rand(*self.probe.shape),
         }
 
@@ -265,63 +273,38 @@ class TestPtychoRecon(unittest.TestCase):
         print()
         cost = '\n'.join(f'{c:1.3e}' for c in result['cost'])
         print(cost)
-        try:
-            import matplotlib.pyplot as plt
-            fname = os.path.join(testdir, 'result', f'{algorithm}')
-            os.makedirs(fname, exist_ok=True)
-            for i in range(len(self.original)):
-                plt.imsave(
-                    f'{fname}/{i}-phase.png',
-                    np.angle(result['psi'][i]),
-                )
-                plt.imsave(
-                    f'{fname}/{i}-ampli.png',
-                    np.abs(result['psi'][i]),
-                )
-            for i in range(self.probe.shape[-3]):
-                plt.imsave(
-                    f'{fname}/{i}-probe-phase.png',
-                    np.angle(result['probe'][0, 0, 0, i]),
-                )
-                plt.imsave(
-                    f'{fname}/{i}-probe-ampli.png',
-                    np.abs(result['probe'][0, 0, 0, i]),
-                )
-        except ImportError:
-            pass
+        return result
 
     def test_consistent_cgrad(self):
         """Check ptycho.solver.cgrad for consistency."""
-        self.template_consistent_algorithm(
-            'cgrad',
-            params={
-                'subset_is_random': True,
-                'batch_size': int(self.data.shape[1] / 3),
-                'num_gpu': 2,
-                'recover_probe': True,
-                'object_options': ObjectOptions(),
-                'use_mpi': True,
-            },
-        )
-
-    # def test_consistent_admm(self):
-    #     """Check ptycho.solver.admm for consistency."""
-    #     self.template_consistent_algorithm('admm')
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                'cgrad',
+                params={
+                    'subset_is_random': True,
+                    'batch_size': int(self.data.shape[1] / 3),
+                    'num_gpu': 2,
+                    'recover_probe': True,
+                    'object_options': ObjectOptions(),
+                    'use_mpi': True,
+                },
+            ), 'cgrad')
 
     def test_consistent_lstsq_grad(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
-        self.template_consistent_algorithm(
-            'lstsq_grad',
-            params={
-                'subset_is_random': True,
-                'batch_size': int(self.data.shape[1] / 3),
-                'num_gpu': 2,
-                'recover_probe': True,
-                'object_options': ObjectOptions(),
-                'use_mpi': True,
-                'position_options': PositionOptions(self.scan.shape[0:-1])
-            },
-        )
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                'lstsq_grad',
+                params={
+                    'subset_is_random': True,
+                    'batch_size': int(self.data.shape[1] / 3),
+                    'num_gpu': 2,
+                    'recover_probe': True,
+                    'object_options': ObjectOptions(),
+                    'use_mpi': True,
+                    'position_options': PositionOptions(self.scan.shape[0:-1]),
+                },
+            ), 'lstsq_grad')
 
     def test_consistent_lstsq_grad_variable_probe(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
@@ -329,31 +312,33 @@ class TestPtychoRecon(unittest.TestCase):
         eigen_probe, weights = tike.ptycho.probe.init_varying_probe(
             self.scan, self.probe, 3)
 
-        self.template_consistent_algorithm(
-            'lstsq_grad',
-            params={
-                'subset_is_random':
-                    True,
-                'batch_size':
-                    int(self.data.shape[1] / 3),
-                'num_gpu':
-                    2,
-                'recover_probe':
-                    True,
-                'object_options': ObjectOptions(),
-                'use_mpi':
-                    True,
-                'eigen_probe':
-                    eigen_probe,
-                'eigen_weights':
-                    weights,
-                'position_options':
-                    PositionOptions(
-                        self.scan.shape[0:-1],
-                        use_adaptive_moment=True,
-                    )
-            },
-        )
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                'lstsq_grad',
+                params={
+                    'subset_is_random':
+                        True,
+                    'batch_size':
+                        int(self.data.shape[1] / 3),
+                    'num_gpu':
+                        2,
+                    'recover_probe':
+                        True,
+                    'object_options':
+                        ObjectOptions(),
+                    'use_mpi':
+                        True,
+                    'eigen_probe':
+                        eigen_probe,
+                    'eigen_weights':
+                        weights,
+                    'position_options':
+                        PositionOptions(
+                            self.scan.shape[0:-1],
+                            use_adaptive_moment=True,
+                        ),
+                },
+            ), 'lstsq_grad-variable-probe')
 
     def test_invaid_algorithm_name(self):
         """Check that wrong names are handled gracefully."""
@@ -392,6 +377,33 @@ class TestProbe(unittest.TestCase):
         )
 
         assert eigen_probe[0].shape == new_probe[0].shape
+
+
+def _save_ptycho_result(result, algorithm):
+    try:
+        import matplotlib.pyplot as plt
+        fname = os.path.join(testdir, 'result', f'{algorithm}')
+        os.makedirs(fname, exist_ok=True)
+        for i in range(len(result['psi'])):
+            plt.imsave(
+                f'{fname}/{i}-phase.png',
+                np.angle(result['psi'][i]).astype('float32'),
+            )
+            plt.imsave(
+                f'{fname}/{i}-ampli.png',
+                np.abs(result['psi'][i]).astype('float32'),
+            )
+        for i in range(result['probe'].shape[-3]):
+            plt.imsave(
+                f'{fname}/{i}-probe-phase.png',
+                np.angle(result['probe'][0, 0, 0, i]),
+            )
+            plt.imsave(
+                f'{fname}/{i}-probe-ampli.png',
+                np.abs(result['probe'][0, 0, 0, i]),
+            )
+    except ImportError:
+        pass
 
 
 if __name__ == '__main__':
