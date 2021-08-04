@@ -15,7 +15,18 @@ logger = logging.getLogger(__name__)
 
 # TODO: Use dataclass decorator when python 3.6 reaches EOL
 class ObjectOptions:
-    """Manage data and setting related to object correction."""
+    """Manage data and setting related to object correction.
+
+    Attributes
+    ----------
+    positivity_constraint : float [0, 1]
+        This value is passed to the tike.ptycho.object.positivity_constraint
+        function.
+    smoothness_constraint : float [0, 1/8]
+        This value is passed to the tike.ptycho.object.smoothness_constraint
+        function.
+
+    """
 
     def __init__(self, positivity_constraint=0, smoothness_constraint=0):
         self.positivity_constraint = positivity_constraint

@@ -124,7 +124,10 @@ def check_allowed_positions(scan, psi, probe_shape):
     )
     if np.any(less_than_one) or np.any(greater_than_psi):
         x = np.logical_or(less_than_one, greater_than_psi)
-        raise ValueError("These scan positions exist outside field of view:\n"
+        raise ValueError("Scan positions must be positive valued "
+                         "and fit within the field of view "
+                         "with at least a 1 pixel buffer around the edge. "
+                         "These scan positions exist outside field of view:\n"
                          f"{scan[np.logical_or(x[..., 0], x[..., 1])]}")
 
 
@@ -226,6 +229,7 @@ def update_positions_pd(operator, data, psi, probe, scan,
 
 
 from cupy.fft.config import get_plan_cache
+
 
 def _image_grad(x):
     """Return the gradient of the x for each of the last two dimesions."""
