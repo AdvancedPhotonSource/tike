@@ -210,7 +210,7 @@ def reconstruct(
 
     """
     (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
-    # check_allowed_positions(scan, psi, probe.shape)
+    check_allowed_positions(scan, psi, probe.shape)
     if use_mpi is True:
         mpi = MPIComm
     else:
