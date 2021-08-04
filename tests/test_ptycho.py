@@ -53,6 +53,7 @@ import pickle
 import unittest
 
 import numpy as np
+from mpi4py import MPI
 
 import tike.ptycho
 from tike.ptycho.position import PositionOptions
@@ -65,6 +66,7 @@ __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 testdir = os.path.dirname(__file__)
+_mpi_size = MPI.COMM_WORLD.Get_size()
 
 
 class TestPtychoUtils(unittest.TestCase):
@@ -288,7 +290,7 @@ class TestPtychoRecon(unittest.TestCase):
                     'object_options': ObjectOptions(),
                     'use_mpi': True,
                 },
-            ), 'cgrad')
+            ), f"{'mpi-' if _mpi_size > 1 else ''}cgrad")
 
     def test_consistent_lstsq_grad(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
@@ -296,15 +298,25 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm(
                 'lstsq_grad',
                 params={
-                    'subset_is_random': True,
-                    'batch_size': int(self.data.shape[1] / 3),
-                    'num_gpu': 2,
-                    'recover_probe': True,
-                    'object_options': ObjectOptions(),
-                    'use_mpi': True,
-                    'position_options': PositionOptions(self.scan.shape[0:-1]),
+                    'subset_is_random':
+                        True,
+                    'batch_size':
+                        int(self.data.shape[1] / 3),
+                    'num_gpu':
+                        2,
+                    'recover_probe':
+                        True,
+                    'object_options':
+                        ObjectOptions(),
+                    'use_mpi':
+                        True,
+                    'position_options':
+                        PositionOptions(
+                            self.scan.shape[0:-1],
+                            use_adaptive_moment=True,
+                        ),
                 },
-            ), 'lstsq_grad')
+            ), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad")
 
     def test_consistent_lstsq_grad_variable_probe(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
@@ -338,7 +350,7 @@ class TestPtychoRecon(unittest.TestCase):
                             use_adaptive_moment=True,
                         ),
                 },
-            ), 'lstsq_grad-variable-probe')
+            ), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-variable-probe")
 
     def test_invaid_algorithm_name(self):
         """Check that wrong names are handled gracefully."""
