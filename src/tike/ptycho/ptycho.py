@@ -209,12 +209,17 @@ def reconstruct(
         workers for the available GPUs are allocated.
 
     """
-    (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
-    # check_allowed_positions(scan, psi, probe.shape)
     if use_mpi is True:
         mpi = MPIComm
+        if psi is None:
+            raise ValueError(
+                "When MPI is enabled, initial object guess cannot be None; "
+                "automatic psi initialization is not synchronized "
+                "across processes.")
     else:
         mpi = None
+    (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
+    # check_allowed_positions(scan, psi, probe.shape)
     if algorithm in solvers.__all__:
         with cp.cuda.Device(num_gpu[0] if isinstance(num_gpu, tuple) else None):
             # Initialize an operator.
