@@ -64,7 +64,7 @@ jobs:
     condition: eq(variables['python.version'], '3.9')
     inputs:
       pathToPublish: 'tests/result'
-      artifactName: NO MPI reconstructed images
+      artifactName: MonoGPU reconstructed images
 
 
 - job: MultiLinux
@@ -119,4 +119,4 @@ jobs:
   - task: PublishBuildArtifacts@1
     inputs:
       pathToPublish: 'tests/result'
-      artifactName: MPI reconstructed images
+      artifactName: MultiGPU reconstructed images

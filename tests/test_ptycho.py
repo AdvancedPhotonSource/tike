@@ -235,11 +235,13 @@ class TestPtychoRecon(unittest.TestCase):
             self.scan = archive['scan']
             self.data = archive['data']
             self.probe = archive['probe']
+        self.scan -= np.amin(self.scan, axis=-2) - 20
 
     def template_consistent_algorithm(self, algorithm, params={}):
         """Check ptycho.solver.algorithm for consistency."""
 
         result = {
+            'psi': np.ones((1, 500, 500), dtype=np.complex64),
             'probe': self.probe * np.random.rand(*self.probe.shape),
         }
 
