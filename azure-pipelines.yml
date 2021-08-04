@@ -113,7 +113,7 @@ jobs:
   - script: |
       source activate tike
       mpirun -n 2 pytest tests/test_comm.py
-      mpirun -n 2 pytest tests/test_ptycho.py -k cgrad
+      mpirun -n 2 pytest tests/test_ptycho.py -k TestPtychoRecon
     displayName: Run tests with MPI
 
   - task: PublishBuildArtifacts@1
