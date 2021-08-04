@@ -125,7 +125,7 @@ def eq2us(f, x, n, eps, xp, gather=gather, fftn=None, upsample=2):
     # parameters for the USFFT transform
     mu = -xp.log(eps) / (2 * n**2)
     Te = 1 / xp.pi * xp.sqrt(-mu * xp.log(eps) + (mu * n)**2 / 4)
-    m = xp.int(xp.ceil(upsampled * Te))
+    m = int(xp.ceil(upsampled * Te))
 
     # smearing kernel (ker)
     kernel = _get_kernel(xp, n, mu)
@@ -245,7 +245,7 @@ def us2eq(f, x, n, eps, xp, scatter=scatter, fftn=None, upsample=2):
     # parameters for the USFFT transform
     mu = -xp.log(eps) / (2 * n**2)
     Te = 1 / xp.pi * xp.sqrt(-mu * xp.log(eps) + (mu * n)**2 / 4)
-    m = xp.int(xp.ceil(upsampled * Te))
+    m = int(xp.ceil(upsampled * Te))
 
     # smearing kernel (ker)
     kernel = _get_kernel(xp, n, mu)
