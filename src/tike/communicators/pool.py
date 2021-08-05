@@ -68,14 +68,14 @@ class ThreadPool(ThreadPoolExecutor):
             return self.xp.asarray(x)
 
     def bcast(self, x: list, s=1) -> list:
-        """Send a copy of x to all workers.
+        """Send each x to all device groups.
 
         Parameters
         ----------
         x : list
             A list of data to be broadcast.
-        s : int
-            The stride length of the devices receiving the copy.
+        s : int > 0
+            The size of a device group.
             e.g., s=2 and num_gpu=8, then x[0] will be broadcast
             to workers[::2] while x[1] will go to workers[1::2].
 
@@ -105,8 +105,8 @@ class ThreadPool(ThreadPoolExecutor):
 
         return list(self.map(f, self.workers))
 
-    def scatter(self, x, s=1) -> list:
-        """Split x along 0th dimension and send chunks to workers`.
+    def scatter(self, x: list, s=1) -> list:
+        """Send each x to a different device group`.
 
         Parameters
         ----------

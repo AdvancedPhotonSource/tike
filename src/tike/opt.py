@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 randomizer = np.random.default_rng()
 
 
-def batch_indicies(n, m=1, use_random=False):
+def batch_indicies(n, m=1, use_random=True):
     """Return list of indices [0...n) as m groups.
 
     >>> batch_indicies(10, 3)
