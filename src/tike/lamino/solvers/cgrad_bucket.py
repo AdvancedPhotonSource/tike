@@ -38,7 +38,7 @@ def cgrad(
 
     def fwd_op(u):
         fwd_data = comm.pool.map(op.fwd, u, theta, grid)
-        return comm.pool.grouped_allreduce(fwd_data, obj_split)
+        return comm.pool.allreduce(fwd_data, obj_split)
 
     fwd_data = fwd_op(obj)
     if step_length == 1:

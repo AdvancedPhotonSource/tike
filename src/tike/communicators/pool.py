@@ -167,12 +167,12 @@ class ThreadPool(ThreadPoolExecutor):
         return output
 
     def reduce_gpu(self, x: list, s=1, workers=None):
-        """Reduce x by addition to a subset of GPUs from all other GPUs.
+        """Reduce x by addition to a GPU group from all other GPUs.
 
         Parameters
         ----------
         x : list
-            Chunks to be reduced to a subset of devices.
+            Chunks to be reduced to a device group.
         s : int
             The size of the device subset.
             e.g., s=2 and num_gpu=8, then x[::2] will be reduced to
@@ -210,8 +210,8 @@ class ThreadPool(ThreadPoolExecutor):
             axis=axis,
         )
 
-    def grouped_allreduce(self, x: list, s: int):
-        """All-reduce x by addition within a subset of GPUs.
+    def allreduce(self, x: list, s=None):
+        """All-reduce x by addition within GPU groups.
 
         Parameters
         ----------
@@ -223,7 +223,7 @@ class ThreadPool(ThreadPoolExecutor):
             workers[:4] while x[4:] will perform all-reduce within workers[4:].
 
         """
-        def f(worker, buf, stride):
+        def f(worker, buf, stride, s):
             idx = worker // s * s + (worker + stride) % s
             return cp.add(buf, self._copy_to(x[idx], worker))
 
@@ -231,8 +231,9 @@ class ThreadPool(ThreadPoolExecutor):
             return x
 
         buff = list(x)
+        s = len(x) if s is None else s
         for stride in range(1, s):
-            buff = self.map(f, self.workers, buff, stride=stride)
+            buff = self.map(f, self.workers, buff, stride=stride, s=s)
 
         return buff
 
