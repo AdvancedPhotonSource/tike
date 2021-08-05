@@ -55,10 +55,16 @@ class ProbeOptions:
 
     """
 
-    def __init__(self, orthogonality_constraint=True):
-        self.orthogonality_constraint=orthogonality_constraint
+    def __init__(self, num_eigen_probes=0, orthogonality_constraint=True):
+        self.orthogonality_constraint = orthogonality_constraint
         self._weights = None
-        self._eigen_vectors = None
+        self._eigen_probes = None
+        if num_eigen_probes > 0:
+            pass
+
+    @property
+    def num_eigen_probes(self):
+        return 0 if self._weights is None else self._weights.shape[-2]
 
 def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
     """Construct the varying probes.
