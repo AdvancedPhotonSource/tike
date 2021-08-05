@@ -240,17 +240,13 @@ class ThreadPool(ThreadPoolExecutor):
 
         return buff
 
-    def map(self, func, *iterables, **kwargs):
+    def map(self, func, *iterables, workers=None, **kwargs):
         """ThreadPoolExecutor.map, but wraps call in a cuda.Device context."""
 
         def f(worker, *args):
             with cp.cuda.Device(worker):
                 return func(*args, **kwargs)
 
-        if 'workers' in kwargs:
-            workers = kwargs.get("workers")
-            kwargs.pop("workers")
-        else:
-            workers = self.workers
+        workers = self.workers if workers is None else workers
 
         return list(super().map(f, workers, *iterables))
