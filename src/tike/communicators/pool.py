@@ -23,6 +23,10 @@ class ThreadPool(ThreadPoolExecutor):
         The number of GPUs to use or a tuple of the device numbers of the GPUs
         to use. If the number of GPUs is less than the requested number, only
         workers for the available GPUs are allocated.
+    device_count : int
+        The total number of devices on the host as reported by CUDA runtime.
+    num_workers : int
+        Returns len(self.workers). For convenience.
 
     Raises
     ------
