@@ -395,6 +395,10 @@ def _save_ptycho_result(result, algorithm):
         plt.imsave(
             f'{fname}/{0}-phase.png',
             np.angle(result['psi']).astype('float32'),
+            # The output of np.angle is locked to (-pi, pi]
+            cmap=plt.cm.twilight,
+            vmin=-np.pi,
+            vmax=np.pi,
         )
         plt.imsave(
             f'{fname}/{0}-ampli.png',
@@ -404,6 +408,10 @@ def _save_ptycho_result(result, algorithm):
             plt.imsave(
                 f'{fname}/{i}-probe-phase.png',
                 np.angle(result['probe'][0, 0, i]),
+                # The output of np.angle is locked to (-pi, pi]
+                cmap=plt.cm.twilight,
+                vmin=-np.pi,
+                vmax=np.pi,
             )
             plt.imsave(
                 f'{fname}/{i}-probe-ampli.png',
