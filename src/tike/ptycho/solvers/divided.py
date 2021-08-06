@@ -138,7 +138,7 @@ def lstsq_grad(
             n=n,
         )
 
-    if probe[0].shape[-3] > 1 and probe_options.orthogonality_constraint:
+    if probe_options and probe_options.orthogonality_constraint:
         probe[0] = orthogonalize_gs(probe[0], axis=(-2, -1))
         probe = comm.pool.bcast(probe[0])
 
@@ -342,6 +342,7 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
 
         if recover_psi:
             if comm.use_mpi:
+                print(type(A1), A1[0].shape)
                 delta = comm.Allreduce_mean(A1, axis=-3)
             else:
                 delta = comm.pool.reduce_mean(A1, axis=-3)
