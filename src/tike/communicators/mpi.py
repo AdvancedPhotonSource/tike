@@ -111,10 +111,10 @@ class MPIComm:
 
         # Generate the mask
         mask = np.logical_and(
-                edges[self.rank] < scan[0, :, 0],
-                scan[0, :, 0] <= edges[self.rank + 1])
+                edges[self.rank] < scan[:, 0],
+                scan[:, 0] <= edges[self.rank + 1])
 
-        scan = scan[:, mask]
-        split_args = [arg[:, mask] for arg in args]
+        scan = scan[mask]
+        split_args = [arg[mask] for arg in args]
 
         return (scan, *split_args)

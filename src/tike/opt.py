@@ -29,12 +29,12 @@ def batch_indicies(n, m=1, use_random=True):
 
 def get_batch(x, b, n):
     """Returns x[:, b[n]]; for use with map()."""
-    return x[:, b[n]]
+    return x[b[n]]
 
 
 def put_batch(y, x, b, n):
     """Assigns y into x[:, b[n]]; for use with map()."""
-    x[:, b[n]] = y
+    x[b[n]] = y
 
 
 def adagrad(g, v=None, eps=1e-6):

@@ -61,8 +61,8 @@ testdir = os.path.dirname(__file__)
 
 
 @unittest.skip(reason="The tomo module is broken/disabled.")
-class TestPtychoRecon(unittest.TestCase):
-    """Test various ptychography reconstruction methods for consistency."""
+class TestTomoRecon(unittest.TestCase):
+    """Test various tomography reconstruction methods for consistency."""
 
     def create_dataset(self, dataset_file):
         """Create a dataset for testing this module.
