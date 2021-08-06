@@ -90,10 +90,10 @@ def cgrad(
         if position_options and comm.pool.num_workers == 1:
             bscan, cost = update_positions_pd(
                 op,
-                comm.pool.gather(bdata, axis=1),
+                comm.pool.gather(bdata, axis=-3),
                 psi[0],
                 probe[0],
-                comm.pool.gather(bscan, axis=1),
+                comm.pool.gather(bscan, axis=-2),
             )
             bscan = comm.pool.bcast(bscan)
             # TODO: Assign bscan into scan when positions are updated

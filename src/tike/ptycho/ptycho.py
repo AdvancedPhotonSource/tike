@@ -336,11 +336,11 @@ def reconstruct(
                         break
 
                 reorder = np.argsort(np.concatenate(order))
-                result['scan'] = comm.pool.gather(scan, axis=1)[reorder]
+                result['scan'] = comm.pool.gather(scan, axis=-2)[reorder]
 
                 if position_options:
                     result['initial_scan'] = comm.pool.gather(initial_scan,
-                                                              axis=1)[reorder]
+                                                              axis=-2)[reorder]
                     result['position_options'] = comm.pool.map(
                         PositionOptions.get,
                         result['position_options'],
@@ -354,7 +354,7 @@ def reconstruct(
                 if 'eigen_weights' in result:
                     result['eigen_weights'] = comm.pool.gather(
                         eigen_weights,
-                        axis=1,
+                        axis=-3,
                     )[reorder]
                     result['eigen_probe'] = result['eigen_probe'][0]
                 result['probe'] = result['probe'][0]
