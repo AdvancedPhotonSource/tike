@@ -148,7 +148,6 @@ def simulate(
             detector_shape=int(detector_shape),
             nz=psi.shape[-2],
             n=psi.shape[-1],
-            ntheta=scan.shape[0],
             **kwargs,
     ) as operator:
         scan = operator.asarray(scan, dtype='float32')
@@ -177,19 +176,19 @@ def reconstruct(
 
     Parameters
     ----------
-    data : (..., FRAME, WIDE, HIGH) float32
+    data : (FRAME, WIDE, HIGH) float32
         The intensity (square of the absolute value) of the propagated
         wavefront; i.e. what the detector records. FFT-shifted so the
         diffraction peak is at the corners.
-    eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
+    eigen_probe : (EIGEN, SHARED, WIDE, HIGH) complex64
         The eigen probes for all positions.
-    eigen_weights : (..., POSI, EIGEN, SHARED) float32
+    eigen_weights : (POSI, EIGEN, SHARED) float32
         The relative intensity of the eigen probes at each position.
-    psi : (..., WIDE, HIGH) complex64
+    psi : (WIDE, HIGH) complex64
         The wavefront modulation coefficients of the object.
-    probe : (..., 1, 1, SHARED, WIDE, HIGH) complex64
+    probe : (1, 1, SHARED, WIDE, HIGH) complex64
         The shared complex illumination function amongst all positions.
-    scan : (..., POSI, 2) float32
+    scan : (POSI, 2) float32
         Coordinates of the minimum corner of the probe grid for each
         measurement in the coordinate system of psi. Coordinate order
         consistent with WIDE, HIGH order.
@@ -228,7 +227,6 @@ def reconstruct(
                     detector_shape=data.shape[-1],
                     nz=psi.shape[-2],
                     n=psi.shape[-1],
-                    ntheta=scan.shape[0],
                     model=model,
             ) as operator, Comm(num_gpu, mpi) as comm:
                 logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
@@ -338,12 +336,11 @@ def reconstruct(
                         break
 
                 reorder = np.argsort(np.concatenate(order))
-                result['scan'] = comm.pool.gather(scan, axis=1)[:, reorder]
+                result['scan'] = comm.pool.gather(scan, axis=1)[reorder]
 
                 if position_options:
                     result['initial_scan'] = comm.pool.gather(initial_scan,
-                                                              axis=1)[:,
-                                                                      reorder]
+                                                              axis=1)[reorder]
                     result['position_options'] = comm.pool.map(
                         PositionOptions.get,
                         result['position_options'],
@@ -424,9 +421,9 @@ def split_by_scan_grid(pool, shape, scan, *args, fly=1):
     ----------
     shape : tuple of int
         The number of grid divisions along each dimension.
-    scan : (ntheta, nscan, 2) float32
+    scan : (nscan, 2) float32
         The 2D coordinates of the scan positions.
-    args : (ntheta, nscan, ...) float32
+    args : (nscan, ...) float32
         The arrays to be split by scan position.
     fly : int
         The number of scan positions per frame.
@@ -446,11 +443,11 @@ def split_by_scan_grid(pool, shape, scan, *args, fly=1):
     hstripes = split_by_scan_stripes(scan, shape[1], axis=1, fly=fly)
     mask = [np.logical_and(*pair) for pair in product(vstripes, hstripes)]
 
-    order = np.arange(scan.shape[1])
+    order = np.arange(scan.shape[-2])
     order = [order[m] for m in mask]
 
     def split(m, x):
-        return None if x is None else cp.asarray(x[:, m], dtype='float32')
+        return None if x is None else cp.asarray(x[m], dtype='float32')
 
     split_args = [list(pool.map(split, mask, x=arg)) for arg in [scan, *args]]
 
@@ -464,14 +461,14 @@ def split_by_scan_stripes(scan, n, fly=1, axis=0):
     axis.
 
     Split scan into three stripes:
-    >>> [scan[:, s] for s in split_by_scan_stripes(scan, 3)]
+    >>> [scan[s] for s in split_by_scan_stripes(scan, 3)]
 
     FIXME: Only uses the first view to divide the positions. Assumes the
     positions on all angles are distributed similarly.
 
     Parameters
     ----------
-    scan : (ntheta, nscan, 2) float32
+    scan : (nscan, 2) float32
         The 2D coordinates of the scan positions.
     n : int
         The number of stripes.
@@ -487,18 +484,18 @@ def split_by_scan_stripes(scan, n, fly=1, axis=0):
         stripes.
 
     """
-    if scan.ndim != 3:
-        raise ValueError('scan must have three dimensions.')
+    if scan.ndim != 2:
+        raise ValueError('scan must have two dimensions.')
     if n < 1:
         raise ValueError('The number of stripes must be > 0.')
 
-    ntheta, nscan, _ = scan.shape
+    nscan, _ = scan.shape
     if (nscan // fly) * fly != nscan:
         raise ValueError('The number of scan positions must be an '
                          'integer multiple of the number of fly positions.')
 
     # Reshape scan so positions in the same fly scan are not separated
-    scan = scan.reshape(ntheta, nscan // fly, fly, 2)
+    scan = scan.reshape(nscan // fly, fly, 2)
 
     # Determine the edges of the horizontal stripes
     edges = np.linspace(
@@ -515,7 +512,7 @@ def split_by_scan_stripes(scan, n, fly=1, axis=0):
     # Generate masks which put points into stripes
     return [
         np.logical_and(
-            edges[i] < scan[0, :, 0, axis],
-            scan[0, :, 0, axis] <= edges[i + 1],
+            edges[i] < scan[:, 0, axis],
+            scan[:, 0, axis] <= edges[i + 1],
         ).repeat(fly) for i in range(n)
     ]

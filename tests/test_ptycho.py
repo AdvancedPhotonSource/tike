@@ -232,16 +232,16 @@ class TestPtychoRecon(unittest.TestCase):
         dataset_file = os.path.join(testdir, filename)
         with bz2.open(dataset_file, 'rb') as f:
             archive = np.load(f)
-            self.scan = archive['scan']
-            self.data = archive['data']
-            self.probe = archive['probe']
+            self.scan = archive['scan'][0]
+            self.data = archive['data'][0]
+            self.probe = archive['probe'][0]
         self.scan -= np.amin(self.scan, axis=-2) - 20
 
     def template_consistent_algorithm(self, algorithm, params={}):
         """Check ptycho.solver.algorithm for consistency."""
 
         result = {
-            'psi': np.ones((1, 500, 500), dtype=np.complex64),
+            'psi': np.ones((500, 500), dtype=np.complex64),
             'probe': self.probe * np.random.rand(*self.probe.shape),
         }
 
@@ -287,11 +287,11 @@ class TestPtychoRecon(unittest.TestCase):
                 'cgrad',
                 params={
                     'subset_is_random': True,
-                    'batch_size': int(self.data.shape[1] / 3),
+                    'batch_size': int(self.data.shape[-3] / 3),
                     'num_gpu': 2,
                     'probe_options': ProbeOptions(),
                     'object_options': ObjectOptions(),
-                    'use_mpi': True,
+                    'use_mpi': _mpi_size > 1,
                 },
             ), f"{'mpi-' if _mpi_size > 1 else ''}cgrad")
 
@@ -399,23 +399,22 @@ def _save_ptycho_result(result, algorithm):
         import matplotlib.pyplot as plt
         fname = os.path.join(testdir, 'result', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
-        for i in range(len(result['psi'])):
-            plt.imsave(
-                f'{fname}/{i}-phase.png',
-                np.angle(result['psi'][i]).astype('float32'),
-            )
-            plt.imsave(
-                f'{fname}/{i}-ampli.png',
-                np.abs(result['psi'][i]).astype('float32'),
-            )
+        plt.imsave(
+            f'{fname}/{0}-phase.png',
+            np.angle(result['psi']).astype('float32'),
+        )
+        plt.imsave(
+            f'{fname}/{0}-ampli.png',
+            np.abs(result['psi']).astype('float32'),
+        )
         for i in range(result['probe'].shape[-3]):
             plt.imsave(
                 f'{fname}/{i}-probe-phase.png',
-                np.angle(result['probe'][0, 0, 0, i]),
+                np.angle(result['probe'][0, 0, i]),
             )
             plt.imsave(
                 f'{fname}/{i}-probe-ampli.png',
-                np.abs(result['probe'][0, 0, 0, i]),
+                np.abs(result['probe'][0, 0, i]),
             )
     except ImportError:
         pass

@@ -126,7 +126,7 @@ class Ptycho(Operator):
         )
         return self.xp.sum(
             (farplane * farplane.conj()).real,
-            axis=(2, 3),
+            axis=tuple(range(1, farplane.ndim - 2)),
         ), farplane
 
     def cost(self, data, psi, scan, probe) -> float:
@@ -174,6 +174,6 @@ class Ptycho(Operator):
                 scan=scan,
                 overwrite=True,
             ),
-            axis=1,
+            axis=0,
             keepdims=True,
         )
