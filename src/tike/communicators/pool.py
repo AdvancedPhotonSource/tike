@@ -23,6 +23,10 @@ class ThreadPool(ThreadPoolExecutor):
         The number of GPUs to use or a tuple of the device numbers of the GPUs
         to use. If the number of GPUs is less than the requested number, only
         workers for the available GPUs are allocated.
+    device_count : int
+        The total number of devices on the host as reported by CUDA runtime.
+    num_workers : int
+        Returns len(self.workers). For convenience.
 
     Raises
     ------
@@ -75,11 +79,11 @@ class ThreadPool(ThreadPoolExecutor):
         x : list
             A list of data to be broadcast.
         s : int > 0
-            The size of a device group.
-            e.g., s=2 and num_gpu=8, then x[0] will be broadcast
-            to workers[::2] while x[1] will go to workers[1::2].
+            The size of a device group. e.g. s=2 and num_gpu=8, then x[0] will
+            be broadcast to workers[::2] while x[1] will go to workers[1::2].
 
         """
+
         def f(worker):
             idx = self.workers.index(worker) % s
             return self._copy_to(x[idx], worker)
@@ -113,11 +117,11 @@ class ThreadPool(ThreadPoolExecutor):
         x : list
             Chunks to be sent to other devices.
         s : int
-            The size of a device group.
-            e.g., s=4 and num_gpu=8, then x[0] will be scattered
-            to workers[:4] while x[1] will go to workers[4:].
+            The size of a device group. e.g. s=4 and num_gpu=8, then x[0] will
+            be scattered to workers[:4] while x[1] will go to workers[4:].
 
         """
+
         def f(worker):
             idx = self.workers.index(worker) // s
             return self._copy_to(x[idx], worker)
@@ -132,11 +136,12 @@ class ThreadPool(ThreadPoolExecutor):
         x : list
             Chunks to be sent and copied.
         stride : int
-            The stride length of the scatter.
-            e.g., s=4 and num_gpu=8, then x[0] will be broadcast
-            to workers[:4] while x[1] will go to workers[4:].
+            The stride length of the scatter. e.g. s=4 and num_gpu=8, then
+            x[0] will be broadcast to workers[:4] while x[1] will go to
+            workers[4:].
 
         """
+
         def s(bworkers, chunk):
 
             def b(worker):
@@ -152,7 +157,7 @@ class ThreadPool(ThreadPoolExecutor):
         else:
             sworkers = self.workers[::stride]
             for i in sworkers:
-                bworkers.append(self.workers[i:(i+stride)])
+                bworkers.append(self.workers[i:(i + stride)])
 
         a = self.map(s, bworkers, x, workers=sworkers)
         output = [None] * self.num_workers
@@ -167,18 +172,19 @@ class ThreadPool(ThreadPoolExecutor):
         return output
 
     def reduce_gpu(self, x: list, s=1, workers=None):
-        """Reduce x by addition to a GPU group from all other GPUs.
+        """Reduce x by addition to a device group from all other devices.
 
         Parameters
         ----------
         x : list
             Chunks to be reduced to a device group.
         s : int
-            The size of the device subset.
-            e.g., s=2 and num_gpu=8, then x[::2] will be reduced to
-            workers[0] while x[1::2] will be reduced to workers[1].
+            The size of the device group. e.g. s=2 and num_gpu=8, then x[::2]
+            will be reduced to workers[0] while x[1::2] will be reduced to
+            workers[1].
 
         """
+
         def f(worker):
             i = self.workers.index(worker)
             for part in x[(i % s):i:s]:
@@ -211,18 +217,19 @@ class ThreadPool(ThreadPoolExecutor):
         )
 
     def allreduce(self, x: list, s=None):
-        """All-reduce x by addition within GPU groups.
+        """All-reduce x by addition within device groups.
 
         Parameters
         ----------
         x : list
             Chunks to be all-reduced in grouped devices context.
         s : int
-            The size of a device group.
-            e.g., s=4 and num_gpu=8, then x[:4] will perform all-reduce within
-            workers[:4] while x[4:] will perform all-reduce within workers[4:].
+            The size of a device group. e.g. s=4 and num_gpu=8, then x[:4] will
+            perform all-reduce within workers[:4] while x[4:] will perform
+            all-reduce within workers[4:].
 
         """
+
         def f(worker, buf, stride, s):
             idx = worker // s * s + (worker + stride) % s
             return cp.add(buf, self._copy_to(x[idx], worker))
