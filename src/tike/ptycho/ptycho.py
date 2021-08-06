@@ -355,7 +355,7 @@ def reconstruct(
                     result['eigen_weights'] = comm.pool.gather(
                         eigen_weights,
                         axis=1,
-                    )[:, reorder]
+                    )[reorder]
                     result['eigen_probe'] = result['eigen_probe'][0]
                 result['probe'] = result['probe'][0]
                 result['cost'] = operator.asarray(costs)

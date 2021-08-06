@@ -52,7 +52,8 @@ class ProbeOptions:
     ----------
     orthogonality_constraint : bool
         Forces probes to be orthogonal each iteration.
-
+    num_eigen_probes : int
+        The number of eigen probes/components.
     """
 
     def __init__(self, num_eigen_probes=0, orthogonality_constraint=True):
@@ -65,6 +66,7 @@ class ProbeOptions:
     @property
     def num_eigen_probes(self):
         return 0 if self._weights is None else self._weights.shape[-2]
+
 
 def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
     """Construct the varying probes.
@@ -170,9 +172,9 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
     def _get_update(R, eigen_probe, weights):
         # (..., POSI, 1, 1, 1, 1) to match other arrays
         weights = weights[..., None, None, None, None]
-        norm_weights = np.linalg.norm(weights[0], axis=-5, keepdims=True)**2
+        norm_weights = np.linalg.norm(weights, axis=-5, keepdims=True)**2
 
-        if np.all(norm_weights[0] == 0):
+        if np.all(norm_weights == 0):
             raise ValueError('eigen_probe weights cannot all be zero?')
 
         # FIXME: What happens when weights is zero!?
@@ -354,7 +356,7 @@ def init_varying_probe(scan, shared_probe, N):
         shared_probe.shape[-3],
     ).astype('float32')
     weights -= np.mean(weights, axis=-3, keepdims=True)
-    weights[0, :] = 1.0  # The weight of the first eigen probe is non-zero
+    weights[..., 0, :] = 1.0  # The weight of the first eigen probe is non-zero
 
     return eigen_probe, weights
 

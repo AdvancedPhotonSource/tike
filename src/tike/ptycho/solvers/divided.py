@@ -397,6 +397,7 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                         ))
                 R = comm.pool.map(_get_residuals, grad_probe, grad_probe_mean)
 
+            assert eigen_weights[0].shape[-2] == eigen_probe[0].shape[-4] + 1
             for n in range(1, eigen_weights[0].shape[-2]):
 
                 a, b = update_eigen_probe(
@@ -498,19 +499,19 @@ def _update_wavefront(data, varying_probe, scan, psi, op):
     patches = patches.reshape(*scan.shape[:-1], 1, 1, op.detector_shape,
                               op.detector_shape)
 
-    nearplane = cp.tile(patches, reps=(1, 1, 1, varying_probe.shape[-3], 1, 1))
+    nearplane = cp.tile(patches, reps=(1, 1, varying_probe.shape[-3], 1, 1))
     pad, end = op.diffraction.pad, op.diffraction.end
     nearplane[..., pad:end, pad:end] *= varying_probe
 
     # Solve the farplane phase problem ----------------------------------------
     farplane = op.propagation.fwd(nearplane, overwrite=True)
-    intensity = cp.sum(cp.square(cp.abs(farplane)), axis=(2, 3))
+    intensity = cp.sum(cp.square(cp.abs(farplane)), axis=list(range(1, farplane.ndim-2)))
     cost = op.propagation.cost(data, intensity)
     logger.info('%10s cost is %+12.5e', 'farplane', cost)
     farplane -= 0.5 * op.propagation.grad(data, farplane, intensity)
 
     if __debug__:
-        intensity = cp.sum(cp.square(cp.abs(farplane)), axis=(2, 3))
+        intensity = cp.sum(cp.square(cp.abs(farplane)), axis=list(range(1, farplane.ndim-2)))
         cost = op.propagation.cost(data, intensity)
         logger.info('%10s cost is %+12.5e', 'farplane', cost)
         # TODO: Only compute cost every 20 iterations or on a log sampling?

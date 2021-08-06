@@ -86,8 +86,8 @@ class TestPtychoUtils(unittest.TestCase):
         np.testing.assert_array_equal(weights, truth)
 
     def test_check_allowed_positions(self):
-        psi = np.empty((7, 4, 9))
-        probe = np.empty((7, 1, 1, 8, 2, 2))
+        psi = np.empty((4, 9))
+        probe = np.empty((8, 2, 2))
         scan = np.array([[1, 1], [1, 6.9], [1.1, 1], [1.9, 5.5]])
         tike.ptycho.check_allowed_positions(scan, psi, probe.shape)
 
@@ -134,21 +134,11 @@ class TestPtychoSimulate(unittest.TestCase):
         """
         import libimage
         # Create a stack of phase-only images
-        phase = np.stack(
-            [libimage.load('satyre', width),
-             libimage.load('satyre', width)],
-            axis=0,
-        )
-        amplitude = np.stack(
-            [
-                1 - 0 * libimage.load('coins', width),
-                1 - libimage.load('coins', width)
-            ],
-            axis=0,
-        )
+        phase = libimage.load('satyre', width)
+        amplitude = 1 - libimage.load('coins', width)
         original = amplitude * np.exp(1j * phase * np.pi)
         self.original = original.astype('complex64')
-        leading = self.original.shape[:-2]
+        leading = ()
 
         # Create a multi-probe with gaussian amplitude decreasing as 1/N
         phase = np.stack(
@@ -237,13 +227,15 @@ class TestPtychoRecon(unittest.TestCase):
             self.data = archive['data'][0]
             self.probe = archive['probe'][0]
         self.scan -= np.amin(self.scan, axis=-2) - 20
+        self.probe = tike.ptycho.probe.add_modes_random_phase(self.probe, 2)
+        self.probe *= np.random.rand(*self.probe.shape)
 
     def template_consistent_algorithm(self, algorithm, params={}):
         """Check ptycho.solver.algorithm for consistency."""
 
         result = {
             'psi': np.ones((500, 500), dtype=np.complex64),
-            'probe': self.probe * np.random.rand(*self.probe.shape),
+            'probe': self.probe,
         }
 
         if params.get('use_mpi') is True:
@@ -305,7 +297,7 @@ class TestPtychoRecon(unittest.TestCase):
                     'subset_is_random':
                         True,
                     'batch_size':
-                        int(self.data.shape[1] / 3),
+                        int(self.data.shape[-3] / 3),
                     'num_gpu':
                         2,
                     'probe_options':
@@ -313,7 +305,7 @@ class TestPtychoRecon(unittest.TestCase):
                     'object_options':
                         ObjectOptions(),
                     'use_mpi':
-                        True,
+                        _mpi_size > 1,
                     'position_options':
                         PositionOptions(
                             self.scan.shape[0:-1],
@@ -335,7 +327,7 @@ class TestPtychoRecon(unittest.TestCase):
                     'subset_is_random':
                         True,
                     'batch_size':
-                        int(self.data.shape[1] / 3),
+                        int(self.data.shape[-3] / 3),
                     'num_gpu':
                         2,
                     'probe_options':
@@ -343,7 +335,7 @@ class TestPtychoRecon(unittest.TestCase):
                     'object_options':
                         ObjectOptions(),
                     'use_mpi':
-                        True,
+                        _mpi_size > 1,
                     'eigen_probe':
                         eigen_probe,
                     'eigen_weights':
