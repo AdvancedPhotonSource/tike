@@ -235,7 +235,7 @@ def direction_dy(xp, grad1, grad0=None, dir_=None):
 
     """
     if dir_ is None:
-        return [-g for g in grad1]
+        return [-grad1[0]]
 
     return [
         - grad1[0]
