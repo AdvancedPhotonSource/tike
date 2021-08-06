@@ -342,7 +342,6 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
 
         if recover_psi:
             if comm.use_mpi:
-                print(type(A1), A1[0].shape)
                 delta = comm.Allreduce_mean(A1, axis=-3)
             else:
                 delta = comm.pool.reduce_mean(A1, axis=-3)
