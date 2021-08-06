@@ -298,7 +298,7 @@ def add_modes_random_phase(probe, nmodes):
 
     Parameters
     ----------
-    probe : (:, :, :, M, :, :) array
+    probe : (..., M, :, :) array
         A probe with M > 0 incoherent modes.
     nmodes : int
         The number of desired modes.
