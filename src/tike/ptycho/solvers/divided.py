@@ -505,13 +505,19 @@ def _update_wavefront(data, varying_probe, scan, psi, op):
 
     # Solve the farplane phase problem ----------------------------------------
     farplane = op.propagation.fwd(nearplane, overwrite=True)
-    intensity = cp.sum(cp.square(cp.abs(farplane)), axis=list(range(1, farplane.ndim-2)))
+    intensity = cp.sum(
+        cp.square(cp.abs(farplane)),
+        axis=list(range(1, farplane.ndim - 2)),
+    )
     cost = op.propagation.cost(data, intensity)
     logger.info('%10s cost is %+12.5e', 'farplane', cost)
     farplane -= 0.5 * op.propagation.grad(data, farplane, intensity)
 
     if __debug__:
-        intensity = cp.sum(cp.square(cp.abs(farplane)), axis=list(range(1, farplane.ndim-2)))
+        intensity = cp.sum(
+            cp.square(cp.abs(farplane)),
+            axis=list(range(1, farplane.ndim - 2)),
+        )
         cost = op.propagation.cost(data, intensity)
         logger.info('%10s cost is %+12.5e', 'farplane', cost)
         # TODO: Only compute cost every 20 iterations or on a log sampling?
