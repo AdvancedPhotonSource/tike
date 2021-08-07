@@ -31,7 +31,7 @@ class ObjectOptions:
 
     def __init__(self, positivity_constraint=0, smoothness_constraint=0):
         self.positivity_constraint = positivity_constraint
-        self.smoothness_constraint = positivity_constraint
+        self.smoothness_constraint = smoothness_constraint
 
 
 def positivity_constraint(x, r):
