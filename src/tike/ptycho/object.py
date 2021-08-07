@@ -98,8 +98,7 @@ def get_padded_object(scan, probe):
     scan[..., 0] += probe.shape[-2]
     scan[..., 1] += probe.shape[-1]
 
-    ntheta = probe.shape[0]
     height = 3 * probe.shape[-2] + int(span[0])
     width = 3 * probe.shape[-1] + int(span[1])
 
-    return np.ones((ntheta, height, width), dtype='complex64'), scan
+    return np.ones((height, width), dtype='complex64'), scan
