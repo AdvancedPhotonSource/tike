@@ -110,7 +110,6 @@ class TestLaminoRecon(unittest.TestCase):
 
     def test_consistent_simulate(self):
         """Check lamino.simulate for consistency."""
-        return
         data = tike.lamino.simulate(
             self.original,
             self.theta,
@@ -187,7 +186,6 @@ class TestLaminoRadon(unittest.TestCase):
         )
 
     def test_radon_equal(self):
-        return
         for tilt, axis, theta in zip(
             [0, np.pi / 2,  np.pi / 2],
             [0,         1,          2],

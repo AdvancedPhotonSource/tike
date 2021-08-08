@@ -78,7 +78,7 @@ def simulate(
             tilt=tilt,
             **kwargs,
     ) as operator:
-        grid = operator._make_grid().reshape(obj.size**3, 3)
+        grid = operator._make_grid().reshape(obj.shape[-1]**3, 3)
         data = operator.fwd(
             u=operator.asarray(obj, dtype='complex64'),
             theta=operator.asarray(theta, dtype='float32'),
