@@ -111,7 +111,6 @@ def reconstruct(
     """
     n = data.shape[2]
     obj = np.zeros([n, n, n], dtype='complex64') if obj is None else obj
-    obj_split = num_gpu if obj_split > num_gpu else obj_split
     if algorithm in solvers.__all__:
         # Initialize an operator.
         with Lamino(
@@ -121,6 +120,7 @@ def reconstruct(
                 **kwargs,
         ) as operator, Comm(num_gpu, mpi=None) as comm:
             # send any array-likes to device
+            obj_split = max(1, min(comm.pool.num_workers, obj_split))
             data_split = comm.pool.num_workers // obj_split
             data = np.array_split(data.astype('complex64'),
                                   data_split)
