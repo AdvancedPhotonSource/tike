@@ -111,6 +111,7 @@ def reconstruct(
     """
     n = data.shape[2]
     obj = np.zeros([n, n, n], dtype='complex64') if obj is None else obj
+    obj_split = num_gpu if obj_split > num_gpu else obj_split
     if algorithm in solvers.__all__:
         # Initialize an operator.
         with Lamino(
