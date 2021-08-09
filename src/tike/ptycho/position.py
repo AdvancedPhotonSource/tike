@@ -124,32 +124,11 @@ def check_allowed_positions(scan, psi, probe_shape):
     )
     if np.any(less_than_one) or np.any(greater_than_psi):
         x = np.logical_or(less_than_one, greater_than_psi)
-        raise ValueError("These scan positions exist outside field of view:\n"
+        raise ValueError("Scan positions must be positive valued "
+                         "and fit within the field of view "
+                         "with at least a 1 pixel buffer around the edge. "
+                         "These scan positions exist outside field of view:\n"
                          f"{scan[np.logical_or(x[..., 0], x[..., 1])]}")
-
-
-def get_padded_object(scan, probe):
-    """Return a ones-initialized object and shifted scan positions.
-
-    An complex object array is initialized with shape such that the area
-    covered by the probe is padded on each edge by a full probe width. The scan
-    positions are shifted to be centered in this newly initialized object
-    array.
-    """
-    # Shift scan positions to zeros
-    scan[..., 0] -= np.min(scan[..., 0])
-    scan[..., 1] -= np.min(scan[..., 1])
-
-    # Add padding to scan positions of field-of-view / 8
-    span = np.max(scan[..., 0]), np.max(scan[..., 1])
-    scan[..., 0] += probe.shape[-2]
-    scan[..., 1] += probe.shape[-1]
-
-    ntheta = probe.shape[0]
-    height = 3 * probe.shape[-2] + int(span[0])
-    width = 3 * probe.shape[-1] + int(span[1])
-
-    return np.ones((ntheta, height, width), dtype='complex64'), scan
 
 
 def update_positions_pd(operator, data, psi, probe, scan,
@@ -226,6 +205,7 @@ def update_positions_pd(operator, data, psi, probe, scan,
 
 
 from cupy.fft.config import get_plan_cache
+
 
 def _image_grad(x):
     """Return the gradient of the x for each of the last two dimesions."""
