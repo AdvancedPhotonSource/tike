@@ -95,7 +95,7 @@ def cgrad(
                 probe[0],
                 comm.pool.gather(bscan, axis=-2),
             )
-            bscan = comm.pool.bcast(bscan)
+            bscan = comm.pool.bcast([bscan])
             # TODO: Assign bscan into scan when positions are updated
 
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}

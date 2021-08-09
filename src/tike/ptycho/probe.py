@@ -196,12 +196,12 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
             update,
             axis=-5,
         )
-        update = comm.pool.bcast(update[0])
+        update = comm.pool.bcast([update[0]])
     else:
-        update = comm.pool.bcast(comm.pool.reduce_mean(
+        update = comm.pool.bcast([comm.pool.reduce_mean(
             update,
             axis=-5,
-        ))
+        )])
 
     def _get_d(patches, diff, eigen_probe, update, β):
         eigen_probe += β * update / np.linalg.norm(
@@ -239,12 +239,12 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
             d_mean,
             axis=-5,
         )
-        d_mean = comm.pool.bcast(d_mean[0])
+        d_mean = comm.pool.bcast([d_mean[0]])
     else:
-        d_mean = comm.pool.bcast(comm.pool.reduce_mean(
+        d_mean = comm.pool.bcast([comm.pool.reduce_mean(
             d_mean,
             axis=-5,
-        ))
+        )])
 
     def _get_weights_mean(n, d, d_mean, weights):
         d += 0.1 * d_mean
@@ -272,13 +272,13 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
             weights_mean,
             axis=-5,
         )
-        weights_mean = comm.pool.bcast(weights_mean[0])
+        weights_mean = comm.pool.bcast([weights_mean[0]])
     else:
         weights_mean = comm.pool.bcast(
-            comm.pool.reduce_mean(
+            [comm.pool.reduce_mean(
                 weights_mean,
                 axis=-5,
-            ))
+            )])
 
     def _update_weights(weights, weights_mean):
         weights -= weights_mean
