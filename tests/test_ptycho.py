@@ -61,7 +61,7 @@ from tike.ptycho.object import ObjectOptions
 from tike.communicators import Comm, MPIComm
 import tike.random
 
-__author__ = "Daniel Ching"
+__author__ = "Daniel Ching, Xiaodong Yu"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
@@ -371,15 +371,17 @@ class TestProbe(unittest.TestCase):
         eigen = 1
         comm = Comm(2, None)
 
-        R = comm.pool.bcast(np.random.rand(*leading, posi, 1, 1, wide, high))
+        R = comm.pool.bcast([np.random.rand(*leading, posi, 1, 1, wide, high)])
         eigen_probe = comm.pool.bcast(
-            np.random.rand(*leading, 1, eigen, 1, wide, high))
+            [np.random.rand(*leading, 1, eigen, 1, wide, high)])
         weights = np.random.rand(*leading, posi)
         weights -= np.mean(weights)
-        weights = comm.pool.bcast(weights)
+        weights = comm.pool.bcast([weights])
         patches = comm.pool.bcast(
-            np.random.rand(*leading, posi, 1, 1, wide, high))
-        diff = comm.pool.bcast(np.random.rand(*leading, posi, 1, 1, wide, high))
+            [np.random.rand(*leading, posi, 1, 1, wide, high)])
+        diff = comm.pool.bcast(
+            [np.random.rand(*leading, posi, 1, 1, wide, high)]
+        )
 
         new_probe, new_weights = tike.ptycho.probe.update_eigen_probe(
             comm=comm,

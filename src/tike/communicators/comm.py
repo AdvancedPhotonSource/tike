@@ -63,7 +63,7 @@ class Comm:
 
         src = self.reduce(x, dest, **kwargs)
         if dest == 'gpu':
-            return cp.asarray(self.mpi.Allreduce(cp.asnumpy(src)))
+            return [cp.asarray(self.mpi.Allreduce(cp.asnumpy(src[0])))]
         elif dest == 'cpu':
             return self.mpi.Allreduce(src)
         else:
