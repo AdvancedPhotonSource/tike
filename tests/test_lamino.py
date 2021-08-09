@@ -178,11 +178,12 @@ class TestLaminoRadon(unittest.TestCase):
     Compare projections with sums along the three orthogonal axes directly.
     """
 
-    def setUp(self):
+    def setUp(self, n=2, b=2):
+        # FIXME: Tests will fail with odd n; pass with n even.
         self.original = np.pad(
-            np.random.randint(-5, 5, (2, 2, 2)) +
-            1j * np.random.randint(-5, 5, (2, 2, 2)),
-            2,
+            np.random.randint(-5, 5, (n, n, n)) +
+            1j * 0 * np.random.randint(-5, 5, (n, n, n)),
+            b,
         )
 
     def test_radon_equal(self):
@@ -207,16 +208,12 @@ class TestLaminoRadon(unittest.TestCase):
                 print(direct_sum)
                 print(np.around(projection[0], 3))
 
-    @unittest.skip("TODO: Something is wrong with indexing.")
     def test_radon_equal_reverse(self):
-        # This test fails because when we project through the field of view
-        # from the back side, the coords are shifted by one index. In other
-        # words, objects which are zero-padded symmetrically, become
-        # asymmetrically padded. Also expect reflection of the object.
-        for tilt, axis, theta in zip(
+        for tilt, axis, theta, flip in zip(
             [np.pi, -np.pi / 2, np.pi / 2],
             [0,              1,         2],
             [0,              0, np.pi / 2],
+            [0,              0,         1],
         ):
             projection = tike.lamino.simulate(
                 obj=self.original,
@@ -227,8 +224,9 @@ class TestLaminoRadon(unittest.TestCase):
             )
             direct_sum = np.sum(self.original, axis=axis)
             try:
-                # TODO: Account for reflection in this test.
-                np.testing.assert_allclose(projection[0], direct_sum, atol=1e-3)
+                # Must account for reflection because looking from back side.
+                p = np.flip(projection[0], axis=flip)
+                np.testing.assert_allclose(p, direct_sum, atol=1e-3)
             except AssertionError:
                 print()
                 print(tilt, axis, theta)
