@@ -65,8 +65,10 @@ from tike.operators import Ptycho
 from tike.communicators import Comm, MPIComm
 from tike.opt import batch_indicies
 from tike.ptycho import solvers
+
+from .object import get_padded_object
 from .position import (PositionOptions, check_allowed_positions,
-                       get_padded_object, affine_position_regularization)
+                       affine_position_regularization)
 from .probe import get_varying_probe
 
 logger = logging.getLogger(__name__)
@@ -218,7 +220,7 @@ def reconstruct(
     else:
         mpi = None
     (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
-    # check_allowed_positions(scan, psi, probe.shape)
+    check_allowed_positions(scan, psi, probe.shape)
     if algorithm in solvers.__all__:
         with cp.cuda.Device(num_gpu[0] if isinstance(num_gpu, tuple) else None):
             # Initialize an operator.
