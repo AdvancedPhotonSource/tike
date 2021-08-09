@@ -142,7 +142,7 @@ def lstsq_grad(
 
     if probe[0].shape[-3] > 1 and probe_is_orthogonal:
         probe[0] = orthogonalize_gs(probe[0], axis=(-2, -1))
-        probe = comm.pool.bcast(probe[0])
+        probe = comm.pool.bcast([probe[0]])
 
     if object_options:
         psi = comm.pool.map(positivity_constraint,
@@ -347,14 +347,14 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                 delta = comm.Allreduce_mean(A1, axis=-3)
             else:
                 delta = comm.pool.reduce_mean(A1, axis=-3)
-            A1 = comm.pool.map(_update_A, A1, comm.pool.bcast(delta))
+            A1 = comm.pool.map(_update_A, A1, comm.pool.bcast([delta]))
 
         if recover_probe:
             if comm.use_mpi:
                 delta = comm.Allreduce_mean(A4, axis=-3)
             else:
                 delta = comm.pool.reduce_mean(A4, axis=-3)
-            A4 = comm.pool.map(_update_A, A4, comm.pool.bcast(delta))
+            A4 = comm.pool.map(_update_A, A4, comm.pool.bcast([delta]))
 
         if recover_probe or recover_psi:
             (
@@ -390,13 +390,13 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                         common_grad_probe,
                         axis=-5,
                     )
-                    grad_probe_mean = comm.pool.bcast(grad_probe_mean)
+                    grad_probe_mean = comm.pool.bcast([grad_probe_mean])
                 else:
                     grad_probe_mean = comm.pool.bcast(
-                        comm.pool.reduce_mean(
+                        [comm.pool.reduce_mean(
                             common_grad_probe,
                             axis=-5,
-                        ))
+                        )])
                 R = comm.pool.map(_get_residuals, grad_probe, grad_probe_mean)
 
             for n in range(1, eigen_weights[0].shape[-2]):
@@ -435,16 +435,16 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                 common_grad_psi[0] = comm.Allreduce_reduce(
                     common_grad_psi,
                     dest='gpu',
-                )
+                )[0]
             else:
                 weighted_step_psi[0] = comm.pool.reduce_mean(
                     weighted_step_psi,
                     axis=-5,
                 )[..., 0, 0, 0]
-                common_grad_psi[0] = comm.reduce(common_grad_psi, 'gpu')
+                common_grad_psi[0] = comm.reduce(common_grad_psi, 'gpu')[0]
 
             psi[0] += weighted_step_psi[0] * common_grad_psi[0]
-            psi = comm.pool.bcast(psi[0])
+            psi = comm.pool.bcast([psi[0]])
 
         if recover_probe:
             if comm.use_mpi:
@@ -469,7 +469,7 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             # (27a) Probe update
             probe[0][..., [m], :, :] += (weighted_step_probe[0] *
                                          common_grad_probe[0])
-            probe = comm.pool.bcast(probe[0])
+            probe = comm.pool.bcast([probe[0]])
 
         if position_options and m == 0:
             scan_, position_options = zip(*comm.pool.map(
