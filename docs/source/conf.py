@@ -50,6 +50,11 @@ extensions = ['sphinx.ext.autodoc',
               'nbsphinx',
               ]
 
+# bibtex setting
+bibtex_bibfiles = [
+    'zrefs.bib',
+]
+
 # extlinks settings
 extlinks = {
     'doi': ('https://dx.doi.org/%s', 'doi:'),
@@ -132,4 +137,5 @@ autodoc_mock_imports = [
     'mpi4py',
     'numpy',
     'scipy',
+    'cv2',
 ]

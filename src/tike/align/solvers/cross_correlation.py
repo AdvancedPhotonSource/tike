@@ -29,8 +29,15 @@ phase_cross_correlation from skimage.registration."""
 import numpy as np
 
 
-def cross_correlation(op, data, unaligned, upsample_factor=1, space="real",
-                      **kwargs):  # yapf: disable
+def cross_correlation(
+    op,
+    original,
+    unaligned,
+    upsample_factor=1,
+    space="real",
+    num_iter=None,
+    reg_weight=1e-9,
+):
     """Efficient subpixel image translation alignment by cross-correlation.
 
     This code gives the same precision as the FFT upsampled cross-correlation
@@ -56,12 +63,12 @@ def cross_correlation(op, data, unaligned, upsample_factor=1, space="real",
     """
     # assume complex data is already in Fourier space
     if space.lower() == 'fourier':
-        src_freq = data
-        target_freq = unaligned
+        src_freq = unaligned
+        target_freq = original
     # real data needs to be fft'd.
     elif space.lower() == 'real':
-        src_freq = op.xp.fft.fft2(data)
-        target_freq = op.xp.fft.fft2(unaligned)
+        src_freq = op.xp.fft.fft2(unaligned)
+        target_freq = op.xp.fft.fft2(original)
     else:
         raise ValueError(f"space must be 'fourier' or 'real' not '{space}'.")
 
@@ -69,7 +76,16 @@ def cross_correlation(op, data, unaligned, upsample_factor=1, space="real",
     shape = src_freq.shape
     image_product = src_freq * target_freq.conj()
     cross_correlation = op.xp.fft.ifft2(image_product)
-    A = np.abs(cross_correlation)
+
+    # Add a small regularization term so that smaller shifts are preferred when
+    # the cross_correlation is the same for multiple shifts.
+    if reg_weight > 0:
+        w = _area_overlap(op, cross_correlation)
+        w = op.xp.fft.fftshift(w) * reg_weight
+    else:
+        w = 0
+
+    A = np.abs(cross_correlation) + w
     maxima = A.reshape(A.shape[0], -1).argmax(1)
     maxima = np.column_stack(np.unravel_index(maxima, A[0, :, :].shape))
     shifts = op.xp.array(maxima, dtype='float32')
@@ -119,3 +135,29 @@ def _upsampled_dft(op, data, ups, upsample_factor, axis_offsets):
               op.xp.fft.fftfreq(shape[1], upsample_factor))
     kernel = np.exp(im2pi * kernel)
     return np.einsum('ijk,ipk->ijp', kernel, data)
+
+
+def _triangle(op, N):
+    """Return N samples from the triangle function."""
+    x = op.xp.linspace(0, 1, N, endpoint=False) + 0.5 / N
+    return 1 - abs(x - 0.5)
+
+
+def _area_overlap(op, A):
+    """Return overlapping area of A with itself.
+
+    Create overlap arrays for higher dimensions using matrix multiplication.
+
+    >>> _area_overlap(np.empty(4))
+    array([0.625, 0.875, 0.875, 0.625])
+    >>> _area_overlap(np.empty((3, 5)))
+    array([[0.4       , 0.53333333, 0.66666667, 0.53333333, 0.4       ],
+           [0.6       , 0.8       , 1.        , 0.8       , 0.6       ],
+           [0.4       , 0.53333333, 0.66666667, 0.53333333, 0.4       ]])
+    """
+    for dim, shape in enumerate(A.shape[-2:]):
+        if dim == 0:
+            w = _triangle(op, shape)
+        else:
+            w = w[..., np.newaxis] @ _triangle(op, shape)[np.newaxis, ...]
+    return w

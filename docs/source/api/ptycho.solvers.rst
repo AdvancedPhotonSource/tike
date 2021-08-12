@@ -8,5 +8,7 @@ solvers
 
    .. autosummary::
       :nosignatures:
+      :recursive:
 
-      combined
+      cgrad
+      lstsq_grad

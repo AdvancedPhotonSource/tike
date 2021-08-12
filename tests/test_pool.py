@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from tike.pool import ThreadPool
+from tike.communicators import ThreadPool
 
 
 class TestThreadPool(unittest.TestCase):
@@ -15,7 +15,7 @@ class TestThreadPool(unittest.TestCase):
         if self.pool.device_count < 2:
             return  # skip test if only one device
         a = self.xp.arange(10)
-        result = self.pool.bcast(a)
+        result = self.pool.bcast([a])
         for i, x in enumerate(result):
             self.xp.testing.assert_array_equal(a, x)
             # should be copies; not the same array

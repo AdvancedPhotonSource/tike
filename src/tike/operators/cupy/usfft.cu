@@ -31,31 +31,28 @@ _1d_to_nd(int d, int s, int* nd, int ndim, int diameter, int radius) {
   }
 }
 
-// Helper function that lets us switch the index variables (si, gi) easily.
-__device__ void
-_gather_scatter(float2* gather, int gi, const float2* scatter, int si,
-                float kernel) {
-  atomicAdd(&gather[gi].x, scatter[si].x * kernel);
-  atomicAdd(&gather[gi].y, scatter[si].y * kernel);
-}
+typedef void
+scatterOrGather(float2*, int, const float2*, int, float);
 
 // grid shape (-(-kernel_size // max_threads), 0, nf)
 // block shape (min(kernel_size, max_threads), 0, 0)
 __device__ void
-_loop_over_kernels(bool eq2us, float2* gathered, const float2* scattered,
-                   int nf, const float* x, int n, int radius,
-                   const float* cons) {
-  const int ndim = 3;
+_loop_over_kernels(scatterOrGather operation, float2* gathered,
+                   const float2* scattered, int nf, const float* x, int n,
+                   int radius, const float* cons, int ndim) {
   const int diameter = 2 * radius;  // kernel width
   const int nk = pow(diameter, ndim);
-  const int gw = 2 * n;  // width of G along each dimension
+  const int half = n / 2;  // shifts frequency coordinates to center
+  const int max_dim = 3;
+  assert(0 < ndim && ndim <= max_dim);
 
   // non-uniform frequency index (fi)
   for (int fi = blockIdx.z; fi < nf; fi += gridDim.z) {
-    int center[ndim];  // closest ND coord to kernel center
+    int center[max_dim];  // closest ND coord to kernel center
     for (int dim = 0; dim < ndim; dim++) {
-      center[dim] = int(floor(2 * n * x[3 * fi + dim]));
+      center[dim] = int(floor(n * x[ndim * fi + dim]));
     }
+
     // intra-kernel index (ki)
     // clang-format off
     for (
@@ -64,45 +61,51 @@ _loop_over_kernels(bool eq2us, float2* gathered, const float2* scattered,
       ki += blockDim.x * gridDim.x
     ) {
       // clang-format on
+
       // Convert linear index to 3D intra-kernel index
-      int k[ndim];  // ND kernel coord
+      int k[max_dim];  // ND kernel coord
       _1d_to_nd(ki, nk, k, ndim, diameter, radius);
 
-      // Compute sum square value for kernel
+      // Compute sum square value for kernel and equally-spaced grid index (gi)
       float ssdelta = 0;
       float delta;
-      for (int dim = 0; dim < ndim; dim++) {
-        delta = (float)(center[dim] + k[dim]) / (2 * n)
-                - x[3 * fi + dim];
+      int gi = 0;
+      int stride = 1;
+      for (int dim = ndim - 1; dim >= 0; dim--) {
+        delta = (float)(center[dim] + k[dim]) / n - x[ndim * fi + dim];
         ssdelta += delta * delta;
+        gi += mod((half + center[dim] + k[dim]), n) * stride;
+        stride *= n;
       }
-      float kernel = cons[0] * exp(cons[1] * ssdelta);
+      const float kernel = cons[0] * exp(cons[1] * ssdelta);
 
-      // clang-format off
-      int gi = (  // equally-spaced grid index (gi)
-        + mod((n + center[0] + k[0]), gw) * gw * gw
-        + mod((n + center[1] + k[1]), gw) * gw
-        + mod((n + center[2] + k[2]), gw)
-      );
-      // clang-format on
-      if (eq2us) {
-        _gather_scatter(gathered, fi, scattered, gi, kernel);
-
-      } else {
-        _gather_scatter(gathered, gi, scattered, fi, kernel);
-      }
+      operation(gathered, fi, scattered, gi, kernel);
     }
   }
+}
+
+// Helper functions _gather and _scatter let us switch the index variables
+// (si, gi) without an if statement.
+__device__ void
+_gather(float2* gather, int gi, const float2* scatter, int si, float kernel) {
+  atomicAdd(&gather[gi].x, scatter[si].x * kernel);
+  atomicAdd(&gather[gi].y, scatter[si].y * kernel);
 }
 
 extern "C" __global__ void
 gather(float2* F, const float2* Fe, int nf, const float* x, int n, int radius,
        const float* cons) {
-  _loop_over_kernels(true, F, Fe, nf, x, n, radius, cons);
+  _loop_over_kernels(_gather, F, Fe, nf, x, n, radius, cons, 3);
+}
+
+__device__ void
+_scatter(float2* gather, int si, const float2* scatter, int gi, float kernel) {
+  atomicAdd(&gather[gi].x, scatter[si].x * kernel);
+  atomicAdd(&gather[gi].y, scatter[si].y * kernel);
 }
 
 extern "C" __global__ void
 scatter(float2* G, const float2* f, int nf, const float* x, int n, int radius,
         const float* cons) {
-  _loop_over_kernels(false, G, f, nf, x, n, radius, cons);
+  _loop_over_kernels(_scatter, G, f, nf, x, n, radius, cons, 3);
 }

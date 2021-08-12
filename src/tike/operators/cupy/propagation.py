@@ -33,8 +33,8 @@ class Propagation(CachedFFT, Operator):
     farplane: (..., detector_shape, detector_shape) complex64
         The wavefronts hitting the detector respectively.
         Shape for cost functions and gradients is
-        (ntheta, nscan // fly, fly, 1, detector_shape, detector_shape).
-    data, intensity : (ntheta, nscan, detector_shape, detector_shape) complex64
+        (nscan, 1, 1, detector_shape, detector_shape).
+    data, intensity : (nscan, detector_shape, detector_shape) complex64
         data is the square of the absolute value of `farplane`. `data` is the
         intensity of the `farplane`.
 
@@ -75,18 +75,23 @@ class Propagation(CachedFFT, Operator):
 
     # COST FUNCTIONS AND GRADIENTS --------------------------------------------
 
+    # NOTE: We use mean instead of sum so that cost functions may be compared
+    # when mini-batches of different sizes are used.
+
     def _gaussian_cost(self, data, intensity):
-        return np.linalg.norm(np.ravel(np.sqrt(intensity) - np.sqrt(data)))**2
+        diff = np.sqrt(intensity) - np.sqrt(data)
+        diff *= diff.conj()
+        return np.mean(diff)
 
     def _gaussian_grad(self, data, farplane, intensity, overwrite=False):
         return farplane * (
             1 - np.sqrt(data) / (np.sqrt(intensity) + 1e-32)
-        )[:, :, np.newaxis, np.newaxis]  # yapf:disable
+        )[..., np.newaxis, np.newaxis, :, :]  # yapf:disable
 
     def _poisson_cost(self, data, intensity):
-        return np.sum(intensity - data * np.log(intensity + 1e-32))
+        return np.mean(intensity - data * np.log(intensity + 1e-32))
 
     def _poisson_grad(self, data, farplane, intensity, overwrite=False):
         return farplane * (
             1 - data / (intensity + 1e-32)
-        )[:, :, np.newaxis, np.newaxis]  # yapf: disable
+        )[..., np.newaxis, np.newaxis, :, :]  # yapf: disable

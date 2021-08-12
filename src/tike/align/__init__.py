@@ -1,7 +1,2 @@
-"""Provide alignment solvers and tooling.
-
-Select a non-default Shift implementation by setting the TIKE_BACKEND
-environment variable.
-
-"""
+"""Provide alignment solvers and tooling."""
 from .align import *

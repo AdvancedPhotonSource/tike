@@ -2,130 +2,186 @@ import logging
 
 import numpy as np
 
-from tike.opt import conjugate_gradient, line_search
-from ..position import update_positions_pd
+from tike.linalg import orthogonalize_gs
+from tike.opt import conjugate_gradient, batch_indicies, get_batch
+from ..position import update_positions_pd, PositionOptions
+from ..object import positivity_constraint, smoothness_constraint
 
 logger = logging.getLogger(__name__)
 
 
-def combined(
-    op,
-    pool,
+def cgrad(
+    op, comm,
     data, probe, scan, psi,
-    recover_psi=True, recover_probe=True, recover_positions=False,
     cg_iter=4,
-    **kwargs
+    cost=None,
+    eigen_probe=None,
+    eigen_weights=None,
+    num_batch=1,
+    subset_is_random=True,
+    step_length=1,
+    probe_options=None,
+    position_options=None,
+    object_options=None,
 ):  # yapf: disable
-    """Solve the ptychography problem using a combined approach.
+    """Solve the ptychography problem using conjugate gradient.
 
     Parameters
     ----------
-    operator : tike.operators.Ptycho
+    op : :py:class:`tike.operators.Ptycho`
         A ptychography operator.
-    pool : tike.pool.ThreadPoolExecutor
-        An object which manages communications between GPUs.
+    comm : :py:class:`tike.communicators.Comm`
+        An object which manages communications between both
+        GPUs and nodes.
+
+
+    .. seealso:: :py:mod:`tike.ptycho`
+
     """
     cost = np.inf
+    # Unique batch for each device
+    batches = [
+        batch_indicies(s.shape[-2], num_batch, subset_is_random) for s in scan
+    ]
+    for n in range(num_batch):
 
-    if recover_psi:
-        psi, cost = update_object(
-            op,
-            pool,
-            data,
-            psi,
-            scan,
-            probe,
-            num_iter=cg_iter,
-        )
+        bdata = comm.pool.map(get_batch, data, batches, n=n)
+        bscan = comm.pool.map(get_batch, scan, batches, n=n)
 
-    if recover_probe:
-        # TODO: add multi-GPU support
-        probe, cost = update_probe(
-            op,
-            pool,
-            pool.gather(data, axis=1),
-            psi[0],
-            pool.gather(scan, axis=1),
-            probe[0],
-            num_iter=cg_iter,
-        )
-        probe = pool.bcast(probe)
+        if position_options:
+            bposition_options = comm.pool.map(PositionOptions.split,
+                                              position_options,
+                                              [b[n] for b in batches])
+        else:
+            bposition_options = None
 
-    if recover_positions and pool.num_workers == 1:
-        scan, cost = update_positions_pd(
-            op,
-            pool.gather(data, axis=1),
-            psi[0],
-            probe[0],
-            pool.gather(scan, axis=1),
-        )
-        scan = pool.bcast(scan)
+        if object_options:
+            psi, cost = _update_object(
+                op,
+                comm,
+                bdata,
+                psi,
+                bscan,
+                probe,
+                num_iter=cg_iter,
+                step_length=step_length,
+            )
+            psi = comm.pool.map(positivity_constraint,
+                                psi,
+                                r=object_options.positivity_constraint)
+            psi = comm.pool.map(smoothness_constraint,
+                                psi,
+                                a=object_options.smoothness_constraint)
+
+        if probe_options:
+            probe, cost = _update_probe(
+                op,
+                comm,
+                bdata,
+                psi,
+                bscan,
+                probe,
+                num_iter=cg_iter,
+                step_length=step_length,
+                probe_is_orthogonal=probe_options.orthogonality_constraint,
+                mode=list(range(probe[0].shape[-3])),
+            )
+
+        if position_options and comm.pool.num_workers == 1:
+            bscan, cost = update_positions_pd(
+                op,
+                comm.pool.gather(bdata, axis=-3),
+                psi[0],
+                probe[0],
+                comm.pool.gather(bscan, axis=-2),
+            )
+            bscan = comm.pool.bcast([bscan])
+            # TODO: Assign bscan into scan when positions are updated
 
     return {'psi': psi, 'probe': probe, 'cost': cost, 'scan': scan}
 
 
-def update_probe(op, pool, data, psi, scan, probe, num_iter=1):
+def _update_probe(op, comm, data, psi, scan, probe, num_iter, step_length,
+                  probe_is_orthogonal, mode):
     """Solve the probe recovery problem."""
 
-    # TODO: Cache object patche between mode updates
-    for m in range(probe.shape[-3]):
+    def cost_function(probe):
+        cost_out = comm.pool.map(op.cost, data, psi, scan, probe)
+        if comm.use_mpi:
+            return comm.Allreduce_reduce(cost_out, 'cpu')
+        else:
+            return comm.reduce(cost_out, 'cpu')
 
-        def cost_function(mode):
-            return op.cost(data, psi, scan, probe, m, mode)
-
-        def grad(mode):
-            # Use the average gradient for all probe positions
-            return op.xp.mean(
-                op.grad_probe(data, psi, scan, probe, m, mode),
-                axis=(1, 2),
-                keepdims=True,
-            )
-
-        probe[..., m:m + 1, :, :], cost = conjugate_gradient(
-            op.xp,
-            x=probe[..., m:m + 1, :, :],
-            cost_function=cost_function,
-            grad=grad,
-            num_iter=num_iter,
-            step_length=4,
+    def grad(probe):
+        grad_list = comm.pool.map(
+            op.grad_probe,
+            data,
+            psi,
+            scan,
+            probe,
+            mode=mode,
         )
+        if comm.use_mpi:
+            return comm.Allreduce_reduce(grad_list, 'gpu')
+        else:
+            return comm.reduce(grad_list, 'gpu')
+
+    def dir_multi(dir):
+        """Scatter dir to all GPUs"""
+        return comm.pool.bcast(dir)
+
+    def update_multi(x, gamma, d):
+
+        def f(x, d):
+            return x[..., mode, :, :] + gamma * d
+
+        return comm.pool.map(f, x, d)
+
+    probe, cost = conjugate_gradient(
+        op.xp,
+        x=probe,
+        cost_function=cost_function,
+        grad=grad,
+        dir_multi=dir_multi,
+        update_multi=update_multi,
+        num_iter=num_iter,
+        step_length=step_length,
+    )
+
+    if probe[0].shape[-3] > 1 and probe_is_orthogonal:
+        probe = comm.pool.map(orthogonalize_gs, probe, axis=(-2, -1))
 
     logger.info('%10s cost is %+12.5e', 'probe', cost)
     return probe, cost
 
 
-def update_object(op, pool, data, psi, scan, probe, num_iter=1):
+def _update_object(op, comm, data, psi, scan, probe, num_iter, step_length):
     """Solve the object recovery problem."""
 
     def cost_function_multi(psi, **kwargs):
-        cost_out = pool.map(op.cost, data, psi, scan, probe)
-        # TODO: Implement reduce function for ThreadPool
-        cost_cpu = 0
-        for c in cost_out:
-            cost_cpu += op.asnumpy(c)
-        return cost_cpu
+        cost_out = comm.pool.map(op.cost, data, psi, scan, probe)
+        if comm.use_mpi:
+            return comm.Allreduce_reduce(cost_out, 'cpu')
+        else:
+            return comm.reduce(cost_out, 'cpu')
 
     def grad_multi(psi):
-        grad_out = pool.map(op.grad, data, psi, scan, probe)
-        grad_list = list(grad_out)
-        # TODO: Implement reduce function for ThreadPool
-        for i in range(1, len(grad_list)):
-            grad_cpu_tmp = op.asnumpy(grad_list[i])
-            grad_tmp = op.asarray(grad_cpu_tmp)
-            grad_list[0] += grad_tmp
-
-        return grad_list[0]
+        grad_list = comm.pool.map(op.grad_psi, data, psi, scan, probe)
+        if comm.use_mpi:
+            return comm.Allreduce_reduce(grad_list, 'gpu')
+        else:
+            return comm.reduce(grad_list, 'gpu')
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""
-        return pool.bcast(dir)
+        return comm.pool.bcast(dir)
 
     def update_multi(psi, gamma, dir):
 
         def f(psi, dir):
             return psi + gamma * dir
 
-        return list(pool.map(f, psi, dir))
+        return list(comm.pool.map(f, psi, dir))
 
     psi, cost = conjugate_gradient(
         op.xp,
@@ -135,7 +191,7 @@ def update_object(op, pool, data, psi, scan, probe, num_iter=1):
         dir_multi=dir_multi,
         update_multi=update_multi,
         num_iter=num_iter,
-        step_length=8e-5,
+        step_length=step_length,
     )
 
     logger.info('%10s cost is %+12.5e', 'object', cost)

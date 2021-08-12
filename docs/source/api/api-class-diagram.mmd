@@ -1,31 +1,5 @@
 classDiagram
 
-class Graph {
-  +List nodes
-  +Communicator comm
-}
-
-class Node{
-  +Updater updater
-}
-
-Graph <|-- ADMM
-Graph <|-- Joint
-Graph <|-- Serial
-
-Graph --* Communicator
-Graph --* Node
-
-Communicator <|-- MPI
-
-Node --o Updater
-
-class Updater {
-  +__call__()
-  +function method
-  +Operator operator
-}
-
 class Operator {
   +fwd()
   +adj()
@@ -34,6 +8,22 @@ class Operator {
 class ContextManager {
   - __enter__()
   - __exit__()
+}
+
+class Tomo {
+  +int ntheta
+  +int n
+  +int nz
+  +fwd(self, obj, **kwargs)
+  +adj(self, tomo, **kwargs)
+}
+
+class Lamino {
+  +int theta
+  +int n
+  +int tilt
+  +fwd(self, obj, **kwargs)
+  +adj(self, tomo, **kwargs)
 }
 
 class Ptycho {
@@ -50,13 +40,7 @@ class Ptycho {
   +adj_probe(self, farplane, scan, psi, **kwargs)
 }
 
-class Tomo {
-  +int ntheta
-  +int n
-  +int nz
-  +fwd(self, obj, **kwargs)
-  +adj(self, tomo, **kwargs)
-}
+
 
 class Convolution {
   +int nscan
@@ -69,26 +53,57 @@ class Convolution {
 }
 
 class Propagation {
-  +int nwaves
-  +int probe_shape
   +int detector_shape
   +fwd()
   +adj()
 }
 
-Updater <|-- ConjugateGradient
-Updater <|-- Dual
-Updater <|-- EPIE
-Updater <|-- TotalVariation
-
-Updater --* Operator
-
 ContextManager <|-- Operator
 
 Operator <|-- Tomo
+Operator <|-- Lamino
 Operator <|-- Ptycho
 Operator <|-- Convolution
 Operator <|-- Propagation
 
 Ptycho --o Convolution
 Ptycho --o Propagation
+
+Operator <|-- Alignment
+class Alignment {
++Flow flow
++Rotate rotate
++Pad pad
++Shift shift
++fwd()
++adj()
+}
+
+Operator <|-- Rotate
+class Rotate {
++fwd()
++adj()
+}
+
+Operator <|-- Pad
+class Pad {
++fwd()
++adj()
+}
+
+Operator <|-- Flow
+class Flow {
++fwd()
++adj()
+}
+
+Operator <|-- Shift
+class Shift {
++fwd()
++adj()
+}
+
+Alignment --o Rotate
+Alignment --o Pad
+Alignment --o Shift
+Alignment --o Flow

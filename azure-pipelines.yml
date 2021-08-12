@@ -26,32 +26,26 @@ jobs:
         python.version: '3.6'
       Python37:
         python.version: '3.7'
-      Python38:
-        python.version: '3.8'
+      Python39:
+        python.version: '3.9'
     maxParallel: 4
   steps:
 
   - script: echo "CUDA version is $(CUDA_VERSION)"
     displayName: Print CUDA version
 
-  - script: conda update -n base conda --yes --quiet
-    displayName: Update conda
-
-  - script: conda env remove --yes -n tike
-    displayName: Remove existing build environment
+  - script: rm /home/azure/conda/envs/tike -rf
+    displayName: Force remove previous environments
 
   - script: >
-      conda create --quiet --force --yes
+      conda create --quiet --yes
       -n tike
       --channel conda-forge
+      --file requirements.txt
       pytest
       python=$(python.version)
+      cudatoolkit=$(CUDA_VERSION)
     displayName: Create build environment
-
-  - script: |
-      source activate tike
-      conda install --file requirements.txt --channel conda-forge --yes --quiet
-    displayName: Install dependencies
 
   - script: conda list -n tike
     displayName: List build environment
@@ -66,4 +60,63 @@ jobs:
       pytest -vs
     displayName: Run tests
 
-  - script: conda clean -py
+  - task: PublishBuildArtifacts@1
+    condition: eq(variables['python.version'], '3.9')
+    inputs:
+      pathToPublish: 'tests/result'
+      artifactName: MonoGPU reconstructed images
+
+
+- job: MultiLinux
+  pool:
+    name: Default
+    demands:
+    - MultiGPU
+    - CUDA_VERSION
+    - Agent.OS -equals Linux
+  strategy:
+    matrix:
+      Python38:
+        python.version: '3.8'
+    maxParallel: 4
+  steps:
+
+  - script: echo "CUDA version is $(CUDA_VERSION)"
+    displayName: Print CUDA version
+
+  - script: rm /home/azure/conda/envs/tike -rf
+    displayName: Force remove previous environments
+
+  - script: >
+      conda create --quiet --yes
+      -n tike
+      --channel conda-forge
+      --file requirements.txt
+      pytest
+      python=$(python.version)
+      cudatoolkit=$(CUDA_VERSION)
+    displayName: Create build environment
+
+  - script: conda list -n tike
+    displayName: List build environment
+
+  - script: |
+      source activate tike
+      pip install . --no-deps
+    displayName: Setup and install
+
+  - script: |
+      source activate tike
+      pytest -vs
+    displayName: Run tests
+
+  - script: |
+      source activate tike
+      mpirun -n 2 pytest tests/test_comm.py
+      mpirun -n 2 pytest tests/test_ptycho.py -k TestPtychoRecon
+    displayName: Run tests with MPI
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathToPublish: 'tests/result'
+      artifactName: MultiGPU reconstructed images

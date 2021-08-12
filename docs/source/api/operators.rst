@@ -3,7 +3,7 @@ operators
 .. automodule:: tike.operators
    :no-members:
 
-.. automodule:: tike.operators.numpy
+.. automodule:: tike.operators.cupy
    :inherited-members:
    :members:
    :show-inheritance:
@@ -13,8 +13,13 @@ operators
       :nosignatures:
 
       Operator
+      Alignment
+      CachedFFT
       Convolution
+      Flow
       Lamino
-      Ptycho
+      Pad
       Propagation
+      Ptycho
+      Rotate
       Shift

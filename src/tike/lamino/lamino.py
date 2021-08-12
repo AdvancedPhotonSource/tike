@@ -57,6 +57,7 @@ __all__ = [
 import logging
 import numpy as np
 
+from tike.communicators import Comm
 from tike.operators import Lamino
 from tike.lamino import solvers
 
@@ -74,11 +75,13 @@ def simulate(
     assert theta.ndim == 1
     with Lamino(
             n=obj.shape[-1],
-            theta=theta,
             tilt=tilt,
             **kwargs,
     ) as operator:
-        data = operator.fwd(u=operator.asarray(obj, dtype='complex64'))
+        data = operator.fwd(
+            u=operator.asarray(obj, dtype='complex64'),
+            theta=operator.asarray(theta, dtype='float32'),
+        )
         assert data.dtype == 'complex64', data.dtype
         return operator.asnumpy(data)
 
@@ -88,7 +91,9 @@ def reconstruct(
         theta,
         tilt,
         algorithm,
-        obj=None, num_iter=1, rtol=-1, **kwargs
+        obj=None, num_iter=1, rtol=-1, eps=1e-3,
+        num_gpu=1,
+        **kwargs
 ):  # yapf: disable
     """Solve the Laminography problem using the given `algorithm`.
 
@@ -99,49 +104,74 @@ def reconstruct(
     rtol : float
         Terminate early if the relative decrease of the cost function is
         less than this amount.
-
+    tilt : float32 [radians]
+        The tilt angle; the angle between the rotation axis of the object and
+        the light source. π / 2 for conventional tomography. 0 for a beam path
+        along the rotation axis.
+    obj : (nz, n, n) complex64
+        The complex refractive index of the object. nz is the axis
+        corresponding to the rotation axis.
+    data : (ntheta, n, n) complex64
+        The complex projection data of the object.
+    theta : array-like float32 [radians]
+        The projection angles; rotation around the vertical axis of the object.
     """
     n = data.shape[2]
     obj = np.zeros([n, n, n], dtype='complex64') if obj is None else obj
     if algorithm in solvers.__all__:
         # Initialize an operator.
         with Lamino(
-            n=obj.shape[-1],
-            theta=theta,
-            tilt=tilt,
-            eps=1e-3,
-            **kwargs,
-        ) as operator:
+                n=obj.shape[-1],
+                tilt=tilt,
+                eps=eps,
+                **kwargs,
+        ) as operator, Comm(num_gpu, mpi=None) as comm:
             # send any array-likes to device
-            data = operator.asarray(data, dtype='complex64')
+            data = np.array_split(data.astype('complex64'),
+                                  comm.pool.num_workers)
+            data = comm.pool.scatter(data)
+            theta = np.array_split(theta.astype('float32'),
+                                   comm.pool.num_workers)
+            theta = comm.pool.scatter(theta)
             result = {
-                'obj': operator.asarray(obj, dtype='complex64'),
+                'obj': comm.pool.bcast([obj.astype('complex64')]),
             }
             for key, value in kwargs.items():
                 if np.ndim(value) > 0:
-                    kwargs[key] = operator.asarray(value)
+                    kwargs[key] = comm.pool.bcast([value])
 
             logger.info("{} on {:,d} by {:,d} by {:,d} volume for {:,d} "
-                        "iterations.".format(algorithm, *obj.shape,
-                                             num_iter))
+                        "iterations.".format(algorithm, *obj.shape, num_iter))
 
-            cost = 0
+            costs = []
             for i in range(num_iter):
                 kwargs.update(result)
                 result = getattr(solvers, algorithm)(
                     operator,
+                    comm,
                     data=data,
+                    theta=theta,
                     **kwargs,
                 )
+                if result['cost'] is not None:
+                    costs.append(result['cost'])
                 # Check for early termination
-                if i > 0 and abs((result['cost'] - cost) / cost) < rtol:
+                if (
+                    len(costs) > 1 and
+                    abs((costs[-1] - costs[-2]) / costs[-2]) < rtol
+                ):  # yapf: disable
                     logger.info(
                         "Cost function rtol < %g reached at %d "
                         "iterations.", rtol, i)
                     break
-                cost = result['cost']
 
-        return {k: operator.asnumpy(v) for k, v in result.items()}
+        result['cost'] = operator.asarray(costs)
+        for k, v in result.items():
+            if isinstance(v, list):
+                result[k] = v[0]
+
+        return {k: operator.asnumpy(v) if np.ndim(v) > 0 else v
+                for k, v in result.items()}
     else:
         raise ValueError(
             "The '{}' algorithm is not an available.".format(algorithm))
