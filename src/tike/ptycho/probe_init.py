@@ -11,7 +11,7 @@ def single_probe(probe_shape, lambda0, dx_dec, dis_defocus, dis_StoD, **kwargs):
     Parameters: probe_shape  -> the matrix size for probe
                 lambda0      -> central wavelength
                 dx_dec       -> pixel size on detector
-                dis_defocus  -> defocus distance (sample plane to the focal plane)
+                dis_defocus  -> defocus distance (sample to the focal plane)
                 dis_StoD     -> sample to detector distance
                 kwargs       -> setup: 'velo','2idd','lamni'
                              -> radius: zone plate radius
@@ -45,7 +45,7 @@ def MW_probe(probe_shape, energy, lambda0, dx_dec, dis_defocus, dis_StoD,
                 energy       -> number of energies for multi-wavelength method
                 lambda0      -> central wavelength
                 dx_dec       -> pixel size on detector
-                dis_defocus  -> defocus distance (sample plane to the focal plane)
+                dis_defocus  -> defocus distance (sample to the focal plane)
                 dis_StoD     -> sample to detector distance
                 kwargs       -> setup: 'velo','2idd','lamni'
                              -> radius: zone plate radius
