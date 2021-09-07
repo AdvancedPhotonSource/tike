@@ -56,6 +56,7 @@ import numpy as np
 from mpi4py import MPI
 
 import tike.ptycho
+from tike.ptycho.probe import ProbeOptions
 from tike.ptycho.position import PositionOptions
 from tike.ptycho.object import ObjectOptions
 from tike.communicators import Comm, MPIComm
@@ -85,8 +86,8 @@ class TestPtychoUtils(unittest.TestCase):
         np.testing.assert_array_equal(weights, truth)
 
     def test_check_allowed_positions(self):
-        psi = np.empty((7, 4, 9))
-        probe = np.empty((7, 1, 1, 8, 2, 2))
+        psi = np.empty((4, 9))
+        probe = np.empty((8, 2, 2))
         scan = np.array([[1, 1], [1, 6.9], [1.1, 1], [1.9, 5.5]])
         tike.ptycho.check_allowed_positions(scan, psi, probe.shape)
 
@@ -95,24 +96,25 @@ class TestPtychoUtils(unittest.TestCase):
                 tike.ptycho.check_allowed_positions(scan, psi, probe.shape)
 
     def test_split_by_scan(self):
-        scan = np.mgrid[0:3, 0:3].reshape(2, 1, -1)
+        scan = np.mgrid[0:3, 0:3].reshape(2, -1)
         scan = np.moveaxis(scan, 0, -1)
 
         ind = tike.ptycho.ptycho.split_by_scan_stripes(scan, 3, axis=0)
-        split = [scan[:, i] for i in ind]
+        split = [scan[i] for i in ind]
+
         solution = [
-            [[[0, 0], [0, 1], [0, 2]]],
-            [[[1, 0], [1, 1], [1, 2]]],
-            [[[2, 0], [2, 1], [2, 2]]],
+            [[0, 0], [0, 1], [0, 2]],
+            [[1, 0], [1, 1], [1, 2]],
+            [[2, 0], [2, 1], [2, 2]],
         ]
         np.testing.assert_equal(split, solution)
 
         ind = tike.ptycho.ptycho.split_by_scan_stripes(scan, 3, axis=1)
-        split = [scan[:, i] for i in ind]
+        split = [scan[i] for i in ind]
         solution = [
-            [[[0, 0], [1, 0], [2, 0]]],
-            [[[0, 1], [1, 1], [2, 1]]],
-            [[[0, 2], [1, 2], [2, 2]]],
+            [[0, 0], [1, 0], [2, 0]],
+            [[0, 1], [1, 1], [2, 1]],
+            [[0, 2], [1, 2], [2, 2]],
         ]
         np.testing.assert_equal(split, solution)
 
@@ -132,21 +134,11 @@ class TestPtychoSimulate(unittest.TestCase):
         """
         import libimage
         # Create a stack of phase-only images
-        phase = np.stack(
-            [libimage.load('satyre', width),
-             libimage.load('satyre', width)],
-            axis=0,
-        )
-        amplitude = np.stack(
-            [
-                1 - 0 * libimage.load('coins', width),
-                1 - libimage.load('coins', width)
-            ],
-            axis=0,
-        )
+        phase = libimage.load('satyre', width)
+        amplitude = 1 - libimage.load('coins', width)
         original = amplitude * np.exp(1j * phase * np.pi)
         self.original = original.astype('complex64')
-        leading = self.original.shape[:-2]
+        leading = ()
 
         # Create a multi-probe with gaussian amplitude decreasing as 1/N
         phase = np.stack(
@@ -231,17 +223,19 @@ class TestPtychoRecon(unittest.TestCase):
         dataset_file = os.path.join(testdir, filename)
         with bz2.open(dataset_file, 'rb') as f:
             archive = np.load(f)
-            self.scan = archive['scan']
-            self.data = archive['data']
-            self.probe = archive['probe']
+            self.scan = archive['scan'][0]
+            self.data = archive['data'][0]
+            self.probe = archive['probe'][0]
         self.scan -= np.amin(self.scan, axis=-2) - 20
+        self.probe = tike.ptycho.probe.add_modes_random_phase(self.probe, 2)
+        self.probe *= np.random.rand(*self.probe.shape)
 
     def template_consistent_algorithm(self, algorithm, params={}):
         """Check ptycho.solver.algorithm for consistency."""
 
         result = {
-            'psi': np.ones((1, 500, 500), dtype=np.complex64),
-            'probe': self.probe * np.random.rand(*self.probe.shape),
+            'psi': np.ones((500, 500), dtype=np.complex64),
+            'probe': self.probe,
         }
 
         if params.get('use_mpi') is True:
@@ -286,11 +280,11 @@ class TestPtychoRecon(unittest.TestCase):
                 'cgrad',
                 params={
                     'subset_is_random': True,
-                    'batch_size': int(self.data.shape[1] / 3),
+                    'batch_size': int(self.data.shape[-3] / 3),
                     'num_gpu': 2,
-                    'recover_probe': True,
+                    'probe_options': ProbeOptions(),
                     'object_options': ObjectOptions(),
-                    'use_mpi': True,
+                    'use_mpi': _mpi_size > 1,
                 },
             ), f"{'mpi-' if _mpi_size > 1 else ''}cgrad")
 
@@ -303,15 +297,15 @@ class TestPtychoRecon(unittest.TestCase):
                     'subset_is_random':
                         True,
                     'batch_size':
-                        int(self.data.shape[1] / 3),
+                        int(self.data.shape[-3] / 3),
                     'num_gpu':
                         2,
-                    'recover_probe':
-                        True,
+                    'probe_options':
+                        ProbeOptions(),
                     'object_options':
                         ObjectOptions(),
                     'use_mpi':
-                        True,
+                        _mpi_size > 1,
                     'position_options':
                         PositionOptions(
                             self.scan.shape[0:-1],
@@ -333,15 +327,15 @@ class TestPtychoRecon(unittest.TestCase):
                     'subset_is_random':
                         True,
                     'batch_size':
-                        int(self.data.shape[1] / 3),
+                        int(self.data.shape[-3] / 3),
                     'num_gpu':
                         2,
-                    'recover_probe':
-                        True,
+                    'probe_options':
+                        ProbeOptions(),
                     'object_options':
                         ObjectOptions(),
                     'use_mpi':
-                        True,
+                        _mpi_size > 1,
                     'eigen_probe':
                         eigen_probe,
                     'eigen_weights':
@@ -400,23 +394,30 @@ def _save_ptycho_result(result, algorithm):
         import matplotlib.pyplot as plt
         fname = os.path.join(testdir, 'result', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
-        for i in range(len(result['psi'])):
-            plt.imsave(
-                f'{fname}/{i}-phase.png',
-                np.angle(result['psi'][i]).astype('float32'),
-            )
-            plt.imsave(
-                f'{fname}/{i}-ampli.png',
-                np.abs(result['psi'][i]).astype('float32'),
-            )
+        plt.imsave(
+            f'{fname}/{0}-phase.png',
+            np.angle(result['psi']).astype('float32'),
+            # The output of np.angle is locked to (-pi, pi]
+            cmap=plt.cm.twilight,
+            vmin=-np.pi,
+            vmax=np.pi,
+        )
+        plt.imsave(
+            f'{fname}/{0}-ampli.png',
+            np.abs(result['psi']).astype('float32'),
+        )
         for i in range(result['probe'].shape[-3]):
             plt.imsave(
                 f'{fname}/{i}-probe-phase.png',
-                np.angle(result['probe'][0, 0, 0, i]),
+                np.angle(result['probe'][0, 0, i]),
+                # The output of np.angle is locked to (-pi, pi]
+                cmap=plt.cm.twilight,
+                vmin=-np.pi,
+                vmax=np.pi,
             )
             plt.imsave(
                 f'{fname}/{i}-probe-ampli.png',
-                np.abs(result['probe'][0, 0, 0, i]),
+                np.abs(result['probe'][0, 0, i]),
             )
     except ImportError:
         pass

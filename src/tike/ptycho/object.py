@@ -9,17 +9,29 @@ import logging
 
 import cupy as cp
 import cupyx.scipy.ndimage
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
 # TODO: Use dataclass decorator when python 3.6 reaches EOL
 class ObjectOptions:
-    """Manage data and setting related to object correction."""
+    """Manage data and setting related to object correction.
+
+    Attributes
+    ----------
+    positivity_constraint : float [0, 1]
+        This value is passed to the tike.ptycho.object.positivity_constraint
+        function.
+    smoothness_constraint : float [0, 1/8]
+        This value is passed to the tike.ptycho.object.smoothness_constraint
+        function.
+
+    """
 
     def __init__(self, positivity_constraint=0, smoothness_constraint=0):
         self.positivity_constraint = positivity_constraint
-        self.smoothness_constraint = positivity_constraint
+        self.smoothness_constraint = smoothness_constraint
 
 
 def positivity_constraint(x, r):
@@ -67,3 +79,26 @@ def smoothness_constraint(x, a):
     else:
         raise ValueError(
             f"Smoothness constraint must be in range [0, 1/8) not {a}.")
+
+
+def get_padded_object(scan, probe):
+    """Return a ones-initialized object and shifted scan positions.
+
+    An complex object array is initialized with shape such that the area
+    covered by the probe is padded on each edge by a full probe width. The scan
+    positions are shifted to be centered in this newly initialized object
+    array.
+    """
+    # Shift scan positions to zeros
+    scan[..., 0] -= np.min(scan[..., 0])
+    scan[..., 1] -= np.min(scan[..., 1])
+
+    # Add padding to scan positions of field-of-view / 8
+    span = np.max(scan[..., 0]), np.max(scan[..., 1])
+    scan[..., 0] += probe.shape[-2]
+    scan[..., 1] += probe.shape[-1]
+
+    height = 3 * probe.shape[-2] + int(span[0])
+    width = 3 * probe.shape[-1] + int(span[1])
+
+    return np.ones((height, width), dtype='complex64'), scan

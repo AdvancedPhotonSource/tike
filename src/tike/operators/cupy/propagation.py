@@ -33,8 +33,8 @@ class Propagation(CachedFFT, Operator):
     farplane: (..., detector_shape, detector_shape) complex64
         The wavefronts hitting the detector respectively.
         Shape for cost functions and gradients is
-        (ntheta, nscan, 1, 1, detector_shape, detector_shape).
-    data, intensity : (ntheta, nscan, detector_shape, detector_shape) complex64
+        (nscan, 1, 1, detector_shape, detector_shape).
+    data, intensity : (nscan, detector_shape, detector_shape) complex64
         data is the square of the absolute value of `farplane`. `data` is the
         intensity of the `farplane`.
 
@@ -86,7 +86,7 @@ class Propagation(CachedFFT, Operator):
     def _gaussian_grad(self, data, farplane, intensity, overwrite=False):
         return farplane * (
             1 - np.sqrt(data) / (np.sqrt(intensity) + 1e-32)
-        )[:, :, np.newaxis, np.newaxis]  # yapf:disable
+        )[..., np.newaxis, np.newaxis, :, :]  # yapf:disable
 
     def _poisson_cost(self, data, intensity):
         return np.mean(intensity - data * np.log(intensity + 1e-32))
@@ -94,4 +94,4 @@ class Propagation(CachedFFT, Operator):
     def _poisson_grad(self, data, farplane, intensity, overwrite=False):
         return farplane * (
             1 - data / (intensity + 1e-32)
-        )[:, :, np.newaxis, np.newaxis]  # yapf: disable
+        )[..., np.newaxis, np.newaxis, :, :]  # yapf: disable

@@ -4,7 +4,7 @@ import numpy as np
 
 from tike.linalg import orthogonalize_gs
 from tike.opt import conjugate_gradient, batch_indicies, get_batch
-from ..position import update_positions_pd
+from ..position import update_positions_pd, PositionOptions
 from ..object import positivity_constraint, smoothness_constraint
 
 logger = logging.getLogger(__name__)
@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 def cgrad(
     op, comm,
     data, probe, scan, psi,
-    recover_probe=False,
     cg_iter=4,
     cost=None,
     eigen_probe=None,
@@ -21,7 +20,7 @@ def cgrad(
     num_batch=1,
     subset_is_random=True,
     step_length=1,
-    probe_is_orthogonal=False,
+    probe_options=None,
     position_options=None,
     object_options=None,
 ):  # yapf: disable
@@ -74,7 +73,7 @@ def cgrad(
                                 psi,
                                 a=object_options.smoothness_constraint)
 
-        if recover_probe:
+        if probe_options:
             probe, cost = _update_probe(
                 op,
                 comm,
@@ -84,21 +83,17 @@ def cgrad(
                 probe,
                 num_iter=cg_iter,
                 step_length=step_length,
-                probe_is_orthogonal=probe_is_orthogonal,
+                probe_is_orthogonal=probe_options.orthogonality_constraint,
                 mode=list(range(probe[0].shape[-3])),
             )
-
-            if probe[0].shape[-3] > 1 and probe_is_orthogonal:
-                probe[0] = orthogonalize_gs(probe[0], axis=(-2, -1))
-                probe = comm.pool.bcast(probe[0])
 
         if position_options and comm.pool.num_workers == 1:
             bscan, cost = update_positions_pd(
                 op,
-                comm.pool.gather(bdata, axis=1),
+                comm.pool.gather(bdata, axis=-3),
                 psi[0],
                 probe[0],
-                comm.pool.gather(bscan, axis=1),
+                comm.pool.gather(bscan, axis=-2),
             )
             bscan = comm.pool.bcast([bscan])
             # TODO: Assign bscan into scan when positions are updated
