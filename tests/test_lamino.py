@@ -124,30 +124,28 @@ class TestLaminoRecon(unittest.TestCase):
         """Return the error between two arrays."""
         return np.linalg.norm(x - self.original)
 
-    def template_consistent_algorithm(self, algorithm):
+    def template_consistent_algorithm(self, algorithm, params={}):
         """Check lamino.solver.algorithm for consistency."""
         result = {
             'obj': np.zeros_like(self.original),
         }
         result = tike.lamino.reconstruct(
             **result,
+            **params,
             data=self.data,
             theta=self.theta,
             tilt=self.tilt,
             algorithm=algorithm,
             num_iter=1,
-            num_gpu=4,
-            obj_split=2,
         )
+        params.update(result)
         result = tike.lamino.reconstruct(
-            **result,
+            **params,
             data=self.data,
             theta=self.theta,
             tilt=self.tilt,
             algorithm=algorithm,
             num_iter=30,
-            num_gpu=4,
-            obj_split=2,
         )
         print()
         cost = '\n'.join(f'{c:1.3e}' for c in result['cost'])
@@ -167,9 +165,18 @@ class TestLaminoRecon(unittest.TestCase):
         np.testing.assert_array_equal(result['obj'].shape, self.original.shape)
         np.testing.assert_allclose(result['obj'], standard, atol=1e-3)
 
+        return result
+
     def test_consistent_combined(self):
         """Check lamino.solver.cgrad for consistency."""
-        self.template_consistent_algorithm('cgrad')
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                'cgrad',
+                params={
+                    'num_gpu': 4,
+                    'obj_split': 2,
+                },
+            ), f"cgrad_bucket")
 
 
 class TestLaminoRadon(unittest.TestCase):
@@ -232,6 +239,28 @@ class TestLaminoRadon(unittest.TestCase):
                 print(tilt, axis, theta)
                 print(direct_sum)
                 print(np.around(projection[0], 3))
+
+
+def _save_ptycho_result(result, algorithm):
+    try:
+        import matplotlib.pyplot as plt
+        fname = os.path.join(testdir, 'result/lamino', f'{algorithm}')
+        os.makedirs(fname, exist_ok=True)
+        slice_id = 1
+        plt.imsave(
+            f'{fname}/{slice_id}-phase.png',
+            np.angle(result['obj'][slice_id]).astype('float32'),
+            # The output of np.angle is locked to (-pi, pi]
+            cmap=plt.cm.twilight,
+            vmin=-np.pi,
+            vmax=np.pi,
+        )
+        plt.imsave(
+            f'{fname}/{slice_id}-ampli.png',
+            np.abs(result['obj'][slice_id]).astype('float32'),
+        )
+    except ImportError:
+        pass
 
 
 if __name__ == '__main__':
