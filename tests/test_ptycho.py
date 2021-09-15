@@ -273,6 +273,21 @@ class TestPtychoRecon(unittest.TestCase):
         print(cost)
         return result
 
+    def test_consistent_adam_grad(self):
+        """Check ptycho.solver.cgrad for consistency."""
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                'adam_grad',
+                params={
+                    'subset_is_random': True,
+                    'batch_size': int(self.data.shape[-3] / 3),
+                    'num_gpu': 2,
+                    'probe_options': ProbeOptions(),
+                    'object_options': ObjectOptions(),
+                    'use_mpi': _mpi_size > 1,
+                },
+            ), f"{'mpi-' if _mpi_size > 1 else ''}adam_grad")
+
     def test_consistent_cgrad(self):
         """Check ptycho.solver.cgrad for consistency."""
         _save_ptycho_result(
@@ -374,8 +389,7 @@ class TestProbe(unittest.TestCase):
         patches = comm.pool.bcast(
             [np.random.rand(*leading, posi, 1, 1, wide, high)])
         diff = comm.pool.bcast(
-            [np.random.rand(*leading, posi, 1, 1, wide, high)]
-        )
+            [np.random.rand(*leading, posi, 1, 1, wide, high)])
 
         new_probe, new_weights = tike.ptycho.probe.update_eigen_probe(
             comm=comm,
