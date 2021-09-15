@@ -38,6 +38,7 @@ allowed to vary.
 import logging
 
 import cupy as cp
+import cupyx.scipy.ndimage
 import numpy as np
 
 import tike.random
@@ -56,16 +57,46 @@ class ProbeOptions:
         The number of eigen probes/components.
     """
 
-    def __init__(self, num_eigen_probes=0, orthogonality_constraint=True):
+    def __init__(
+        self,
+        num_eigen_probes=0,
+        orthogonality_constraint=True,
+        use_adaptive_moment=False,
+        vdecay=0.6,
+        mdecay=0.666,
+        centered_intensity_constraint=True,
+    ):
         self.orthogonality_constraint = orthogonality_constraint
         self._weights = None
         self._eigen_probes = None
         if num_eigen_probes > 0:
             pass
+        self.use_adaptive_moment = use_adaptive_moment
+        self.vdecay = vdecay
+        self.mdecay = mdecay
+        self.v = None
+        self.m = None
+        self.centered_intensity_constraint = centered_intensity_constraint
 
     @property
     def num_eigen_probes(self):
         return 0 if self._weights is None else self._weights.shape[-2]
+
+    def put(self):
+        """Copy to the current GPU memory."""
+        if self.v is not None:
+            self.v = cp.asarray(self.v)
+        if self.m is not None:
+            self.m = cp.asarray(self.m)
+        return self
+
+    def get(self):
+        """Copy to the host CPU memory."""
+        if self.v is not None:
+            self.v = cp.asnumpy(self.v)
+        if self.m is not None:
+            self.m = cp.asnumpy(self.m)
+        return self
 
 
 def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
@@ -434,9 +465,42 @@ def gaussian(size, rin=0.8, rout=1.0):
     return img
 
 
+def constrain_center_peak(probe):
+    """Force the peak probe intensity to the center of the probe grid.
+
+    After smoothing the intensity of each probe with a gaussian filter with
+    standard deviation sigma, the probe is shifted such that the maximum
+    intensity is centered.
+    """
+    half = probe.shape[-2] // 2, probe.shape[-1] // 2
+    logger.info("Constrained probe intensity to center with sigma=%f", half[0])
+    # Process each probe separately. First reshape the probe to 3D so it
+    # is a single stack of 2D images.
+    stack = probe.reshape((-1, *probe.shape[-2:]))
+    intensity = cupyx.scipy.ndimage.gaussian_filter(
+        input=np.square(np.abs(stack)),
+        sigma=(0.0, *half),
+        mode='wrap',
+    )
+    for i in range(len(stack)):
+        # Find the maximum intensity in 2D.
+        center = np.argmax(intensity[i])
+        # Find the 2D coordinates of the maximum.
+        coords = cp.unravel_index(center, dims=probe.shape[-2:])
+        # Shift each of the probes so the max is in the center.
+        p = np.roll(stack[i], half[0] - coords[0], axis=0)
+        stack[i] = np.roll(p, half[1] - coords[1], axis=1)
+    # Reform to the original shape; make contiguous.
+    probe = stack.reshape(probe.shape)
+    return probe
+
+
 if __name__ == "__main__":
     cp.random.seed(0)
     x = (cp.random.rand(7, 1, 9, 3, 3) +
          1j * cp.random.rand(7, 1, 9, 3, 3)).astype('complex64')
     x1 = orthogonalize_eig(x)
     assert x1.shape == x.shape, x1.shape
+
+    p = (cp.random.rand(2, 7, 7) * 100).astype(int)
+    print(constrain_center_peak(p))
