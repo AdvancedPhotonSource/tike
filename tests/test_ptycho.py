@@ -282,7 +282,10 @@ class TestPtychoRecon(unittest.TestCase):
                     'subset_is_random': True,
                     'batch_size': int(self.data.shape[-3] / 3),
                     'num_gpu': 2,
-                    'probe_options': ProbeOptions(),
+                    'probe_options': ProbeOptions(
+                        sparsity_constraint=0.6,
+                        centered_intensity_constraint=True,
+                        ),
                     'object_options': ObjectOptions(),
                     'use_mpi': _mpi_size > 1,
                 },
