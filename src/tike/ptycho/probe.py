@@ -488,8 +488,8 @@ def constrain_center_peak(probe):
     # Find the 2D coordinates of the maximum.
     coords = cp.unravel_index(center, dims=probe.shape[-2:])
     # Shift each of the probes so the max is in the center.
-    p = np.roll(stack, half[0] - coords[0], axis=0)
-    stack = np.roll(p, half[1] - coords[1], axis=1)
+    p = np.roll(stack, half[0] - coords[0], axis=-2)
+    stack = np.roll(p, half[1] - coords[1], axis=-1)
     # Reform to the original shape; make contiguous.
     probe = stack.reshape(probe.shape)
     return probe
