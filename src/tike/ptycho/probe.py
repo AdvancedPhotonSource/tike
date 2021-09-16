@@ -494,7 +494,9 @@ def constrain_center_peak(probe):
 
 
 def constrain_probe_sparsity(probe, f):
-    """Constrain the illumination such that f/1 of the elements of f are nonzero."""
+    """Constrain the probe intensity so no more than f/1 elements are nonzero."""
+    if f == 1:
+        return probe
     half = probe.shape[-2] // 2, probe.shape[-1] // 2
     logger.info("Constrained probe intensity spasity to %f", f)
     # First reshape the probe to 3D so it is a single stack of 2D images.
