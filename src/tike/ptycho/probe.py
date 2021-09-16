@@ -466,30 +466,28 @@ def gaussian(size, rin=0.8, rout=1.0):
 
 
 def constrain_center_peak(probe):
-    """Force the peak probe intensity to the center of the probe grid.
+    """Force the peak illumination intensity to the center of the probe grid.
 
-    After smoothing the intensity of each probe with a gaussian filter with
-    standard deviation sigma, the probe is shifted such that the maximum
-    intensity is centered.
+    After smoothing the intensity of the combined illumination with a gaussian
+    filter with standard deviation sigma, the probe is shifted such that the
+    maximum intensity is centered.
     """
     half = probe.shape[-2] // 2, probe.shape[-1] // 2
     logger.info("Constrained probe intensity to center with sigma=%f", half[0])
-    # Process each probe separately. First reshape the probe to 3D so it
-    # is a single stack of 2D images.
+    # First reshape the probe to 3D so it is a single stack of 2D images.
     stack = probe.reshape((-1, *probe.shape[-2:]))
     intensity = cupyx.scipy.ndimage.gaussian_filter(
-        input=np.square(np.abs(stack)),
-        sigma=(0.0, *half),
+        input=np.sum(np.square(np.abs(stack)), axis=0),
+        sigma=half,
         mode='wrap',
     )
-    for i in range(len(stack)):
-        # Find the maximum intensity in 2D.
-        center = np.argmax(intensity[i])
-        # Find the 2D coordinates of the maximum.
-        coords = cp.unravel_index(center, dims=probe.shape[-2:])
-        # Shift each of the probes so the max is in the center.
-        p = np.roll(stack[i], half[0] - coords[0], axis=0)
-        stack[i] = np.roll(p, half[1] - coords[1], axis=1)
+    # Find the maximum intensity in 2D.
+    center = np.argmax(intensity)
+    # Find the 2D coordinates of the maximum.
+    coords = cp.unravel_index(center, dims=probe.shape[-2:])
+    # Shift each of the probes so the max is in the center.
+    p = np.roll(stack, half[0] - coords[0], axis=0)
+    stack = np.roll(p, half[1] - coords[1], axis=1)
     # Reform to the original shape; make contiguous.
     probe = stack.reshape(probe.shape)
     return probe
