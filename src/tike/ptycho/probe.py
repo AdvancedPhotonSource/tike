@@ -499,14 +499,14 @@ def constrain_probe_sparsity(probe, f):
     """Constrain the probe intensity so no more than f/1 elements are nonzero."""
     if f == 1:
         return probe
-    half = probe.shape[-2] // 2, probe.shape[-1] // 2
     logger.info("Constrained probe intensity spasity to %f", f)
     # First reshape the probe to 3D so it is a single stack of 2D images.
     stack = probe.reshape((-1, *probe.shape[-2:]))
     intensity = np.sum(np.square(np.abs(stack)), axis=0)
+    sigma = probe.shape[-2] / 8, probe.shape[-1] / 8
     intensity = cupyx.scipy.ndimage.gaussian_filter(
         input=intensity,
-        sigma=half,
+        sigma=sigma,
         mode='wrap',
     )
     # Get the coordinates of the smallest k values
