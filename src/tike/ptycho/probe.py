@@ -65,6 +65,7 @@ class ProbeOptions:
         vdecay=0.6,
         mdecay=0.666,
         centered_intensity_constraint=True,
+        sparsity_constraint=1,
     ):
         self.orthogonality_constraint = orthogonality_constraint
         self._weights = None
@@ -77,6 +78,7 @@ class ProbeOptions:
         self.v = None
         self.m = None
         self.centered_intensity_constraint = centered_intensity_constraint
+        self.sparsity_constraint = sparsity_constraint
 
     @property
     def num_eigen_probes(self):

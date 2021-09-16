@@ -69,7 +69,7 @@ from tike.ptycho import solvers
 from .object import get_padded_object
 from .position import (PositionOptions, check_allowed_positions,
                        affine_position_regularization)
-from .probe import constrain_center_peak, get_varying_probe
+from .probe import constrain_center_peak, constrain_probe_sparsity, get_varying_probe
 
 logger = logging.getLogger(__name__)
 
@@ -311,10 +311,19 @@ def reconstruct(
 
                     logger.info(f"{algorithm} epoch {i:,d}")
 
-                    if (probe_options is not None
-                            and probe_options.centered_intensity_constraint):
-                        result['probe'] = comm.pool.map(constrain_center_peak,
-                                                        result['probe'])
+                    if probe_options is not None:
+                        if probe_options.centered_intensity_constraint:
+                            result['probe'] = comm.pool.map(
+                                constrain_center_peak,
+                                result['probe'],
+                            )
+                        if probe_options.sparsity_constraint < 1:
+                            result['probe'] = comm.pool.map(
+                                constrain_probe_sparsity,
+                                result['probe'],
+                                f=probe_options.sparsity_constraint,
+                            )
+
                     kwargs.update(result)
                     result = getattr(solvers, algorithm)(
                         operator,
