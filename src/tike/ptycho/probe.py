@@ -493,12 +493,36 @@ def constrain_center_peak(probe):
     return probe
 
 
+def constrain_probe_sparsity(probe, f):
+    """Constrain the illumination such that f/1 of the elements of f are nonzero."""
+    half = probe.shape[-2] // 2, probe.shape[-1] // 2
+    logger.info("Constrained probe intensity spasity to %f", f)
+    # First reshape the probe to 3D so it is a single stack of 2D images.
+    stack = probe.reshape((-1, *probe.shape[-2:]))
+    intensity = np.sum(np.square(np.abs(stack)), axis=0)
+    intensity = cupyx.scipy.ndimage.gaussian_filter(
+        input=intensity,
+        sigma=half,
+        mode='wrap',
+    )
+    # Get the coordinates of the smallest k values
+    k = int((1 - f) * probe.shape[-1] * probe.shape[-2])
+    smallest = np.argpartition(intensity, k, axis=None)[:k]
+    coords = cp.unravel_index(smallest, dims=probe.shape[-2:])
+    # Set these k smallest values to zero in all probes
+    probe[..., coords[0], coords[1]] = 0
+    return probe
+
+
 if __name__ == "__main__":
-    cp.random.seed(0)
+    cp.random.seed()
     x = (cp.random.rand(7, 1, 9, 3, 3) +
          1j * cp.random.rand(7, 1, 9, 3, 3)).astype('complex64')
     x1 = orthogonalize_eig(x)
     assert x1.shape == x.shape, x1.shape
 
-    p = (cp.random.rand(2, 7, 7) * 100).astype(int)
-    print(constrain_center_peak(p))
+    p = (cp.random.rand(3, 7, 7) * 100).astype(int)
+    p1 = constrain_center_peak(p)
+    print(p1)
+    p2 = constrain_probe_sparsity(p1, 0.6)
+    print(p2)
