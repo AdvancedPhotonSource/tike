@@ -169,7 +169,7 @@ class TestLaminoRecon(unittest.TestCase):
 
     def test_consistent_combined(self):
         """Check lamino.solver.cgrad for consistency."""
-        _save_ptycho_result(
+        _save_lamino_result(
             self.template_consistent_algorithm(
                 'cgrad',
                 params={
@@ -241,10 +241,10 @@ class TestLaminoRadon(unittest.TestCase):
                 print(np.around(projection[0], 3))
 
 
-def _save_ptycho_result(result, algorithm):
+def _save_lamino_result(result, algorithm):
     try:
         import matplotlib.pyplot as plt
-        fname = os.path.join(testdir, 'result/lamino', f'{algorithm}')
+        fname = os.path.join(testdir, 'result', 'lamino', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
         slice_id = 1
         plt.imsave(
