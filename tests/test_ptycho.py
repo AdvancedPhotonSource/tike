@@ -392,7 +392,7 @@ class TestProbe(unittest.TestCase):
 def _save_ptycho_result(result, algorithm):
     try:
         import matplotlib.pyplot as plt
-        fname = os.path.join(testdir, 'result', f'{algorithm}')
+        fname = os.path.join(testdir, 'result', 'ptycho', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
         plt.imsave(
             f'{fname}/{0}-phase.png',

@@ -3,6 +3,7 @@ __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
 from importlib_resources import files
 from itertools import product
+import logging
 
 import cupy as cp
 import numpy as np
@@ -15,6 +16,8 @@ _coords_weights_kernel = cp.RawKernel(_cu_source, 'coordinates_and_weights')
 _bucket_fwd = cp.RawKernel(_cu_source, 'fwd')
 _bucket_adj = cp.RawKernel(_cu_source, 'adj')
 
+
+logger = logging.getLogger(__name__)
 
 class Bucket(Lamino):
     """A Laminography operator.
@@ -44,11 +47,17 @@ class Bucket(Lamino):
         The projection angles; rotation around the vertical axis of the object.
     """
 
-    def __init__(self, n, tilt, **kwargs):
+    def __init__(self, n, tilt, eps=1, **kwargs):
         """Please see help(Lamino) for more info."""
         self.n = n
         self.tilt = np.float32(tilt)
-        self.precision = np.int16(1)
+        # Increase precision until weights are less than eps
+        precision = 1
+        while (1 / precision**3) > eps:
+            precision += 1
+        logger.info("Bucket operator using %d precision to reach %f eps.",
+                    precision, eps)
+        self.precision = np.int16(precision)
         self.weight = np.float32(1.0 / self.precision**3)
 
     def __enter__(self):
