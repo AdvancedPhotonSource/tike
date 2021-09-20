@@ -25,7 +25,7 @@ def _estimate_step_length(obj, fwd_data, theta, grid, op):
     return 2 * scaler if op.xp.isfinite(scaler) else 1.0
 
 
-def cgrad(
+def bucket(
     op,
     comm,
     data, theta, obj, grid,

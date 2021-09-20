@@ -1,8 +1,9 @@
 """Contains different solver implementations."""
 
-# from .cgrad import cgrad
-from .cgrad_bucket import cgrad
+from .cgrad import cgrad
+from .bucket import bucket
 
 __all__ = [
     "cgrad",
+    "bucket",
 ]
