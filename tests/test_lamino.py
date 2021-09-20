@@ -54,6 +54,7 @@ import unittest
 import numpy as np
 
 import tike.lamino
+import tike.lamino.bucket
 
 __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
@@ -69,20 +70,29 @@ class TestLaminoRecon(unittest.TestCase):
         """Create a dataset for testing this module.
         Only called with setUp detects that `dataset_file` has been deleted.
         """
-        import dxchange
+        import skimage.io
 
-        delta = dxchange.read_tiff(
-            os.path.join(testdir, 'data/delta-chip-128.tiff'))[::4, ::4, ::4]
-        beta = dxchange.read_tiff(
-            os.path.join(testdir, 'data/beta-chip-128.tiff'))[::4, ::4, ::4]
+        delta = skimage.io.imread(
+            os.path.join(testdir, 'data/delta-chip-128.tiff'))[::2, ::2, ::2]
+        beta = skimage.io.imread(
+            os.path.join(testdir, 'data/beta-chip-128.tiff'))[::2, ::2, ::2]
         self.original = (delta + 1j * beta).astype('complex64')
 
-        self.theta = np.linspace(0, 2 * np.pi, 16,
-                                 endpoint=False).astype('float32')
+        self.theta = np.linspace(
+            0,
+            2 * np.pi,
+            # use Nyquist sampling of rotation axis
+            int(np.pi / 2 * 75 / 128 * delta.shape[-1]),
+            endpoint=False,
+        ).astype('float32')
         self.tilt = np.pi / 3
 
-        self.data = tike.lamino.simulate(self.original, self.theta, self.tilt)
-        assert self.data.shape == (16, 32, 32)
+        self.data = tike.lamino.simulate(
+            self.original,
+            self.theta,
+            self.tilt,
+            upsample=2,
+        )
         assert self.data.dtype == 'complex64', self.data.dtype
 
         setup_data = [
@@ -124,12 +134,12 @@ class TestLaminoRecon(unittest.TestCase):
         """Return the error between two arrays."""
         return np.linalg.norm(x - self.original)
 
-    def template_consistent_algorithm(self, algorithm, params={}):
+    def template_consistent_algorithm(self, module, algorithm, params={}):
         """Check lamino.solver.algorithm for consistency."""
         result = {
             'obj': np.zeros_like(self.original),
         }
-        result = tike.lamino.reconstruct(
+        result = module.reconstruct(
             **result,
             **params,
             data=self.data,
@@ -139,7 +149,7 @@ class TestLaminoRecon(unittest.TestCase):
             num_iter=1,
         )
         params.update(result)
-        result = tike.lamino.reconstruct(
+        result = module.reconstruct(
             **params,
             data=self.data,
             theta=self.theta,
@@ -167,14 +177,28 @@ class TestLaminoRecon(unittest.TestCase):
 
         return result
 
-    def test_consistent_combined(self):
+    def test_consistent_fourier(self):
         """Check lamino.solver.cgrad for consistency."""
         _save_lamino_result(
             self.template_consistent_algorithm(
+                tike.lamino.lamino,
                 'cgrad',
+                params={
+                    'num_gpu': 1,
+                    'obj_split': 1,
+                },
+            ), f"cgrad_Fourier")
+
+    def test_consistent_bucket(self):
+        """Check lamino.solver.bucket for consistency."""
+        _save_lamino_result(
+            self.template_consistent_algorithm(
+                tike.lamino.bucket,
+                'bucket',
                 params={
                     'num_gpu': 4,
                     'obj_split': 2,
+                    'eps': 1,
                 },
             ), f"cgrad_bucket")
 
@@ -193,17 +217,17 @@ class TestLaminoRadon(unittest.TestCase):
             b,
         )
 
-    def test_radon_equal(self):
+    def _radon_equal(self, module, eps):
         for tilt, axis, theta in zip(
             [0, np.pi / 2,  np.pi / 2],
             [0,         1,          2],
             [0,         0, -np.pi / 2],
         ):
-            projection = tike.lamino.simulate(
+            projection = module.simulate(
                 obj=self.original,
                 theta=np.array([theta]),
                 tilt=tilt,
-                eps=1e-12,
+                eps=eps,
                 sample=4,
             )
             direct_sum = np.sum(self.original, axis=axis)
@@ -215,23 +239,24 @@ class TestLaminoRadon(unittest.TestCase):
                 print(direct_sum)
                 print(np.around(projection[0], 3))
 
-    def test_radon_equal_reverse(self):
+    def _radon_equal_reverse(self, module, eps):
         for tilt, axis, theta, flip in zip(
             [np.pi, -np.pi / 2, np.pi / 2],
             [0,              1,         2],
             [0,              0, np.pi / 2],
             [0,              0,         1],
         ):
-            projection = tike.lamino.simulate(
+            projection = module.simulate(
                 obj=self.original,
                 theta=np.array([theta]),
                 tilt=tilt,
-                eps=1e-12,
+                eps=eps,
                 sample=4,
             )
             direct_sum = np.sum(self.original, axis=axis)
             try:
                 # Must account for reflection because looking from back side.
+                # FIXME: Fourier method still errors with reverse projection
                 p = np.flip(projection[0], axis=flip)
                 np.testing.assert_allclose(p, direct_sum, atol=1e-3)
             except AssertionError:
@@ -240,13 +265,25 @@ class TestLaminoRadon(unittest.TestCase):
                 print(direct_sum)
                 print(np.around(projection[0], 3))
 
+    def test_fourier_radon_equal(self):
+        self._radon_equal(tike.lamino.lamino, 1e-10)
+
+    def test_fourier_radon_equal_reverse(self):
+        self._radon_equal_reverse(tike.lamino.lamino, 1e-10)
+
+    def test_bucket_radon_equal(self):
+        self._radon_equal(tike.lamino.bucket, 1)
+
+    def test_bucket_radon_equal_reverse(self):
+        self._radon_equal_reverse(tike.lamino.bucket, 1)
+
 
 def _save_lamino_result(result, algorithm):
     try:
         import matplotlib.pyplot as plt
         fname = os.path.join(testdir, 'result', 'lamino', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
-        slice_id = 1
+        slice_id = int(35 / 128 * result['obj'].shape[0])
         plt.imsave(
             f'{fname}/{slice_id}-phase.png',
             np.angle(result['obj'][slice_id]).astype('float32'),
@@ -258,6 +295,15 @@ def _save_lamino_result(result, algorithm):
         plt.imsave(
             f'{fname}/{slice_id}-ampli.png',
             np.abs(result['obj'][slice_id]).astype('float32'),
+        )
+        import skimage.io
+        skimage.io.imsave(
+            f'{fname}/phase.tiff',
+            np.angle(result['obj']).astype('float32'),
+        )
+        skimage.io.imsave(
+            f'{fname}/ampli.tiff',
+            np.abs(result['obj']).astype('float32'),
         )
     except ImportError:
         pass
