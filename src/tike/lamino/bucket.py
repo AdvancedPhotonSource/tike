@@ -93,7 +93,7 @@ def reconstruct(
         theta,
         tilt,
         algorithm,
-        obj=None, num_iter=1, rtol=-1, eps=1e-3,
+        obj=None, num_iter=1, rtol=-1, eps=1e-1,
         num_gpu=1,
         obj_split=1,
         **kwargs
