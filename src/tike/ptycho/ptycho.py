@@ -167,7 +167,7 @@ def reconstruct(
         probe, scan,
         algorithm,
         psi=None, num_gpu=1, num_iter=1, rtol=-1,
-        model='gaussian', use_mpi=False, cost=None, times=None,
+        model='gaussian', use_mpi=False, costs=None, times=None,
         eigen_probe=None, eigen_weights=None,
         batch_size=None,
         initial_scan=None,
@@ -304,8 +304,8 @@ def reconstruct(
                     num_batch=num_batch,
                 )
 
-                costs = []
-                times = []
+                _costs = []
+                _times = []
                 start = time.perf_counter()
                 for i in range(num_iter):
 
@@ -333,7 +333,7 @@ def reconstruct(
                         **kwargs,
                     )
                     if result['cost'] is not None:
-                        costs.append(result['cost'])
+                        _costs.append(result['cost'])
 
                     if (position_options
                             and position_options.use_position_regularization):
@@ -347,7 +347,7 @@ def reconstruct(
                             result['scan'][0],
                         )
 
-                    times.append(time.perf_counter() - start)
+                    _times.append(time.perf_counter() - start)
                     start = time.perf_counter()
 
                     # Check for early termination
@@ -384,8 +384,16 @@ def reconstruct(
                     )[reorder]
                     result['eigen_probe'] = result['eigen_probe'][0]
                 result['probe'] = result['probe'][0]
-                result['cost'] = operator.asarray(costs)
-                result['times'] = operator.asarray(times)
+                _costs = np.asarray(_costs)
+                _times = np.asarray(_times)
+                if costs is not None:
+                    result['costs'] = np.concatenate((costs, _costs), axis=0)
+                else:
+                    result['costs'] = _costs
+                if times is not None:
+                    result['times'] = np.concatenate((times, _times), axis=0)
+                else:
+                    result['times'] = _times
                 for k, v in result.items():
                     if isinstance(v, list):
                         result[k] = v[0]

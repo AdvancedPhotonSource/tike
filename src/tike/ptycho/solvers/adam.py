@@ -96,7 +96,7 @@ def adam_grad(
     return {
         'psi': psi,
         'probe': probe,
-        'cost': cost,
+        'cost': cost.get(),
         'scan': scan,
         'probe_options': probe_options,
         'object_options': object_options,
