@@ -1,5 +1,6 @@
 import logging
 
+import cupy as cp
 import numpy as np
 
 from tike.linalg import orthogonalize_gs
@@ -71,16 +72,19 @@ def adam_grad(
                                 a=object_options.smoothness_constraint)
 
         if probe_options:
-            probe, cost, probe_options = _update_probe(
-                op,
-                comm,
-                bdata,
-                psi,
-                bscan,
-                probe,
-                mode=list(range(probe[0].shape[-3])),
-                probe_options=probe_options,
-            )
+            for m in list(range(probe[0].shape[-3])):
+                probe, cost, probe_options = _update_probe(
+                    op,
+                    comm,
+                    bdata,
+                    psi,
+                    bscan,
+                    probe,
+                    mode=[
+                        m
+                    ],
+                    probe_options=probe_options,
+                )
 
         if position_options and comm.pool.num_workers == 1:
             bscan, cost = update_positions_pd(
@@ -96,7 +100,7 @@ def adam_grad(
     return {
         'psi': psi,
         'probe': probe,
-        'cost': cost.get(),
+        'cost': cost,
         'scan': scan,
         'probe_options': probe_options,
         'object_options': object_options,
@@ -145,23 +149,35 @@ def _update_probe(
     def update_multi(x, gamma, d):
 
         def f(x, d):
-            return x[..., mode, :, :] + gamma * d
+            x[..., mode, :, :] = x[..., mode, :, :] + gamma * d
+            return x
 
         return comm.pool.map(f, x, d)
 
     d = -grad(probe)[0]
 
     probe_options.use_adaptive_moment = True
-    d, probe_options.v, probe_options.m = adam(
+    if probe_options.v is None or probe_options.m is None:
+        probe_options.v = cp.zeros_like(probe[0])
+        probe_options.m = cp.zeros_like(probe[0])
+    (
+        d,
+        probe_options.v[..., mode, :, :],
+        probe_options.m[..., mode, :, :],
+    ) = adam(
         g=d,
-        v=probe_options.v,
-        m=probe_options.m,
+        v=probe_options.v[..., mode, :, :],
+        m=probe_options.m[..., mode, :, :],
         vdecay=probe_options.vdecay,
         mdecay=probe_options.mdecay,
     )
     d = [d]
 
-    probe = update_multi(probe, gamma=step_length, d=dir_multi(d))
+    probe = update_multi(
+        probe,
+        gamma=step_length,
+        d=dir_multi(d),
+    )
 
     if probe[0].shape[-3] > 1 and probe_options.orthogonality_constraint:
         probe = comm.pool.map(orthogonalize_gs, probe, axis=(-2, -1))
