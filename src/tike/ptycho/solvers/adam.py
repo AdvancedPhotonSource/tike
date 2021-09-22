@@ -80,9 +80,7 @@ def adam_grad(
                     psi,
                     bscan,
                     probe,
-                    mode=[
-                        m
-                    ],
+                    mode=[m],
                     probe_options=probe_options,
                 )
 
@@ -108,6 +106,38 @@ def adam_grad(
     }
 
 
+def grad_probe(data, psi, scan, probe, mode=None, op=None):
+    """Compute the gradient with respect to the probe(s).
+
+        Parameters
+        ----------
+        mode : list(int)
+            Only return the gradient with resepect to these probes.
+
+    """
+    self = op
+    mode = list(range(probe.shape[-3])) if mode is None else mode
+    intensity, farplane = self._compute_intensity(data, psi, scan, probe)
+    # Use the average gradient for all probe positions
+    gradient = self.adj_probe(
+        farplane=self.propagation.grad(
+            data,
+            farplane[..., mode, :, :],
+            intensity,
+        ),
+        psi=psi,
+        scan=scan,
+        overwrite=True,
+    )
+    mean_grad = self.xp.mean(
+        gradient,
+        axis=0,
+        keepdims=True,
+    )
+    residuals = gradient - mean_grad
+    return mean_grad, residuals
+
+
 def _update_probe(
     op,
     comm,
@@ -129,14 +159,15 @@ def _update_probe(
             return comm.reduce(cost_out, 'cpu')
 
     def grad(probe):
-        grad_list = comm.pool.map(
-            op.grad_probe,
+        grad_list, rez_list = zip(*comm.pool.map(
+            grad_probe,
             data,
             psi,
             scan,
             probe,
             mode=mode,
-        )
+            op=op,
+        ))
         if comm.use_mpi:
             return comm.Allreduce_reduce(grad_list, 'gpu')
         else:
