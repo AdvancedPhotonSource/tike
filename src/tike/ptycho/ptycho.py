@@ -352,7 +352,7 @@ def reconstruct(
 
                     # Check for early termination
                     if i > 0 and abs(
-                        (costs[-1] - costs[-2]) / costs[-2]) < rtol:
+                        (_costs[-1] - _costs[-2]) / _costs[-2]) < rtol:
                         logger.info(
                             "Cost function rtol < %g reached at %d "
                             "iterations.", rtol, i)

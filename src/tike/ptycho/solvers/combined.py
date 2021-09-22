@@ -102,7 +102,7 @@ def cgrad(
     return {
         'psi': psi,
         'probe': probe,
-        'cost': cost.get(),
+        'cost': cost,
         'scan': scan,
         'probe_options': probe_options,
         'object_options': object_options,

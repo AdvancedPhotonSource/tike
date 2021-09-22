@@ -269,7 +269,7 @@ class TestPtychoRecon(unittest.TestCase):
             # Only works when probe recovery is false because scaling
         )
         print()
-        cost = '\n'.join(f'{c:1.3e}' for c in result['cost'])
+        cost = '\n'.join(f'{c:1.3e}' for c in result['costs'])
         print(cost)
         return result
 
