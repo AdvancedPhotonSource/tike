@@ -120,3 +120,6 @@ core
 
 # MPI host files
 host_list
+
+# vscode setting
+.vscode/

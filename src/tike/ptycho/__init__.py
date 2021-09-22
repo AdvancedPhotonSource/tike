@@ -5,7 +5,6 @@
 
 # NOTE: The docstring below holds reference docstring that can be used to fill
 # in documentation of new functions.
-
 """
 Parameters
 ----------
@@ -30,5 +29,8 @@ scan : (..., POSI, 2) float32
     with WIDE, HIGH order.
 
 """
+from .fresnel import *
+from .object import ObjectOptions
+from .position import check_allowed_positions, PositionOptions
+from .probe import ProbeOptions
 from .ptycho import *
-from .position import check_allowed_positions

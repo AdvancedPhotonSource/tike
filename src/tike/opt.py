@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 randomizer = np.random.default_rng()
 
 
-def batch_indicies(n, m=1, use_random=False):
+def batch_indicies(n, m=1, use_random=True):
     """Return list of indices [0...n) as m groups.
 
     >>> batch_indicies(10, 3)
@@ -29,12 +29,131 @@ def batch_indicies(n, m=1, use_random=False):
 
 def get_batch(x, b, n):
     """Returns x[:, b[n]]; for use with map()."""
-    return x[:, b[n]]
+    return x[b[n]]
 
 
 def put_batch(y, x, b, n):
     """Assigns y into x[:, b[n]]; for use with map()."""
-    x[:, b[n]] = y
+    x[b[n]] = y
+
+
+def adagrad(g, v=None, eps=1e-6):
+    """Return the adaptive gradient algorithm direction.
+
+    Used to provide a better search direction to stochastic gradient
+    descent.
+
+    Parameters
+    ----------
+    g : vector
+        The current gradient.
+    v : vector
+        The adagrad gradient weights.
+    eps : float
+        A tiny constant to prevent zero division.
+
+    Returns
+    -------
+    d : vector
+        The new search direction.
+    v : vector
+        The new gradient weights.
+
+    References
+    ----------
+    Duchi, John, Elad Hazan, and Yoram Singer. "Adaptive subgradient methods
+    for online learning and stochastic optimization." Journal of machine
+    learning research 12, no. 7 (2011).
+    """
+    if v is None:
+        return g, (g * g.conj()).real
+    v += (g * g.conj()).real
+    d = g / np.sqrt(v + eps)
+    return d, v
+
+
+def adadelta(g, d0=None, v=None, m=None, decay=0.9, eps=1e-6):
+    """Return the adadelta algorithm direction.
+
+    Used to provide a better search direction to stochastic gradient
+    descent.
+
+    Parameters
+    ----------
+    g : vector
+        The current gradient.
+    d0: vector
+        The previous search direction.
+    v : vector
+        The adadelta gradient weights.
+    m : vector
+        The adadelta direction weights.
+    eps : float
+        A tiny constant to prevent zero division.
+
+    Returns
+    -------
+    d : vector
+        The new search direction.
+    v : vector
+        The new gradient weights.
+
+    References
+    ----------
+    Zeiler, Matthew D. "Adadelta: an adaptive learning rate method." arXiv
+    preprint arXiv:1212.5701 (2012).
+    """
+    v = 0 if v is None else v
+    m = 0 if m is None else m
+    d0 = 0 if d0 is None else d0
+    v = v * decay + (1 - decay) * (g * g.conj()).real
+    m = m * decay + (1 - decay) * (d0 * d0.conj()).real
+    d = np.sqrt((m + eps) / (v + eps)) * g
+    return d, v, m
+
+
+def adam(g, v=None, m=None, vdecay=0.9, mdecay=0.999, eps=1e-8):
+    """Return the adaptive moment estimation direction.
+
+    Used to provide a better search direction to stochastic gradient
+    descent.
+
+    Parameters
+    ----------
+    g : vector
+        The current search direction.
+    v : vector
+        Second moment estimate.
+    m : vector
+        First moment estimate.
+    vdecay, mdecay : float [0, 1)
+        A factor which determines how quickly information from previous steps
+        decays.
+    eps : float
+        A tiny constant to prevent zero division.
+
+    Returns
+    -------
+    d : vector
+        The new search direction.
+    v : vector
+        The new gradient weights.
+    m : vector
+        The new momentum weights.
+
+    References
+    ----------
+    Kingma, Diederik P., and Jimmy Ba. "Adam: A method for stochastic
+    optimization." arXiv preprint arXiv:1412.6980 (2014).
+    """
+    logger.info("ADAM decay m=%+.3e, v=%+.3e; eps=%+.3e", mdecay, vdecay, eps)
+    v = 0 if v is None else v
+    m = 0 if m is None else m
+    m = mdecay * m + (1 - mdecay) * g
+    v = vdecay * v + (1 - vdecay) * (g * g.conj()).real
+    m_ = m / (1 - mdecay)
+    v_ = np.sqrt(v / (1 - vdecay))
+    return m_ / (v_ + eps), v, m
 
 
 def line_search(
@@ -102,7 +221,7 @@ def line_search(
     return step_length, fxsd, xsd
 
 
-def direction_dy(xp, grad0, grad1, dir_):
+def direction_dy(xp, grad1, grad0=None, dir_=None):
     """Return the Dai-Yuan search direction.
 
     Parameters
@@ -115,11 +234,14 @@ def direction_dy(xp, grad0, grad1, dir_):
         The previous search direction.
 
     """
-    return (
-        - grad1
-        + dir_ * xp.linalg.norm(grad1.ravel())**2
-        / (xp.sum(dir_.conj() * (grad1 - grad0)) + 1e-32)
-    )  # yapf: disable
+    if dir_ is None:
+        return [-grad1[0]]
+
+    return [
+        - grad1[0]
+        + dir_[0] * xp.linalg.norm(grad1[0].ravel())**2
+        / (xp.sum(dir_[0].conj() * (grad1[0] - grad0[0])) + 1e-32)
+    ]  # yapf: disable
 
 
 def update_single(x, step_length, d):
@@ -135,6 +257,7 @@ def conjugate_gradient(
     x,
     cost_function,
     grad,
+    direction_dy=direction_dy,
     dir_multi=dir_single,
     update_multi=update_single,
     num_iter=1,
@@ -174,9 +297,9 @@ def conjugate_gradient(
 
         grad1 = grad(x)
         if i == 0:
-            dir_ = -grad1
+            dir_ = direction_dy(array_module, grad1)
         else:
-            dir_ = direction_dy(array_module, grad0, grad1, dir_)
+            dir_ = direction_dy(array_module, grad1, grad0, dir_)
         grad0 = grad1
 
         dir_list = dir_multi(dir_)

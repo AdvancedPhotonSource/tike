@@ -4,8 +4,9 @@ import numpy as np
 
 from tike.linalg import orthogonalize_gs
 from tike.opt import conjugate_gradient, batch_indicies, get_batch, put_batch
-from ..position import update_positions_pd
+from ..position import update_positions_pd, PositionOptions
 from ..probe import get_varying_probe, opr
+from ..object import positivity_constraint, smoothness_constraint
 
 logger = logging.getLogger(__name__)
 
@@ -13,15 +14,16 @@ logger = logging.getLogger(__name__)
 def cgrad(
     op, comm,
     data, probe, scan, psi,
-    recover_psi=True, recover_probe=True, recover_positions=False,
     cg_iter=4,
     cost=None,
     eigen_probe=None,
     eigen_weights=None,
     num_batch=1,
-    subset_is_random=None,
+    subset_is_random=True,
     step_length=1,
-    probe_is_orthogonal=False,
+    probe_options=None,
+    position_options=None,
+    object_options=None,
 ):  # yapf: disable
     """Solve the ptychography problem using conjugate gradient.
 
@@ -59,7 +61,14 @@ def cgrad(
             beigen_probe = [None] * comm.pool.num_workers
             beigen_weights = [None] * comm.pool.num_workers
 
-        if recover_psi:
+        if position_options:
+            bposition_options = comm.pool.map(PositionOptions.split,
+                                              position_options,
+                                              [b[n] for b in batches])
+        else:
+            bposition_options = None
+
+        if object_options:
             psi, cost = _update_object(
                 op,
                 comm,
@@ -72,8 +81,14 @@ def cgrad(
                 num_iter=cg_iter,
                 step_length=step_length,
             )
+            psi = comm.pool.map(positivity_constraint,
+                                psi,
+                                r=object_options.positivity_constraint)
+            psi = comm.pool.map(smoothness_constraint,
+                                psi,
+                                a=object_options.smoothness_constraint)
 
-        if recover_probe:
+        if probe_options:
             probe, cost = _update_probe(
                 op,
                 comm,
@@ -85,32 +100,19 @@ def cgrad(
                 eigen_weights=beigen_weights,
                 num_iter=cg_iter,
                 step_length=step_length,
-                probe_is_orthogonal=probe_is_orthogonal,
+                probe_is_orthogonal=probe_options.orthogonality_constraint,
                 mode=list(range(probe[0].shape[-3])),
             )
 
-        if isinstance(eigen_probe, list):
-            beigen_probe[0], beigen_weights[0] = _update_eigen_probe(
-                op,
-                comm,
-                bdata[0],
-                psi[0],
-                bscan[0],
-                probe[0],
-                eigen_probe=beigen_probe[0],
-                eigen_weights=beigen_weights[0],
-                alpha=1 / num_batch,
-            )
-
-        if recover_positions and comm.pool.num_workers == 1:
+        if position_options and comm.pool.num_workers == 1:
             bscan, cost = update_positions_pd(
                 op,
-                comm.pool.gather(bdata, axis=1),
+                comm.pool.gather(bdata, axis=-3),
                 psi[0],
                 probe[0],
-                comm.pool.gather(bscan, axis=1),
+                comm.pool.gather(bscan, axis=-2),
             )
-            bscan = comm.pool.bcast(bscan)
+            bscan = comm.pool.bcast([bscan])
             # TODO: Assign bscan into scan when positions are updated
 
         if isinstance(eigen_probe, list):

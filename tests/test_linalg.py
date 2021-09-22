@@ -2,7 +2,6 @@ import unittest
 
 import cupy as cp
 
-import tike.ptycho
 import tike.linalg
 import tike.random
 
@@ -20,9 +19,10 @@ def test_norm():
 def test_lstsq():
     a = tike.random.cupy_complex(5, 1, 4, 3, 3)
     x = tike.random.cupy_complex(5, 1, 4, 3, 1)
+    w = cp.random.rand(5, 1, 4, 3)
     b = a @ x
-    x1 = tike.linalg.lstsq(a, b[..., 0])
-    cp.testing.assert_allclose(x1, x[..., 0])
+    x1 = tike.linalg.lstsq(a, b, weights=w)
+    cp.testing.assert_allclose(x1, x)
 
 
 def test_projection():

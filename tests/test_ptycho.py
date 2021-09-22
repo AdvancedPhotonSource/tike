@@ -46,22 +46,28 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
+import bz2
 import lzma
 import os
 import pickle
 import unittest
 
 import numpy as np
+from mpi4py import MPI
 
 import tike.ptycho
+from tike.ptycho.probe import ProbeOptions
+from tike.ptycho.position import PositionOptions
+from tike.ptycho.object import ObjectOptions
 from tike.communicators import Comm, MPIComm
 import tike.random
 
-__author__ = "Daniel Ching"
+__author__ = "Daniel Ching, Xiaodong Yu"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 testdir = os.path.dirname(__file__)
+_mpi_size = MPI.COMM_WORLD.Get_size()
 
 
 class TestPtychoUtils(unittest.TestCase):
@@ -80,40 +86,40 @@ class TestPtychoUtils(unittest.TestCase):
         np.testing.assert_array_equal(weights, truth)
 
     def test_check_allowed_positions(self):
-        psi = np.empty((7, 4, 9))
-        probe = np.empty((7, 1, 1, 8, 2, 2))
+        psi = np.empty((4, 9))
+        probe = np.empty((8, 2, 2))
         scan = np.array([[1, 1], [1, 6.9], [1.1, 1], [1.9, 5.5]])
-        tike.ptycho.check_allowed_positions(scan, psi, probe)
+        tike.ptycho.check_allowed_positions(scan, psi, probe.shape)
 
         for scan in np.array([[1, 7], [1, 0.9], [0.9, 1], [1, 0]]):
             with self.assertRaises(ValueError):
-                tike.ptycho.check_allowed_positions(scan, psi, probe)
+                tike.ptycho.check_allowed_positions(scan, psi, probe.shape)
 
     def test_split_by_scan(self):
-        scan = np.mgrid[0:3, 0:3].reshape(2, 1, -1)
+        scan = np.mgrid[0:3, 0:3].reshape(2, -1)
         scan = np.moveaxis(scan, 0, -1)
 
         ind = tike.ptycho.ptycho.split_by_scan_stripes(scan, 3, axis=0)
-        split = [scan[:, i] for i in ind]
+        split = [scan[i] for i in ind]
+
         solution = [
-            [[[0, 0], [0, 1], [0, 2]]],
-            [[[1, 0], [1, 1], [1, 2]]],
-            [[[2, 0], [2, 1], [2, 2]]],
+            [[0, 0], [0, 1], [0, 2]],
+            [[1, 0], [1, 1], [1, 2]],
+            [[2, 0], [2, 1], [2, 2]],
         ]
         np.testing.assert_equal(split, solution)
 
         ind = tike.ptycho.ptycho.split_by_scan_stripes(scan, 3, axis=1)
-        split = [scan[:, i] for i in ind]
+        split = [scan[i] for i in ind]
         solution = [
-            [[[0, 0], [1, 0], [2, 0]]],
-            [[[0, 1], [1, 1], [2, 1]]],
-            [[[0, 2], [1, 2], [2, 2]]],
+            [[0, 0], [1, 0], [2, 0]],
+            [[0, 1], [1, 1], [2, 1]],
+            [[0, 2], [1, 2], [2, 2]],
         ]
         np.testing.assert_equal(split, solution)
 
 
-class TestPtychoRecon(unittest.TestCase):
-    """Test various ptychography reconstruction methods for consistency."""
+class TestPtychoSimulate(unittest.TestCase):
 
     def create_dataset(
         self,
@@ -128,21 +134,11 @@ class TestPtychoRecon(unittest.TestCase):
         """
         import libimage
         # Create a stack of phase-only images
-        phase = np.stack(
-            [libimage.load('satyre', width),
-             libimage.load('satyre', width)],
-            axis=0,
-        )
-        amplitude = np.stack(
-            [
-                1 - 0 * libimage.load('coins', width),
-                1 - libimage.load('coins', width)
-            ],
-            axis=0,
-        )
+        phase = libimage.load('satyre', width)
+        amplitude = 1 - libimage.load('coins', width)
         original = amplitude * np.exp(1j * phase * np.pi)
         self.original = original.astype('complex64')
-        leading = self.original.shape[:-2]
+        leading = ()
 
         # Create a multi-probe with gaussian amplitude decreasing as 1/N
         phase = np.stack(
@@ -218,22 +214,45 @@ class TestPtychoRecon(unittest.TestCase):
         np.testing.assert_array_equal(data.shape, self.data.shape)
         np.testing.assert_allclose(np.sqrt(data), np.sqrt(self.data), atol=1e-6)
 
-    def error_metric(self, x):
-        """Return the error between two arrays."""
-        return np.linalg.norm(x - self.original)
+
+class TestPtychoRecon(unittest.TestCase):
+    """Test various ptychography reconstruction methods for consistency."""
+
+    def setUp(self, filename='data/siemens-star-small.npz.bz2'):
+        """Load a dataset for reconstruction."""
+        dataset_file = os.path.join(testdir, filename)
+        with bz2.open(dataset_file, 'rb') as f:
+            archive = np.load(f)
+            self.scan = archive['scan'][0]
+            self.data = archive['data'][0]
+            self.probe = archive['probe'][0]
+        self.scan -= np.amin(self.scan, axis=-2) - 20
+        self.probe = tike.ptycho.probe.add_modes_random_phase(self.probe, 2)
+        self.probe *= np.random.rand(*self.probe.shape)
 
     def template_consistent_algorithm(self, algorithm, params={}):
         """Check ptycho.solver.algorithm for consistency."""
 
+        result = {
+            'psi': np.ones((500, 500), dtype=np.complex64),
+            'probe': self.probe,
+        }
+
         if params.get('use_mpi') is True:
             with MPIComm() as IO:
-                self.scan, self.data = IO.MPIio(self.scan, self.data)
+                result['probe'] = IO.Bcast(result['probe'])
+                weights = params.get('eigen_weights')
+                if weights is not None:
+                    self.scan, self.data, params['eigen_weights'] = IO.MPIio(
+                        self.scan,
+                        self.data,
+                        weights,
+                    )
+                else:
+                    self.scan, self.data = IO.MPIio(self.scan, self.data)
 
-        result = {
-            'psi': np.ones_like(self.original),
-            'probe': self.probe * np.random.rand(*self.probe.shape),
-            'scan': self.scan,
-        }
+        result['scan'] = self.scan
+
         result = tike.ptycho.reconstruct(
             **result,
             **params,
@@ -252,109 +271,102 @@ class TestPtychoRecon(unittest.TestCase):
         print()
         cost = '\n'.join(f'{c:1.3e}' for c in result['cost'])
         print(cost)
-        try:
-            import matplotlib.pyplot as plt
-            fname = os.path.join(testdir, 'result', f'{algorithm}')
-            os.makedirs(fname, exist_ok=True)
-            for i in range(len(self.original)):
-                plt.imsave(
-                    f'{fname}/{i}-phase.png',
-                    np.angle(result['psi'][i]),
-                )
-                plt.imsave(
-                    f'{fname}/{i}-ampli.png',
-                    np.abs(result['psi'][i]),
-                )
-            for i in range(self.probe.shape[-3]):
-                plt.imsave(
-                    f'{fname}/{i}-probe-phase.png',
-                    np.angle(result['probe'][0, 0, 0, i]),
-                )
-                plt.imsave(
-                    f'{fname}/{i}-probe-ampli.png',
-                    np.abs(result['probe'][0, 0, 0, i]),
-                )
-        except ImportError:
-            pass
+        return result
 
     def test_consistent_cgrad(self):
         """Check ptycho.solver.cgrad for consistency."""
-        self.template_consistent_algorithm(
-            'cgrad',
-            params={
-                'subset_is_random': True,
-                'batch_size': int(self.data.shape[1] / 3),
-                'num_gpu': 2,
-                'recover_probe': True,
-                'recover_psi': True,
-                'use_mpi': True,
-            },
-        )
-
-    # def test_consistent_admm(self):
-    #     """Check ptycho.solver.admm for consistency."""
-    #     self.template_consistent_algorithm('admm')
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                'cgrad',
+                params={
+                    'subset_is_random': True,
+                    'batch_size': int(self.data.shape[-3] / 3),
+                    'num_gpu': 2,
+                    'probe_options': ProbeOptions(),
+                    'object_options': ObjectOptions(),
+                    'use_mpi': _mpi_size > 1,
+                },
+            ), f"{'mpi-' if _mpi_size > 1 else ''}cgrad")
 
     def test_consistent_lstsq_grad(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
-        self.template_consistent_algorithm(
-            'lstsq_grad',
-            params={
-                'subset_is_random': True,
-                'batch_size': int(self.data.shape[1] / 3),
-                'num_gpu': 2,
-                'recover_probe': True,
-                'recover_psi': True,
-                'use_mpi': False,
-            },
-        )
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                'lstsq_grad',
+                params={
+                    'subset_is_random':
+                        True,
+                    'batch_size':
+                        int(self.data.shape[-3] / 3),
+                    'num_gpu':
+                        2,
+                    'probe_options':
+                        ProbeOptions(),
+                    'object_options':
+                        ObjectOptions(),
+                    'use_mpi':
+                        _mpi_size > 1,
+                    'position_options':
+                        PositionOptions(
+                            self.scan.shape[0:-1],
+                            use_adaptive_moment=True,
+                        ),
+                },
+            ), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad")
 
     def test_consistent_lstsq_grad_variable_probe(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
 
-        eigen_probe = tike.random.numpy_complex(
-            *self.scan.shape[:-2], 1, 1, 2,
-            *self.probe.shape[-2:]).astype('complex64')
-        weights = 1e-6 * np.random.rand(*self.scan.shape[:-1], *
-                                        eigen_probe.shape[-4:-2])
-        weights -= np.mean(weights, axis=-3, keepdims=True)
-        weights = weights.astype('float32')
+        eigen_probe, weights = tike.ptycho.probe.init_varying_probe(
+            self.scan, self.probe, 3)
 
-        self.template_consistent_algorithm(
-            'lstsq_grad',
-            params={
-                'subset_is_random': True,
-                'batch_size': int(self.data.shape[1] / 3),
-                'num_gpu': 2,
-                'recover_probe': True,
-                'recover_psi': True,
-                'eigen_probe': eigen_probe,
-                'eigen_weights': weights,
-            },
-        )
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                'lstsq_grad',
+                params={
+                    'subset_is_random':
+                        True,
+                    'batch_size':
+                        int(self.data.shape[-3] / 3),
+                    'num_gpu':
+                        2,
+                    'probe_options':
+                        ProbeOptions(),
+                    'object_options':
+                        ObjectOptions(),
+                    'use_mpi':
+                        _mpi_size > 1,
+                    'eigen_probe':
+                        eigen_probe,
+                    'eigen_weights':
+                        weights,
+                    'position_options':
+                        PositionOptions(
+                            self.scan.shape[0:-1],
+                            use_adaptive_moment=True,
+                        ),
+                },
+            ), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-variable-probe")
 
     def test_consistent_cgrad_variable_probe(self):
         """Check ptycho.solver.cgrad for consistency."""
-        eigen_probe = tike.random.numpy_complex(
-            *self.scan.shape[:-2], 1, 1, 2,
-            *self.probe.shape[-2:]).astype('complex64')
-        weights = 1e-6 * np.random.rand(*self.scan.shape[:-1], *
-                                        eigen_probe.shape[-4:-2])
-        weights -= np.mean(weights, axis=-3, keepdims=True)
-        weights = weights.astype('float32')
+        eigen_probe, weights = tike.ptycho.probe.init_varying_probe(
+            self.scan, self.probe, 3)
 
-        self.template_consistent_algorithm(
-            'cgrad',
-            params={
-                'subset_is_random': True,
-                'batch_size': int(self.data.shape[1] / 3),
-                'num_gpu': 2,
-                'recover_probe': True,
-                'recover_psi': True,
-                'eigen_probe': eigen_probe,
-                'eigen_weights': weights,
-            },
-        )
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                'cgrad',
+                params={
+                    'subset_is_random': True,
+                    'batch_size': int(self.data.shape[-3] / 3),
+                    'num_gpu': 2,
+                    'probe_options': ProbeOptions(),
+                    'object_options': ObjectOptions(),
+                    'use_mpi': _mpi_size > 1,
+                    'eigen_probe': eigen_probe,
+                    'eigen_weights': weights,
+                },
+            ), f"{'mpi-' if _mpi_size > 1 else ''}cgrad-variable-probe")
 
     def test_invaid_algorithm_name(self):
         """Check that wrong names are handled gracefully."""
@@ -373,15 +385,16 @@ class TestProbe(unittest.TestCase):
         eigen = 1
         comm = Comm(2, None)
 
-        R = comm.pool.bcast(np.random.rand(*leading, posi, 1, 1, wide, high))
+        R = comm.pool.bcast([np.random.rand(*leading, posi, 1, 1, wide, high)])
         eigen_probe = comm.pool.bcast(
-            np.random.rand(*leading, 1, eigen, 1, wide, high))
+            [np.random.rand(*leading, 1, eigen, 1, wide, high)])
         weights = np.random.rand(*leading, posi)
         weights -= np.mean(weights)
-        weights = comm.pool.bcast(weights)
+        weights = comm.pool.bcast([weights])
         patches = comm.pool.bcast(
-            np.random.rand(*leading, posi, 1, 1, wide, high))
-        diff = comm.pool.bcast(np.random.rand(*leading, posi, 1, 1, wide, high))
+            [np.random.rand(*leading, posi, 1, 1, wide, high)])
+        diff = comm.pool.bcast(
+            [np.random.rand(*leading, posi, 1, 1, wide, high)])
 
         new_probe, new_weights = tike.ptycho.probe.update_eigen_probe(
             comm=comm,
@@ -393,6 +406,40 @@ class TestProbe(unittest.TestCase):
         )
 
         assert eigen_probe[0].shape == new_probe[0].shape
+
+
+def _save_ptycho_result(result, algorithm):
+    try:
+        import matplotlib.pyplot as plt
+        fname = os.path.join(testdir, 'result', f'{algorithm}')
+        os.makedirs(fname, exist_ok=True)
+        plt.imsave(
+            f'{fname}/{0}-phase.png',
+            np.angle(result['psi']).astype('float32'),
+            # The output of np.angle is locked to (-pi, pi]
+            cmap=plt.cm.twilight,
+            vmin=-np.pi,
+            vmax=np.pi,
+        )
+        plt.imsave(
+            f'{fname}/{0}-ampli.png',
+            np.abs(result['psi']).astype('float32'),
+        )
+        for i in range(result['probe'].shape[-3]):
+            plt.imsave(
+                f'{fname}/{i}-probe-phase.png',
+                np.angle(result['probe'][0, 0, i]),
+                # The output of np.angle is locked to (-pi, pi]
+                cmap=plt.cm.twilight,
+                vmin=-np.pi,
+                vmax=np.pi,
+            )
+            plt.imsave(
+                f'{fname}/{i}-probe-ampli.png',
+                np.abs(result['probe'][0, 0, i]),
+            )
+    except ImportError:
+        pass
 
 
 if __name__ == '__main__':
