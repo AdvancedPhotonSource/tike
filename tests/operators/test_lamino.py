@@ -43,7 +43,7 @@ class TestLaminoFourier(unittest.TestCase, OperatorTests):
 class TestLaminoBucket(unittest.TestCase, OperatorTests):
     """Test the Laminography operator."""
 
-    def setUp(self, n=16, ntheta=8, tilt=np.pi / 3, eps=1e-6):
+    def setUp(self, n=16, ntheta=8, tilt=np.pi / 3, eps=1e-1):
         self.operator = Bucket(
             n=n,
             tilt=tilt,
