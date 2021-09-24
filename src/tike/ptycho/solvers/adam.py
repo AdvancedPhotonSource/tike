@@ -4,9 +4,10 @@ import cupy as cp
 import numpy as np
 
 from tike.linalg import orthogonalize_gs
-from tike.opt import batch_indicies, get_batch, adam
+from tike.opt import batch_indicies, get_batch, adam, put_batch
 from ..position import update_positions_pd, PositionOptions
 from ..object import positivity_constraint, smoothness_constraint
+from ..probe import constrain_variable_probe, get_varying_probe
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,18 @@ def adam_grad(
         bdata = comm.pool.map(get_batch, data, batches, n=n)
         bscan = comm.pool.map(get_batch, scan, batches, n=n)
 
+        if isinstance(eigen_probe, list):
+            beigen_weights = comm.pool.map(
+                get_batch,
+                eigen_weights,
+                batches,
+                n=n,
+            )
+            beigen_probe = eigen_probe
+        else:
+            beigen_probe = [None] * comm.pool.num_workers
+            beigen_weights = [None] * comm.pool.num_workers
+
         if position_options:
             bposition_options = comm.pool.map(PositionOptions.split,
                                               position_options,
@@ -62,6 +75,8 @@ def adam_grad(
                 psi,
                 bscan,
                 probe,
+                eigen_probe=beigen_probe,
+                eigen_weights=beigen_weights,
                 object_options=object_options,
             )
             psi = comm.pool.map(positivity_constraint,
@@ -82,6 +97,8 @@ def adam_grad(
                     probe,
                     mode=[m],
                     probe_options=probe_options,
+                    eigen_probe=beigen_probe,
+                    eigen_weights=beigen_weights,
                 )
 
         if position_options and comm.pool.num_workers == 1:
@@ -95,7 +112,23 @@ def adam_grad(
             bscan = comm.pool.bcast([bscan])
             # TODO: Assign bscan into scan when positions are updated
 
-    return {
+        if isinstance(eigen_probe, list):
+            comm.pool.map(
+                put_batch,
+                beigen_weights,
+                eigen_weights,
+                batches,
+                n=n,
+            )
+
+    if isinstance(eigen_probe, list):
+        eigen_probe, eigen_weights = (list(a) for a in zip(*comm.pool.map(
+            constrain_variable_probe,
+            eigen_probe,
+            eigen_weights,
+        )))
+
+    result = {
         'psi': psi,
         'probe': probe,
         'cost': cost,
@@ -104,6 +137,10 @@ def adam_grad(
         'object_options': object_options,
         'position_options': position_options,
     }
+    if isinstance(eigen_probe, list):
+        result['eigen_probe'] = eigen_probe
+        result['eigen_weights'] = eigen_weights
+    return result
 
 
 def grad_probe(data, psi, scan, probe, mode=None, op=None):
@@ -147,24 +184,38 @@ def _update_probe(
     probe,
     mode,
     probe_options,
+    eigen_probe,
+    eigen_weights,
     step_length=0.1,
 ):
     """Solve the probe recovery problem."""
 
     def cost_function(probe):
-        cost_out = comm.pool.map(op.cost, data, psi, scan, probe)
+        unique_probe = comm.pool.map(
+            get_varying_probe,
+            probe,
+            eigen_probe,
+            eigen_weights,
+        )
+        cost_out = comm.pool.map(op.cost, data, psi, scan, unique_probe)
         if comm.use_mpi:
             return comm.Allreduce_reduce(cost_out, 'cpu')
         else:
             return comm.reduce(cost_out, 'cpu')
 
     def grad(probe):
+        unique_probe = comm.pool.map(
+            get_varying_probe,
+            probe,
+            eigen_probe,
+            eigen_weights,
+        )
         grad_list, rez_list = zip(*comm.pool.map(
             grad_probe,
             data,
             psi,
             scan,
-            probe,
+            unique_probe,
             mode=mode,
             op=op,
         ))
@@ -227,19 +278,28 @@ def _update_object(
     scan,
     probe,
     object_options,
+    eigen_probe,
+    eigen_weights,
     step_length=0.1,
 ):
     """Solve the object recovery problem."""
 
+    unique_probe = comm.pool.map(
+        get_varying_probe,
+        probe,
+        eigen_probe,
+        eigen_weights,
+    )
+
     def cost_function_multi(psi, **kwargs):
-        cost_out = comm.pool.map(op.cost, data, psi, scan, probe)
+        cost_out = comm.pool.map(op.cost, data, psi, scan, unique_probe)
         if comm.use_mpi:
             return comm.Allreduce_reduce(cost_out, 'cpu')
         else:
             return comm.reduce(cost_out, 'cpu')
 
     def grad_multi(psi):
-        grad_list = comm.pool.map(op.grad_psi, data, psi, scan, probe)
+        grad_list = comm.pool.map(op.grad_psi, data, psi, scan, unique_probe)
         if comm.use_mpi:
             return comm.Allreduce_reduce(grad_list, 'gpu')
         else:
