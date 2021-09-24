@@ -167,7 +167,8 @@ def reconstruct(
         probe, scan,
         algorithm,
         psi=None, num_gpu=1, num_iter=1, rtol=-1,
-        model='gaussian', use_mpi=False, cost=None, times=None,
+        model='gaussian', use_mpi=False,
+        costs=[], times=[],
         eigen_probe=None, eigen_weights=None,
         batch_size=None,
         initial_scan=None,
@@ -296,8 +297,7 @@ def reconstruct(
                     num_batch=num_batch,
                 )
 
-                costs = []
-                times = []
+                costs, times = list(costs), list(times)
                 start = time.perf_counter()
                 for i in range(num_iter):
 
@@ -360,11 +360,11 @@ def reconstruct(
                     )[reorder]
                     result['eigen_probe'] = result['eigen_probe'][0]
                 result['probe'] = result['probe'][0]
-                result['cost'] = operator.asarray(costs)
-                result['times'] = operator.asarray(times)
                 for k, v in result.items():
                     if isinstance(v, list):
                         result[k] = v[0]
+                result['costs'] = costs
+                result['times'] = times
             return {
                 k: operator.asnumpy(v) if isinstance(v, cp.ndarray) else v
                 for k, v in result.items()

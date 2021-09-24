@@ -253,24 +253,23 @@ class TestPtychoRecon(unittest.TestCase):
 
         result['scan'] = self.scan
 
-        result = tike.ptycho.reconstruct(
-            **result,
-            **params,
-            data=self.data,
-            algorithm=algorithm,
-            num_iter=1,
-        )
         params.update(result)
         result = tike.ptycho.reconstruct(
             **params,
             data=self.data,
             algorithm=algorithm,
-            num_iter=32,
-            # Only works when probe recovery is false because scaling
+            num_iter=16,
+        )
+        # Call twice to check that reconstruction continuation is correct
+        params.update(result)
+        result = tike.ptycho.reconstruct(
+            **params,
+            data=self.data,
+            algorithm=algorithm,
+            num_iter=16,
         )
         print()
-        cost = '\n'.join(f'{c:1.3e}' for c in result['cost'])
-        print(cost)
+        print('\n'.join(f'{c:1.3e}' for c in result['costs']))
         return result
 
     def test_consistent_cgrad(self):
@@ -411,8 +410,15 @@ class TestProbe(unittest.TestCase):
 def _save_ptycho_result(result, algorithm):
     try:
         import matplotlib.pyplot as plt
-        fname = os.path.join(testdir, 'result', f'{algorithm}')
+        fname = os.path.join(testdir, 'result', 'ptycho', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
+        plt.figure()
+        plt.title(algorithm)
+        plt.plot(result['costs'])
+        plt.plot(result['times'])
+        plt.semilogy()
+        plt.legend(['objective', 'time-per-iteration'])
+        plt.savefig(os.path.join(fname, 'convergence.svg'))
         plt.imsave(
             f'{fname}/{0}-phase.png',
             np.angle(result['psi']).astype('float32'),
