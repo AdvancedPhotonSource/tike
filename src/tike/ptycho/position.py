@@ -199,7 +199,7 @@ def update_positions_pd(operator, data, psi, probe, scan,
     scan = scan + (center0 - center1)
 
     check_allowed_positions(scan, psi, probe.shape)
-    cost = operator.cost(data=data, psi=psi, scan=scan, probe=probe)
+    cost = operator.cost(data=data, psi=psi, scan=scan, probe=probe).get()
     logger.info('%10s cost is %+12.5e', 'position', cost)
     return scan, cost
 

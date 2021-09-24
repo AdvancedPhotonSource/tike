@@ -38,7 +38,6 @@ def cgrad(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
-    cost = np.inf
     # Unique batch for each device
     batches = [
         batch_indicies(s.shape[-2], num_batch, subset_is_random) for s in scan
