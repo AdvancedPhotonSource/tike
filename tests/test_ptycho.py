@@ -414,7 +414,7 @@ class TestProbe(unittest.TestCase):
 def _save_ptycho_result(result, algorithm):
     try:
         import matplotlib.pyplot as plt
-        fname = os.path.join(testdir, 'result', algorithm)
+        fname = os.path.join(testdir, 'result', 'ptycho', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
         plt.figure()
         plt.title(algorithm)
