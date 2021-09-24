@@ -124,7 +124,7 @@ def cgrad(
                 n=n,
             )
 
-    return {
+    result = {
         'psi': psi,
         'probe': probe,
         'cost': cost,
@@ -133,6 +133,10 @@ def cgrad(
         'object_options': object_options,
         'position_options': position_options,
     }
+    if isinstance(eigen_probe, list):
+        result['eigen_probe'] = eigen_probe
+        result['eigen_weights'] = eigen_weights
+    return result
 
 
 def _update_probe(
