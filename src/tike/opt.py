@@ -12,8 +12,9 @@ import warnings
 
 import numpy as np
 
+from tike.random import randomizer
+
 logger = logging.getLogger(__name__)
-randomizer = np.random.default_rng()
 
 
 def batch_indicies(n, m=1, use_random=True):

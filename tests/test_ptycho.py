@@ -272,6 +272,30 @@ class TestPtychoRecon(unittest.TestCase):
         print('\n'.join(f'{c:1.3e}' for c in result['costs']))
         return result
 
+    def test_consistent_adam_grad(self):
+        """Check ptycho.solver.cgrad for consistency."""
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                'adam_grad',
+                params={
+                    'subset_is_random':
+                        True,
+                    'batch_size':
+                        int(self.data.shape[-3] / 3),
+                    'num_gpu':
+                        2,
+                    'probe_options':
+                        ProbeOptions(
+                            sparsity_constraint=0.6,
+                            centered_intensity_constraint=True,
+                        ),
+                    'object_options':
+                        ObjectOptions(),
+                    'use_mpi':
+                        _mpi_size > 1,
+                },
+            ), f"{'mpi-' if _mpi_size > 1 else ''}adam_grad")
+
     def test_consistent_cgrad(self):
         """Check ptycho.solver.cgrad for consistency."""
         _save_ptycho_result(

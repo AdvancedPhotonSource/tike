@@ -169,6 +169,10 @@ def lstsq_grad(
         result['eigen_weights'] = eigen_weights
     if position_options:
         result['position_options'] = position_options
+    if probe_options:
+        result['probe_options'] = probe_options
+    if object_options:
+        result['object_options'] = object_options
 
     return result
 

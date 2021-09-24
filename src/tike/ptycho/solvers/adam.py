@@ -1,31 +1,29 @@
 import logging
 
+import cupy as cp
 import numpy as np
 
 from tike.linalg import orthogonalize_gs
-from tike.opt import conjugate_gradient, batch_indicies, get_batch, put_batch
+from tike.opt import batch_indicies, get_batch, adam
 from ..position import update_positions_pd, PositionOptions
-from ..probe import get_varying_probe, opr
 from ..object import positivity_constraint, smoothness_constraint
 
 logger = logging.getLogger(__name__)
 
 
-def cgrad(
+def adam_grad(
     op, comm,
     data, probe, scan, psi,
-    cg_iter=4,
     cost=None,
     eigen_probe=None,
     eigen_weights=None,
     num_batch=1,
     subset_is_random=True,
-    step_length=1,
     probe_options=None,
     position_options=None,
     object_options=None,
 ):  # yapf: disable
-    """Solve the ptychography problem using conjugate gradient.
+    """Solve the ptychography problem using ADAptive Moment gradient descent.
 
     Parameters
     ----------
@@ -39,6 +37,7 @@ def cgrad(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
+    cost = np.inf
     # Unique batch for each device
     batches = [
         batch_indicies(s.shape[-2], num_batch, subset_is_random) for s in scan
@@ -47,18 +46,6 @@ def cgrad(
 
         bdata = comm.pool.map(get_batch, data, batches, n=n)
         bscan = comm.pool.map(get_batch, scan, batches, n=n)
-
-        if isinstance(eigen_probe, list):
-            beigen_weights = comm.pool.map(
-                get_batch,
-                eigen_weights,
-                batches,
-                n=n,
-            )
-            beigen_probe = eigen_probe
-        else:
-            beigen_probe = [None] * comm.pool.num_workers
-            beigen_weights = [None] * comm.pool.num_workers
 
         if position_options:
             bposition_options = comm.pool.map(PositionOptions.split,
@@ -75,10 +62,6 @@ def cgrad(
                 psi,
                 bscan,
                 probe,
-                eigen_probe=beigen_probe,
-                eigen_weights=beigen_weights,
-                num_iter=cg_iter,
-                step_length=step_length,
                 object_options=object_options,
             )
             psi = comm.pool.map(positivity_constraint,
@@ -89,20 +72,17 @@ def cgrad(
                                 a=object_options.smoothness_constraint)
 
         if probe_options:
-            probe, cost, probe_options = _update_probe(
-                op,
-                comm,
-                bdata,
-                psi,
-                bscan,
-                probe,
-                eigen_probe=beigen_probe,
-                eigen_weights=beigen_weights,
-                num_iter=cg_iter,
-                step_length=step_length,
-                mode=list(range(probe[0].shape[-3])),
-                probe_options=probe_options,
-            )
+            for m in list(range(probe[0].shape[-3])):
+                probe, cost, probe_options = _update_probe(
+                    op,
+                    comm,
+                    bdata,
+                    psi,
+                    bscan,
+                    probe,
+                    mode=[m],
+                    probe_options=probe_options,
+                )
 
         if position_options and comm.pool.num_workers == 1:
             bscan, cost = update_positions_pd(
@@ -115,15 +95,6 @@ def cgrad(
             bscan = comm.pool.bcast([bscan])
             # TODO: Assign bscan into scan when positions are updated
 
-        if isinstance(eigen_probe, list):
-            comm.pool.map(
-                put_batch,
-                beigen_weights,
-                eigen_weights,
-                batches,
-                n=n,
-            )
-
     return {
         'psi': psi,
         'probe': probe,
@@ -135,6 +106,38 @@ def cgrad(
     }
 
 
+def grad_probe(data, psi, scan, probe, mode=None, op=None):
+    """Compute the gradient with respect to the probe(s).
+
+        Parameters
+        ----------
+        mode : list(int)
+            Only return the gradient with resepect to these probes.
+
+    """
+    self = op
+    mode = list(range(probe.shape[-3])) if mode is None else mode
+    intensity, farplane = self._compute_intensity(data, psi, scan, probe)
+    # Use the average gradient for all probe positions
+    gradient = self.adj_probe(
+        farplane=self.propagation.grad(
+            data,
+            farplane[..., mode, :, :],
+            intensity,
+        ),
+        psi=psi,
+        scan=scan,
+        overwrite=True,
+    )
+    mean_grad = self.xp.mean(
+        gradient,
+        axis=0,
+        keepdims=True,
+    )
+    residuals = gradient - mean_grad
+    return mean_grad, residuals
+
+
 def _update_probe(
     op,
     comm,
@@ -142,43 +145,29 @@ def _update_probe(
     psi,
     scan,
     probe,
-    num_iter,
-    step_length,
     mode,
     probe_options,
-    eigen_probe,
-    eigen_weights,
+    step_length=0.1,
 ):
     """Solve the probe recovery problem."""
 
     def cost_function(probe):
-        unique_probe = comm.pool.map(
-            get_varying_probe,
-            probe,
-            eigen_probe,
-            eigen_weights,
-        )
-        cost_out = comm.pool.map(op.cost, data, psi, scan, unique_probe)
+        cost_out = comm.pool.map(op.cost, data, psi, scan, probe)
         if comm.use_mpi:
             return comm.Allreduce_reduce(cost_out, 'cpu')
         else:
             return comm.reduce(cost_out, 'cpu')
 
     def grad(probe):
-        unique_probe = comm.pool.map(
-            get_varying_probe,
-            probe,
-            eigen_probe,
-            eigen_weights,
-        )
-        grad_list = comm.pool.map(
-            op.grad_probe,
+        grad_list, rez_list = zip(*comm.pool.map(
+            grad_probe,
             data,
             psi,
             scan,
-            unique_probe,
+            probe,
             mode=mode,
-        )
+            op=op,
+        ))
         if comm.use_mpi:
             return comm.Allreduce_reduce(grad_list, 'gpu')
         else:
@@ -191,23 +180,40 @@ def _update_probe(
     def update_multi(x, gamma, d):
 
         def f(x, d):
-            return x[..., mode, :, :] + gamma * d
+            x[..., mode, :, :] = x[..., mode, :, :] + gamma * d
+            return x
 
         return comm.pool.map(f, x, d)
 
-    probe, cost = conjugate_gradient(
-        op.xp,
-        x=probe,
-        cost_function=cost_function,
-        grad=grad,
-        dir_multi=dir_multi,
-        update_multi=update_multi,
-        num_iter=num_iter,
-        step_length=step_length,
+    d = -grad(probe)[0]
+
+    probe_options.use_adaptive_moment = True
+    if probe_options.v is None or probe_options.m is None:
+        probe_options.v = cp.zeros_like(probe[0])
+        probe_options.m = cp.zeros_like(probe[0])
+    (
+        d,
+        probe_options.v[..., mode, :, :],
+        probe_options.m[..., mode, :, :],
+    ) = adam(
+        g=d,
+        v=probe_options.v[..., mode, :, :],
+        m=probe_options.m[..., mode, :, :],
+        vdecay=probe_options.vdecay,
+        mdecay=probe_options.mdecay,
+    )
+    d = [d]
+
+    probe = update_multi(
+        probe,
+        gamma=step_length,
+        d=dir_multi(d),
     )
 
     if probe[0].shape[-3] > 1 and probe_options.orthogonality_constraint:
         probe = comm.pool.map(orthogonalize_gs, probe, axis=(-2, -1))
+
+    cost = cost_function(probe)
 
     logger.info('%10s cost is %+12.5e', 'probe', cost)
     return probe, cost, probe_options
@@ -220,30 +226,20 @@ def _update_object(
     psi,
     scan,
     probe,
-    num_iter,
-    step_length,
     object_options,
-    eigen_probe,
-    eigen_weights,
+    step_length=0.1,
 ):
     """Solve the object recovery problem."""
 
-    unique_probe = comm.pool.map(
-        get_varying_probe,
-        probe,
-        eigen_probe,
-        eigen_weights,
-    )
-
     def cost_function_multi(psi, **kwargs):
-        cost_out = comm.pool.map(op.cost, data, psi, scan, unique_probe)
+        cost_out = comm.pool.map(op.cost, data, psi, scan, probe)
         if comm.use_mpi:
             return comm.Allreduce_reduce(cost_out, 'cpu')
         else:
             return comm.reduce(cost_out, 'cpu')
 
     def grad_multi(psi):
-        grad_list = comm.pool.map(op.grad_psi, data, psi, scan, unique_probe)
+        grad_list = comm.pool.map(op.grad_psi, data, psi, scan, probe)
         if comm.use_mpi:
             return comm.Allreduce_reduce(grad_list, 'gpu')
         else:
@@ -260,55 +256,25 @@ def _update_object(
 
         return list(comm.pool.map(f, psi, dir))
 
-    psi, cost = conjugate_gradient(
-        op.xp,
-        x=psi,
-        cost_function=cost_function_multi,
-        grad=grad_multi,
-        dir_multi=dir_multi,
-        update_multi=update_multi,
-        num_iter=num_iter,
-        step_length=step_length,
+    d = -grad_multi(psi)[0]
+
+    object_options.use_adaptive_moment = True
+    d, object_options.v, object_options.m = adam(
+        g=d,
+        v=object_options.v,
+        m=object_options.m,
+        vdecay=object_options.vdecay,
+        mdecay=object_options.mdecay,
     )
+    d = [d]
+
+    psi = update_multi(
+        psi,
+        gamma=step_length,
+        dir=dir_multi(d),
+    )
+
+    cost = cost_function_multi(psi)
 
     logger.info('%10s cost is %+12.5e', 'object', cost)
     return psi, cost, object_options
-
-
-def _update_eigen_probe(op, comm, data, psi, scan, probe, eigen_probe,
-                        eigen_weights, alpha):
-    """Update the eigen probes and weights."""
-    unique_probe = get_varying_probe(
-        probe,
-        eigen_probe,
-        eigen_weights,
-    )
-    # Compute the gradient for each probe positions
-    intensity, farplane = op._compute_intensity(data, psi, scan, unique_probe)
-    gradients = op.adj_probe(
-        farplane=op.propagation.grad(
-            data,
-            farplane,
-            intensity,
-        ),
-        psi=psi,
-        scan=scan,
-        overwrite=True,
-    )
-
-    # Get the residual gradient for each probe position
-    # TODO: Maybe subtracting this mean is not necessary because we already
-    # updated the main probe. Or maybe it is because it keeps the residuals
-    # zero-mean
-    residuals = gradients - np.mean(gradients, axis=-5, keepdims=True)
-
-    # Perform principal component analysis on the residual gradients
-    eigen_probe, eigen_weights = opr(
-        residuals,
-        eigen_probe,
-        eigen_weights,
-        eigen_weights.shape[-2],
-        alpha=alpha,
-    )
-
-    return eigen_probe, eigen_weights
