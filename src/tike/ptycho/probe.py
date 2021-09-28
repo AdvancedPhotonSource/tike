@@ -38,9 +38,11 @@ allowed to vary.
 import logging
 
 import cupy as cp
+import cupyx.scipy.ndimage
 import numpy as np
 
 import tike.random
+import tike.linalg
 
 logger = logging.getLogger(__name__)
 
@@ -56,16 +58,48 @@ class ProbeOptions:
         The number of eigen probes/components.
     """
 
-    def __init__(self, num_eigen_probes=0, orthogonality_constraint=True):
+    def __init__(
+        self,
+        num_eigen_probes=0,
+        orthogonality_constraint=True,
+        use_adaptive_moment=False,
+        vdecay=0.6,
+        mdecay=0.666,
+        centered_intensity_constraint=True,
+        sparsity_constraint=1,
+    ):
         self.orthogonality_constraint = orthogonality_constraint
         self._weights = None
         self._eigen_probes = None
         if num_eigen_probes > 0:
             pass
+        self.use_adaptive_moment = use_adaptive_moment
+        self.vdecay = vdecay
+        self.mdecay = mdecay
+        self.v = None
+        self.m = None
+        self.centered_intensity_constraint = centered_intensity_constraint
+        self.sparsity_constraint = sparsity_constraint
 
     @property
     def num_eigen_probes(self):
         return 0 if self._weights is None else self._weights.shape[-2]
+
+    def put(self):
+        """Copy to the current GPU memory."""
+        if self.v is not None:
+            self.v = cp.asarray(self.v)
+        if self.m is not None:
+            self.m = cp.asarray(self.m)
+        return self
+
+    def get(self):
+        """Copy to the host CPU memory."""
+        if self.v is not None:
+            self.v = cp.asnumpy(self.v)
+        if self.m is not None:
+            self.m = cp.asnumpy(self.m)
+        return self
 
 
 def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
@@ -434,9 +468,144 @@ def gaussian(size, rin=0.8, rout=1.0):
     return img
 
 
+def opr(residual_gradient, eigen_probe, eigen_weights, n, alpha=0.5):
+    """Regularize multiple probes with orthogonal probe relaxation (OPR).
+
+    Corrects for variable illumination across scan positions by regularizing
+    the probe at each position with the first `n` principal components of
+    the probes at all positions.
+
+    The probes are regularized using a weighted sum as below:
+
+    .. math::
+        $$P_{1} = \alpha P_{0} + (1 - \alpha) \sum_{c=0}^{n}P_0^c$$
+
+    where `alpha` is the weighting paramters which determines the relative
+    importance of the regulariation.
+
+    Parameters
+    ----------
+    residual_gradient : (..., POSI, 1, SHARED, WIDE, HIGH) complex64
+        The residual gradients for each position.
+    eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
+        The eigen probes for all positions.
+    eigen_weights : (..., POSI, EIGEN, SHARED) float32
+        The relative intensity of the eigen probes at each position.
+    n : int
+        The number of components to use for regularization.
+
+    Returns
+    -------
+    eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
+        The eigen probes for all positions.
+    eigen_weights : (..., POSI, EIGEN, SHARED) float32
+        The relative intensity of the eigen probes at each position.
+
+    References
+    ----------
+    Odstrcil, M., P. Baksh, S. A. Boden, R. Card, J. E. Chad, J. G. Frey, and
+    W. S. Brocklesby. 2016. “Ptychographic Coherent Diffractive Imaging with
+    Orthogonal Probe Relaxation.” Optics Express.
+    https://doi.org/10.1364/oe.24.008360.
+
+    """
+    # Flatten the last dimension of the probe and move incoherent mode
+    # dimension so the position dimensions are in the last two dimensions
+    residual_gradient = cp.moveaxis(residual_gradient, -5, -3)
+    shape = residual_gradient.shape  # (..., 1, SHARED, POSI, WIDE, HIGH)
+    residual_gradient = residual_gradient.reshape(
+        *residual_gradient.shape[:-2],
+        residual_gradient.shape[-2] * residual_gradient.shape[-1],
+    )
+    # residual_grad is now shape (..., 1, SHARED, POSI, WIDE*HIGH)
+    assert residual_gradient.shape[
+        -2] > n, 'There cannot be more modes than positions.'
+
+    _, U = tike.linalg.pca_eig(residual_gradient, k=n)
+    # U is shape (..., 1, SHARED, WIDE*HIGH, EIGEN)
+    weights = residual_gradient @ U
+    # weights is shape (..., 1, SHARED, POSI, EIGEN)
+    weights -= cp.mean(weights, axis=-2, keepdims=True)
+
+    U = cp.moveaxis(U, -1, -3)
+    # U is shape (..., 1, EIGEN, SHARED, WIDE*HIGH)
+    U = U.reshape(*eigen_probe.shape)
+    weights = cp.moveaxis(weights[..., 0, :, :, :], -3, -1)
+    assert weights.shape == eigen_weights.shape
+
+    # eigen_probe = (1 - alpha) * eigen_probe + alpha * U
+    # equivalent expression as above
+    eigen_probe += alpha * (U - eigen_probe)
+
+    return eigen_probe, weights
+
+
+def constrain_center_peak(probe):
+    """Force the peak illumination intensity to the center of the probe grid.
+
+    After smoothing the intensity of the combined illumination with a gaussian
+    filter with standard deviation sigma, the probe is shifted such that the
+    maximum intensity is centered.
+    """
+    half = probe.shape[-2] // 2, probe.shape[-1] // 2
+    logger.info("Constrained probe intensity to center with sigma=%f", half[0])
+    # First reshape the probe to 3D so it is a single stack of 2D images.
+    stack = probe.reshape((-1, *probe.shape[-2:]))
+    intensity = cupyx.scipy.ndimage.gaussian_filter(
+        input=np.sum(np.square(np.abs(stack)), axis=0),
+        sigma=half,
+        mode='wrap',
+    )
+    # Find the maximum intensity in 2D.
+    center = np.argmax(intensity)
+    # Find the 2D coordinates of the maximum.
+    coords = cp.unravel_index(center, dims=probe.shape[-2:])
+    # Shift each of the probes so the max is in the center.
+    p = np.roll(stack, half[0] - coords[0], axis=-2)
+    stack = np.roll(p, half[1] - coords[1], axis=-1)
+    # Reform to the original shape; make contiguous.
+    probe = stack.reshape(probe.shape)
+    return probe
+
+
+def constrain_probe_sparsity(probe, f):
+    """Constrain the probe intensity so no more than f/1 elements are nonzero."""
+    if f == 1:
+        return probe
+    logger.info("Constrained probe intensity spasity to %f", f)
+    # First reshape the probe to 3D so it is a single stack of 2D images.
+    stack = probe.reshape((-1, *probe.shape[-2:]))
+    intensity = np.sum(np.square(np.abs(stack)), axis=0)
+    sigma = probe.shape[-2] / 8, probe.shape[-1] / 8
+    intensity = cupyx.scipy.ndimage.gaussian_filter(
+        input=intensity,
+        sigma=sigma,
+        mode='wrap',
+    )
+    # Get the coordinates of the smallest k values
+    k = int((1 - f) * probe.shape[-1] * probe.shape[-2])
+    smallest = np.argpartition(intensity, k, axis=None)[:k]
+    coords = cp.unravel_index(smallest, dims=probe.shape[-2:])
+    # Set these k smallest values to zero in all probes
+    probe[..., coords[0], coords[1]] = 0
+    return probe
+
+
 if __name__ == "__main__":
-    cp.random.seed(0)
+    cp.random.seed()
     x = (cp.random.rand(7, 1, 9, 3, 3) +
          1j * cp.random.rand(7, 1, 9, 3, 3)).astype('complex64')
     x1 = orthogonalize_eig(x)
     assert x1.shape == x.shape, x1.shape
+
+    probe_shape = (1, 52, 3, 5, 8, 8)
+    probe = cp.random.rand(*probe_shape) + 1j * cp.random.rand(*probe_shape)
+    probe = probe.astype('complex64')
+    reg_probes = opr(probe, n=7)
+    assert reg_probes.shape == probe_shape
+
+    p = (cp.random.rand(3, 7, 7) * 100).astype(int)
+    p1 = constrain_center_peak(p)
+    print(p1)
+    p2 = constrain_probe_sparsity(p1, 0.6)
+    print(p2)

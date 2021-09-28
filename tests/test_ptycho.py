@@ -51,6 +51,7 @@ import lzma
 import os
 import pickle
 import unittest
+import warnings
 
 import numpy as np
 from mpi4py import MPI
@@ -272,6 +273,27 @@ class TestPtychoRecon(unittest.TestCase):
         print('\n'.join(f'{c:1.3e}' for c in result['costs']))
         return result
 
+    def test_consistent_adam_grad(self):
+        """Check ptycho.solver.cgrad for consistency."""
+
+        eigen_probe, weights = tike.ptycho.probe.init_varying_probe(
+            self.scan, self.probe, 4)
+
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                'adam_grad',
+                params={
+                    'subset_is_random': True,
+                    'batch_size': int(self.data.shape[-3] / 1),
+                    'num_gpu': 2,
+                    'probe_options': ProbeOptions(),
+                    'object_options': ObjectOptions(),
+                    'use_mpi': _mpi_size > 1,
+                    'eigen_probe': eigen_probe,
+                    'eigen_weights': weights,
+                },
+            ), f"{'mpi-' if _mpi_size > 1 else ''}adam_grad")
+
     def test_consistent_cgrad(self):
         """Check ptycho.solver.cgrad for consistency."""
         _save_ptycho_result(
@@ -317,7 +339,7 @@ class TestPtychoRecon(unittest.TestCase):
         """Check ptycho.solver.lstsq_grad for consistency."""
 
         eigen_probe, weights = tike.ptycho.probe.init_varying_probe(
-            self.scan, self.probe, 3)
+            self.scan, self.probe, 5)
 
         _save_ptycho_result(
             self.template_consistent_algorithm(
@@ -346,6 +368,26 @@ class TestPtychoRecon(unittest.TestCase):
                         ),
                 },
             ), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-variable-probe")
+
+    def test_consistent_cgrad_variable_probe(self):
+        """Check ptycho.solver.cgrad for consistency."""
+        eigen_probe, weights = tike.ptycho.probe.init_varying_probe(
+            self.scan, self.probe, 3)
+
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                'cgrad',
+                params={
+                    'subset_is_random': True,
+                    'batch_size': int(self.data.shape[-3] / 3),
+                    'num_gpu': 2,
+                    'probe_options': ProbeOptions(),
+                    'object_options': ObjectOptions(),
+                    'use_mpi': _mpi_size > 1,
+                    'eigen_probe': eigen_probe,
+                    'eigen_weights': weights,
+                },
+            ), f"{'mpi-' if _mpi_size > 1 else ''}cgrad-variable-probe")
 
     def test_invaid_algorithm_name(self):
         """Check that wrong names are handled gracefully."""
@@ -387,6 +429,55 @@ class TestProbe(unittest.TestCase):
         assert eigen_probe[0].shape == new_probe[0].shape
 
 
+def _save_eigen_probe(output_folder, eigen_probe):
+    import matplotlib.pyplot as plt
+    flattened = []
+    for i in range(eigen_probe.shape[-4]):
+        probe = eigen_probe[..., i, :, :, :]
+        flattened.append(
+            np.concatenate(
+                probe.reshape((-1, *probe.shape[-2:])),
+                axis=1,
+            ))
+    flattened = np.concatenate(flattened, axis=0)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=UserWarning)
+        plt.imsave(
+            f'{output_folder}/eigen-phase.png',
+            np.angle(flattened),
+            # The output of np.angle is locked to (-pi, pi]
+            cmap=plt.cm.twilight,
+            vmin=-np.pi,
+            vmax=np.pi,
+        )
+        plt.imsave(
+            f'{output_folder}/eigen-ampli.png',
+            np.abs(flattened),
+        )
+
+
+def _save_probe(output_folder, probe):
+    import matplotlib.pyplot as plt
+    flattened = np.concatenate(
+        probe.reshape((-1, *probe.shape[-2:])),
+        axis=-1,
+    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=UserWarning)
+        plt.imsave(
+            f'{output_folder}/probe-phase.png',
+            np.angle(flattened),
+            # The output of np.angle is locked to (-pi, pi]
+            cmap=plt.cm.twilight,
+            vmin=-np.pi,
+            vmax=np.pi,
+        )
+        plt.imsave(
+            f'{output_folder}/probe-ampli.png',
+            np.abs(flattened),
+        )
+
+
 def _save_ptycho_result(result, algorithm):
     try:
         import matplotlib.pyplot as plt
@@ -411,19 +502,9 @@ def _save_ptycho_result(result, algorithm):
             f'{fname}/{0}-ampli.png',
             np.abs(result['psi']).astype('float32'),
         )
-        for i in range(result['probe'].shape[-3]):
-            plt.imsave(
-                f'{fname}/{i}-probe-phase.png',
-                np.angle(result['probe'][0, 0, i]),
-                # The output of np.angle is locked to (-pi, pi]
-                cmap=plt.cm.twilight,
-                vmin=-np.pi,
-                vmax=np.pi,
-            )
-            plt.imsave(
-                f'{fname}/{i}-probe-ampli.png',
-                np.abs(result['probe'][0, 0, i]),
-            )
+        _save_probe(fname, result['probe'])
+        if 'eigen_probe' in result and result['eigen_probe'] is not None:
+            _save_eigen_probe(fname, result['eigen_probe'])
     except ImportError:
         pass
 
