@@ -3,11 +3,12 @@ import logging
 import cupy as cp
 import numpy as np
 
-from tike.linalg import orthogonalize_gs
+import tike.linalg
 from tike.opt import batch_indicies, get_batch, adam, put_batch
 from ..position import update_positions_pd, PositionOptions
 from ..object import positivity_constraint, smoothness_constraint
 from ..probe import constrain_variable_probe, get_varying_probe
+from tike.pca import pca_svd
 
 logger = logging.getLogger(__name__)
 
@@ -171,8 +172,7 @@ def grad_probe(data, psi, scan, probe, mode=None, op=None):
         axis=0,
         keepdims=True,
     )
-    residuals = gradient - mean_grad
-    return mean_grad, residuals
+    return mean_grad, gradient
 
 
 def _update_probe(
@@ -210,7 +210,7 @@ def _update_probe(
             eigen_probe,
             eigen_weights,
         )
-        grad_list, rez_list = zip(*comm.pool.map(
+        mgrad_list, grad_list = zip(*comm.pool.map(
             grad_probe,
             data,
             psi,
@@ -220,9 +220,9 @@ def _update_probe(
             op=op,
         ))
         if comm.use_mpi:
-            return comm.Allreduce_reduce(grad_list, 'gpu')
+            return comm.Allreduce_reduce(mgrad_list, 'gpu'), grad_list
         else:
-            return comm.reduce(grad_list, 'gpu')
+            return comm.reduce(mgrad_list, 'gpu'), grad_list
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""
@@ -231,12 +231,12 @@ def _update_probe(
     def update_multi(x, gamma, d):
 
         def f(x, d):
-            x[..., mode, :, :] = x[..., mode, :, :] + gamma * d
+            x[..., mode, :, :] = x[..., mode, :, :] - gamma * d
             return x
 
         return comm.pool.map(f, x, d)
 
-    d = -grad(probe)[0]
+    d, gradient = grad(probe)
 
     probe_options.use_adaptive_moment = True
     if probe_options.v is None or probe_options.m is None:
@@ -247,7 +247,7 @@ def _update_probe(
         probe_options.v[..., mode, :, :],
         probe_options.m[..., mode, :, :],
     ) = adam(
-        g=d,
+        g=d[0],
         v=probe_options.v[..., mode, :, :],
         m=probe_options.m[..., mode, :, :],
         vdecay=probe_options.vdecay,
@@ -261,13 +261,39 @@ def _update_probe(
         d=dir_multi(d),
     )
 
+    if eigen_probe is not None:
+        residuals = comm.pool.map(cp.subtract, gradient, d)
+        comm.pool.map(
+            _update_eigen_modes,
+            residuals,
+            eigen_probe,
+            eigen_weights,
+            m=mode,
+        )
+
     if probe[0].shape[-3] > 1 and probe_options.orthogonality_constraint:
-        probe = comm.pool.map(orthogonalize_gs, probe, axis=(-2, -1))
+        probe = comm.pool.map(tike.linalg.orthogonalize_gs,
+                              probe,
+                              axis=(-2, -1))
 
     cost = cost_function(probe)
 
     logger.info('%10s cost is %+12.5e', 'probe', cost)
     return probe, cost, probe_options
+
+
+def _update_eigen_modes(residuals, eigen_probe, eigen_weights, m, alpha=0.5):
+    residuals = cp.moveaxis(residuals, -5, -3)
+    residuals = residuals.reshape(*residuals.shape[:-2], -1)
+    W, C = pca_svd(residuals, k=eigen_probe.shape[-4])
+    C = cp.moveaxis(C, -2, -3)
+    C = C.reshape(*C.shape[:-1], *eigen_probe.shape[-2:])
+    W = cp.moveaxis(W[0], -2, -3)
+    W = cp.moveaxis(W, -1, -2)
+    eigen_probe[...,
+                m, :, :] = (1 - alpha) * eigen_probe[..., m, :, :] + alpha * C
+    eigen_weights[..., 1:,
+                  m] = (1 - alpha) * eigen_weights[..., 1:, m] + alpha * W
 
 
 def _update_object(

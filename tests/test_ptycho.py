@@ -275,25 +275,22 @@ class TestPtychoRecon(unittest.TestCase):
 
     def test_consistent_adam_grad(self):
         """Check ptycho.solver.cgrad for consistency."""
+
+        eigen_probe, weights = tike.ptycho.probe.init_varying_probe(
+            self.scan, self.probe, 4)
+
         _save_ptycho_result(
             self.template_consistent_algorithm(
                 'adam_grad',
                 params={
-                    'subset_is_random':
-                        True,
-                    'batch_size':
-                        int(self.data.shape[-3] / 3),
-                    'num_gpu':
-                        2,
-                    'probe_options':
-                        ProbeOptions(
-                            sparsity_constraint=0.6,
-                            centered_intensity_constraint=True,
-                        ),
-                    'object_options':
-                        ObjectOptions(),
-                    'use_mpi':
-                        _mpi_size > 1,
+                    'subset_is_random': True,
+                    'batch_size': int(self.data.shape[-3] / 1),
+                    'num_gpu': 2,
+                    'probe_options': ProbeOptions(),
+                    'object_options': ObjectOptions(),
+                    'use_mpi': _mpi_size > 1,
+                    'eigen_probe': eigen_probe,
+                    'eigen_weights': weights,
                 },
             ), f"{'mpi-' if _mpi_size > 1 else ''}adam_grad")
 
@@ -342,7 +339,7 @@ class TestPtychoRecon(unittest.TestCase):
         """Check ptycho.solver.lstsq_grad for consistency."""
 
         eigen_probe, weights = tike.ptycho.probe.init_varying_probe(
-            self.scan, self.probe, 3)
+            self.scan, self.probe, 5)
 
         _save_ptycho_result(
             self.template_consistent_algorithm(
@@ -440,9 +437,9 @@ def _save_eigen_probe(output_folder, eigen_probe):
         flattened.append(
             np.concatenate(
                 probe.reshape((-1, *probe.shape[-2:])),
-                axis=-1,
+                axis=1,
             ))
-    flattened = np.concatenate(flattened, axis=-2)
+    flattened = np.concatenate(flattened, axis=0)
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=UserWarning)
         plt.imsave(
