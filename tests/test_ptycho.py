@@ -51,6 +51,7 @@ import lzma
 import os
 import pickle
 import unittest
+import warnings
 
 import numpy as np
 from mpi4py import MPI
@@ -387,6 +388,55 @@ class TestProbe(unittest.TestCase):
         assert eigen_probe[0].shape == new_probe[0].shape
 
 
+def _save_eigen_probe(output_folder, eigen_probe):
+    import matplotlib.pyplot as plt
+    flattened = []
+    for i in range(eigen_probe.shape[-4]):
+        probe = eigen_probe[..., i, :, :, :]
+        flattened.append(
+            np.concatenate(
+                probe.reshape((-1, *probe.shape[-2:])),
+                axis=1,
+            ))
+    flattened = np.concatenate(flattened, axis=0)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=UserWarning)
+        plt.imsave(
+            f'{output_folder}/eigen-phase.png',
+            np.angle(flattened),
+            # The output of np.angle is locked to (-pi, pi]
+            cmap=plt.cm.twilight,
+            vmin=-np.pi,
+            vmax=np.pi,
+        )
+        plt.imsave(
+            f'{output_folder}/eigen-ampli.png',
+            np.abs(flattened),
+        )
+
+
+def _save_probe(output_folder, probe):
+    import matplotlib.pyplot as plt
+    flattened = np.concatenate(
+        probe.reshape((-1, *probe.shape[-2:])),
+        axis=-1,
+    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=UserWarning)
+        plt.imsave(
+            f'{output_folder}/probe-phase.png',
+            np.angle(flattened),
+            # The output of np.angle is locked to (-pi, pi]
+            cmap=plt.cm.twilight,
+            vmin=-np.pi,
+            vmax=np.pi,
+        )
+        plt.imsave(
+            f'{output_folder}/probe-ampli.png',
+            np.abs(flattened),
+        )
+
+
 def _save_ptycho_result(result, algorithm):
     try:
         import matplotlib.pyplot as plt
@@ -411,19 +461,9 @@ def _save_ptycho_result(result, algorithm):
             f'{fname}/{0}-ampli.png',
             np.abs(result['psi']).astype('float32'),
         )
-        for i in range(result['probe'].shape[-3]):
-            plt.imsave(
-                f'{fname}/{i}-probe-phase.png',
-                np.angle(result['probe'][0, 0, i]),
-                # The output of np.angle is locked to (-pi, pi]
-                cmap=plt.cm.twilight,
-                vmin=-np.pi,
-                vmax=np.pi,
-            )
-            plt.imsave(
-                f'{fname}/{i}-probe-ampli.png',
-                np.abs(result['probe'][0, 0, i]),
-            )
+        _save_probe(fname, result['probe'])
+        if 'eigen_probe' in result and result['eigen_probe'] is not None:
+            _save_eigen_probe(fname, result['eigen_probe'])
     except ImportError:
         pass
 
