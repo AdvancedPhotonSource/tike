@@ -29,9 +29,37 @@ class ObjectOptions:
 
     """
 
-    def __init__(self, positivity_constraint=0, smoothness_constraint=0):
+    def __init__(
+        self,
+        positivity_constraint=0,
+        smoothness_constraint=0,
+        use_adaptive_moment=False,
+        vdecay=0.6,
+        mdecay=0.666,
+    ):
         self.positivity_constraint = positivity_constraint
         self.smoothness_constraint = smoothness_constraint
+        self.use_adaptive_moment = use_adaptive_moment
+        self.vdecay = vdecay
+        self.mdecay = mdecay
+        self.v = None
+        self.m = None
+
+    def put(self):
+        """Copy to the current GPU memory."""
+        if self.v is not None:
+            self.v = cp.asarray(self.v)
+        if self.m is not None:
+            self.m = cp.asarray(self.m)
+        return self
+
+    def get(self):
+        """Copy to the host CPU memory."""
+        if self.v is not None:
+            self.v = cp.asnumpy(self.v)
+        if self.m is not None:
+            self.m = cp.asnumpy(self.m)
+        return self
 
 
 def positivity_constraint(x, r):

@@ -273,6 +273,30 @@ class TestPtychoRecon(unittest.TestCase):
         print('\n'.join(f'{c:1.3e}' for c in result['costs']))
         return result
 
+    def test_consistent_adam_grad(self):
+        """Check ptycho.solver.cgrad for consistency."""
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                'adam_grad',
+                params={
+                    'subset_is_random':
+                        True,
+                    'batch_size':
+                        int(self.data.shape[-3] / 3),
+                    'num_gpu':
+                        2,
+                    'probe_options':
+                        ProbeOptions(
+                            sparsity_constraint=0.6,
+                            centered_intensity_constraint=True,
+                        ),
+                    'object_options':
+                        ObjectOptions(),
+                    'use_mpi':
+                        _mpi_size > 1,
+                },
+            ), f"{'mpi-' if _mpi_size > 1 else ''}adam_grad")
+
     def test_consistent_cgrad(self):
         """Check ptycho.solver.cgrad for consistency."""
         _save_ptycho_result(
@@ -442,12 +466,25 @@ def _save_ptycho_result(result, algorithm):
         import matplotlib.pyplot as plt
         fname = os.path.join(testdir, 'result', 'ptycho', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
-        plt.figure()
+
+        fig, ax1 = plt.subplots()
         plt.title(algorithm)
-        plt.plot(result['costs'])
-        plt.plot(result['times'])
-        plt.semilogy()
-        plt.legend(['objective', 'time-per-iteration'])
+
+        color = 'black'
+        ax1.set_xlabel('iteration')
+        ax1.set_ylabel('objective', color=color)
+        ax1.plot(result['costs'], color=color)
+        ax1.tick_params(axis='y', labelcolor=color)
+        ax1.semilogy()
+
+        ax2 = ax1.twinx()
+
+        color = 'red'
+        ax2.set_ylabel('times-per-iteration [s]', color=color)
+        ax2.plot(result['times'], color=color)
+        ax2.tick_params(axis='y', labelcolor=color)
+        fig.tight_layout()
+
         plt.savefig(os.path.join(fname, 'convergence.svg'))
         plt.imsave(
             f'{fname}/{0}-phase.png',
