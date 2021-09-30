@@ -159,7 +159,7 @@ def _update_probe(
             return comm.reduce(cost_out, 'cpu')
 
     def grad(probe):
-        grad_list, rez_list = zip(*comm.pool.map(
+        grad_list, rez_list = (list(a) for a in zip(*comm.pool.map(
             grad_probe,
             data,
             psi,
@@ -167,7 +167,7 @@ def _update_probe(
             probe,
             mode=mode,
             op=op,
-        ))
+        )))
         if comm.use_mpi:
             return comm.Allreduce_reduce(grad_list, 'gpu')
         else:
