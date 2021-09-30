@@ -67,9 +67,16 @@ from tike.opt import batch_indicies
 from tike.ptycho import solvers
 
 from .object import get_padded_object
-from .position import (PositionOptions, check_allowed_positions,
-                       affine_position_regularization)
-from .probe import constrain_center_peak, constrain_probe_sparsity, get_varying_probe
+from .position import (
+    PositionOptions,
+    check_allowed_positions,
+    affine_position_regularization,
+)
+from .probe import (
+    constrain_center_peak,
+    constrain_probe_sparsity,
+    get_varying_probe,
+)
 
 logger = logging.getLogger(__name__)
 
