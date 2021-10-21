@@ -55,8 +55,9 @@ import numpy as np
 
 import tike.lamino
 import tike.lamino.bucket
+from tike.communicators import MPIComm
 
-__author__ = "Daniel Ching, Viktor Nikitin"
+__author__ = "Daniel Ching, Viktor Nikitin, Xiaodong Yu"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
@@ -139,6 +140,20 @@ class TestLaminoRecon(unittest.TestCase):
         result = {
             'obj': np.zeros_like(self.original),
         }
+
+        if params.get('use_mpi') is True:
+            with MPIComm() as IO:
+                result['probe'] = IO.Bcast(result['probe'])
+                weights = params.get('eigen_weights')
+                if weights is not None:
+                    self.scan, self.data, params['eigen_weights'] = IO.MPIio(
+                        self.scan,
+                        self.data,
+                        weights,
+                    )
+                else:
+                    self.scan, self.data = IO.MPIio(self.scan, self.data)
+
         result = module.reconstruct(
             **result,
             **params,
