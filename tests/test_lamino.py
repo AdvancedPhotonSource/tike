@@ -52,6 +52,7 @@ import pickle
 import unittest
 
 import numpy as np
+from mpi4py import MPI
 
 import tike.lamino
 import tike.lamino.bucket
@@ -62,6 +63,7 @@ __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 testdir = os.path.dirname(__file__)
+_mpi_size = MPI.COMM_WORLD.Get_size()
 
 
 class TestLaminoRecon(unittest.TestCase):
@@ -140,19 +142,14 @@ class TestLaminoRecon(unittest.TestCase):
         result = {
             'obj': np.zeros_like(self.original),
         }
+        print("test2", MPI.COMM_WORLD.Get_rank(), result['obj'].shape)
 
         if params.get('use_mpi') is True:
             with MPIComm() as IO:
-                result['probe'] = IO.Bcast(result['probe'])
-                weights = params.get('eigen_weights')
-                if weights is not None:
-                    self.scan, self.data, params['eigen_weights'] = IO.MPIio(
-                        self.scan,
-                        self.data,
-                        weights,
-                    )
-                else:
-                    self.scan, self.data = IO.MPIio(self.scan, self.data)
+                (result['obj'],) = IO.MPIio_lamino(result['obj'], axis=2)
+
+        print("test1", MPI.COMM_WORLD.Get_rank(), result['obj'].shape)
+        exit()
 
         result = module.reconstruct(
             **result,
@@ -192,17 +189,17 @@ class TestLaminoRecon(unittest.TestCase):
 
         return result
 
-    def test_consistent_fourier(self):
-        """Check lamino.solver.cgrad for consistency."""
-        _save_lamino_result(
-            self.template_consistent_algorithm(
-                tike.lamino.lamino,
-                'cgrad',
-                params={
-                    'num_gpu': 1,
-                    'obj_split': 1,
-                },
-            ), f"cgrad_Fourier")
+    #def test_consistent_fourier(self):
+    #    """Check lamino.solver.cgrad for consistency."""
+    #    _save_lamino_result(
+    #        self.template_consistent_algorithm(
+    #            tike.lamino.lamino,
+    #            'cgrad',
+    #            params={
+    #                'num_gpu': 1,
+    #                'obj_split': 1,
+    #            },
+    #        ), f"cgrad_Fourier")
 
     def test_consistent_bucket(self):
         """Check lamino.solver.bucket for consistency."""
@@ -214,8 +211,9 @@ class TestLaminoRecon(unittest.TestCase):
                     'num_gpu': 4,
                     'obj_split': 2,
                     'eps': 1,
+                    'use_mpi': _mpi_size > 1,
                 },
-            ), f"cgrad_bucket")
+            ), f"{'mpi-' if _mpi_size > 1 else ''}cgrad_bucket")
 
 
 class TestLaminoRadon(unittest.TestCase):

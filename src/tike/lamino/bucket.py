@@ -96,6 +96,7 @@ def reconstruct(
         obj=None, num_iter=1, rtol=-1, eps=1e-1,
         num_gpu=1,
         obj_split=1,
+        use_mpi=False,
         **kwargs
 ):  # yapf: disable
     """Solve the Laminography problem using the given `algorithm`.
@@ -110,7 +111,16 @@ def reconstruct(
 
     """
     n = data.shape[2]
-    obj = np.zeros([n, n, n], dtype='complex64') if obj is None else obj
+    if use_mpi is True:
+        mpi = MPIComm
+        if obj is None:
+            raise ValueError(
+                "When MPI is enabled, initial object guess cannot be None.")
+    else:
+        mpi = None
+        obj = np.zeros([n, n, n], dtype='complex64') if obj is None else obj
+    exit()
+
     if algorithm in solvers.__all__:
         # Initialize an operator.
         with Lamino(

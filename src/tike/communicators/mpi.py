@@ -94,8 +94,8 @@ class MPIComm:
 
         return recvbuf
 
-    def MPIio(self, scan, *args):
-        """Read data parts to different processes."""
+    def MPIio_ptycho(self, scan, *args):
+        """Read data parts to different processes for ptycho."""
 
         # Determine the edges of the stripes
         edges = np.linspace(
@@ -116,5 +116,12 @@ class MPIComm:
 
         scan = scan[mask]
         split_args = [arg[mask] for arg in args]
+        print("size", mask.shape, type((scan, *split_args)))
 
         return (scan, *split_args)
+
+    def MPIio_lamino(self, *args, axis=0):
+        """Read data parts to different processes for lamino."""
+
+        return tuple(np.array_split(
+            arg, self.size, axis=axis)[self.rank] for arg in args)
