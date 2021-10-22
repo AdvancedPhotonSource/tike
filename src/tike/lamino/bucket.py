@@ -57,7 +57,7 @@ __all__ = [
 import logging
 import numpy as np
 
-from tike.communicators import Comm
+from tike.communicators import Comm, MPIComm
 from tike.operators import Bucket as Lamino
 from tike.lamino import solvers
 
@@ -119,7 +119,6 @@ def reconstruct(
     else:
         mpi = None
         obj = np.zeros([n, n, n], dtype='complex64') if obj is None else obj
-    exit()
 
     if algorithm in solvers.__all__:
         # Initialize an operator.
@@ -128,8 +127,9 @@ def reconstruct(
                 tilt=tilt,
                 eps=eps,
                 **kwargs,
-        ) as operator, Comm(num_gpu, mpi=None) as comm:
+        ) as operator, Comm(num_gpu, mpi) as comm:
             # send any array-likes to device
+            print("bucket", comm.mpi.rank, data.shape)
             obj_split = max(1, min(comm.pool.num_workers, obj_split))
             data_split = comm.pool.num_workers // obj_split
             data = np.array_split(data.astype('complex64'),
@@ -140,7 +140,11 @@ def reconstruct(
             theta = comm.pool.scatter(theta, obj_split)
             obj = np.array_split(obj.astype('complex64'),
                                  obj_split)
-            grid = operator._make_grid()
+            if comm.use_mpi is True:
+                grid = operator._make_grid(comm.mpi.size, comm.mpi.rank)
+            else:
+                grid = operator._make_grid()
+            exit()
             grid = np.array_split(grid.astype('int16'),
                                   obj_split)
             grid = [x.reshape(x.shape[0] * n * n, 3) for x in grid]

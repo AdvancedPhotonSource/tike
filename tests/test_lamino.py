@@ -142,14 +142,13 @@ class TestLaminoRecon(unittest.TestCase):
         result = {
             'obj': np.zeros_like(self.original),
         }
-        print("test2", MPI.COMM_WORLD.Get_rank(), result['obj'].shape)
+        print("test2", MPI.COMM_WORLD.Get_rank(), self.data.shape)
 
         if params.get('use_mpi') is True:
             with MPIComm() as IO:
-                (result['obj'],) = IO.MPIio_lamino(result['obj'], axis=2)
+                (result['obj'],) = IO.MPIio_lamino(result['obj'])
 
         print("test1", MPI.COMM_WORLD.Get_rank(), result['obj'].shape)
-        exit()
 
         result = module.reconstruct(
             **result,

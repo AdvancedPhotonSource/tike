@@ -234,13 +234,15 @@ class Bucket(Lamino):
         out /= (data.shape[-3] * self.n**3)
         return out
 
-    def _make_grid(self):
+    def _make_grid(self, size=1, rank=0):
         """Return integer coordinates in the grid; origin centered."""
         lo, hi = -self.n // 2, self.n // 2
-        return np.stack(
+        grid = np.stack(
             np.mgrid[lo:hi, lo:hi, lo:hi],
             axis=-1,
         )
+        return np.array_split(grid, size)[rank]
+
 
 def _get_coordinates_and_weights(
     grid,
