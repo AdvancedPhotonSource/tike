@@ -83,7 +83,13 @@ def update_obj(
 
     def cost_function(obj):
         fwd_data = fwd_op(obj)
-        cost_out = comm.pool.map(op.cost, data, fwd_data)
+        workers = comm.pool.workers[::obj_split]
+        cost_out = comm.pool.map(
+            op.cost,
+            data[::obj_split],
+            fwd_data[::obj_split],
+            workers=workers,
+        )
         if comm.use_mpi:
             return comm.Allreduce_reduce(cost_out, 'cpu')
         else:
@@ -111,6 +117,7 @@ def update_obj(
             )  # yapf: disable
 
         workers = comm.pool.workers[:obj_split]
+        print("test", len(grad1), len(workers))
 
         if dir_ is None:
             return comm.pool.map(init, grad1, workers=workers)

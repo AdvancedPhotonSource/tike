@@ -129,7 +129,6 @@ def reconstruct(
                 **kwargs,
         ) as operator, Comm(num_gpu, mpi) as comm:
             # send any array-likes to device
-            print("bucket", comm.mpi.rank, data.shape)
             obj_split = max(1, min(comm.pool.num_workers, obj_split))
             data_split = comm.pool.num_workers // obj_split
             data = np.array_split(data.astype('complex64'),
@@ -144,7 +143,6 @@ def reconstruct(
                 grid = operator._make_grid(comm.mpi.size, comm.mpi.rank)
             else:
                 grid = operator._make_grid()
-            exit()
             grid = np.array_split(grid.astype('int16'),
                                   obj_split)
             grid = [x.reshape(x.shape[0] * n * n, 3) for x in grid]
