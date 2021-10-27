@@ -127,11 +127,7 @@ def update_obj(
     def grad(obj):
         fwd_data = fwd_op(obj)
         grad_list = comm.pool.map(op.grad, data, theta, fwd_data, grid)
-        #print("grad", grad_list[0].shape, grad_list[0][0,0,:])
-        if comm.use_mpi:
-            return comm.Allreduce_reduce(grad_list, 'gpu', s=obj_split)
-        else:
-            return comm.reduce(grad_list, 'gpu', s=obj_split)
+        return comm.reduce(grad_list, 'gpu', s=obj_split)
 
     def direction_dy(xp, grad1, grad0=None, dir_=None):
         """Return the Dai-Yuan search direction."""
