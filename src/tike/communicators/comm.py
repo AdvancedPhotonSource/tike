@@ -69,7 +69,8 @@ class Comm:
             workers = self.pool.workers[:s]
             return self.pool.map(f, src, workers=workers)
         elif dest == 'cpu':
-            return self.mpi.Allreduce(src)
+            print("redu", type(src), src)
+            return self.mpi.Allreduce(src).item()
         else:
             raise ValueError(f'dest must be gpu or cpu.')
 

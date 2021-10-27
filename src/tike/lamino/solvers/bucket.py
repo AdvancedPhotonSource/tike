@@ -8,7 +8,7 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-def _estimate_step_length(obj, fwd_data, theta, grid, op):
+def _estimate_step_length(obj, fwd_data, theta, grid, op, comm, s):
     """Use norm of forward adjoint operations to estimate step length.
 
     Scaling the adjoint operation by |F*Fm| / |m| puts the step length in the
@@ -16,13 +16,27 @@ def _estimate_step_length(obj, fwd_data, theta, grid, op):
 
     """
     logger.info('Estimate step length from forward adjoint operations.')
-    outnback = op.adj(
-        data=fwd_data,
-        theta=theta,
-        grid=grid,
+    def reduce_norm(data, workers):
+        def f(data):
+            return tike.linalg.norm(data)**2
+        sqr = comm.pool.map(f, data, workers=workers)
+        if comm.use_mpi:
+            sqr_sum = comm.Allreduce_reduce(sqr, 'cpu')
+        else:
+            sqr_sum = comm.reduce(sqr, 'cpu')
+        return sqr_sum**0.5
+
+    outnback = comm.pool.map(
+        op.adj,
+        fwd_data,
+        theta,
+        grid,
         overwrite=False,
     )
-    scaler = tike.linalg.norm(outnback) / tike.linalg.norm(obj)
+    comm.reduce(outnback, 'gpu', s=s)
+    workers = comm.pool.workers[:s]
+    #scaler = tike.linalg.norm(outnback) / tike.linalg.norm(obj)
+    scaler = reduce_norm(outnback, workers) / reduce_norm(obj, workers)
     # Multiply by 2 to because we prefer over-estimating the step
     return 2 * scaler if op.xp.isfinite(scaler) else 1.0
 
@@ -47,15 +61,24 @@ def bucket(
 
     fwd_data = fwd_op(obj)
     if step_length == 1:
-        step_length = comm.pool.reduce_cpu(
-            comm.pool.map(
-                _estimate_step_length,
-                obj,
-                fwd_data,
-                theta,
-                grid,
-                op=op,
-            )) / (comm.pool.num_workers // obj_split)
+        #step_length = comm.pool.reduce_cpu(
+        #    comm.pool.map(
+        #        _estimate_step_length,
+        #        obj,
+        #        fwd_data,
+        #        theta,
+        #        grid,
+        #        op=op,
+        #    )) / (comm.pool.num_workers // obj_split)
+        step_length = _estimate_step_length(
+            obj,
+            fwd_data,
+            theta,
+            grid,
+            op=op,
+            comm=comm,
+            s=obj_split,
+        )
     else:
         step_length = step_length
 
@@ -135,8 +158,8 @@ def update_obj(
             norm_ = comm.Allreduce_reduce(n, 'cpu')
         else:
             norm_ = comm.reduce(n, 'cpu')
-        print("test", comm.mpi.rank, norm_)
-        exit()
+        print("norm", type(norm_), norm_)
+        #norm_ = comm.pool.reduce_cpu(n)
         return comm.pool.map(
             d,
             grad0,
