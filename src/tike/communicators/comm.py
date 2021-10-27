@@ -65,14 +65,9 @@ class Comm:
             return cp.asarray(self.mpi.Allreduce(cp.asnumpy(data)))
 
         src = self.reduce(x, dest, s, **kwargs)
-        print("src", type(src), len(src), src[1].shape, src[1][0,0,:4])
         if dest == 'gpu':
-            #return [cp.asarray(self.mpi.Allreduce(cp.asnumpy(src[0])))]
             workers = self.pool.workers[:s]
-            a = self.pool.map(f, src, workers=workers)
-            print("a", type(a), len(a), a[1].shape, a[1][0,0,:4])
-            exit()
-            return a
+            return self.pool.map(f, src, workers=workers)
         elif dest == 'cpu':
             return self.mpi.Allreduce(src)
         else:
@@ -86,6 +81,11 @@ class Comm:
 
         return cp.asarray(mean)
 
-    def Allreduce(self, x, s=1, **kwargs):
+    def Allreduce(self, x, s=None, **kwargs):
+        """ThreadPool allreduce coupled with MPI allreduce."""
 
-        self.Allreduce_reduce(x, 'gpu', s)
+        def f(data):
+            return cp.asarray(self.mpi.Allreduce(cp.asnumpy(data)))
+
+        src = self.pool.allreduce(x, s)
+        return self.pool.map(f, src)

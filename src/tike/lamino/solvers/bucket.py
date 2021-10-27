@@ -40,7 +40,10 @@ def bucket(
 
     def fwd_op(u):
         fwd_data = comm.pool.map(op.fwd, u, theta, grid)
-        return comm.pool.allreduce(fwd_data, obj_split)
+        if comm.use_mpi:
+            return comm.Allreduce(fwd_data, obj_split)
+        else:
+            return comm.pool.allreduce(fwd_data, obj_split)
 
     fwd_data = fwd_op(obj)
     if step_length == 1:
