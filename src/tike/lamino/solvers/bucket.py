@@ -35,10 +35,11 @@ def _estimate_step_length(obj, fwd_data, theta, grid, op, comm, s):
     )
     comm.reduce(outnback, 'gpu', s=s)
     workers = comm.pool.workers[:s]
-    #scaler = tike.linalg.norm(outnback) / tike.linalg.norm(obj)
-    scaler = reduce_norm(outnback, workers) / reduce_norm(obj, workers)
-    # Multiply by 2 to because we prefer over-estimating the step
-    return 2 * scaler if op.xp.isfinite(scaler) else 1.0
+    if reduce_norm(obj, workers) == 0.0:
+        return 1.0
+    else:
+        # Multiply by 2 to because we prefer over-estimating the step
+        return 2 * reduce_norm(outnback, workers) / reduce_norm(obj, workers)
 
 
 def bucket(
