@@ -126,13 +126,17 @@ def update_obj(
             )  # yapf: disable
 
         workers = comm.pool.workers[:obj_split]
-        print("test", len(grad1), len(workers))
 
         if dir_ is None:
             return comm.pool.map(init, grad1, workers=workers)
 
         n = comm.pool.map(f, grad1, workers=workers)
-        norm_ = comm.pool.reduce_cpu(n)
+        if comm.use_mpi:
+            norm_ = comm.Allreduce_reduce(n, 'cpu')
+        else:
+            norm_ = comm.reduce(n, 'cpu')
+        print("test", comm.mpi.rank, norm_)
+        exit()
         return comm.pool.map(
             d,
             grad0,
