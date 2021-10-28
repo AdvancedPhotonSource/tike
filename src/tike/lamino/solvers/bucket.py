@@ -16,6 +16,7 @@ def _estimate_step_length(obj, fwd_data, theta, grid, op, comm, s):
 
     """
     logger.info('Estimate step length from forward adjoint operations.')
+
     def reduce_norm(data, workers):
         def f(data):
             return tike.linalg.norm(data)**2

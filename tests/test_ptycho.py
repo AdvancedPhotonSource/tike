@@ -239,13 +239,16 @@ class TestPtychoRecon(unittest.TestCase):
             'probe': self.probe,
         }
 
-        print("before", MPI.COMM_WORLD.Get_rank(), type(result['probe']), type(self.scan))
         if params.get('use_mpi') is True:
             with MPIComm() as IO:
                 result['probe'] = IO.Bcast(result['probe'])
                 weights = params.get('eigen_weights')
                 if weights is not None:
-                    self.scan, self.data, params['eigen_weights'] = IO.MPIio_ptycho(
+                    (
+                        self.scan,
+                        self.data,
+                        params['eigen_weights'],
+                    ) = IO.MPIio_ptycho(
                         self.scan,
                         self.data,
                         weights,
@@ -254,8 +257,6 @@ class TestPtychoRecon(unittest.TestCase):
                     self.scan, self.data = IO.MPIio_ptycho(self.scan, self.data)
 
         result['scan'] = self.scan
-        print("after", MPI.COMM_WORLD.Get_rank(), result['probe'].shape, result['scan'].shape)
-        exit()
 
         params.update(result)
         result = tike.ptycho.reconstruct(
