@@ -64,6 +64,7 @@ __docformat__ = 'restructuredtext en'
 
 testdir = os.path.dirname(__file__)
 _mpi_size = MPI.COMM_WORLD.Get_size()
+_mpi_rank = MPI.COMM_WORLD.Get_rank()
 
 
 class TestLaminoRecon(unittest.TestCase):
@@ -142,13 +143,10 @@ class TestLaminoRecon(unittest.TestCase):
         result = {
             'obj': np.zeros_like(self.original),
         }
-        print("test2", MPI.COMM_WORLD.Get_rank(), self.data.shape)
 
         if params.get('use_mpi') is True:
             with MPIComm() as IO:
                 (result['obj'],) = IO.MPIio_lamino(result['obj'])
-
-        print("test1", MPI.COMM_WORLD.Get_rank(), result['obj'].shape)
 
         result = module.reconstruct(
             **result,
@@ -172,33 +170,50 @@ class TestLaminoRecon(unittest.TestCase):
         cost = '\n'.join(f'{c:1.3e}' for c in result['cost'])
         print(cost)
 
-        recon_file = os.path.join(testdir,
-                                  f'data/lamino_{algorithm}.pickle.lzma')
-        if os.path.isfile(recon_file):
-            with lzma.open(recon_file, 'rb') as file:
-                standard = pickle.load(file)
+        if params.get('use_mpi') is True:
+            with MPIComm() as mpi:
+                obj_out = mpi.Gather(result['obj'])
+                if mpi.rank == 0:
+                    result['obj'] = obj_out
+                    recon_file = os.path.join(testdir,
+                                              f'data/lamino_{algorithm}.pickle.lzma')
+                    if os.path.isfile(recon_file):
+                        with lzma.open(recon_file, 'rb') as file:
+                            standard = pickle.load(file)
+                    else:
+                        with lzma.open(recon_file, 'wb') as file:
+                            pickle.dump(result['obj'], file)
+                        raise FileNotFoundError(
+                            f"lamino '{algorithm}' standard not initialized.")
+                    np.testing.assert_array_equal(result['obj'].shape, self.original.shape)
+                    np.testing.assert_allclose(result['obj'], standard, atol=1e-3)
         else:
-            print(result['obj'].shape)
-            with lzma.open(recon_file, 'wb') as file:
-                pickle.dump(result['obj'], file)
-            raise FileNotFoundError(
-                f"lamino '{algorithm}' standard not initialized.")
-        np.testing.assert_array_equal(result['obj'].shape, self.original.shape)
-        np.testing.assert_allclose(result['obj'], standard, atol=1e-3)
+            recon_file = os.path.join(testdir,
+                                      f'data/lamino_{algorithm}.pickle.lzma')
+            if os.path.isfile(recon_file):
+                with lzma.open(recon_file, 'rb') as file:
+                    standard = pickle.load(file)
+            else:
+                with lzma.open(recon_file, 'wb') as file:
+                    pickle.dump(result['obj'], file)
+                raise FileNotFoundError(
+                    f"lamino '{algorithm}' standard not initialized.")
+            np.testing.assert_array_equal(result['obj'].shape, self.original.shape)
+            np.testing.assert_allclose(result['obj'], standard, atol=1e-3)
 
         return result
 
-    #def test_consistent_fourier(self):
-    #    """Check lamino.solver.cgrad for consistency."""
-    #    _save_lamino_result(
-    #        self.template_consistent_algorithm(
-    #            tike.lamino.lamino,
-    #            'cgrad',
-    #            params={
-    #                'num_gpu': 1,
-    #                'obj_split': 1,
-    #            },
-    #        ), f"cgrad_Fourier")
+    def test_consistent_fourier(self):
+        """Check lamino.solver.cgrad for consistency."""
+        _save_lamino_result(
+            self.template_consistent_algorithm(
+                tike.lamino.lamino,
+                'cgrad',
+                params={
+                    'num_gpu': 1,
+                    'obj_split': 1,
+                },
+            ), f"cgrad_Fourier")
 
     def test_consistent_bucket(self):
         """Check lamino.solver.bucket for consistency."""
@@ -292,6 +307,8 @@ class TestLaminoRadon(unittest.TestCase):
 
 def _save_lamino_result(result, algorithm):
     try:
+        if _mpi_rank != 0:
+            return
         import matplotlib.pyplot as plt
         fname = os.path.join(testdir, 'result', 'lamino', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)

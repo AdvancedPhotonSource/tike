@@ -62,14 +62,17 @@ class MPIComm:
         self.comm.Bcast(data, root)
         return data
 
-    def Gather(self, sendbuf, dest: int = 0):
+    def Gather(self, sendbuf, axis=0, dest: int = 0):
         """Take data from all processes into one destination."""
 
         if sendbuf is None:
             raise ValueError(f"Gather data can't be empty.")
         recvbuf = None
         if self.rank == dest:
-            recvbuf = np.empty(sendbuf.size*self.size, sendbuf.dtype)
+            recvbuf = np.concatenate(
+                [np.empty_like(sendbuf) for _ in range(self.size)],
+                axis=axis,
+            )
         self.comm.Gather(sendbuf, recvbuf, dest)
         if self.rank == dest:
             return recvbuf

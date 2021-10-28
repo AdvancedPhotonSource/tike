@@ -62,15 +62,6 @@ def bucket(
 
     fwd_data = fwd_op(obj)
     if step_length == 1:
-        #step_length = comm.pool.reduce_cpu(
-        #    comm.pool.map(
-        #        _estimate_step_length,
-        #        obj,
-        #        fwd_data,
-        #        theta,
-        #        grid,
-        #        op=op,
-        #    )) / (comm.pool.num_workers // obj_split)
         step_length = _estimate_step_length(
             obj,
             fwd_data,
@@ -155,8 +146,6 @@ def update_obj(
             norm_ = comm.Allreduce_reduce(n, 'cpu')
         else:
             norm_ = comm.reduce(n, 'cpu')
-        print("norm", type(norm_), norm_)
-        #norm_ = comm.pool.reduce_cpu(n)
         return comm.pool.map(
             d,
             grad0,
