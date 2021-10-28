@@ -175,8 +175,10 @@ class TestLaminoRecon(unittest.TestCase):
                 obj_out = mpi.Gather(result['obj'])
                 if mpi.rank == 0:
                     result['obj'] = obj_out
-                    recon_file = os.path.join(testdir,
-                                              f'data/lamino_{algorithm}.pickle.lzma')
+                    recon_file = os.path.join(
+                        testdir,
+                        f'data/lamino_{algorithm}.pickle.lzma',
+                    )
                     if os.path.isfile(recon_file):
                         with lzma.open(recon_file, 'rb') as file:
                             standard = pickle.load(file)
@@ -185,11 +187,20 @@ class TestLaminoRecon(unittest.TestCase):
                             pickle.dump(result['obj'], file)
                         raise FileNotFoundError(
                             f"lamino '{algorithm}' standard not initialized.")
-                    np.testing.assert_array_equal(result['obj'].shape, self.original.shape)
-                    np.testing.assert_allclose(result['obj'], standard, atol=1e-3)
+                    np.testing.assert_array_equal(
+                        result['obj'].shape,
+                        self.original.shape,
+                    )
+                    np.testing.assert_allclose(
+                        result['obj'],
+                        standard,
+                        atol=1e-3,
+                    )
         else:
-            recon_file = os.path.join(testdir,
-                                      f'data/lamino_{algorithm}.pickle.lzma')
+            recon_file = os.path.join(
+                testdir,
+                f'data/lamino_{algorithm}.pickle.lzma',
+            )
             if os.path.isfile(recon_file):
                 with lzma.open(recon_file, 'rb') as file:
                     standard = pickle.load(file)
@@ -198,8 +209,15 @@ class TestLaminoRecon(unittest.TestCase):
                     pickle.dump(result['obj'], file)
                 raise FileNotFoundError(
                     f"lamino '{algorithm}' standard not initialized.")
-            np.testing.assert_array_equal(result['obj'].shape, self.original.shape)
-            np.testing.assert_allclose(result['obj'], standard, atol=1e-3)
+            np.testing.assert_array_equal(
+                result['obj'].shape,
+                self.original.shape,
+            )
+            np.testing.assert_allclose(
+                result['obj'],
+                standard,
+                atol=1e-3,
+            )
 
         return result
 
