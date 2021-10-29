@@ -12,8 +12,4 @@ All operator methods accept the array type that matches the output of their
 asarray() method.
 """
 
-import os
-import pkg_resources
-import warnings
-
 from .cupy import *
