@@ -50,7 +50,6 @@ class Comm:
 
     def reduce(self, x, dest, s=1, **kwargs):
         """ThreadPool reduce from all GPUs to a GPU or CPU."""
-
         if dest == 'gpu':
             return self.pool.reduce_gpu(x, s, **kwargs)
         elif dest == 'cpu':
@@ -60,14 +59,9 @@ class Comm:
 
     def Allreduce_reduce(self, x, dest, s=1, **kwargs):
         """ThreadPool reduce coupled with MPI allreduce."""
-
-        def f(data):
-            return cp.asarray(self.mpi.Allreduce(cp.asnumpy(data)))
-
         src = self.reduce(x, dest, s, **kwargs)
         if dest == 'gpu':
-            workers = self.pool.workers[:s]
-            return self.pool.map(f, src, workers=workers)
+            return [cp.asarray(self.mpi.Allreduce(cp.asnumpy(src[0])))]
         elif dest == 'cpu':
             return self.mpi.Allreduce(src).item()
         else:
@@ -75,7 +69,6 @@ class Comm:
 
     def Allreduce_mean(self, x, **kwargs):
         """Multi-process multi-GPU based mean."""
-
         src = self.pool.reduce_mean(x, **kwargs)
         mean = self.mpi.Allreduce(cp.asnumpy(src)) / self.mpi.size
 
@@ -83,9 +76,11 @@ class Comm:
 
     def Allreduce(self, x, s=None, **kwargs):
         """ThreadPool allreduce coupled with MPI allreduce."""
-
-        def f(data):
-            return cp.asarray(self.mpi.Allreduce(cp.asnumpy(data)))
-
         src = self.pool.allreduce(x, s)
-        return self.pool.map(f, src)
+        buf = []
+        for worker in self.pool.workers:
+            with cp.cuda.Device(worker):
+                buf.append(cp.asarray(self.mpi.Allreduce(
+                    cp.asnumpy(src[self.pool.workers.index(worker)]),
+                )))
+        return buf

@@ -240,8 +240,8 @@ class TestLaminoRecon(unittest.TestCase):
                 tike.lamino.bucket,
                 'bucket',
                 params={
-                    'num_gpu': 4,
-                    'obj_split': 2,
+                    'num_gpu': 2,
+                    'obj_split': 1,
                     'eps': 1,
                     'use_mpi': _mpi_size > 1,
                 },
