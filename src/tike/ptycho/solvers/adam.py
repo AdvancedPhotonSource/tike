@@ -4,7 +4,7 @@ import cupy as cp
 import numpy as np
 
 from tike.linalg import orthogonalize_gs
-from tike.opt import batch_indicies, get_batch, adam
+from tike.opt import get_batch, adam, randomizer
 from ..position import update_positions_pd, PositionOptions
 from ..object import positivity_constraint, smoothness_constraint
 
@@ -22,6 +22,7 @@ def adam_grad(
     probe_options=None,
     position_options=None,
     object_options=None,
+    batches=None,
 ):  # yapf: disable
     """Solve the ptychography problem using ADAptive Moment gradient descent.
 
@@ -38,11 +39,7 @@ def adam_grad(
 
     """
     cost = np.inf
-    # Unique batch for each device
-    batches = [
-        batch_indicies(s.shape[-2], num_batch, subset_is_random) for s in scan
-    ]
-    for n in range(num_batch):
+    for n in randomizer.permutation(num_batch):
 
         bdata = comm.pool.map(get_batch, data, batches, n=n)
         bscan = comm.pool.map(get_batch, scan, batches, n=n)

@@ -2,8 +2,8 @@ import logging
 
 import cupy as cp
 
-from tike.linalg import lstsq, projection, norm, orthogonalize_gs
-from tike.opt import batch_indicies, get_batch, put_batch, adam
+from tike.linalg import projection, norm, orthogonalize_gs
+from tike.opt import randomizer, get_batch, put_batch, adam
 
 from ..position import PositionOptions, update_positions_pd, _image_grad
 from ..object import positivity_constraint, smoothness_constraint
@@ -11,6 +11,7 @@ from ..probe import (orthogonalize_eig, get_varying_probe, update_eigen_probe,
                      constrain_variable_probe)
 
 logger = logging.getLogger(__name__)
+
 
 def lstsq_grad(
     op, comm,
@@ -24,6 +25,7 @@ def lstsq_grad(
     probe_options=None,
     position_options=None,
     object_options=None,
+    batches=None,
 ):  # yapf: disable
     """Solve the ptychography problem using Odstrcil et al's approach.
 
@@ -45,12 +47,7 @@ def lstsq_grad(
 
     """
 
-    # Unique batch for each device
-    batches = [
-        batch_indicies(s.shape[-2], num_batch, subset_is_random) for s in scan
-    ]
-
-    for n in range(num_batch):
+    for n in randomizer.permutation(num_batch):
 
         bdata = comm.pool.map(get_batch, data, batches, n=n)
         bscan = comm.pool.map(get_batch, scan, batches, n=n)
