@@ -2,7 +2,7 @@ __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
 import cupy as cp
-from importlib_resources import files
+from importlib.resources import files
 
 from .operator import Operator
 

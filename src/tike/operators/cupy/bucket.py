@@ -1,7 +1,7 @@
 __author__ = "Daniel Ching, Xiaodong Yu"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
-from importlib_resources import files
+from importlib.resources import files
 from itertools import product
 import logging
 

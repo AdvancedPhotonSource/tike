@@ -1,7 +1,7 @@
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2021, UChicago Argonne, LLC."
 
-from importlib_resources import files
+from importlib.resources import files
 
 import cupy as cp
 import numpy as np

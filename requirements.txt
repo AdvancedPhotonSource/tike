@@ -1,6 +1,7 @@
 cupy>=7
 mpi4py>=3
-importlib_resources
+importlib_resources # backport for python<3.7
+importlib_metadata # backport for python<3.8
 matplotlib-base
 numpy>=1.17
 python>=3.6
