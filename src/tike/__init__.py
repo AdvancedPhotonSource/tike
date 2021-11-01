@@ -59,7 +59,7 @@ The software is licensed under the BSD-3 license.
 """
 try:
     from importlib.metadata import version, PackageNotFoundError
-except ModuleNotFoundError:
+except ImportError:
     # Backport to python<3.8 available as importlib_metadata package
     from importlib_metadata import version, PackageNotFoundError
 import logging

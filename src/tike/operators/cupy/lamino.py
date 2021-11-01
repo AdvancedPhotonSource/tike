@@ -3,7 +3,7 @@ __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
 try:
     from importlib.resources import files
-except ModuleNotFoundError:
+except ImportError:
     # Backport for python<3.9 available as importlib_resources package
     from importlib_resources import files
 
