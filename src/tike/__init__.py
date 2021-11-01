@@ -57,14 +57,17 @@ License
 The software is licensed under the BSD-3 license.
 
 """
-
+try:
+    from importlib.metadata import version, PackageNotFoundError
+except ImportError:
+    # Backport to python<3.8 available as importlib_metadata package
+    from importlib_metadata import version, PackageNotFoundError
 import logging
-from pkg_resources import get_distribution, DistributionNotFound
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 try:
-    __version__ = get_distribution(__name__).version
-except DistributionNotFound:
+    __version__ = version('tike')
+except PackageNotFoundError:
     # package is not installed
     pass
