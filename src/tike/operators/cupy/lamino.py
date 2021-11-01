@@ -1,7 +1,11 @@
 __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
-from importlib.resources import files
+try:
+    from importlib.resources import files
+except ModuleNotFoundError:
+    # Backport for python<3.9 available as importlib_resources package
+    from importlib_resources import files
 
 import cupy as cp
 import numpy as np

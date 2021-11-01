@@ -57,8 +57,11 @@ License
 The software is licensed under the BSD-3 license.
 
 """
-# Backport to python<3.8 available as importlib_metadata package
-from importlib.metadata import version, PackageNotFoundError
+try:
+    from importlib.metadata import version, PackageNotFoundError
+except ModuleNotFoundError:
+    # Backport to python<3.8 available as importlib_metadata package
+    from importlib_metadata import version, PackageNotFoundError
 import logging
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())

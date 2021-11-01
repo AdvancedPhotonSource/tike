@@ -10,7 +10,11 @@ operations: zero-padding, interpolation-kernel-correction, FFT, and
 linear-interpolation.
 """
 import cupy as cp
-from importlib.resources import files
+try:
+    from importlib.resources import files
+except ModuleNotFoundError:
+    # Backport for python<3.9 available as importlib_resources package
+    from importlib_resources import files
 
 _cu_source = files('tike.operators.cupy').joinpath('usfft.cu').read_text()
 
