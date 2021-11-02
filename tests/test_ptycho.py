@@ -244,13 +244,17 @@ class TestPtychoRecon(unittest.TestCase):
                 result['probe'] = IO.Bcast(result['probe'])
                 weights = params.get('eigen_weights')
                 if weights is not None:
-                    self.scan, self.data, params['eigen_weights'] = IO.MPIio(
+                    (
+                        self.scan,
+                        self.data,
+                        params['eigen_weights'],
+                    ) = IO.MPIio_ptycho(
                         self.scan,
                         self.data,
                         weights,
                     )
                 else:
-                    self.scan, self.data = IO.MPIio(self.scan, self.data)
+                    self.scan, self.data = IO.MPIio_ptycho(self.scan, self.data)
 
         result['scan'] = self.scan
 
