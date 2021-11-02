@@ -36,11 +36,9 @@ def _estimate_step_length(obj, fwd_data, theta, grid, op, comm, s):
     )
     comm.reduce(outnback, 'gpu', s=s)
     workers = comm.pool.workers[:s]
-    if reduce_norm(obj, workers) == 0.0:
-        return 1.0
-    else:
-        # Multiply by 2 to because we prefer over-estimating the step
-        return 2 * reduce_norm(outnback, workers) / reduce_norm(obj, workers)
+    objn = reduce_norm(obj, workers)
+    # Multiply by 2 to because we prefer over-estimating the step
+    return 2 * reduce_norm(outnback, workers) / objn if objn != 0.0 else 1.0
 
 
 def bucket(
