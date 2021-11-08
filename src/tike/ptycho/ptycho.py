@@ -65,6 +65,7 @@ from tike.operators import Ptycho
 from tike.communicators import Comm, MPIComm
 from tike.opt import batch_indicies
 from tike.ptycho import solvers
+from tike.random import wobbly_center
 
 from .object import get_padded_object
 from .position import (
@@ -302,6 +303,13 @@ def reconstruct(
                 if initial_scan[0] is None:
                     initial_scan = comm.pool.map(cp.copy, scan)
 
+                # Unique batch for each device
+                batches = comm.pool.map(
+                    wobbly_center,
+                    scan,
+                    k=num_batch,
+                )
+
                 result['probe'] = _rescale_obj_probe(
                     operator,
                     comm,
@@ -337,6 +345,7 @@ def reconstruct(
                         comm,
                         data=data,
                         num_batch=num_batch,
+                        batches=batches,
                         **kwargs,
                     )
                     if result['cost'] is not None:
