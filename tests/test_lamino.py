@@ -52,15 +52,19 @@ import pickle
 import unittest
 
 import numpy as np
+from mpi4py import MPI
 
 import tike.lamino
 import tike.lamino.bucket
+from tike.communicators import MPIComm
 
-__author__ = "Daniel Ching, Viktor Nikitin"
+__author__ = "Daniel Ching, Viktor Nikitin, Xiaodong Yu"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 testdir = os.path.dirname(__file__)
+_mpi_size = MPI.COMM_WORLD.Get_size()
+_mpi_rank = MPI.COMM_WORLD.Get_rank()
 
 
 class TestLaminoRecon(unittest.TestCase):
@@ -139,6 +143,11 @@ class TestLaminoRecon(unittest.TestCase):
         result = {
             'obj': np.zeros_like(self.original),
         }
+
+        if params.get('use_mpi') is True:
+            with MPIComm() as IO:
+                (result['obj'],) = IO.MPIio_lamino(result['obj'])
+
         result = module.reconstruct(
             **result,
             **params,
@@ -161,19 +170,54 @@ class TestLaminoRecon(unittest.TestCase):
         cost = '\n'.join(f'{c:1.3e}' for c in result['cost'])
         print(cost)
 
-        recon_file = os.path.join(testdir,
-                                  f'data/lamino_{algorithm}.pickle.lzma')
-        if os.path.isfile(recon_file):
-            with lzma.open(recon_file, 'rb') as file:
-                standard = pickle.load(file)
+        if params.get('use_mpi') is True:
+            with MPIComm() as mpi:
+                obj_out = mpi.Gather(result['obj'])
+                if mpi.rank == 0:
+                    result['obj'] = obj_out
+                    recon_file = os.path.join(
+                        testdir,
+                        f'data/lamino_{algorithm}.pickle.lzma',
+                    )
+                    if os.path.isfile(recon_file):
+                        with lzma.open(recon_file, 'rb') as file:
+                            standard = pickle.load(file)
+                    else:
+                        with lzma.open(recon_file, 'wb') as file:
+                            pickle.dump(result['obj'], file)
+                        raise FileNotFoundError(
+                            f"lamino '{algorithm}' standard not initialized.")
+                    np.testing.assert_array_equal(
+                        result['obj'].shape,
+                        self.original.shape,
+                    )
+                    np.testing.assert_allclose(
+                        result['obj'],
+                        standard,
+                        atol=1e-3,
+                    )
         else:
-            print(result['obj'].shape)
-            with lzma.open(recon_file, 'wb') as file:
-                pickle.dump(result['obj'], file)
-            raise FileNotFoundError(
-                f"lamino '{algorithm}' standard not initialized.")
-        np.testing.assert_array_equal(result['obj'].shape, self.original.shape)
-        np.testing.assert_allclose(result['obj'], standard, atol=1e-3)
+            recon_file = os.path.join(
+                testdir,
+                f'data/lamino_{algorithm}.pickle.lzma',
+            )
+            if os.path.isfile(recon_file):
+                with lzma.open(recon_file, 'rb') as file:
+                    standard = pickle.load(file)
+            else:
+                with lzma.open(recon_file, 'wb') as file:
+                    pickle.dump(result['obj'], file)
+                raise FileNotFoundError(
+                    f"lamino '{algorithm}' standard not initialized.")
+            np.testing.assert_array_equal(
+                result['obj'].shape,
+                self.original.shape,
+            )
+            np.testing.assert_allclose(
+                result['obj'],
+                standard,
+                atol=1e-3,
+            )
 
         return result
 
@@ -196,11 +240,12 @@ class TestLaminoRecon(unittest.TestCase):
                 tike.lamino.bucket,
                 'bucket',
                 params={
-                    'num_gpu': 4,
-                    'obj_split': 2,
+                    'num_gpu': 2,
+                    'obj_split': 1,
                     'eps': 1,
+                    'use_mpi': _mpi_size > 1,
                 },
-            ), f"cgrad_bucket")
+            ), f"{'mpi-' if _mpi_size > 1 else ''}cgrad_bucket")
 
 
 class TestLaminoRadon(unittest.TestCase):
@@ -280,6 +325,8 @@ class TestLaminoRadon(unittest.TestCase):
 
 def _save_lamino_result(result, algorithm):
     try:
+        if _mpi_rank != 0:
+            return
         import matplotlib.pyplot as plt
         fname = os.path.join(testdir, 'result', 'lamino', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)

@@ -3,7 +3,7 @@ import logging
 import numpy as np
 
 from tike.linalg import orthogonalize_gs
-from tike.opt import conjugate_gradient, batch_indicies, get_batch
+from tike.opt import conjugate_gradient, get_batch, randomizer
 from ..position import update_positions_pd, PositionOptions
 from ..object import positivity_constraint, smoothness_constraint
 
@@ -23,6 +23,7 @@ def cgrad(
     probe_options=None,
     position_options=None,
     object_options=None,
+    batches=None,
 ):  # yapf: disable
     """Solve the ptychography problem using conjugate gradient.
 
@@ -38,11 +39,7 @@ def cgrad(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
-    # Unique batch for each device
-    batches = [
-        batch_indicies(s.shape[-2], num_batch, subset_is_random) for s in scan
-    ]
-    for n in range(num_batch):
+    for n in randomizer.permutation(num_batch):
 
         bdata = comm.pool.map(get_batch, data, batches, n=n)
         bscan = comm.pool.map(get_batch, scan, batches, n=n)
