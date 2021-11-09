@@ -14,8 +14,8 @@ def cupy_complex(*shape):
     return (cp.random.rand(*shape, 2) - 0.5).view('complex')[..., 0]
 
 
-def wobbly_center(obs, k, xp=cp):
-    """Return k clusters with maximal dissimilarity inside each cluster.
+def cluster_wobbly_center(population, num_cluster):
+    """Return the indices that divide population into heterogenous clusters.
 
     Uses a contrarian approach to clustering by maximizing the heterogeneity
     inside each cluster to ensure that each cluster would be able to capture
@@ -24,20 +24,20 @@ def wobbly_center(obs, k, xp=cp):
 
     Parameters
     ----------
-    obs : (M, N) array_like
-        The N dimensional population of M samples that needs to be clustered.
-    k : int (0..M]
+    population : (M, N) array_like
+        The M samples of an N dimensional population that needs to be clustered.
+    num_cluster : int (0..M]
         The number of clusters in which to divide M samples.
 
     Returns
     -------
-    indicies : (k,) list of array of integer
-        The indicies of obs that belong to each cluster.
+    indicies : (num_cluster,) list of array of integer
+        The indicies of population that belong to each cluster.
 
     Raises
     ------
     ValueError
-        If k is less than 1 or more than 65535. The implementation
+        If num_cluster is less than 1 or more than 65535. The implementation
         uses uint16 as cluster tag, so it cannot count more than that number of
         clusters.
 
@@ -47,41 +47,40 @@ def wobbly_center(obs, k, xp=cp):
     Maximal Heterogeneity Based Clustering Approach for Obtaining Samples."
     arXiv preprint arXiv:1709.01423 (2017).
     """
-    xp = cp.get_array_module(obs)
-    if k == 1 or k == obs.shape[0]:
-        return xp.split(xp.arange(obs.shape[0]), k)
-    if not 0 < k <= min(0xFFFF, obs.shape[0]):
+    xp = cp.get_array_module(population)
+    if num_cluster == 1 or num_cluster == population.shape[0]:
+        return xp.split(xp.arange(population.shape[0]), num_cluster)
+    if not 0 < num_cluster <= min(0xFFFF, population.shape[0]):
         raise ValueError(
-            f"The number of clusters must be 0 < {k} < min(65536, M).")
-    # Start with the k observations closest to the global centroid
+            f"The number of clusters must be 0 < {num_cluster} < min(65536, M)."
+        )
+    # Start with the num_cluster observations closest to the global centroid
     starting_centroids = xp.argpartition(
-        xp.linalg.norm(obs - xp.mean(obs, axis=0, keepdims=True), axis=1),
-        k,
+        xp.linalg.norm(population - xp.mean(population, axis=0, keepdims=True),
+                       axis=1),
+        num_cluster,
         axis=0,
-    )[:k]
+    )[:num_cluster]
     # Use a label array to keep track of cluster assignment
-    clusters, NO_CLUSTER = xp.empty(len(obs), dtype='uint16'), 0xFFFF
-    clusters[:] = NO_CLUSTER
-    clusters[starting_centroids] = range(k)
-    unassigned = len(obs) - len(starting_centroids)
-    # print(f"\nStart with clusters: {clusters}")
-    c = 0
-    while True:
+    UNASSIGNED = 0xFFFF
+    labels = xp.full(len(population), UNASSIGNED, dtype='uint16')
+    labels[starting_centroids] = range(num_cluster)
+    # print(f"\nStart with labels: {labels}")
+    for c in range(len(population) - len(starting_centroids)):
+        # c is the label of the cluster getting the next addition
+        c = c % num_cluster
         # add the unclaimed observation that is furthest from this cluster
-        if unassigned > 0:
-            furthest = xp.argmax(
-                xp.linalg.norm(
-                    obs[clusters == NO_CLUSTER] -
-                    xp.mean(obs[clusters == c], axis=0, keepdims=True),
-                    axis=1,
-                ),
-                axis=0,
-            )
-            l = xp.argmax(xp.cumsum(clusters == NO_CLUSTER) == (furthest + 1))
-            # print(f"{l} will be added to {c}")
-            unassigned -= 1
-            clusters[l] = c
-            # print(f"Start with clusters: {clusters}")
-        else:
-            return [xp.flatnonzero(clusters == c) for c in range(k)]
-        c = (c + 1) % k
+        furthest = xp.argmax(
+            xp.linalg.norm(
+                population[labels == UNASSIGNED] -
+                xp.mean(population[labels == c], axis=0, keepdims=True),
+                axis=1,
+            ),
+            axis=0,
+        )
+        # i is the index of furthest in labels
+        i = xp.argmax(xp.cumsum(labels == UNASSIGNED) == (furthest + 1))
+        # print(f"{i} will be added to {c}")
+        labels[i] = c
+        # print(f"Start with labels: {labels}")
+    return [xp.flatnonzero(labels == c) for c in range(num_cluster)]
