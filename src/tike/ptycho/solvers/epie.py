@@ -26,6 +26,13 @@ def epie(
     batches=None,
 ):  # yapf: disable
     """Solve the ptychography problem using extended ptychographical engine.
+
+    References
+    ----------
+    Maiden, Andrew M., and John M. Rodenburg. 2009. “An Improved
+    Ptychographical Phase Retrieval Algorithm for Diffractive Imaging.”
+    Ultramicroscopy 109 (10): 1256–62.
+    https://doi.org/10.1016/j.ultramic.2009.05.012.
     """
     for n in randomizer.permutation(num_batch):
 
