@@ -6,6 +6,7 @@ from tike.linalg import lstsq, projection, norm, orthogonalize_gs
 from tike.opt import get_batch, put_batch, randomizer
 
 from ..object import positivity_constraint, smoothness_constraint
+from ..probe import orthogonalize_eig
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +78,7 @@ def epie(
         )
 
     if probe_options and probe_options.orthogonality_constraint:
-        probe[0] = orthogonalize_gs(probe[0], axis=(-2, -1))
-        probe = comm.pool.bcast([probe[0]])
+        probe = comm.pool.map(orthogonalize_eig, probe, xp=cp)
 
     if object_options:
         psi = comm.pool.map(positivity_constraint,
