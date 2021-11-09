@@ -78,7 +78,7 @@ def epie(
         )
 
     if probe_options and probe_options.orthogonality_constraint:
-        probe = comm.pool.map(orthogonalize_eig, probe, xp=cp)
+        probe = comm.pool.map(orthogonalize_eig, probe)
 
     if object_options:
         psi = comm.pool.map(positivity_constraint,
