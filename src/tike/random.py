@@ -25,14 +25,21 @@ def wobbly_center(obs, k, xp=cp):
     Parameters
     ----------
     obs : (M, N) array_like
-        The N dimensional population of N samples that needs to be clustered.
-    k : int < M
-        The number of clusters in which to divide M.
+        The N dimensional population of M samples that needs to be clustered.
+    k : int (0..M]
+        The number of clusters in which to divide M samples.
 
     Returns
     -------
-    indicies : (k,) list of array of boolean
+    indicies : (k,) list of array of integer
         The indicies of obs that belong to each cluster.
+
+    Raises
+    ------
+    ValueError
+        If k is less than 1 or more than 65535. The implementation
+        uses uint16 as cluster tag, so it cannot count more than that number of
+        clusters.
 
     References
     ----------
@@ -41,15 +48,20 @@ def wobbly_center(obs, k, xp=cp):
     arXiv preprint arXiv:1709.01423 (2017).
     """
     xp = cp.get_array_module(obs)
+    if k == 1 or k == obs.shape[0]:
+        return xp.split(xp.arange(obs.shape[0]), k)
+    if not 0 < k <= min(0xFFFF, obs.shape[0]):
+        raise ValueError(
+            f"The number of clusters must be 0 < {k} < min(65536, M).")
     # Start with the k observations closest to the global centroid
     starting_centroids = xp.argpartition(
         xp.linalg.norm(obs - xp.mean(obs, axis=0, keepdims=True), axis=1),
         k,
         axis=0,
     )[:k]
-    # Use a label array to keep track of cluster assignment; 255 is no cluster
-    clusters = xp.empty(len(obs), dtype='uint8')
-    clusters[:] = 255
+    # Use a label array to keep track of cluster assignment
+    clusters, NO_CLUSTER = xp.empty(len(obs), dtype='uint16'), 0xFFFF
+    clusters[:] = NO_CLUSTER
     clusters[starting_centroids] = range(k)
     unassigned = len(obs) - len(starting_centroids)
     # print(f"\nStart with clusters: {clusters}")
@@ -59,13 +71,13 @@ def wobbly_center(obs, k, xp=cp):
         if unassigned > 0:
             furthest = xp.argmax(
                 xp.linalg.norm(
-                    obs[clusters == 255] -
+                    obs[clusters == NO_CLUSTER] -
                     xp.mean(obs[clusters == c], axis=0, keepdims=True),
                     axis=1,
                 ),
                 axis=0,
             )
-            l = xp.argmax(xp.cumsum(clusters == 255) == (furthest + 1))
+            l = xp.argmax(xp.cumsum(clusters == NO_CLUSTER) == (furthest + 1))
             # print(f"{l} will be added to {c}")
             unassigned -= 1
             clusters[l] = c
