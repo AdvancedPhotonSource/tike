@@ -62,29 +62,25 @@ def cluster_wobbly_center(population, num_cluster):
         axis=0,
     )[:num_cluster]
     # Use a label array to keep track of cluster assignment
-    NO_CLUSTER = 0xFFFF
-    clusters = xp.full(len(population), NO_CLUSTER, dtype='uint16')
-    clusters[starting_centroids] = range(num_cluster)
-    unassigned = len(population) - len(starting_centroids)
-    # print(f"\nStart with clusters: {clusters}")
-    c = 0
-    while True:
+    UNASSIGNED = 0xFFFF
+    labels = xp.full(len(population), UNASSIGNED, dtype='uint16')
+    labels[starting_centroids] = range(num_cluster)
+    # print(f"\nStart with labels: {labels}")
+    for c in range(len(population) - len(starting_centroids)):
+        # c is the label of the cluster getting the next addition
+        c = c % num_cluster
         # add the unclaimed observation that is furthest from this cluster
-        if unassigned > 0:
-            furthest = xp.argmax(
-                xp.linalg.norm(
-                    population[clusters == NO_CLUSTER] -
-                    xp.mean(population[clusters == c], axis=0, keepdims=True),
-                    axis=1,
-                ),
-                axis=0,
-            )
-            # i is the index of furthest in clusters
-            i = xp.argmax(xp.cumsum(clusters == NO_CLUSTER) == (furthest + 1))
-            # print(f"{i} will be added to {c}")
-            unassigned -= 1
-            clusters[i] = c
-            # print(f"Start with clusters: {clusters}")
-        else:
-            return [xp.flatnonzero(clusters == c) for c in range(num_cluster)]
-        c = (c + 1) % num_cluster
+        furthest = xp.argmax(
+            xp.linalg.norm(
+                population[labels == UNASSIGNED] -
+                xp.mean(population[labels == c], axis=0, keepdims=True),
+                axis=1,
+            ),
+            axis=0,
+        )
+        # i is the index of furthest in labels
+        i = xp.argmax(xp.cumsum(labels == UNASSIGNED) == (furthest + 1))
+        # print(f"{i} will be added to {c}")
+        labels[i] = c
+        # print(f"Start with labels: {labels}")
+    return [xp.flatnonzero(labels == c) for c in range(num_cluster)]
