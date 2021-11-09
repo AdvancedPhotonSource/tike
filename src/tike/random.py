@@ -77,10 +77,11 @@ def wobbly_center(obs, k, xp=cp):
                 ),
                 axis=0,
             )
-            l = xp.argmax(xp.cumsum(clusters == NO_CLUSTER) == (furthest + 1))
-            # print(f"{l} will be added to {c}")
+            # i is the index of furthest in clusters
+            i = xp.argmax(xp.cumsum(clusters == NO_CLUSTER) == (furthest + 1))
+            # print(f"{i} will be added to {c}")
             unassigned -= 1
-            clusters[l] = c
+            clusters[i] = c
             # print(f"Start with clusters: {clusters}")
         else:
             return [xp.flatnonzero(clusters == c) for c in range(k)]
