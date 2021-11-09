@@ -14,7 +14,7 @@ def cupy_complex(*shape):
     return (cp.random.rand(*shape, 2) - 0.5).view('complex')[..., 0]
 
 
-def wobbly_center(obs, k, xp=cp):
+def wobbly_center(obs, k):
     """Return k clusters with maximal dissimilarity inside each cluster.
 
     Uses a contrarian approach to clustering by maximizing the heterogeneity
