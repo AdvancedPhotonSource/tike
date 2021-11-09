@@ -169,7 +169,8 @@ def _update_nearplane(
 ):
 
     patches = comm.pool.map(_get_patches, nearplane_, psi, scan_, op=op)
-    step_length /= scan_[0].shape[0]
+    probe_step = step_length / scan_[0].shape[0]
+    psi_step = probe_step / probe[0].shape[-3]
 
     for m in range(probe[0].shape[-3]):
 
@@ -188,12 +189,12 @@ def _update_nearplane(
 
         if recover_psi:
             common_grad_psi = comm.reduce(common_grad_psi, 'gpu')[0]
-            psi[0] += step_length * common_grad_psi
+            psi[0] += psi_step * common_grad_psi
             psi = comm.pool.bcast([psi[0]])
 
         if recover_probe:
             common_grad_probe = comm.reduce(common_grad_probe, 'gpu')[0]
-            probe[0][..., [m], :, :] += step_length * common_grad_probe
+            probe[0][..., [m], :, :] += probe_step * common_grad_probe
             probe = comm.pool.bcast([probe[0]])
 
     return psi, probe, eigen_probe, eigen_weights
