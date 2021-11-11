@@ -376,10 +376,9 @@ class TestPtychoRecon(unittest.TestCase):
                 },
             ), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-variable-probe")
 
+    @unittest.case.skipIf(_mpi_size > 1, "MPI not implemented for ePIE.")
     def test_consistent_epie(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
-        if _mpi_size > 1:
-            return
         _save_ptycho_result(
             self.template_consistent_algorithm(
                 'epie',
