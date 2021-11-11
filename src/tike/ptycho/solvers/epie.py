@@ -101,14 +101,10 @@ def epie(
         'probe': probe,
         'cost': cost,
         'scan': scan,
+        'probe_options': probe_options,
+        'object_options': object_options,
+        'position_options': position_options,
     }
-    if position_options:
-        result['position_options'] = position_options
-    if probe_options:
-        result['probe_options'] = probe_options
-    if object_options:
-        result['object_options'] = object_options
-
     return result
 
 
@@ -174,7 +170,10 @@ def _update_nearplane(
 
     for m in range(probe[0].shape[-3]):
 
-        common_grad_psi, common_grad_probe = zip(*comm.pool.map(
+        (
+            common_grad_psi,
+            common_grad_probe,
+        ) = (list(a) for a in zip(*comm.pool.map(
             _get_nearplane_gradients,
             nearplane_,
             patches,
@@ -185,15 +184,27 @@ def _update_nearplane(
             recover_psi=recover_psi,
             recover_probe=recover_probe,
             op=op,
-        ))
+        )))
 
         if recover_psi:
-            common_grad_psi = comm.reduce(common_grad_psi, 'gpu')[0]
+            if comm.use_mpi:
+                common_grad_psi = comm.Allreduce_reduce(
+                    common_grad_psi,
+                    'gpu',
+                )[0]
+            else:
+                common_grad_psi = comm.reduce(common_grad_psi, 'gpu')[0]
             psi[0] += psi_step * common_grad_psi
             psi = comm.pool.bcast([psi[0]])
 
         if recover_probe:
-            common_grad_probe = comm.reduce(common_grad_probe, 'gpu')[0]
+            if comm.use_mpi:
+                common_grad_probe = comm.Allreduce_reduce(
+                    common_grad_probe,
+                    'gpu',
+                )[0]
+            else:
+                common_grad_probe = comm.reduce(common_grad_probe, 'gpu')[0]
             probe[0][..., [m], :, :] += probe_step * common_grad_probe
             probe = comm.pool.bcast([probe[0]])
 

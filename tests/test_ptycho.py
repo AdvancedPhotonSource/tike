@@ -378,11 +378,14 @@ class TestPtychoRecon(unittest.TestCase):
 
     def test_consistent_epie(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
+        if _mpi_size > 1:
+            return
         _save_ptycho_result(
             self.template_consistent_algorithm(
                 'epie',
                 params={
                     'batch_size': int(self.data.shape[-3] * 0.01),
+                    'num_gpu': 2,
                     'probe_options': ProbeOptions(),
                     'object_options': ObjectOptions(),
                     'use_mpi': _mpi_size > 1,
