@@ -1,8 +1,11 @@
 import logging
 
 import cupy as cp
+from numpy.typing import NDArray
 
+import tike.communicators
 from tike.linalg import projection, norm, orthogonalize_gs
+import tike.operators
 from tike.opt import randomizer, get_batch, put_batch, adam
 
 from ..position import PositionOptions, update_positions_pd, _image_grad
@@ -14,16 +17,20 @@ logger = logging.getLogger(__name__)
 
 
 def lstsq_grad(
-    op, comm,
-    data, probe, scan, psi,
-    batches,
+    op: tike.operators.Ptycho,
+    comm: tike.communicators.Comm,
+    data: list[NDArray[cp.float32]],
+    probe: list[NDArray[cp.complex64]],
+    scan: list[NDArray[cp.float32]],
+    psi: list[NDArray[cp.complex64]],
+    batches: list[NDArray[cp.int]],
     eigen_probe=None,
     eigen_weights=None,
     probe_options=None,
     position_options=None,
     object_options=None,
     cost=None,
-):  # yapf: disable
+):
     """Solve the ptychography problem using Odstrcil et al's approach.
 
     Object and probe are updated simultaneouly using optimal step sizes
@@ -40,15 +47,6 @@ def lstsq_grad(
         the intensity (square of the absolute value) of the propagated
         wavefront; i.e. what the detector records. FFT-shifted so the
         diffraction peak is at the corners.
-    eigen_probe : list((EIGEN, SHARED, WIDE, HIGH) complex64, ...)
-        A list of duplicate CuPy arrays for each device containing
-        the eigen probes for all positions.
-    eigen_weights : list((POSI, EIGEN, SHARED) float32, ...)
-        A list of unique CuPy arrays for each device containing
-        the relative intensity of the eigen probes at each position.
-    psi : list((WIDE, HIGH) complex64, ...)
-        A list of duplicate CuPy arrays for each device containing
-        the wavefront modulation coefficients of the object.
     probe : list((1, 1, SHARED, WIDE, HIGH) complex64, ...)
         A list of duplicate CuPy arrays for each device containing
         the shared complex illumination function amongst all positions.
@@ -57,11 +55,24 @@ def lstsq_grad(
         coordinates of the minimum corner of the probe grid for each
         measurement in the coordinate system of psi. Coordinate order
         consistent with WIDE, HIGH order.
-    position_options : PositionOptions
+    psi : list((WIDE, HIGH) complex64, ...)
+        A list of duplicate CuPy arrays for each device containing
+        the wavefront modulation coefficients of the object.
+    batches : list(list((BATCH_SIZE, ) int, ...), ...)
+        A list of list of indices along the FRAME axis of `data` for
+        each device which define the batches of `data` to process
+        simultaneously.
+    eigen_probe : list((EIGEN, SHARED, WIDE, HIGH) complex64, ...)
+        A list of duplicate CuPy arrays for each device containing
+        the eigen probes for all positions.
+    eigen_weights : list((POSI, EIGEN, SHARED) float32, ...)
+        A list of unique CuPy arrays for each device containing
+        the relative intensity of the eigen probes at each position.
+    position_options : tike.ptycho.PositionOptions
         A class containing settings related to position correction.
-    probe_options : ProbeOptions
+    probe_options : tike.ptycho.ProbeOptions
         A class containing settings related to probe updates.
-    object_options : ObjectOptions
+    object_options : tike.ptycho.ObjectOptions
         A class containing settings related to object updates.
     cost : float
         The current objective function value.
