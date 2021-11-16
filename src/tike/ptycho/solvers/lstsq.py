@@ -2,9 +2,7 @@ import logging
 
 import cupy as cp
 
-import tike.communicators
 from tike.linalg import projection, norm, orthogonalize_gs
-import tike.operators
 from tike.opt import randomizer, get_batch, put_batch, adam
 
 from ..position import PositionOptions, update_positions_pd, _image_grad
@@ -16,20 +14,20 @@ logger = logging.getLogger(__name__)
 
 
 def lstsq_grad(
-    op: tike.operators.Ptycho,
-    comm: tike.communicators.Comm,
-    data: list,
-    probe: list,
-    scan: list,
-    psi: list,
-    batches: list[list],
+    op,
+    comm,
+    data,
+    probe,
+    scan,
+    psi,
+    batches,
     eigen_probe=None,
     eigen_weights=None,
     probe_options=None,
     position_options=None,
     object_options=None,
     cost=None,
-) -> dict:
+):
     """Solve the ptychography problem using Odstrcil et al's approach.
 
     Object and probe are updated simultaneouly using optimal step sizes
@@ -37,9 +35,9 @@ def lstsq_grad(
 
     Parameters
     ----------
-    op : tike.operators.Ptycho
+    op : :py:class:`tike.operators.Ptycho`
         A ptychography operator.
-    comm : tike.communicators.Comm
+    comm : :py:class:`tike.communicators.Comm`
         An object which manages communications between GPUs and nodes.
     data : list((FRAME, WIDE, HIGH) float32, ...)
         A list of unique CuPy arrays for each device containing
