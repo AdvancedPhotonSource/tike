@@ -376,6 +376,21 @@ class TestPtychoRecon(unittest.TestCase):
                 },
             ), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-variable-probe")
 
+    @unittest.case.skipIf(_mpi_size > 1, "MPI not implemented for ePIE.")
+    def test_consistent_epie(self):
+        """Check ptycho.solver.lstsq_grad for consistency."""
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                'epie',
+                params={
+                    'batch_size': int(self.data.shape[-3] * 0.01),
+                    'num_gpu': 2,
+                    'probe_options': ProbeOptions(),
+                    'object_options': ObjectOptions(),
+                    'use_mpi': _mpi_size > 1,
+                },
+            ), f"{'mpi-' if _mpi_size > 1 else ''}epie")
+
     def test_invaid_algorithm_name(self):
         """Check that wrong names are handled gracefully."""
         with self.assertRaises(ValueError):
