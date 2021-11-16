@@ -26,8 +26,8 @@ def lstsq_grad(
 ):  # yapf: disable
     """Solve the ptychography problem using Odstrcil et al's approach.
 
-    The near- and farfield- ptychography problems are solved separately using
-    gradient descent in the farfield and linear-least-squares in the nearfield.
+    Object and probe are updated simultaneouly using optimal step sizes
+    computed using a least squares approach.
 
     Parameters
     ----------
@@ -35,6 +35,36 @@ def lstsq_grad(
         A ptychography operator.
     comm : tike.communicators.Comm
         An object which manages communications between GPUs and nodes.
+    data : list((FRAME, WIDE, HIGH) float32, ...)
+        A list of unique CuPy arrays for each device containing
+        the intensity (square of the absolute value) of the propagated
+        wavefront; i.e. what the detector records. FFT-shifted so the
+        diffraction peak is at the corners.
+    eigen_probe : list((EIGEN, SHARED, WIDE, HIGH) complex64, ...)
+        A list of duplicate CuPy arrays for each device containing
+        the eigen probes for all positions.
+    eigen_weights : list((POSI, EIGEN, SHARED) float32, ...)
+        A list of unique CuPy arrays for each device containing
+        the relative intensity of the eigen probes at each position.
+    psi : list((WIDE, HIGH) complex64, ...)
+        A list of duplicate CuPy arrays for each device containing
+        the wavefront modulation coefficients of the object.
+    probe : list((1, 1, SHARED, WIDE, HIGH) complex64, ...)
+        A list of duplicate CuPy arrays for each device containing
+        the shared complex illumination function amongst all positions.
+    scan : list((POSI, 2) float32, ...)
+        A list of unique CuPy arrays for each device containing
+        coordinates of the minimum corner of the probe grid for each
+        measurement in the coordinate system of psi. Coordinate order
+        consistent with WIDE, HIGH order.
+    position_options : PositionOptions
+        A class containing settings related to position correction.
+    probe_options : ProbeOptions
+        A class containing settings related to probe updates.
+    object_options : ObjectOptions
+        A class containing settings related to object updates.
+    cost : float
+        The current objective function value.
 
     References
     ----------
