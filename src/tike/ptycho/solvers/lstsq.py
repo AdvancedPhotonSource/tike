@@ -65,11 +65,11 @@ def lstsq_grad(
     eigen_weights : list((POSI, EIGEN, SHARED) float32, ...)
         A list of unique CuPy arrays for each device containing
         the relative intensity of the eigen probes at each position.
-    position_options : tike.ptycho.PositionOptions
+    position_options : :py:class:`tike.ptycho.PositionOptions`
         A class containing settings related to position correction.
-    probe_options : tike.ptycho.ProbeOptions
+    probe_options : :py:class:`tike.ptycho.ProbeOptions`
         A class containing settings related to probe updates.
-    object_options : tike.ptycho.ObjectOptions
+    object_options : :py:class:`tike.ptycho.ObjectOptions`
         A class containing settings related to object updates.
     cost : float
         The current objective function value.
