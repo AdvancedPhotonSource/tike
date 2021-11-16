@@ -1,7 +1,6 @@
 import logging
 
 import cupy as cp
-import numpy as np
 
 from tike.linalg import orthogonalize_gs
 from tike.opt import get_batch, adam, randomizer
@@ -14,15 +13,11 @@ logger = logging.getLogger(__name__)
 def adam_grad(
     op, comm,
     data, probe, scan, psi,
-    cost=None,
-    eigen_probe=None,
-    eigen_weights=None,
-    num_batch=1,
-    subset_is_random=True,
+    batches,
     probe_options=None,
     position_options=None,
     object_options=None,
-    batches=None,
+    cost=None,
 ):  # yapf: disable
     """Solve the ptychography problem using ADAptive Moment gradient descent.
 
@@ -38,8 +33,7 @@ def adam_grad(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
-    cost = np.inf
-    for n in randomizer.permutation(num_batch):
+    for n in randomizer.permutation(len(batches[0])):
 
         bdata = comm.pool.map(get_batch, data, batches, n=n)
         bscan = comm.pool.map(get_batch, scan, batches, n=n)

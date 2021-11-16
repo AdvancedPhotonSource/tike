@@ -14,16 +14,11 @@ logger = logging.getLogger(__name__)
 def epie(
     op, comm,
     data, probe, scan, psi,
-    cg_iter=4,
-    cost=None,
-    eigen_probe=None,
-    eigen_weights=None,
-    num_batch=1,
-    subset_is_random=True,
+    batches,
     probe_options=None,
     position_options=None,
     object_options=None,
-    batches=None,
+    cost=None,
 ):  # yapf: disable
     """Solve the ptychography problem using extended ptychographical engine.
 
@@ -34,7 +29,7 @@ def epie(
     Ultramicroscopy 109 (10): 1256–62.
     https://doi.org/10.1016/j.ultramic.2009.05.012.
     """
-    for n in randomizer.permutation(num_batch):
+    for n in randomizer.permutation(len(batches[0])):
 
         bdata = comm.pool.map(get_batch, data, batches, n=n)
         bscan = comm.pool.map(get_batch, scan, batches, n=n)
