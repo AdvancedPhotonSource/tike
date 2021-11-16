@@ -29,7 +29,7 @@ def lstsq_grad(
     position_options=None,
     object_options=None,
     cost=None,
-):
+) -> dict:
     """Solve the ptychography problem using Odstrcil et al's approach.
 
     Object and probe are updated simultaneouly using optimal step sizes
@@ -75,6 +75,11 @@ def lstsq_grad(
         A class containing settings related to object updates.
     cost : float
         The current objective function value.
+
+    Returns
+    -------
+    result : dict
+        A dictionary containing the updated inputs if they can be updated.
 
     References
     ----------
