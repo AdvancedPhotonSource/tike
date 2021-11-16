@@ -1,7 +1,6 @@
 import logging
 
 import cupy as cp
-from numpy.typing import NDArray
 
 import tike.communicators
 from tike.linalg import projection, norm, orthogonalize_gs
@@ -19,11 +18,11 @@ logger = logging.getLogger(__name__)
 def lstsq_grad(
     op: tike.operators.Ptycho,
     comm: tike.communicators.Comm,
-    data: list[NDArray[cp.float32]],
-    probe: list[NDArray[cp.complex64]],
-    scan: list[NDArray[cp.float32]],
-    psi: list[NDArray[cp.complex64]],
-    batches: list[NDArray[cp.int]],
+    data: list,
+    probe: list,
+    scan: list,
+    psi: list,
+    batches: list[list],
     eigen_probe=None,
     eigen_weights=None,
     probe_options=None,

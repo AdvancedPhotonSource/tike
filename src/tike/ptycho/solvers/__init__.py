@@ -7,7 +7,7 @@ from .epie import epie
 
 __all__ = [
     'adam_grad',
+    'epie',
     'cgrad',
     'lstsq_grad',
-    'epie',
 ]
