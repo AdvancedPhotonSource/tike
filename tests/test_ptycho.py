@@ -490,18 +490,20 @@ def _save_ptycho_result(result, algorithm):
         plt.title(algorithm)
 
         color = 'black'
-        ax1.set_xlabel('iteration')
-        ax1.set_ylabel('objective', color=color)
-        ax1.plot(result['costs'], color=color)
-        ax1.tick_params(axis='y', labelcolor=color)
         ax1.semilogy()
+        ax1.set_xlabel('iteration', color=color)
+        ax1.set_ylabel('objective')
+        ax1.plot(result['costs'], lineStyle='--', color=color)
+        ax1.tick_params(axis='x', labelcolor=color)
+        ax1.set_ylim(10**-1, 10**1)
 
-        ax2 = ax1.twinx()
+        ax2 = ax1.twiny()
 
         color = 'red'
-        ax2.set_ylabel('times-per-iteration [s]', color=color)
-        ax2.plot(result['times'], color=color)
-        ax2.tick_params(axis='y', labelcolor=color)
+        ax2.set_xlabel('wall-time [s]', color=color)
+        ax2.plot(np.cumsum(result['times']), result['costs'], color=color)
+        ax2.tick_params(axis='x', labelcolor=color)
+        ax2.set_xlim(0, 20)
         fig.tight_layout()
 
         plt.savefig(os.path.join(fname, 'convergence.svg'))
