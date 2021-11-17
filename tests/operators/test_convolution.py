@@ -117,9 +117,12 @@ class TestConvolution(unittest.TestCase, OperatorTests):
         b = inner_complex(self.m, m)
         c = inner_complex(self.m1, m1)
         print()
-        print('< Fm,    m> = {:.6f}{:+.6f}j'.format(a.real.item(), a.imag.item()))
-        print('< d0, F*d0> = {:.6f}{:+.6f}j'.format(b.real.item(), b.imag.item()))
-        print('< d1, F*d1> = {:.6f}{:+.6f}j'.format(c.real.item(), c.imag.item()))
+        print('< Fm,    m> = {:.6f}{:+.6f}j'.format(a.real.item(),
+                                                    a.imag.item()))
+        print('< d0, F*d0> = {:.6f}{:+.6f}j'.format(b.real.item(),
+                                                    b.imag.item()))
+        print('< d1, F*d1> = {:.6f}{:+.6f}j'.format(c.real.item(),
+                                                    c.imag.item()))
         self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5, atol=0)
         self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-5, atol=0)
         self.xp.testing.assert_allclose(a.real, c.real, rtol=1e-5, atol=0)
