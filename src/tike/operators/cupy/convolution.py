@@ -123,3 +123,43 @@ class Convolution(Operator):
         patches = patches.conj()
         patches *= nearplane[..., self.pad:self.end, self.pad:self.end]
         return patches
+
+    def adj_both(self, nearplane, scan, probe, psi, overwrite=False):
+        """Peform adj and adj_probe at the same time."""
+        assert probe.shape[:-4] == scan.shape[:-2]
+        assert psi.shape[:-2] == scan.shape[:-2], (psi.shape, scan.shape)
+        assert probe.shape[-4] == 1 or probe.shape[-4] == scan.shape[-2]
+        assert nearplane.shape[:-3] == scan.shape[:-1], (nearplane.shape,
+                                                         scan.shape)
+
+        patches = self.patch.fwd(
+            # Could be xp.empty if scan positions are all in bounds
+            patches=self.xp.zeros(
+                (*scan.shape[:-2], scan.shape[-2] * nearplane.shape[-3],
+                 self.probe_shape, self.probe_shape),
+                dtype='complex64',
+            ),
+            images=psi,
+            positions=scan,
+            patch_width=self.probe_shape,
+            nrepeat=nearplane.shape[-3],
+        )
+        patches = patches.reshape((*scan.shape[:-1], nearplane.shape[-3],
+                                   self.probe_shape, self.probe_shape))
+        patches = patches.conj()
+        patches *= nearplane[..., self.pad:self.end, self.pad:self.end]
+
+        if not overwrite:
+            nearplane = nearplane.copy()
+        nearplane[..., self.pad:self.end, self.pad:self.end] *= probe.conj()
+
+        return self.patch.adj(
+            patches=nearplane.reshape(
+                (*scan.shape[:-2], scan.shape[-2] * nearplane.shape[-3],
+                 *nearplane.shape[-2:])),
+            images=self.xp.zeros((*scan.shape[:-2], self.nz, self.n),
+                                 dtype='complex64'),
+            positions=scan,
+            patch_width=self.probe_shape,
+            nrepeat=nearplane.shape[-3],
+        ), patches
