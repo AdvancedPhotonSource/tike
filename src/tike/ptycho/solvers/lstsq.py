@@ -85,6 +85,8 @@ def lstsq_grad(
     least-squares solver for generalized maximum-likelihood ptychography.
     Optics Express. 2018.
 
+    .. seealso:: :py:mod:`tike.ptycho`
+
     """
 
     for n in randomizer.permutation(len(batches[0])):
