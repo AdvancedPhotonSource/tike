@@ -79,8 +79,8 @@ class TestConvolution(unittest.TestCase, OperatorTests):
         print()
         print('<Fm,   m> = {:.6f}{:+.6f}j'.format(a.real.item(), a.imag.item()))
         print('< d, F*d> = {:.6f}{:+.6f}j'.format(b.real.item(), b.imag.item()))
-        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5)
-        self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
+        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5, atol=0)
+        self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-5, atol=0)
 
     def test_adj_probe_time(self):
         """Time the adjoint operation."""
@@ -93,7 +93,7 @@ class TestConvolution(unittest.TestCase, OperatorTests):
     def test_scaled(self):
         pass
 
-    def test_adjoint_both(self):
+    def test_adjoint_all(self):
         """Check that the adjoint operator is correct."""
         d = self.operator.fwd(
             **{
@@ -103,7 +103,7 @@ class TestConvolution(unittest.TestCase, OperatorTests):
             **self.kwargs2,
         )
         assert d.shape == self.d.shape
-        m, m1 = self.operator.adj_both(
+        m, m1 = self.operator.adj_all(
             **{
                 self.d_name: self.d,
                 self.m_name: self.m,
@@ -120,10 +120,10 @@ class TestConvolution(unittest.TestCase, OperatorTests):
         print('< Fm,    m> = {:.6f}{:+.6f}j'.format(a.real.item(), a.imag.item()))
         print('< d0, F*d0> = {:.6f}{:+.6f}j'.format(b.real.item(), b.imag.item()))
         print('< d1, F*d1> = {:.6f}{:+.6f}j'.format(c.real.item(), c.imag.item()))
-        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5)
-        self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
-        self.xp.testing.assert_allclose(a.real, c.real, rtol=1e-5)
-        self.xp.testing.assert_allclose(a.imag, c.imag, rtol=1e-5)
+        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5, atol=0)
+        self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-5, atol=0)
+        self.xp.testing.assert_allclose(a.real, c.real, rtol=1e-5, atol=0)
+        self.xp.testing.assert_allclose(a.imag, c.imag, rtol=1e-5, atol=0)
 
 
 if __name__ == '__main__':

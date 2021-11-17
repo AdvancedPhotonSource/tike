@@ -124,7 +124,7 @@ class Convolution(Operator):
         patches *= nearplane[..., self.pad:self.end, self.pad:self.end]
         return patches
 
-    def adj_both(self, nearplane, scan, probe, psi, overwrite=False):
+    def adj_all(self, nearplane, scan, probe, psi, overwrite=False):
         """Peform adj and adj_probe at the same time."""
         assert probe.shape[:-4] == scan.shape[:-2]
         assert psi.shape[:-2] == scan.shape[:-2], (psi.shape, scan.shape)
