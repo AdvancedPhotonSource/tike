@@ -12,20 +12,59 @@ logger = logging.getLogger(__name__)
 
 
 def epie(
-    op, comm,
-    data, probe, scan, psi,
-    cg_iter=4,
-    cost=None,
-    eigen_probe=None,
-    eigen_weights=None,
-    num_batch=1,
-    subset_is_random=True,
+    op,
+    comm,
+    data,
+    probe,
+    scan,
+    psi,
+    batches,
     probe_options=None,
     position_options=None,
     object_options=None,
-    batches=None,
-):  # yapf: disable
+    cost=None,
+):
     """Solve the ptychography problem using extended ptychographical engine.
+
+    Parameters
+    ----------
+    op : :py:class:`tike.operators.Ptycho`
+        A ptychography operator.
+    comm : :py:class:`tike.communicators.Comm`
+        An object which manages communications between GPUs and nodes.
+    data : list((FRAME, WIDE, HIGH) float32, ...)
+        A list of unique CuPy arrays for each device containing
+        the intensity (square of the absolute value) of the propagated
+        wavefront; i.e. what the detector records. FFT-shifted so the
+        diffraction peak is at the corners.
+    probe : list((1, 1, SHARED, WIDE, HIGH) complex64, ...)
+        A list of duplicate CuPy arrays for each device containing
+        the shared complex illumination function amongst all positions.
+    scan : list((POSI, 2) float32, ...)
+        A list of unique CuPy arrays for each device containing
+        coordinates of the minimum corner of the probe grid for each
+        measurement in the coordinate system of psi. Coordinate order
+        consistent with WIDE, HIGH order.
+    psi : list((WIDE, HIGH) complex64, ...)
+        A list of duplicate CuPy arrays for each device containing
+        the wavefront modulation coefficients of the object.
+    batches : list(list((BATCH_SIZE, ) int, ...), ...)
+        A list of list of indices along the FRAME axis of `data` for
+        each device which define the batches of `data` to process
+        simultaneously.
+    position_options : :py:class:`tike.ptycho.PositionOptions`
+        A class containing settings related to position correction.
+    probe_options : :py:class:`tike.ptycho.ProbeOptions`
+        A class containing settings related to probe updates.
+    object_options : :py:class:`tike.ptycho.ObjectOptions`
+        A class containing settings related to object updates.
+    cost : float
+        The current objective function value.
+
+    Returns
+    -------
+    result : dict
+        A dictionary containing the updated inputs if they can be updated.
 
     References
     ----------
@@ -33,8 +72,11 @@ def epie(
     Ptychographical Phase Retrieval Algorithm for Diffractive Imaging.”
     Ultramicroscopy 109 (10): 1256–62.
     https://doi.org/10.1016/j.ultramic.2009.05.012.
+
+    .. seealso:: :py:mod:`tike.ptycho`
+
     """
-    for n in randomizer.permutation(num_batch):
+    for n in randomizer.permutation(len(batches[0])):
 
         bdata = comm.pool.map(get_batch, data, batches, n=n)
         bscan = comm.pool.map(get_batch, scan, batches, n=n)
