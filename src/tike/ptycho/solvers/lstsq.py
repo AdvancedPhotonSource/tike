@@ -14,30 +14,70 @@ logger = logging.getLogger(__name__)
 
 
 def lstsq_grad(
-    op, comm,
-    data, probe, scan, psi,
-    cg_iter=4,
-    cost=None,
+    op,
+    comm,
+    data,
+    probe,
+    scan,
+    psi,
+    batches,
     eigen_probe=None,
     eigen_weights=None,
-    num_batch=1,
-    subset_is_random=True,
     probe_options=None,
     position_options=None,
     object_options=None,
-    batches=None,
-):  # yapf: disable
+    cost=None,
+):
     """Solve the ptychography problem using Odstrcil et al's approach.
 
-    The near- and farfield- ptychography problems are solved separately using
-    gradient descent in the farfield and linear-least-squares in the nearfield.
+    Object and probe are updated simultaneouly using optimal step sizes
+    computed using a least squares approach.
 
     Parameters
     ----------
-    op : tike.operators.Ptycho
+    op : :py:class:`tike.operators.Ptycho`
         A ptychography operator.
-    comm : tike.communicators.Comm
+    comm : :py:class:`tike.communicators.Comm`
         An object which manages communications between GPUs and nodes.
+    data : list((FRAME, WIDE, HIGH) float32, ...)
+        A list of unique CuPy arrays for each device containing
+        the intensity (square of the absolute value) of the propagated
+        wavefront; i.e. what the detector records. FFT-shifted so the
+        diffraction peak is at the corners.
+    probe : list((1, 1, SHARED, WIDE, HIGH) complex64, ...)
+        A list of duplicate CuPy arrays for each device containing
+        the shared complex illumination function amongst all positions.
+    scan : list((POSI, 2) float32, ...)
+        A list of unique CuPy arrays for each device containing
+        coordinates of the minimum corner of the probe grid for each
+        measurement in the coordinate system of psi. Coordinate order
+        consistent with WIDE, HIGH order.
+    psi : list((WIDE, HIGH) complex64, ...)
+        A list of duplicate CuPy arrays for each device containing
+        the wavefront modulation coefficients of the object.
+    batches : list(list((BATCH_SIZE, ) int, ...), ...)
+        A list of list of indices along the FRAME axis of `data` for
+        each device which define the batches of `data` to process
+        simultaneously.
+    eigen_probe : list((EIGEN, SHARED, WIDE, HIGH) complex64, ...)
+        A list of duplicate CuPy arrays for each device containing
+        the eigen probes for all positions.
+    eigen_weights : list((POSI, EIGEN, SHARED) float32, ...)
+        A list of unique CuPy arrays for each device containing
+        the relative intensity of the eigen probes at each position.
+    position_options : :py:class:`tike.ptycho.PositionOptions`
+        A class containing settings related to position correction.
+    probe_options : :py:class:`tike.ptycho.ProbeOptions`
+        A class containing settings related to probe updates.
+    object_options : :py:class:`tike.ptycho.ObjectOptions`
+        A class containing settings related to object updates.
+    cost : float
+        The current objective function value.
+
+    Returns
+    -------
+    result : dict
+        A dictionary containing the updated inputs if they can be updated.
 
     References
     ----------
@@ -45,9 +85,11 @@ def lstsq_grad(
     least-squares solver for generalized maximum-likelihood ptychography.
     Optics Express. 2018.
 
+    .. seealso:: :py:mod:`tike.ptycho`
+
     """
 
-    for n in randomizer.permutation(num_batch):
+    for n in randomizer.permutation(len(batches[0])):
 
         bdata = comm.pool.map(get_batch, data, batches, n=n)
         bscan = comm.pool.map(get_batch, scan, batches, n=n)
