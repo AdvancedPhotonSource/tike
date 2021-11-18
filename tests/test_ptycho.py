@@ -486,7 +486,7 @@ def _save_ptycho_result(result, algorithm):
         ax1.semilogy()
         ax1.set_xlabel('iteration', color=color)
         ax1.set_ylabel('objective')
-        ax1.plot(result['costs'], lineStyle='--', color=color)
+        ax1.plot(result['costs'], linestyle='--', color=color)
         ax1.tick_params(axis='x', labelcolor=color)
         ax1.set_ylim(10**-1, 10**1)
 
