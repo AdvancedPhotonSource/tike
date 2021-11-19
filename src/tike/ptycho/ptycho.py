@@ -65,6 +65,7 @@ from tike.operators import Ptycho
 from tike.communicators import Comm, MPIComm
 from tike.opt import batch_indicies
 from tike.ptycho import solvers
+from tike.random import cluster_wobbly_center
 
 from .object import get_padded_object
 from .position import (
@@ -271,18 +272,18 @@ def reconstruct(
                     initial_scan,
                 )
                 result = {
-                    'psi':
-                        comm.pool.bcast([psi.astype('complex64')]),
-                    'probe':
-                        comm.pool.bcast([probe.astype('complex64')]),
-                    'eigen_probe':
-                        comm.pool.bcast([eigen_probe.astype('complex64')])
-                        if eigen_probe is not None else None,
-                    'scan':
-                        scan,
-                    'eigen_weights':
-                        eigen_weights,
+                    'psi': comm.pool.bcast([psi.astype('complex64')]),
+                    'probe': comm.pool.bcast([probe.astype('complex64')]),
+                    'scan': scan,
                 }
+                if eigen_probe is not None:
+                    result.update({
+                        'eigen_probe':
+                            comm.pool.bcast([eigen_probe.astype('complex64')])
+                            if eigen_probe is not None else None,
+                        'eigen_weights':
+                            eigen_weights,
+                    })
                 if position_options:
                     result['position_options'] = [
                         position_options.split(x) for x in order
@@ -301,6 +302,13 @@ def reconstruct(
 
                 if initial_scan[0] is None:
                     initial_scan = comm.pool.map(cp.copy, scan)
+
+                # Unique batch for each device
+                batches = comm.pool.map(
+                    cluster_wobbly_center,
+                    scan,
+                    num_cluster=num_batch,
+                )
 
                 result['probe'] = _rescale_obj_probe(
                     operator,
@@ -336,7 +344,7 @@ def reconstruct(
                         operator,
                         comm,
                         data=data,
-                        num_batch=num_batch,
+                        batches=batches,
                         **kwargs,
                     )
                     if result['cost'] is not None:

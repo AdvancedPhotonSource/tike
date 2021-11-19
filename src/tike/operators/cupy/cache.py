@@ -1,9 +1,13 @@
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
-import cupy as cp
+import cupy.fft.config
 from cupyx.scipy.fft import fftn, ifftn
 from cupyx.scipy.fftpack import get_fft_plan
+from numpy.lib.utils import deprecate
+
+# NOTE: Keep this setting change even if class below is removed
+cupy.fft.config.enable_nd_planning = True
 
 
 class CachedFFT():
@@ -32,14 +36,23 @@ class CachedFFT():
             self.plan_cache[key] = plan
         return plan
 
+    @deprecate(
+        message='cupy>=8.0 ships an automatic plan cache enabled by default. '
+        'Use CuPy FFT functions directly.')
     def _fft2(self, a, *args, overwrite=False, **kwargs):
         with self._get_fft_plan(a, **kwargs):
             return fftn(a, *args, overwrite_x=overwrite, **kwargs)
 
+    @deprecate(
+        message='cupy>=8.0 ships an automatic plan cache enabled by default. '
+        'Use CuPy FFT functions directly.')
     def _ifft2(self, a, *args, overwrite=False, **kwargs):
         with self._get_fft_plan(a, **kwargs):
             return ifftn(a, *args, overwrite_x=overwrite, **kwargs)
 
+    @deprecate(
+        message='cupy>=8.0 ships an automatic plan cache enabled by default. '
+        'Use CuPy FFT functions directly.')
     def _fftn(self, a, *args, overwrite=False, **kwargs):
         with self._get_fft_plan(a, **kwargs):
             return fftn(a, *args, overwrite_x=overwrite, **kwargs)

@@ -6,6 +6,7 @@ launches and memory management may by accessed from Python.
 """
 
 from .alignment import *
+from .cache import *
 from .convolution import *
 from .flow import *
 from .lamino import *

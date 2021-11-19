@@ -408,30 +408,30 @@ def orthogonalize_eig(x):
     Brocklesby, "Ptychographic coherent diffractive imaging with orthogonal
     probe relaxation." Opt. Express 24, 8360 (2016). doi: 10.1364/OE.24.008360
     """
+    xp = cp.get_array_module(x)
     nmodes = x.shape[-3]
-    # 'A' holds the dot product of all possible mode pairs. We only fill the
-    # lower half of `A` because it is conjugate-symmetric
-    A = cp.empty((*x.shape[:-3], nmodes, nmodes), dtype='complex64')
+    # 'A' holds the dot product of all possible mode pairs. This is equivalent
+    # to x^H @ x. We only fill the lower half of `A` because it is
+    # conjugate-symmetric.
+    A = xp.empty((*x.shape[:-3], nmodes, nmodes), dtype='complex64')
     for i in range(nmodes):
         for j in range(i + 1):
-            A[..., i, j] = cp.sum(cp.conj(x[..., i, :, :]) * x[..., j, :, :],
-                                  axis=(-1, -2))
-
-    _, vectors = cp.linalg.eigh(A, UPLO='L')
+            # According to ptychoshelves, the first x is not conjugated, but
+            # this would be incorrect for the complex values. If we don't
+            # conjugate the input, then we get negative eigenvalues of this
+            # matrix which breaks the mode ordering.
+            A[..., i, j] = xp.sum(
+                x[..., i, :, :].conj() * x[..., j, :, :],
+                axis=(-1, -2),
+            )
+    # We find the eigen vectors of x^H @ x in order to get v^H from SVD of x
+    # without computing u, s.
+    _, vectors = xp.linalg.eigh(A, UPLO='L')
     # np.linalg.eigh guarantees that the eigen values are returned in ascending
     # order, so we just reverse the order of modes to have them sorted in
     # descending order.
-
-    # TODO: Optimize this double-loop
-    x_new = cp.zeros_like(x)
-    for i in range(nmodes):
-        for j in range(nmodes):
-            # Sort new modes by eigen value in decending order.
-            x_new[..., nmodes - 1 -
-                  j, :, :] += vectors[..., i, j, None, None] * x[..., i, :, :]
-    assert x_new.shape == x.shape, [x_new.shape, x.shape]
-
-    return x_new
+    vectors = vectors[..., ::-1].swapaxes(-1, -2)
+    return (vectors @ x.reshape(*x.shape[:-2], -1)).reshape(*x.shape)
 
 
 def gaussian(size, rin=0.8, rout=1.0):

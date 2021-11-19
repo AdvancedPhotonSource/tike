@@ -460,3 +460,42 @@ def plot_trajectories(theta, v, h, t):
     plt.xlabel('time [s]')
     plt.ylim([0, 1.])
     return ax1a, ax1b
+
+
+def plot_cost_convergence(costs, times):
+    """Plot a twined plot of cost vs iteration/cumulative-time
+
+    The plot is a semi-log line plot with two lines. One line shows cost as a
+    function of iteration (bottom horizontal); one line shows cost as a
+    function of cumulative wall-time (top horizontal).
+
+    Parameters
+    ----------
+    costs : (NUM_ITER, ) array-like
+        The objective cost at each iteration.
+    times : (NUM_ITER, ) array-like
+        The wall-time for each iteration in seconds.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+    ax1 : matplotlib.axes._subplots.AxesSubplot
+    ax2 : matplotlib.axes._subplots.AxesSubplot
+    """
+    fig, ax1 = plt.subplots()
+
+    color = 'black'
+    ax1.semilogy()
+    ax1.set_xlabel('iteration', color=color)
+    ax1.set_ylabel('objective')
+    ax1.plot(costs, linestyle='--', color=color)
+    ax1.tick_params(axis='x', labelcolor=color)
+
+    ax2 = ax1.twiny()
+
+    color = 'red'
+    ax2.set_xlabel('wall-time [s]', color=color)
+    ax2.plot(np.cumsum(times), costs, color=color)
+    ax2.tick_params(axis='x', labelcolor=color)
+
+    return fig, ax1, ax2

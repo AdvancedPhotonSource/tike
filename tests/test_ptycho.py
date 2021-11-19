@@ -244,13 +244,17 @@ class TestPtychoRecon(unittest.TestCase):
                 result['probe'] = IO.Bcast(result['probe'])
                 weights = params.get('eigen_weights')
                 if weights is not None:
-                    self.scan, self.data, params['eigen_weights'] = IO.MPIio(
+                    (
+                        self.scan,
+                        self.data,
+                        params['eigen_weights'],
+                    ) = IO.MPIio_ptycho(
                         self.scan,
                         self.data,
                         weights,
                     )
                 else:
-                    self.scan, self.data = IO.MPIio(self.scan, self.data)
+                    self.scan, self.data = IO.MPIio_ptycho(self.scan, self.data)
 
         result['scan'] = self.scan
 
@@ -279,8 +283,6 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm(
                 'adam_grad',
                 params={
-                    'subset_is_random':
-                        True,
                     'batch_size':
                         int(self.data.shape[-3] / 3),
                     'num_gpu':
@@ -303,7 +305,6 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm(
                 'cgrad',
                 params={
-                    'subset_is_random': True,
                     'batch_size': int(self.data.shape[-3] / 3),
                     'num_gpu': 2,
                     'probe_options': ProbeOptions(),
@@ -318,8 +319,6 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm(
                 'lstsq_grad',
                 params={
-                    'subset_is_random':
-                        True,
                     'batch_size':
                         int(self.data.shape[-3] / 3),
                     'num_gpu':
@@ -348,8 +347,6 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm(
                 'lstsq_grad',
                 params={
-                    'subset_is_random':
-                        True,
                     'batch_size':
                         int(self.data.shape[-3] / 3),
                     'num_gpu':
@@ -371,6 +368,21 @@ class TestPtychoRecon(unittest.TestCase):
                         ),
                 },
             ), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-variable-probe")
+
+    @unittest.case.skipIf(_mpi_size > 1, "MPI not implemented for ePIE.")
+    def test_consistent_epie(self):
+        """Check ptycho.solver.lstsq_grad for consistency."""
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                'epie',
+                params={
+                    'batch_size': int(self.data.shape[-3] * 0.01),
+                    'num_gpu': 2,
+                    'probe_options': ProbeOptions(),
+                    'object_options': ObjectOptions(),
+                    'use_mpi': _mpi_size > 1,
+                },
+            ), f"{'mpi-' if _mpi_size > 1 else ''}epie")
 
     def test_invaid_algorithm_name(self):
         """Check that wrong names are handled gracefully."""
@@ -464,25 +476,17 @@ def _save_probe(output_folder, probe):
 def _save_ptycho_result(result, algorithm):
     try:
         import matplotlib.pyplot as plt
+        import tike.view
         fname = os.path.join(testdir, 'result', 'ptycho', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
 
-        fig, ax1 = plt.subplots()
-        plt.title(algorithm)
-
-        color = 'black'
-        ax1.set_xlabel('iteration')
-        ax1.set_ylabel('objective', color=color)
-        ax1.plot(result['costs'], color=color)
-        ax1.tick_params(axis='y', labelcolor=color)
-        ax1.semilogy()
-
-        ax2 = ax1.twinx()
-
-        color = 'red'
-        ax2.set_ylabel('times-per-iteration [s]', color=color)
-        ax2.plot(result['times'], color=color)
-        ax2.tick_params(axis='y', labelcolor=color)
+        fig, ax1, ax2, = tike.view.plot_cost_convergence(
+            result['costs'],
+            result['times'],
+        )
+        ax2.set_xlim(0, 20)
+        ax1.set_ylim(10**-1, 10**1)
+        fig.suptitle(algorithm)
         fig.tight_layout()
 
         plt.savefig(os.path.join(fname, 'convergence.svg'))

@@ -10,5 +10,7 @@ solvers
       :nosignatures:
       :recursive:
 
+      adam_grad
+      epie
       cgrad
       lstsq_grad

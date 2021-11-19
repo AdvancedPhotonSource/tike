@@ -1,12 +1,16 @@
 __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
-from importlib_resources import files
+try:
+    from importlib.resources import files
+except ImportError:
+    # Backport for python<3.9 available as importlib_resources package
+    from importlib_resources import files
 
 import cupy as cp
+import cupyx.scipy.fft
 import numpy as np
 
-from .cache import CachedFFT
 from .usfft import eq2us, us2eq, checkerboard
 from .operator import Operator
 
@@ -14,7 +18,11 @@ _cu_source = files('tike.operators.cupy').joinpath('grid.cu').read_text()
 _make_grids_kernel = cp.RawKernel(_cu_source, "make_grids")
 
 
-class Lamino(CachedFFT, Operator):
+def _fftn(*args, **kwargs):
+    return cupyx.scipy.fft.fftn(*args, overwrite_x=True, **kwargs)
+
+
+class Lamino(Operator):
     """A Laminography operator.
 
     Laminography operators to simulate propagation of the beam through the
@@ -49,20 +57,10 @@ class Lamino(CachedFFT, Operator):
         self.eps = np.float32(eps)
         self.upsample = upsample
 
-    def __enter__(self):
-        """Return self at start of a with-block."""
-        CachedFFT.__enter__(self)
-        # Call the __enter__ methods for any composed operators.
-        # Allocate special memory objects.
-        return self
-
     def fwd(self, u, theta, **kwargs):
         """Perform the forward Laminography transform."""
 
         xi = self._make_grids(theta)
-
-        def fftn(*args, **kwargs):
-            return self._fftn(*args, overwrite=True, **kwargs)
 
         # USFFT from equally-spaced grid to unequally-spaced grid
         F = eq2us(
@@ -71,21 +69,21 @@ class Lamino(CachedFFT, Operator):
             self.n,
             self.eps,
             self.xp,
-            fftn=fftn,
+            fftn=_fftn,
             upsample=self.upsample,
         ).reshape([theta.shape[-1], self.n, self.n])
 
         # Inverse 2D FFT
         data = checkerboard(
             self.xp,
-            self._ifft2(
+            cupyx.scipy.fft.ifft2(
                 checkerboard(
                     self.xp,
                     F,
                     axes=(1, 2),
                 ),
                 axes=(1, 2),
-                overwrite=True,
+                overwrite_x=True,
             ),
             axes=(1, 2),
             inverse=True,
@@ -97,20 +95,17 @@ class Lamino(CachedFFT, Operator):
 
         xi = self._make_grids(theta)
 
-        def fftn(*args, **kwargs):
-            return self._fftn(*args, overwrite=True, **kwargs)
-
         # Forward 2D FFT
         F = checkerboard(
             self.xp,
-            self._fft2(
+            cupyx.scipy.fft.fft2(
                 checkerboard(
                     self.xp,
                     data.copy() if not overwrite else data,
                     axes=(1, 2),
                 ),
                 axes=(1, 2),
-                overwrite=True,
+                overwrite_x=True,
             ),
             axes=(1, 2),
             inverse=True,
@@ -123,7 +118,7 @@ class Lamino(CachedFFT, Operator):
             self.n,
             self.eps,
             self.xp,
-            fftn=fftn,
+            fftn=_fftn,
             upsample=self.upsample,
         )
         u /= self.n**2

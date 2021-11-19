@@ -202,7 +202,7 @@ class ThreadPool(ThreadPoolExecutor):
     def reduce_cpu(self, x, buf=None):
         """Reduce x by addition from all GPUs to a CPU buffer."""
         buf = 0 if buf is None else buf
-        buf += sum([self.xp.asnumpy(part) for part in x])
+        buf += sum(self.map(self.xp.asnumpy, x))
         return buf
 
     def reduce_mean(self, x: list, axis, worker=None) -> cp.array:

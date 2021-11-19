@@ -57,7 +57,7 @@ __all__ = [
 import logging
 import numpy as np
 
-from tike.communicators import Comm
+from tike.communicators import Comm, MPIComm
 from tike.operators import Bucket as Lamino
 from tike.lamino import solvers
 
@@ -96,6 +96,7 @@ def reconstruct(
         obj=None, num_iter=1, rtol=-1, eps=1e-1,
         num_gpu=1,
         obj_split=1,
+        use_mpi=False,
         **kwargs
 ):  # yapf: disable
     """Solve the Laminography problem using the given `algorithm`.
@@ -110,7 +111,15 @@ def reconstruct(
 
     """
     n = data.shape[2]
-    obj = np.zeros([n, n, n], dtype='complex64') if obj is None else obj
+    if use_mpi is True:
+        mpi = MPIComm
+        if obj is None:
+            raise ValueError(
+                "When MPI is enabled, initial object guess cannot be None.")
+    else:
+        mpi = None
+        obj = np.zeros([n, n, n], dtype='complex64') if obj is None else obj
+
     if algorithm in solvers.__all__:
         # Initialize an operator.
         with Lamino(
@@ -118,7 +127,7 @@ def reconstruct(
                 tilt=tilt,
                 eps=eps,
                 **kwargs,
-        ) as operator, Comm(num_gpu, mpi=None) as comm:
+        ) as operator, Comm(num_gpu, mpi) as comm:
             # send any array-likes to device
             obj_split = max(1, min(comm.pool.num_workers, obj_split))
             data_split = comm.pool.num_workers // obj_split
@@ -130,7 +139,10 @@ def reconstruct(
             theta = comm.pool.scatter(theta, obj_split)
             obj = np.array_split(obj.astype('complex64'),
                                  obj_split)
-            grid = operator._make_grid()
+            if comm.use_mpi is True:
+                grid = operator._make_grid(comm.mpi.size, comm.mpi.rank)
+            else:
+                grid = operator._make_grid()
             grid = np.array_split(grid.astype('int16'),
                                   obj_split)
             grid = [x.reshape(x.shape[0] * n * n, 3) for x in grid]

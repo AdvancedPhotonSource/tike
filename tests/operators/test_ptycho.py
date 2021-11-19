@@ -63,6 +63,9 @@ class TestPtycho(unittest.TestCase, OperatorTests):
             'scan': self.xp.asarray(scan, dtype='float32'),
             'psi': self.xp.asarray(original, dtype='complex64')
         }
+        self.kwargs2 = {
+            'scan': self.xp.asarray(scan, dtype='float32'),
+        }
 
         self.d = self.xp.asarray(farplane, dtype='complex64')
         self.d_name = 'farplane'
@@ -76,10 +79,10 @@ class TestPtycho(unittest.TestCase, OperatorTests):
         a = inner_complex(d, self.d)
         b = inner_complex(self.m1, m)
         print()
-        print('<Fm,   m> = {:.6f}{:+.6f}j'.format(a.real.item(), a.imag.item()))
-        print('< d, F*d> = {:.6f}{:+.6f}j'.format(b.real.item(), b.imag.item()))
-        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5)
-        self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
+        print('<Fm,   m> = {:.5g}{:+.5g}j'.format(a.real.item(), a.imag.item()))
+        print('< d, F*d> = {:.5g}{:+.5g}j'.format(b.real.item(), b.imag.item()))
+        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5, atol=0)
+        self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-5, atol=0)
 
     def test_adj_probe_time(self):
         """Time the adjoint operation."""
@@ -91,6 +94,41 @@ class TestPtycho(unittest.TestCase, OperatorTests):
     @unittest.skip('FIXME: This operator is not scaled.')
     def test_scaled(self):
         pass
+
+    def test_adjoint_all(self):
+        """Check that the adjoint operator is correct."""
+        d = self.operator.fwd(
+            **{
+                self.m_name: self.m,
+                self.m1_name: self.m1
+            },
+            **self.kwargs2,
+        )
+        assert d.shape == self.d.shape
+        m, m1 = self.operator.adj_all(
+            **{
+                self.d_name: self.d,
+                self.m_name: self.m,
+                self.m1_name: self.m1
+            },
+            **self.kwargs2,
+        )
+        assert m.shape == self.m.shape
+        assert m1.shape == self.m1.shape
+        a = inner_complex(d, self.d)
+        b = inner_complex(self.m, m)
+        c = inner_complex(self.m1, m1)
+        print()
+        print('< Fm,    m> = {:.5g}{:+.5g}j'.format(a.real.item(),
+                                                    a.imag.item()))
+        print('< d0, F*d0> = {:.5g}{:+.5g}j'.format(b.real.item(),
+                                                    b.imag.item()))
+        print('< d1, F*d1> = {:.5g}{:+.5g}j'.format(c.real.item(),
+                                                    c.imag.item()))
+        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5, atol=0)
+        self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-5, atol=0)
+        self.xp.testing.assert_allclose(a.real, c.real, rtol=1e-5, atol=0)
+        self.xp.testing.assert_allclose(a.imag, c.imag, rtol=1e-5, atol=0)
 
 
 if __name__ == '__main__':
