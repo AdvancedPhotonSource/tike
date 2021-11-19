@@ -476,25 +476,17 @@ def _save_probe(output_folder, probe):
 def _save_ptycho_result(result, algorithm):
     try:
         import matplotlib.pyplot as plt
+        import tike.view
         fname = os.path.join(testdir, 'result', 'ptycho', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
 
-        fig, ax1 = plt.subplots()
-        plt.title(algorithm)
-
-        color = 'black'
-        ax1.set_xlabel('iteration')
-        ax1.set_ylabel('objective', color=color)
-        ax1.plot(result['costs'], color=color)
-        ax1.tick_params(axis='y', labelcolor=color)
-        ax1.semilogy()
-
-        ax2 = ax1.twinx()
-
-        color = 'red'
-        ax2.set_ylabel('times-per-iteration [s]', color=color)
-        ax2.plot(result['times'], color=color)
-        ax2.tick_params(axis='y', labelcolor=color)
+        fig, ax1, ax2, = tike.view.plot_cost_convergence(
+            result['costs'],
+            result['times'],
+        )
+        ax2.set_xlim(0, 20)
+        ax1.set_ylim(10**-1, 10**1)
+        fig.suptitle(algorithm)
         fig.tight_layout()
 
         plt.savefig(os.path.join(fname, 'convergence.svg'))

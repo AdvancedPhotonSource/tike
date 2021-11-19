@@ -38,7 +38,7 @@ jobs:
     displayName: Force remove previous environments
 
   - script: >
-      conda create --quiet --yes
+      mamba create --quiet --yes
       -n tike
       --channel conda-forge
       --file requirements.txt
@@ -93,7 +93,7 @@ jobs:
     displayName: Force remove previous environments
 
   - script: >
-      conda create --quiet --yes
+      mamba create --quiet --yes
       -n tike
       --channel conda-forge
       --file requirements.txt
@@ -122,6 +122,7 @@ jobs:
 
   - script: |
       source activate tike
+      export OMPI_MCA_opal_cuda_support=true
       mpirun -n 2 pytest tests/test_comm.py -vs
       mpirun -n 2 pytest tests/test_ptycho.py -k TestPtychoRecon -vs
       mpirun -n 2 pytest tests/test_lamino.py -k bucket -vs
