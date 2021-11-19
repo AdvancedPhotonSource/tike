@@ -57,6 +57,11 @@ jobs:
 
   - script: |
       source activate tike
+      python tests/print-gpu-info.py
+    displayName: Print GPU info
+
+  - script: |
+      source activate tike
       pytest -vs
     displayName: Run tests
 
@@ -104,6 +109,11 @@ jobs:
       source activate tike
       pip install . --no-deps
     displayName: Setup and install
+
+  - script: |
+      source activate tike
+      python tests/print-gpu-info.py
+    displayName: Print GPU info
 
   - script: |
       source activate tike
