@@ -23,7 +23,11 @@ class Shift(Operator):
             return a
         shape = a.shape
         padded = a.reshape(-1, *shape[-2:])
-        padded = cupyx.scipy.fft.fft2(padded, axes=(-2, -1), overwrite_x=overwrite)
+        padded = cupyx.scipy.fft.fft2(
+            padded,
+            axes=(-2, -1),
+            overwrite_x=overwrite,
+        )
         x, y = self.xp.meshgrid(
             self.xp.fft.fftfreq(padded.shape[-1]).astype('float32'),
             self.xp.fft.fftfreq(padded.shape[-2]).astype('float32'),
