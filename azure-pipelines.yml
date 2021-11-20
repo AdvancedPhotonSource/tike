@@ -38,7 +38,7 @@ jobs:
     displayName: Force remove previous environments
 
   - script: >
-      conda create --quiet --yes
+      mamba create --quiet --yes
       -n tike
       --channel conda-forge
       --file requirements.txt
@@ -54,6 +54,11 @@ jobs:
       source activate tike
       pip install . --no-deps
     displayName: Setup and install
+
+  - script: |
+      source activate tike
+      python tests/print-gpu-info.py
+    displayName: Print GPU info
 
   - script: |
       source activate tike
@@ -88,7 +93,7 @@ jobs:
     displayName: Force remove previous environments
 
   - script: >
-      conda create --quiet --yes
+      mamba create --quiet --yes
       -n tike
       --channel conda-forge
       --file requirements.txt
@@ -107,11 +112,17 @@ jobs:
 
   - script: |
       source activate tike
+      python tests/print-gpu-info.py
+    displayName: Print GPU info
+
+  - script: |
+      source activate tike
       pytest -vs
     displayName: Run tests
 
   - script: |
       source activate tike
+      export OMPI_MCA_opal_cuda_support=true
       mpirun -n 2 pytest tests/test_comm.py -vs
       mpirun -n 2 pytest tests/test_ptycho.py -k TestPtychoRecon -vs
       mpirun -n 2 pytest tests/test_lamino.py -k bucket -vs

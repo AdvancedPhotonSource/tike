@@ -529,25 +529,7 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
 
 def _update_wavefront(data, varying_probe, scan, psi, op):
 
-    # Compute the diffraction patterns for all of the probe modes at once.
-    # We need access to all of the modes of a position to solve the phase
-    # problem. The Ptycho operator doesn't do this natively, so it's messy.
-    patches = cp.zeros(data.shape, dtype='complex64')
-    patches = op.diffraction.patch.fwd(
-        patches=patches,
-        images=psi,
-        positions=scan,
-        patch_width=varying_probe.shape[-1],
-    )
-    patches = patches.reshape(*scan.shape[:-1], 1, 1, op.detector_shape,
-                              op.detector_shape)
-
-    nearplane = cp.tile(patches, reps=(1, 1, varying_probe.shape[-3], 1, 1))
-    pad, end = op.diffraction.pad, op.diffraction.end
-    nearplane[..., pad:end, pad:end] *= varying_probe
-
-    # Solve the farplane phase problem ----------------------------------------
-    farplane = op.propagation.fwd(nearplane, overwrite=True)
+    farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
     intensity = cp.sum(
         cp.square(cp.abs(farplane)),
         axis=list(range(1, farplane.ndim - 2)),

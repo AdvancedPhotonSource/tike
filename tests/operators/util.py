@@ -45,10 +45,10 @@ class OperatorTests():
         a = inner_complex(d, self.d)
         b = inner_complex(self.m, m)
         print()
-        print('<Fm,   m> = {:.6f}{:+.6f}j'.format(a.real.item(), a.imag.item()))
-        print('< d, F*d> = {:.6f}{:+.6f}j'.format(b.real.item(), b.imag.item()))
-        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5)
-        self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-5)
+        print('<Fm,   m> = {:.5g}{:+.5g}j'.format(a.real.item(), a.imag.item()))
+        print('< d, F*d> = {:.5g}{:+.5g}j'.format(b.real.item(), b.imag.item()))
+        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5, atol=0)
+        self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-5, atol=0)
 
     def test_scaled(self):
         """Check that the adjoint operator is scaled."""
@@ -60,11 +60,12 @@ class OperatorTests():
         a = inner_complex(m, m)
         b = inner_complex(self.m, self.m)
         print()
-        print('<F*Fm, F*Fm> = {:.6f}{:+.6f}j'.format(a.real.item(),
-                                                     a.imag.item()))
-        print('<   m,    m> = {:.6f}{:+.6f}j'.format(b.real.item(),
-                                                     b.imag.item()))
-        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5)
+        # NOTE: Inner product with self is real-only magnitude of self
+        print('<F*Fm, F*Fm> = {:.5g}{:+.5g}j'.format(a.real.item(),
+                                                     0))
+        print('<   m,    m> = {:.5g}{:+.5g}j'.format(b.real.item(),
+                                                     0))
+        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-5, atol=0)
 
     def test_fwd_time(self):
         """Time the forward operation."""

@@ -47,11 +47,18 @@ class Ptycho(Operator):
 
     """
 
-    def __init__(self, detector_shape, probe_shape, nz, n,
-                 ntheta=1, model='gaussian',
-                 propagation=Propagation,
-                 diffraction=Convolution,
-                 **kwargs):  # noqa: D102 yapf: disable
+    def __init__(
+        self,
+        detector_shape,
+        probe_shape,
+        nz,
+        n,
+        ntheta=1,
+        model='gaussian',
+        propagation=Propagation,
+        diffraction=Convolution,
+        **kwargs,
+    ):
         """Please see help(Ptycho) for more info."""
         self.propagation = propagation(
             detector_shape=detector_shape,
@@ -63,7 +70,6 @@ class Ptycho(Operator):
             detector_shape=detector_shape,
             nz=nz,
             n=n,
-            model=model,
             **kwargs,
         )
         # TODO: Replace these with @property functions
@@ -177,3 +183,17 @@ class Ptycho(Operator):
             axis=0,
             keepdims=True,
         )
+
+    def adj_all(self, farplane, probe, scan, psi, overwrite=False):
+        """Please see help(Ptycho) for more info."""
+        apsi, aprobe = self.diffraction.adj_all(
+            nearplane=self.propagation.adj(
+                farplane,
+                overwrite=overwrite,
+            )[..., 0, :, :, :],
+            probe=probe[..., 0, :, :, :],
+            scan=scan,
+            overwrite=True,
+            psi=psi,
+        )
+        return apsi, aprobe[..., None, :, :, :]
