@@ -193,34 +193,55 @@ def reconstruct(
         The intensity (square of the absolute value) of the propagated
         wavefront; i.e. what the detector records. FFT-shifted so the
         diffraction peak is at the corners.
-    eigen_probe : (EIGEN, SHARED, WIDE, HIGH) complex64
-        The eigen probes for all positions.
-    eigen_weights : (POSI, EIGEN, SHARED) float32
-        The relative intensity of the eigen probes at each position.
-    psi : (WIDE, HIGH) complex64
-        The wavefront modulation coefficients of the object.
     probe : (1, 1, SHARED, WIDE, HIGH) complex64
         The shared complex illumination function amongst all positions.
     scan : (POSI, 2) float32
         Coordinates of the minimum corner of the probe grid for each
         measurement in the coordinate system of psi. Coordinate order
         consistent with WIDE, HIGH order.
-    algorithm : string
-        The name of one algorithms from :py:mod:`.ptycho.solvers`.
-    rtol : float
-        Terminate early if the relative decrease of the cost function is
-        less than this amount.
-    batch_size : int
-        The approximate number of scan positions processed by each GPU
-        simultaneously per view.
-    position_options : PositionOptions
-        A class containing settings related to position correction.
-    probe_options : ProbeOptions
-        A class containing settings related to probe updates.
+    algorithm: str
+        The name of an algorithm from `tike.ptycho.solvers.__all__`.
+    psi : (WIDE, HIGH) complex64
+        The wavefront modulation coefficients of the object.
     num_gpu : int, tuple(int)
         The number of GPUs to use or a tuple of the device numbers of the GPUs
         to use. If the number of GPUs is less than the requested number, only
         workers for the available GPUs are allocated.
+    num_iter : int
+        The number of epochs to process before returning.
+    rtol : float
+        Terminate early if the relative decrease of the cost function is
+        less than this amount.
+    model : "gaussian", "poisson"
+        The noise model to use for the cost function.
+    use_mpi : bool
+        Whether to use MPI or not.
+    costs : list[float]
+        The objective function value at previous iterations
+    times : list[float]
+        The per-iteration wall-time for each previous iteration.
+    eigen_probe : (EIGEN, SHARED, WIDE, HIGH) complex64
+        The eigen probes for all positions.
+    eigen_weights : (POSI, EIGEN, SHARED) float32
+        The relative intensity of the eigen probes at each position.
+    batch_size : int
+        The approximate number of scan positions processed by each GPU
+        simultaneously per view.
+    initial_scan: (POSI, 2) float32
+        The original scan positions before they were updated using position
+        correction.
+    position_options : :py:class:`tike.ptycho.PositionOptions`
+        A class containing settings related to position correction.
+    probe_options : :py:class:`tike.ptycho.ProbeOptions`
+        A class containing settings related to probe updates.
+    object_options : :py:class:`tike.ptycho.ObjectOptions`
+        A class containing settings related to object updates.
+
+    Returns
+    -------
+    result : dict
+        A dictionary of the above parameters that may be passed to this
+        function to resume reconstruction from the previous state.
 
     """
     if algorithm not in solvers.__all__:
