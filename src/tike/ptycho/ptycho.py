@@ -247,6 +247,9 @@ def reconstruct(
     if algorithm not in solvers.__all__:
         raise ValueError(f"The '{algorithm}' algorithm is not an option.\n"
                          f"\tAvailable algorithms are : {solvers.__all__}")
+    logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
+                "iterations.".format(algorithm, *data.shape[-3:], num_iter))
+
     if use_mpi is True:
         mpi = MPIComm
         if psi is None:
@@ -267,9 +270,7 @@ def reconstruct(
                 n=psi.shape[-1],
                 model=model,
         ) as operator, Comm(num_gpu, mpi) as comm:
-            logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
-                        "iterations.".format(algorithm, *data.shape[-3:],
-                                             num_iter))
+
             num_batch = 1 if batch_size is None else max(
                 1,
                 int(data.shape[-3] / batch_size / comm.pool.num_workers),
@@ -294,6 +295,7 @@ def reconstruct(
                 eigen_weights,
                 initial_scan,
             )
+            reorder = np.argsort(np.concatenate(order))
             result = {
                 'psi': comm.pool.bcast([psi.astype('complex64')]),
                 'probe': comm.pool.bcast([probe.astype('complex64')]),
@@ -319,11 +321,8 @@ def reconstruct(
                 result['probe_options'] = probe_options.put()
             if object_options:
                 result['object_options'] = object_options.put()
-            for key, value in kwargs.items():
-                if np.ndim(value) > 0:
-                    kwargs[key] = comm.pool.bcast([value])
 
-            if initial_scan[0] is None:
+            if initial_scan is None:
                 initial_scan = comm.pool.map(cp.copy, scan)
 
             # Unique batch for each device
@@ -370,8 +369,6 @@ def reconstruct(
                     batches=batches,
                     **kwargs,
                 )
-                if result['cost'] is not None:
-                    costs.append(result['cost'])
 
                 if (position_options
                         and position_options.use_position_regularization):
@@ -385,6 +382,7 @@ def reconstruct(
                         result['scan'][0],
                     )
 
+                costs.append(result['cost'])
                 times.append(time.perf_counter() - start)
                 start = time.perf_counter()
 
@@ -395,12 +393,7 @@ def reconstruct(
                         "iterations.", rtol, i)
                     break
 
-            reorder = np.argsort(np.concatenate(order))
-            result['scan'] = comm.pool.gather(scan, axis=-2)[reorder]
-
-            if position_options:
-                result['initial_scan'] = comm.pool.gather(initial_scan,
-                                                          axis=-2)[reorder]
+            if position_options is not None:
                 result['position_options'] = comm.pool.map(
                     PositionOptions.get,
                     result['position_options'],
@@ -409,27 +402,29 @@ def reconstruct(
                     position_options.join(x, o)
                     for x, o in zip(result['position_options'], order)
                 ]
-                result['position_options'] = position_options
-            if probe_options:
-                result['probe_options'] = result['probe_options'].get()
-            if object_options:
-                result['object_options'] = result['object_options'].get()
-            if 'eigen_weights' in result:
-                result['eigen_weights'] = comm.pool.gather(
-                    eigen_weights,
+
+            return dict(
+                probe=result['probe'][0].get(),
+                scan=comm.pool.gather(scan, axis=-2)[reorder].get(),
+                psi=result['psi'][0].get(),
+                costs=costs,
+                times=times,
+                eigen_probe=result['eigen_probe'][0].get()
+                if eigen_probe is not None else None,
+                eigen_weights=comm.pool.gather(
+                    result['eigen_weights'],
                     axis=-3,
-                )[reorder]
-                result['eigen_probe'] = result['eigen_probe'][0]
-            result['probe'] = result['probe'][0]
-            for k, v in result.items():
-                if isinstance(v, list):
-                    result[k] = v[0]
-            result['costs'] = costs
-            result['times'] = times
-        return {
-            k: operator.asnumpy(v) if isinstance(v, cp.ndarray) else v
-            for k, v in result.items()
-        }
+                )[reorder].get() if eigen_weights is not None else None,
+                initial_scan=comm.pool.gather(
+                    initial_scan,
+                    axis=-2,
+                )[reorder].get(),
+                position_options=position_options,
+                probe_options=result['probe_options'].get()
+                if probe_options is not None else None,
+                object_options=result['object_options'].get()
+                if object_options is not None else None,
+            )
 
 
 def _rescale_obj_probe(operator, comm, data, psi, scan, probe, num_batch):
@@ -483,7 +478,7 @@ def split_by_scan_grid(pool, shape, scan, *args, fly=1):
         The number of grid divisions along each dimension.
     scan : (nscan, 2) float32
         The 2D coordinates of the scan positions.
-    args : (nscan, ...) float32
+    args : (nscan, ...) float32 or None
         The arrays to be split by scan position.
     fly : int
         The number of scan positions per frame.
@@ -494,8 +489,8 @@ def split_by_scan_grid(pool, shape, scan, *args, fly=1):
         The locations of the inputs in the original arrays.
     scan : List[array[float32]]
         The divided 2D coordinates of the scan positions.
-    args : List[array[float32]]
-        Each input divided into regions.
+    args : List[array[float32]] or None
+        Each input divided into regions or None if arg was None.
     """
     if len(shape) != 2:
         raise ValueError('The grid shape must have two dimensions.')
@@ -507,9 +502,14 @@ def split_by_scan_grid(pool, shape, scan, *args, fly=1):
     order = [order[m] for m in mask]
 
     def split(m, x):
-        return None if x is None else cp.asarray(x[m], dtype='float32')
+        return cp.asarray(x[m], dtype='float32')
 
-    split_args = [list(pool.map(split, mask, x=arg)) for arg in [scan, *args]]
+    split_args = []
+    for arg in [scan, *args]:
+        if arg is None:
+            split_args.append(None)
+        else:
+            split_args.append(pool.map(split, mask, x=arg))
 
     return (order, *split_args)
 
