@@ -296,11 +296,15 @@ def reconstruct(
                 initial_scan,
             )
             reorder = np.argsort(np.concatenate(order))
-            result = {
-                'psi': comm.pool.bcast([psi.astype('complex64')]),
-                'probe': comm.pool.bcast([probe.astype('complex64')]),
-                'scan': scan,
-            }
+            result = dict(
+                psi=comm.pool.bcast([psi.astype('complex64')]),
+                probe=comm.pool.bcast([probe.astype('complex64')]),
+                scan=scan,
+                probe_options=probe_options.put()
+                if probe_options is not None else None,
+                object_options=object_options.put()
+                if object_options is not None else None,
+            )
             if eigen_probe is not None:
                 result.update({
                     'eigen_probe':
@@ -310,17 +314,11 @@ def reconstruct(
                         eigen_weights,
                 })
             if position_options:
-                result['position_options'] = [
-                    position_options.split(x) for x in order
-                ]
+                # TODO: Consider combining put/split, get/join operations?
                 result['position_options'] = comm.pool.map(
                     PositionOptions.put,
-                    result['position_options'],
+                    (position_options.split(x) for x in order),
                 )
-            if probe_options:
-                result['probe_options'] = probe_options.put()
-            if object_options:
-                result['object_options'] = object_options.put()
 
             if initial_scan is None:
                 initial_scan = comm.pool.map(cp.copy, scan)
@@ -394,14 +392,14 @@ def reconstruct(
                     break
 
             if position_options is not None:
-                result['position_options'] = comm.pool.map(
-                    PositionOptions.get,
-                    result['position_options'],
-                )
-                [
+                for x, o in zip(
+                        comm.pool.map(
+                            PositionOptions.get,
+                            result['position_options'],
+                        ),
+                        order,
+                ):
                     position_options.join(x, o)
-                    for x, o in zip(result['position_options'], order)
-                ]
 
             return dict(
                 probe=result['probe'][0].get(),
