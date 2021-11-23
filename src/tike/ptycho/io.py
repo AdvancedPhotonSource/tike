@@ -23,7 +23,7 @@ def position_units_to_pixels(
 
     Parameters
     ----------
-    positions : float [m]
+    positions : array[float] [m]
         Coordinates of the position of the beam when frames were collected.
     detector_distance : float [m]
         The propagation distance of the beam from the sample to the detector.
