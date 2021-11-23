@@ -105,6 +105,9 @@ class ProbeOptions:
 def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
     """Construct the varying probes.
 
+    Combines shared and eigen probes with weights to return a unique probe at
+    each scanning position.
+
     Parameters
     ----------
     shared_probe : (..., 1,         1, SHARED, WIDE, HIGH) complex64
@@ -121,11 +124,13 @@ def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
     if weights is not None:
         # The zeroth eigen_probe is the shared_probe
         unique_probe = weights[..., [0], :, None, None] * shared_probe
-        m = eigen_probe.shape[-3]
-        for c in range(eigen_probe.shape[-4]):
-            unique_probe[..., :m, :, :] += (
-                weights[..., [c + 1], :m, None, None] *
-                eigen_probe[..., [c], :, :, :])
+        if eigen_probe is not None:
+            # Not all shared_probes need have eigen probes
+            m = eigen_probe.shape[-3]
+            for c in range(eigen_probe.shape[-4]):
+                unique_probe[..., :m, :, :] += (
+                    weights[..., [c + 1], :m, None, None] *
+                    eigen_probe[..., [c], :m, :, :])
         return unique_probe
     else:
         return shared_probe.copy()
@@ -383,7 +388,32 @@ def init_varying_probe(
     If num_eigen_probes is 1, then the shared probe is allowed to vary but no
     additional eigen probes are created.
 
+    Parameters
+    ----------
+    shared_probe : (..., 1, 1, SHARED, WIDE, HIGH) complex64
+        The shared probes amongst all positions.
+    scan :  (..., POSI, 2) float32
+        The eigen probes for all positions.
+    num_eigen_probes : int
+        The number of principal components used to represent the varying probe
+        illumination.
+    probes_with_modes : int
+        The number of probes that are allowed to vary.
+
+    Returns
+    -------
+    eigen_probe :  (..., 1, EIGEN - 1, probes_with_modes, WIDE, HIGH) complex64
+        The eigen probes for all positions. None if EIGEN <= 1.
+    weights :   (..., POSI,     EIGEN, SHARED) float32
+        The relative intensity of the eigen probes at each position. None if
+        EIGEN < 1.
+
     """
+    probes_with_modes = max(probes_with_modes, 0)
+    if probes_with_modes > shared_probe.shape[-3]:
+        raise ValueError(
+            f"probes_with_modes ({probes_with_modes}) cannot be more than "
+            "the number of probes ({shared_probe.shape[-3]})!")
     if num_eigen_probes < 1:
         return None, None
 
