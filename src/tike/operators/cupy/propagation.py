@@ -85,13 +85,13 @@ class Propagation(Operator):
 
     def _gaussian_grad(self, data, farplane, intensity, overwrite=False):
         return farplane * (
-            1 - np.sqrt(data) / (np.sqrt(intensity) + 1e-32)
+            1 - np.sqrt(data) / (np.sqrt(intensity) + 1e-9)
         )[..., np.newaxis, np.newaxis, :, :]  # yapf:disable
 
     def _poisson_cost(self, data, intensity):
-        return np.mean(intensity - data * np.log(intensity + 1e-32))
+        return np.mean(intensity - data * np.log(intensity + 1e-9))
 
     def _poisson_grad(self, data, farplane, intensity, overwrite=False):
         return farplane * (
-            1 - data / (intensity + 1e-32)
+            1 - data / (intensity + 1e-9)
         )[..., np.newaxis, np.newaxis, :, :]  # yapf: disable

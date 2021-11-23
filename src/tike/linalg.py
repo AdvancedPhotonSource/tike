@@ -7,7 +7,12 @@ spotty in the NumPy and CuPy libraries.
 import numpy as np
 
 
-def norm(x, axis=None, keepdims=None):
+def mnorm(x, axis=None, keepdims=False):
+    """Return the vector 2-norm of x but replace sum with mean."""
+    return np.sqrt(np.mean((x * x.conj()).real, axis=axis, keepdims=keepdims))
+
+
+def norm(x, axis=None, keepdims=False):
     """Return the vector 2-norm of x along given axis."""
     return np.sqrt(np.sum((x * x.conj()).real, axis=axis, keepdims=keepdims))
 
