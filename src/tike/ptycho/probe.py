@@ -41,6 +41,7 @@ import cupy as cp
 import cupyx.scipy.ndimage
 import numpy as np
 
+from tike.linalg import orthogonalize_gs
 import tike.random
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,7 @@ class ProbeOptions:
         use_adaptive_moment=False,
         vdecay=0.999,
         mdecay=0.9,
-        centered_intensity_constraint=True,
+        centered_intensity_constraint=False,
         sparsity_constraint=1,
     ):
         self.orthogonality_constraint = orthogonality_constraint
@@ -120,11 +121,11 @@ def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
     if weights is not None:
         # The zeroth eigen_probe is the shared_probe
         unique_probe = weights[..., [0], :, None, None] * shared_probe
-        for w in range(1, weights.shape[-2]):
-            unique_probe += (
-                weights[..., [w], :, None, None]
-                * eigen_probe[..., [w - 1], :, :, :]
-            )  # yapf: disable
+        m = eigen_probe.shape[-3]
+        for c in range(eigen_probe.shape[-4]):
+            unique_probe[..., :m, :, :] += (
+                weights[..., [c + 1], :m, None, None] *
+                eigen_probe[..., [c], :, :, :])
         return unique_probe
     else:
         return shared_probe.copy()
@@ -371,25 +372,43 @@ def simulate_varying_weights(scan, eigen_probe):
     return np.sin(2 * np.pi / period * x - phase)
 
 
-def init_varying_probe(scan, shared_probe, N):
-    """Initialize arrays for N eigen modes."""
-    if N < 1:
-        return None, None
+def init_varying_probe(
+    scan,
+    shared_probe,
+    num_eigen_probes,
+    probes_with_modes=1,
+):
+    """Initialize arrays varying probe / eigen probes.
 
-    eigen_probe = tike.random.numpy_complex(
-        *shared_probe.shape[:-4],
-        N - 1,
-        *shared_probe.shape[-3:],
-    ).astype('complex64')
-    eigen_probe /= np.linalg.norm(eigen_probe, axis=(-2, -1), keepdims=True)
+    If num_eigen_probes is 1, then the shared probe is allowed to vary but no
+    additional eigen probes are created.
+
+    """
+    if num_eigen_probes < 1:
+        return None, None
 
     weights = 1e-6 * np.random.rand(
         *scan.shape[:-1],
-        N,
+        num_eigen_probes,
         shared_probe.shape[-3],
     ).astype('float32')
     weights -= np.mean(weights, axis=-3, keepdims=True)
-    weights[..., 0, :] = 1.0  # The weight of the first eigen probe is non-zero
+    # The weight of the first eigen probe is non-zero.
+    weights[..., 0, :] = 1.0
+    # Set unused weights to NaN
+    weights[..., 1:, probes_with_modes:] = 0
+
+    if num_eigen_probes == 1:
+        return None, weights
+
+    eigen_probe = tike.random.numpy_complex(
+        *shared_probe.shape[:-4],
+        num_eigen_probes - 1,
+        probes_with_modes,
+        *shared_probe.shape[-2:],
+    ).astype('complex64')
+    # The eigen probes are mean normalized.
+    eigen_probe /= tike.linalg.mnorm(eigen_probe, axis=(-2, -1), keepdims=True)
 
     return eigen_probe, weights
 
