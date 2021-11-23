@@ -342,7 +342,7 @@ class TestPtychoRecon(unittest.TestCase):
     def test_consistent_lstsq_grad_variable_probe(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
 
-        probes_with_modes = 3
+        probes_with_modes = min(3, self.probe.shape[-3])
         eigen_probe, weights = tike.ptycho.probe.init_varying_probe(
             self.scan,
             self.probe,
