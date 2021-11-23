@@ -284,7 +284,7 @@ class TestPtychoRecon(unittest.TestCase):
                 'adam_grad',
                 params={
                     'batch_size':
-                        int(self.data.shape[-3] / 3),
+                        max(1, int(self.data.shape[-3] * 0.05)),
                     'num_gpu':
                         2,
                     'probe_options':
@@ -305,7 +305,7 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm(
                 'cgrad',
                 params={
-                    'batch_size': int(self.data.shape[-3] / 3),
+                    'batch_size': max(1, int(self.data.shape[-3] / 3)),
                     'num_gpu': 2,
                     'probe_options': ProbeOptions(),
                     'object_options': ObjectOptions(),
@@ -320,7 +320,7 @@ class TestPtychoRecon(unittest.TestCase):
                 'lstsq_grad',
                 params={
                     'batch_size':
-                        int(self.data.shape[-3] / 3),
+                        max(1, int(self.data.shape[-3] * 0.05)),
                     'num_gpu':
                         2,
                     'probe_options':
@@ -348,7 +348,7 @@ class TestPtychoRecon(unittest.TestCase):
                 'lstsq_grad',
                 params={
                     'batch_size':
-                        int(self.data.shape[-3] / 3),
+                        max(1, int(self.data.shape[-3] * 0.05)),
                     'num_gpu':
                         2,
                     'probe_options':
@@ -376,7 +376,7 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm(
                 'epie',
                 params={
-                    'batch_size': int(self.data.shape[-3] * 0.01),
+                    'batch_size': max(1, int(self.data.shape[-3] * 0.01)),
                     'num_gpu': 2,
                     'probe_options': ProbeOptions(),
                     'object_options': ObjectOptions(),

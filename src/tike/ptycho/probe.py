@@ -62,8 +62,8 @@ class ProbeOptions:
         num_eigen_probes=0,
         orthogonality_constraint=True,
         use_adaptive_moment=False,
-        vdecay=0.6,
-        mdecay=0.666,
+        vdecay=0.999,
+        mdecay=0.9,
         centered_intensity_constraint=True,
         sparsity_constraint=1,
     ):

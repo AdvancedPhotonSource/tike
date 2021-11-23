@@ -112,7 +112,7 @@ def adadelta(g, d0=None, v=None, m=None, decay=0.9, eps=1e-6):
     return d, v, m
 
 
-def adam(g, v=None, m=None, vdecay=0.9, mdecay=0.999, eps=1e-8):
+def adam(g, v=None, m=None, vdecay=0.999, mdecay=0.9, eps=1e-8):
     """Return the adaptive moment estimation direction.
 
     Used to provide a better search direction to stochastic gradient

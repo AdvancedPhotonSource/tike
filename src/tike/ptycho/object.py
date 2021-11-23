@@ -34,8 +34,8 @@ class ObjectOptions:
         positivity_constraint=0,
         smoothness_constraint=0,
         use_adaptive_moment=False,
-        vdecay=0.6,
-        mdecay=0.666,
+        vdecay=0.999,
+        mdecay=0.9,
     ):
         self.positivity_constraint = positivity_constraint
         self.smoothness_constraint = smoothness_constraint
