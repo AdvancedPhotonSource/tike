@@ -3,10 +3,10 @@ import numpy as np
 import scipy.stats
 
 from tike.opt import batch_indicies, randomizer
-from tike.random import cluster_wobbly_center
+from tike.random import cluster_wobbly_center, cluster_compact
 
 
-class TestWobblyCenter(unittest.TestCase):
+class TestCluster(unittest.TestCase):
 
     def setUp(self, num_pop=500, num_cluster=10):
         """Generates a normally distributed 3D population."""
@@ -20,6 +20,9 @@ class TestWobblyCenter(unittest.TestCase):
         )
         randomizer.shuffle(population, axis=0)
         self.population = population
+
+
+class TestWobblyCenter(TestCluster):
 
     def test_simple_cluster(self):
         references = [
@@ -79,3 +82,61 @@ class TestWobblyCenter(unittest.TestCase):
         assert len(samples) == self.num_pop
         assert np.all(
             np.array(samples).flatten() - np.arange(self.num_pop) == 0)
+
+    def test_complete_set(self):
+        samples = cluster_wobbly_center(self.population, self.num_cluster)
+        samples = np.sort(np.concatenate(samples))
+        np.testing.assert_array_equal(np.arange(self.num_pop), samples)
+
+class TestClusterCompact(TestCluster):
+
+    def setUp(self, num_pop=500, num_cluster=10):
+        """Generates a normally distributed 3D population."""
+        self.num_pop = num_pop
+        self.num_cluster = num_cluster
+        m0 = [-np.sqrt(2), np.pi,]# np.e]
+        s0 = [0.5, 3,]# 7]
+        population = np.concatenate(
+            [randomizer.normal(m, s, (num_pop, 1)) for m, s in zip(m0, s0)],
+            axis=1,
+        )
+        randomizer.shuffle(population, axis=0)
+        self.population = population
+
+    def test_no_clusters(self):
+        with self.assertRaises(ValueError):
+            cluster_compact(self.population, 0)
+        with self.assertRaises(ValueError):
+            cluster_compact(self.population, -1)
+
+    def test_implementation_limited_clusters(self):
+        with self.assertRaises(ValueError):
+            cluster_compact(self.population, 0xFFFFFF)
+
+    def test_one_cluster(self):
+        samples = cluster_compact(self.population, 1)
+        assert len(samples) == 1
+        assert np.all(samples[0].flatten() - np.arange(self.num_pop) == 0)
+
+    def test_more_clusters_than_population(self):
+        with self.assertRaises(ValueError):
+            cluster_compact(self.population, self.num_pop + 1)
+
+    def test_max_clusters(self):
+        samples = cluster_compact(self.population, self.num_pop)
+        assert len(samples) == self.num_pop
+        assert np.all(
+            np.array(samples).flatten() - np.arange(self.num_pop) == 0)
+
+    def test_complete_set(self):
+        samples = cluster_compact(self.population, self.num_cluster)
+        samples = np.sort(np.concatenate(samples))
+        np.testing.assert_array_equal(np.arange(self.num_pop), samples)
+
+    def test_plot_clusters(self):
+        import matplotlib.pyplot as plt
+        samples = cluster_compact(self.population, 3)
+        plt.figure()
+        for s in samples:
+            plt.scatter(self.population[s][:, 0], self.population[s][:, 1])
+        plt.savefig('clusters.svg')

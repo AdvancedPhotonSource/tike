@@ -152,15 +152,18 @@ def cluster_compact(population, num_cluster):
                 labels_wanted[p],
                 max_size[labels_wanted[p]],
             )
-            # Search the wanted cluster for another point that labels_wanted to swap
+            # Search the wanted cluster for another point that would cause the
+            # net unhappiness to decrease.
+            initial = labels_wanted[p]
+            final = labels[p]
             others = xp.flatnonzero(
                 xp.logical_and(
                     labels == labels_wanted[p],
-                    labels_wanted == labels[p],
+                    0 > - distances[_all, final] + distances[_all, initial] - distances[p, initial] + distances[p, final]
                 ))
             if len(others) > 0:
-                labels[others[0]], labels[p] = labels_wanted[
-                    others[0]], labels_wanted[p]
+                labels[others[0]] = initial
+                labels[p] = final
                 _assert_cluster_is_full(
                     labels,
                     labels_wanted[p],
@@ -171,6 +174,9 @@ def cluster_compact(population, num_cluster):
             centroids[c] = xp.mean(population[labels == c], axis=0)
 
     return [xp.flatnonzero(labels == c) for c in range(num_cluster)]
+
+def _net_happiness(final, initial):
+    distances[_all, final] - distances[_all, initial] - distances[p, inital] - distances[p, final]
 
 
 def _assert_cluster_is_full(labels, c, size):
