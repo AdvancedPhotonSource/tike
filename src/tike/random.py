@@ -202,20 +202,21 @@ def cluster_compact(population, num_cluster, max_iter=500):
         for p in np.argsort(happiness):
             if happiness[p] < 0:
                 # Search the wanted cluster for another point that would cause the
-                # net unhappiness to decrease.
+                # net happiness to increase.
                 other_start = labels_wanted[p]
                 other_end = labels[p]
-                # TODO: Rank good swaps instead of choosing random one.
+                net_happiness = (-distances[p, labels[p]] -
+                                 distances[_all, other_start] +
+                                 distances[p, labels_wanted[p]] +
+                                 distances[_all, other_end])
                 good_swaps = xp.flatnonzero(
                     xp.logical_and(
                         labels == other_start,
-                        distances[p, labels[p]] + distances[_all, other_start] >
-                        distances[p, labels_wanted[p]] +
-                        distances[_all, other_end],
+                        net_happiness < 0,
                     ))
                 if len(good_swaps) > 0:
                     any_were_swapped = True
-                    o = good_swaps[randomizer.integers(0, len(good_swaps))]
+                    o = good_swaps[xp.argmin(net_happiness[good_swaps])]
                     labels[o] = other_end
                     happiness[o] = distances[o, labels_wanted[o]] - distances[
                         o, labels[o]]
@@ -228,8 +229,9 @@ def cluster_compact(population, num_cluster, max_iter=500):
         elif __debug__:
             total_distance = xp.linalg.norm(population - centroids[labels],
                                             axis=1).sum()
-            print(f"{total_distance:.3e}")
-            assert old_total_distance > total_distance
+            # print(f"{total_distance:.3e}")
+            assert old_total_distance >= total_distance, (old_total_distance,
+                                                         total_distance)
 
         # compute new cluster centroids
         for c in range(num_cluster):
