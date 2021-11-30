@@ -199,8 +199,8 @@ def cluster_compact(population, num_cluster, max_iter=500):
                                                 axis=1).sum()
         for p in np.argsort(happiness):
             if happiness[p] < 0:
-                # Search the wanted cluster for another point that would cause the
-                # net happiness to increase.
+                # Search the wanted cluster for another point that would cause
+                # the net happiness to increase.
                 other_start = labels_wanted[p]
                 other_end = labels[p]
                 net_happiness = (-distances[p, labels[p]] -

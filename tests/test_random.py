@@ -127,7 +127,8 @@ class TestClusterCompact(unittest.TestCase, ClusterTests):
         print('random sample')
         p1 = print_sample_error(batch_indicies(self.num_pop, self.num_cluster))
 
-        # Every compact cluster should have smaller devation than a random cluster
+        # Every compact cluster should have smaller devation than a random
+        # cluster
         assert np.all(p0 < p1)
 
     def test_plot_clusters(self):
