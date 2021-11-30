@@ -2,7 +2,6 @@
 
 import cupy as cp
 import numpy as np
-from numpy.random.mtrand import random
 
 from tike.opt import randomizer
 
