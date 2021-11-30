@@ -1,6 +1,5 @@
 """Provides random number generators for complex data types."""
 
-from math import dist
 import cupy as cp
 import numpy as np
 from numpy.random.mtrand import random
@@ -231,7 +230,7 @@ def cluster_compact(population, num_cluster, max_iter=500):
                                             axis=1).sum()
             # print(f"{total_distance:.3e}")
             assert old_total_distance >= total_distance, (old_total_distance,
-                                                         total_distance)
+                                                          total_distance)
 
         # compute new cluster centroids
         for c in range(num_cluster):
