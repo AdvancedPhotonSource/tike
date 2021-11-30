@@ -100,25 +100,14 @@ class TestClusterCompact(unittest.TestCase, ClusterTests):
 
     cluster_method = staticmethod(cluster_compact)
 
-    def setUp(self, num_pop=500, num_cluster=10):
-        """Generates num_cluster normally distributed 2D populations."""
+    def setUp(self, num_pop=50**2, num_cluster=10):
+        """Generates points on a regular grid."""
         self.num_pop = num_pop
         self.num_cluster = num_cluster
         clusters = []
-        for _ in range(num_cluster):
-            m0 = np.random.rand(2) * 100
-            s0 = np.random.rand(2) * 2
-            clusters.append(
-                np.concatenate(
-                    [
-                        randomizer.normal(m, s, (num_pop // num_cluster, 1))
-                        for m, s in zip(m0, s0)
-                    ],
-                    axis=1,
-                ))
-        population = np.concatenate(
-            clusters,
-            axis=0,
+        population = np.stack(
+            [x.flatten() for x in np.mgrid[0:100:2, 0:100:2]],
+            axis=1,
         )
         randomizer.shuffle(population, axis=0)
         self.population = population
