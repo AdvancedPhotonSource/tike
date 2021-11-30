@@ -1,5 +1,6 @@
 """Provides random number generators for complex data types."""
 
+from math import dist
 import cupy as cp
 import numpy as np
 from numpy.random.mtrand import random
@@ -89,7 +90,7 @@ def cluster_wobbly_center(population, num_cluster):
     return [xp.flatnonzero(labels == c) for c in range(num_cluster)]
 
 
-def cluster_compact(population, num_cluster):
+def cluster_compact(population, num_cluster, max_iter=500):
     """Return the indices that divide population into compact clusters.
 
     Uses an approach that is inspired by the naive k-means algorithm, but it
@@ -121,22 +122,71 @@ def cluster_compact(population, num_cluster):
         raise ValueError(
             f"The number of clusters must be 0 < {num_cluster} < min(65536, M)."
         )
-    # Specify the number of points allowed in each cluster
-    max_size = xp.full(num_cluster, len(population) // num_cluster)
-    max_size[:len(population) % num_cluster] += 1
-    # Start with random num_cluster observations as centroid
-    starting_centroids = randomizer.permutation(len(population))[:num_cluster]
-    centroids = population[starting_centroids]
-    # Use a label array to keep track of cluster assignment
-    # Must start with every point assigned to a cluster
-    labels = xp.arange(len(population), dtype='uint16') % num_cluster
-    for c in range(num_cluster):
-        _assert_cluster_is_full(labels, c, max_size[c])
-    labels_old = None
     # Define a constant array used for indexing.
     _all = xp.arange(len(population))
-    while xp.any(labels != labels_old):
-        labels_old = labels.copy()
+    _unassigned = list(range(len(population)))
+    # Specify the number of points allowed in each cluster
+    size = [0] * num_cluster
+    max_size = xp.full(num_cluster, len(population) // num_cluster)
+    max_size[:len(population) % num_cluster] += 1
+
+    # Use kmeans++ to choose initial cluster centers
+    starting_centroids = [randomizer.choice(_all, p=None)]
+    distances = xp.linalg.norm(
+        population - population[starting_centroids[0]],
+        axis=1,
+    )**2
+    for c in range(1, num_cluster):
+        starting_centroids.append(
+            randomizer.choice(_all, p=distances / distances.sum()))
+        distances = xp.minimum(
+            distances,
+            xp.linalg.norm(
+                population - population[starting_centroids[c]],
+                axis=1,
+            )**2,
+        )
+    centroids = population[starting_centroids]
+
+    # Use a label array to keep track of cluster assignment
+    UNASSIGNED = 0xFFFF
+    labels = xp.full(len(population), UNASSIGNED, dtype='uint16')
+
+    # Must start with every point assigned to a cluster
+    distances = xp.empty((len(population), num_cluster))
+    available_clusters = list(range(num_cluster))
+    for c in available_clusters:
+        distances[:, c] = xp.linalg.norm(centroids[c] - population, axis=1)
+        p = starting_centroids[c]
+        labels[p] = c
+        _unassigned.remove(p)
+        size[c] += 1
+
+    while available_clusters:
+        nearest = xp.array(available_clusters)[xp.argmin(
+            distances[:, available_clusters],
+            axis=1,
+        )]
+        farthest = xp.array(available_clusters)[xp.argmax(
+            distances[:, available_clusters],
+            axis=1,
+        )]
+        priority = xp.array(_unassigned)[xp.argsort(
+            (distances[_all, nearest] -
+             distances[_all, farthest])[_unassigned])]
+        for p in priority:
+            assert labels[p] == UNASSIGNED
+            labels[p] = nearest[p]
+            _unassigned.remove(p)
+            assert size[nearest[p]] < max_size[nearest[p]]
+            size[nearest[p]] += 1
+            if size[nearest[p]] == max_size[nearest[p]]:
+                available_clusters.remove(nearest[p])
+                # re-start with one less available cluster
+                break
+
+    for iter in range(max_iter):
+        any_were_swapped = False
         # Determine distance from each point to each cluster
         distances = xp.empty((len(population), num_cluster))
         for c in range(num_cluster):
@@ -145,38 +195,49 @@ def cluster_compact(population, num_cluster):
         # Determine if each point would be happier in another cluster.
         # Negative happiness is bad; zero is optimal.
         happiness = distances[_all, labels_wanted] - distances[_all, labels]
-        # Starting from the least happy, move points to new groups
+        # Starting from the least happy, move swap points between groups
+        if __debug__:
+            old_total_distance = xp.linalg.norm(population - centroids[labels],
+                                                axis=1).sum()
         for p in np.argsort(happiness):
-            _assert_cluster_is_full(
-                labels,
-                labels_wanted[p],
-                max_size[labels_wanted[p]],
-            )
-            # Search the wanted cluster for another point that would cause the
-            # net unhappiness to decrease.
-            initial = labels_wanted[p]
-            final = labels[p]
-            others = xp.flatnonzero(
-                xp.logical_and(
-                    labels == labels_wanted[p],
-                    0 > - distances[_all, final] + distances[_all, initial] - distances[p, initial] + distances[p, final]
-                ))
-            if len(others) > 0:
-                labels[others[0]] = initial
-                labels[p] = final
-                _assert_cluster_is_full(
-                    labels,
-                    labels_wanted[p],
-                    max_size[labels_wanted[p]],
-                )
+            if happiness[p] < 0:
+                # Search the wanted cluster for another point that would cause the
+                # net unhappiness to decrease.
+                other_start = labels_wanted[p]
+                other_end = labels[p]
+                # TODO: Rank good swaps instead of choosing random one.
+                good_swaps = xp.flatnonzero(
+                    xp.logical_and(
+                        labels == other_start,
+                        distances[p, labels[p]] + distances[_all, other_start] >
+                        distances[p, labels_wanted[p]] +
+                        distances[_all, other_end],
+                    ))
+                if len(good_swaps) > 0:
+                    any_were_swapped = True
+                    o = good_swaps[randomizer.integers(0, len(good_swaps))]
+                    labels[o] = other_end
+                    happiness[o] = distances[o, labels_wanted[o]] - distances[
+                        o, labels[o]]
+                    labels[p] = other_start
+                    happiness[p] = distances[p, labels_wanted[p]] - distances[
+                        p, labels[p]]
+
+        if not any_were_swapped:
+            break
+        elif __debug__:
+            total_distance = xp.linalg.norm(population - centroids[labels],
+                                            axis=1).sum()
+            print(f"{total_distance:.3e}")
+            assert old_total_distance > total_distance
+
         # compute new cluster centroids
         for c in range(num_cluster):
             centroids[c] = xp.mean(population[labels == c], axis=0)
 
+    for c in range(num_cluster):
+        _assert_cluster_is_full(labels, c, max_size[c])
     return [xp.flatnonzero(labels == c) for c in range(num_cluster)]
-
-def _net_happiness(final, initial):
-    distances[_all, final] - distances[_all, initial] - distances[p, inital] - distances[p, final]
 
 
 def _assert_cluster_is_full(labels, c, size):
