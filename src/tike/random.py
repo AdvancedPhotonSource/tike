@@ -199,10 +199,10 @@ def cluster_compact(population, num_cluster, max_iter=500):
                 # Compute the change in happiness from swapping this point with
                 # every other point
                 net_happiness = (
-                    +distances[p, labels[p]]
-                    +distances[_all, labels]
-                    -distances[p, labels]
-                    -distances[_all, labels[p]]
+                    + distances[p, labels[p]]
+                    + distances[_all, labels]
+                    - distances[p, labels]
+                    - distances[_all, labels[p]]
                 ) # yapf: disable
                 good_swaps = xp.flatnonzero(
                     xp.logical_and(
