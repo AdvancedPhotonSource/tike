@@ -122,7 +122,6 @@ def cluster_compact(population, num_cluster, max_iter=500):
         )
     # Define a constant array used for indexing.
     _all = xp.arange(len(population))
-    _unassigned = list(range(len(population)))
     # Specify the number of points allowed in each cluster
     size = [0] * num_cluster
     max_size = xp.full(num_cluster, len(population) // num_cluster)
@@ -130,43 +129,40 @@ def cluster_compact(population, num_cluster, max_iter=500):
 
     # Use kmeans++ to choose initial cluster centers
     starting_centroids = [randomizer.choice(_all, p=None)]
-    distances = xp.linalg.norm(
-        population - population[starting_centroids[0]],
-        axis=1,
-    )**2
+    distances = xp.inf
     for c in range(1, num_cluster):
-        starting_centroids.append(
-            randomizer.choice(_all, p=distances / distances.sum()))
         distances = xp.minimum(
             distances,
             xp.linalg.norm(
-                population - population[starting_centroids[c]],
+                population - population[starting_centroids[c - 1]],
                 axis=1,
             )**2,
         )
+        starting_centroids.append(
+            randomizer.choice(_all, p=distances / distances.sum()))
     centroids = population[starting_centroids]
 
     # Use a label array to keep track of cluster assignment
     UNASSIGNED = 0xFFFF
     labels = xp.full(len(population), UNASSIGNED, dtype='uint16')
 
-    # Must start with every point assigned to a cluster
+    # Add all points to initial clusters
     distances = xp.empty((len(population), num_cluster))
-    available_clusters = list(range(num_cluster))
-    for c in available_clusters:
+    unfilled_clusters = list(range(num_cluster))
+    _unassigned = list(range(len(population)))
+    for c in unfilled_clusters:
         distances[:, c] = xp.linalg.norm(centroids[c] - population, axis=1)
         p = starting_centroids[c]
         labels[p] = c
         _unassigned.remove(p)
         size[c] += 1
-
-    while available_clusters:
-        nearest = xp.array(available_clusters)[xp.argmin(
-            distances[:, available_clusters],
+    while unfilled_clusters:
+        nearest = xp.array(unfilled_clusters)[xp.argmin(
+            distances[:, unfilled_clusters],
             axis=1,
         )]
-        farthest = xp.array(available_clusters)[xp.argmax(
-            distances[:, available_clusters],
+        farthest = xp.array(unfilled_clusters)[xp.argmax(
+            distances[:, unfilled_clusters],
             axis=1,
         )]
         priority = xp.array(_unassigned)[xp.argsort(
@@ -179,69 +175,88 @@ def cluster_compact(population, num_cluster, max_iter=500):
             assert size[nearest[p]] < max_size[nearest[p]]
             size[nearest[p]] += 1
             if size[nearest[p]] == max_size[nearest[p]]:
-                available_clusters.remove(nearest[p])
+                unfilled_clusters.remove(nearest[p])
                 # re-start with one less available cluster
                 break
 
-    for iter in range(max_iter):
+    if __debug__:
+        old_objective = _k_means_objective(population, labels, num_cluster)
+
+    # Swap points between clusters to minimize objective
+    for _ in range(max_iter):
         any_were_swapped = False
         # Determine distance from each point to each cluster
-        distances = xp.empty((len(population), num_cluster))
         for c in range(num_cluster):
             distances[:, c] = xp.linalg.norm(centroids[c] - population, axis=1)
-        labels_wanted = xp.argmin(distances, axis=1)
         # Determine if each point would be happier in another cluster.
         # Negative happiness is bad; zero is optimal.
+        labels_wanted = xp.argmin(distances, axis=1)
         happiness = distances[_all, labels_wanted] - distances[_all, labels]
-        # Starting from the least happy, move swap points between groups
-        if __debug__:
-            old_total_distance = xp.linalg.norm(population - centroids[labels],
-                                                axis=1).sum()
+        # Starting from the least happy point, swap points between groups to
+        # improve net happiness
         for p in np.argsort(happiness):
             if happiness[p] < 0:
-                # Search the wanted cluster for another point that would cause
-                # the net happiness to increase.
-                other_start = labels_wanted[p]
-                other_end = labels[p]
-                net_happiness = (-distances[p, labels[p]] -
-                                 distances[_all, other_start] +
-                                 distances[p, labels_wanted[p]] +
-                                 distances[_all, other_end])
+                # Compute the change in happiness from swapping this point with
+                # every other point
+                net_happiness = (
+                    +distances[p, labels[p]]
+                    +distances[_all, labels]
+                    -distances[p, labels]
+                    -distances[_all, labels[p]]
+                ) # yapf: disable
                 good_swaps = xp.flatnonzero(
                     xp.logical_and(
-                        labels == other_start,
-                        net_happiness < 0,
+                        # only want swaps that improve happiness
+                        net_happiness > 0,
+                        # swapping within a cluster has no effect
+                        labels != labels[p],
                     ))
-                if len(good_swaps) > 0:
+                if good_swaps.size > 0:
                     any_were_swapped = True
-                    o = good_swaps[xp.argmin(net_happiness[good_swaps])]
-                    labels[o] = other_end
+                    o = good_swaps[xp.argmax(net_happiness[good_swaps])]
+                    assert labels[p] != labels[
+                        o], 'swapping within a cluster has no effect!'
+                    labels[[o, p]] = labels[[p, o]]
                     happiness[o] = distances[o, labels_wanted[o]] - distances[
                         o, labels[o]]
-                    labels[p] = other_start
                     happiness[p] = distances[p, labels_wanted[p]] - distances[
                         p, labels[p]]
-
         if not any_were_swapped:
             break
         elif __debug__:
-            total_distance = xp.linalg.norm(population - centroids[labels],
-                                            axis=1).sum()
-            # print(f"{total_distance:.3e}")
-            assert old_total_distance >= total_distance, (old_total_distance,
-                                                          total_distance)
+            objective = _k_means_objective(population, labels, num_cluster)
+            # print(f"{objective:e}")
+            # NOTE: Assertion disabled because happiness metric is heuristic
+            # approximation of k-means objective
+            # assert old_objective >= objective, (old_objective, objective)
+            old_objective = objective
 
         # compute new cluster centroids
         for c in range(num_cluster):
             centroids[c] = xp.mean(population[labels == c], axis=0)
 
-    for c in range(num_cluster):
-        _assert_cluster_is_full(labels, c, max_size[c])
+    if __debug__:
+        for c in range(num_cluster):
+            _assert_cluster_is_full(labels, c, max_size[c])
     return [xp.flatnonzero(labels == c) for c in range(num_cluster)]
 
 
+def _k_means_objective(population, labels, num_cluster):
+    """Return the weighted sum of the generalized variance of each cluster."""
+    xp = cp.get_array_module(population)
+    cost = 0
+    for c in range(num_cluster):
+        cost += xp.sum(labels == c) * xp.linalg.det(
+            xp.cov(
+                population[labels == c],
+                rowvar=False,
+            ))
+    return cost
+
+
 def _assert_cluster_is_full(labels, c, size):
+    xp = cp.get_array_module(labels)
     assert size == np.sum(labels == c), ('All clusters should be full, but '
                                          f'cluster {c} had '
-                                         f'{np.sum(labels == c)} points '
+                                         f'{xp.sum(labels == c)} points '
                                          f'when it should have {size}.')

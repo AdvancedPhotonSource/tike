@@ -113,13 +113,22 @@ class TestClusterCompact(unittest.TestCase, ClusterTests):
         self.population = population
 
     def test_reduced_deviation(self):
-        """Tests that compact clusters have smaller inter-cluster devation."""
+        """Tests that compact clusters have smaller inter-cluster deviation."""
 
         def print_sample_error(indices):
-            """Return the standard deviation of the clusters."""
-            p = [np.std(self.population[i]) for i in indices]
-            print(p)
-            return p
+            """Return the weighted generalized variance of the clusters.
+
+            https://en.wikipedia.org/wiki/K-means_clustering#Description
+            """
+            cost = 0
+            for c in indices:
+                cost += len(c) * np.linalg.det(
+                    np.cov(
+                        self.population[c],
+                        rowvar=False,
+                    ))
+            print(cost)
+            return cost
 
         print('\ncompact cluster')
         p0 = print_sample_error(
