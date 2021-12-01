@@ -23,12 +23,12 @@ Provide a brief summary of your algorithm(s) here.
 - [ ] Write a helpfully descriptive pull request title.
 - [ ] Organize changes into logically grouped commits with descriptive commit messages.
 - [ ] Document all new functions.
+- [ ] Click 'details' on the readthedocs check to view the updated docs.
 - [ ] Write tests for new functions or explain why they are not needed.
-- [ ] Build the documentation successfully
-- [ ] Use [`yapf`](https://github.com/google/yapf) to format python code.
+- [ ] Address any complaints from pep8speaks.
 
 ### Reviewer
 - [ ] Actually read all of the code.
-- [ ] Run the new code yourself.
+- [ ] Run the new code yourself; the included tests should make this easy.
 - [ ] Write a summary of the changes as you understand them.
 - [ ] Thank the submitter.
