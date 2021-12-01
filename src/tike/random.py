@@ -3,8 +3,6 @@
 import cupy as cp
 import numpy as np
 
-from tike.opt import randomizer
-
 
 def numpy_complex(*shape):
     """Return a complex random array in the range [-0.5, 0.5)."""
@@ -113,59 +111,64 @@ def cluster_compact(population, num_cluster, max_iter=500):
         uses uint16 as cluster tag, so it cannot count more than that number of
         clusters.
     """
-    xp = cp.get_array_module(population)
+    # Indexing and serial operations is very slow on GPU, so always use host
+    population = cp.asnumpy(population)
     if num_cluster == 1 or num_cluster == population.shape[0]:
-        return xp.split(xp.arange(population.shape[0]), num_cluster)
+        return np.split(np.arange(population.shape[0]), num_cluster)
     if not 0 < num_cluster <= min(0xFFFF, population.shape[0]):
         raise ValueError(
             f"The number of clusters must be 0 < {num_cluster} < min(65536, M)."
         )
     # Define a constant array used for indexing.
-    _all = xp.arange(len(population))
+    _all = np.arange(len(population))
     # Specify the number of points allowed in each cluster
-    size = [0] * num_cluster
-    max_size = xp.full(num_cluster, len(population) // num_cluster)
+    size = np.zeros(num_cluster, dtype='int')
+    max_size = np.full(num_cluster, len(population) // num_cluster)
     max_size[:len(population) % num_cluster] += 1
 
     # Use kmeans++ to choose initial cluster centers
-    starting_centroids = [randomizer.choice(_all, p=None)]
-    distances = xp.inf
+    starting_centroids = np.zeros(num_cluster, dtype='int')
+    starting_centroids[0] = np.random.choice(_all, size=1, p=None)[0]
+    distances = np.inf
     for c in range(1, num_cluster):
-        distances = xp.minimum(
+        distances = np.minimum(
             distances,
-            xp.linalg.norm(
+            np.linalg.norm(
                 population - population[starting_centroids[c - 1]],
                 axis=1,
             )**2,
         )
-        starting_centroids.append(
-            randomizer.choice(_all, p=distances / distances.sum()))
+        starting_centroids[c] = np.random.choice(
+            _all,
+            size=1,
+            p=distances / distances.sum(),
+        )[0]
     centroids = population[starting_centroids]
 
     # Use a label array to keep track of cluster assignment
     UNASSIGNED = 0xFFFF
-    labels = xp.full(len(population), UNASSIGNED, dtype='uint16')
+    labels = np.full(len(population), UNASSIGNED, dtype='uint16')
 
     # Add all points to initial clusters
-    distances = xp.empty((len(population), num_cluster))
+    distances = np.empty((len(population), num_cluster))
     unfilled_clusters = list(range(num_cluster))
     _unassigned = list(range(len(population)))
     for c in unfilled_clusters:
-        distances[:, c] = xp.linalg.norm(centroids[c] - population, axis=1)
+        distances[:, c] = np.linalg.norm(centroids[c] - population, axis=1)
         p = starting_centroids[c]
         labels[p] = c
         _unassigned.remove(p)
         size[c] += 1
     while unfilled_clusters:
-        nearest = xp.array(unfilled_clusters)[xp.argmin(
+        nearest = np.array(unfilled_clusters)[np.argmin(
             distances[:, unfilled_clusters],
             axis=1,
         )]
-        farthest = xp.array(unfilled_clusters)[xp.argmax(
+        farthest = np.array(unfilled_clusters)[np.argmax(
             distances[:, unfilled_clusters],
             axis=1,
         )]
-        priority = xp.array(_unassigned)[xp.argsort(
+        priority = np.array(_unassigned)[np.argsort(
             (distances[_all, nearest] -
              distances[_all, farthest])[_unassigned])]
         for p in priority:
@@ -187,10 +190,10 @@ def cluster_compact(population, num_cluster, max_iter=500):
         any_were_swapped = False
         # Determine distance from each point to each cluster
         for c in range(num_cluster):
-            distances[:, c] = xp.linalg.norm(centroids[c] - population, axis=1)
+            distances[:, c] = np.linalg.norm(centroids[c] - population, axis=1)
         # Determine if each point would be happier in another cluster.
         # Negative happiness is bad; zero is optimal.
-        labels_wanted = xp.argmin(distances, axis=1)
+        labels_wanted = np.argmin(distances, axis=1)
         happiness = distances[_all, labels_wanted] - distances[_all, labels]
         # Starting from the least happy point, swap points between groups to
         # improve net happiness
@@ -204,8 +207,8 @@ def cluster_compact(population, num_cluster, max_iter=500):
                     - distances[p, labels]
                     - distances[_all, labels[p]]
                 ) # yapf: disable
-                good_swaps = xp.flatnonzero(
-                    xp.logical_and(
+                good_swaps = np.flatnonzero(
+                    np.logical_and(
                         # only want swaps that improve happiness
                         net_happiness > 0,
                         # swapping within a cluster has no effect
@@ -213,10 +216,10 @@ def cluster_compact(population, num_cluster, max_iter=500):
                     ))
                 if good_swaps.size > 0:
                     any_were_swapped = True
-                    o = good_swaps[xp.argmax(net_happiness[good_swaps])]
+                    o = good_swaps[np.argmax(net_happiness[good_swaps])]
                     assert labels[p] != labels[
                         o], 'swapping within a cluster has no effect!'
-                    labels[[o, p]] = labels[[p, o]]
+                    labels[o], labels[p] = labels[p], labels[o]
                     happiness[o] = distances[o, labels_wanted[o]] - distances[
                         o, labels[o]]
                     happiness[p] = distances[p, labels_wanted[p]] - distances[
@@ -233,12 +236,12 @@ def cluster_compact(population, num_cluster, max_iter=500):
 
         # compute new cluster centroids
         for c in range(num_cluster):
-            centroids[c] = xp.mean(population[labels == c], axis=0)
+            centroids[c] = np.mean(population[labels == c], axis=0)
 
     if __debug__:
         for c in range(num_cluster):
             _assert_cluster_is_full(labels, c, max_size[c])
-    return [xp.flatnonzero(labels == c) for c in range(num_cluster)]
+    return [np.flatnonzero(labels == c) for c in range(num_cluster)]
 
 
 def _k_means_objective(population, labels, num_cluster):
