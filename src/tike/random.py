@@ -206,7 +206,7 @@ def cluster_compact(population, num_cluster, max_iter=500):
                     + distances[_all, labels]
                     - distances[p, labels]
                     - distances[_all, labels[p]]
-                ) # yapf: disable
+                )  # yapf: disable
                 good_swaps = np.flatnonzero(
                     np.logical_and(
                         # only want swaps that improve happiness
