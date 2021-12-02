@@ -66,8 +66,9 @@ The modules in Tike are as follows:
    operators
    align
    communicators
+   lamino
    opt
    ptycho
-   lamino
+   random
    scan
    view

@@ -38,7 +38,7 @@ jobs:
     displayName: Force remove previous environments
 
   - script: >
-      mamba create --quiet --yes
+      conda create --quiet --yes
       -n tike
       --channel conda-forge
       --file requirements.txt
@@ -93,7 +93,7 @@ jobs:
     displayName: Force remove previous environments
 
   - script: >
-      mamba create --quiet --yes
+      conda create --quiet --yes
       -n tike
       --channel conda-forge
       --file requirements.txt
