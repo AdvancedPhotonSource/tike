@@ -65,7 +65,7 @@ from tike.operators import Ptycho
 from tike.communicators import Comm, MPIComm
 from tike.opt import batch_indicies
 from tike.ptycho import solvers
-from tike.random import wobbly_center
+from tike.random import cluster_wobbly_center
 
 from .object import get_padded_object
 from .position import (
@@ -193,36 +193,63 @@ def reconstruct(
         The intensity (square of the absolute value) of the propagated
         wavefront; i.e. what the detector records. FFT-shifted so the
         diffraction peak is at the corners.
-    eigen_probe : (EIGEN, SHARED, WIDE, HIGH) complex64
-        The eigen probes for all positions.
-    eigen_weights : (POSI, EIGEN, SHARED) float32
-        The relative intensity of the eigen probes at each position.
-    psi : (WIDE, HIGH) complex64
-        The wavefront modulation coefficients of the object.
     probe : (1, 1, SHARED, WIDE, HIGH) complex64
         The shared complex illumination function amongst all positions.
     scan : (POSI, 2) float32
         Coordinates of the minimum corner of the probe grid for each
         measurement in the coordinate system of psi. Coordinate order
         consistent with WIDE, HIGH order.
-    algorithm : string
-        The name of one algorithms from :py:mod:`.ptycho.solvers`.
-    rtol : float
-        Terminate early if the relative decrease of the cost function is
-        less than this amount.
-    batch_size : int
-        The approximate number of scan positions processed by each GPU
-        simultaneously per view.
-    position_options : PositionOptions
-        A class containing settings related to position correction.
-    probe_options : ProbeOptions
-        A class containing settings related to probe updates.
+    algorithm: str
+        The name of an algorithm from `tike.ptycho.solvers.__all__`.
+    psi : (WIDE, HIGH) complex64
+        The wavefront modulation coefficients of the object.
     num_gpu : int, tuple(int)
         The number of GPUs to use or a tuple of the device numbers of the GPUs
         to use. If the number of GPUs is less than the requested number, only
         workers for the available GPUs are allocated.
+    num_iter : int
+        The number of epochs to process before returning.
+    rtol : float
+        Terminate early if the relative decrease of the cost function is
+        less than this amount.
+    model : "gaussian", "poisson"
+        The noise model to use for the cost function.
+    use_mpi : bool
+        Whether to use MPI or not.
+    costs : list[float]
+        The objective function value at previous iterations
+    times : list[float]
+        The per-iteration wall-time for each previous iteration.
+    eigen_probe : (EIGEN, SHARED, WIDE, HIGH) complex64
+        The eigen probes for all positions.
+    eigen_weights : (POSI, EIGEN, SHARED) float32
+        The relative intensity of the eigen probes at each position.
+    batch_size : int
+        The approximate number of scan positions processed by each GPU
+        simultaneously per view.
+    initial_scan: (POSI, 2) float32
+        The original scan positions before they were updated using position
+        correction.
+    position_options : :py:class:`tike.ptycho.PositionOptions`
+        A class containing settings related to position correction.
+    probe_options : :py:class:`tike.ptycho.ProbeOptions`
+        A class containing settings related to probe updates.
+    object_options : :py:class:`tike.ptycho.ObjectOptions`
+        A class containing settings related to object updates.
+
+    Returns
+    -------
+    result : dict
+        A dictionary of the above parameters that may be passed to this
+        function to resume reconstruction from the previous state.
 
     """
+    if algorithm not in solvers.__all__:
+        raise ValueError(f"The '{algorithm}' algorithm is not an option.\n"
+                         f"\tAvailable algorithms are : {solvers.__all__}")
+    logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
+                "iterations.".format(algorithm, *data.shape[-3:], num_iter))
+
     if use_mpi is True:
         mpi = MPIComm
         if psi is None:
@@ -234,184 +261,168 @@ def reconstruct(
         mpi = None
     (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
     check_allowed_positions(scan, psi, probe.shape)
-    if algorithm in solvers.__all__:
-        with cp.cuda.Device(num_gpu[0] if isinstance(num_gpu, tuple) else None):
-            # Initialize an operator.
-            with Ptycho(
-                    probe_shape=probe.shape[-1],
-                    detector_shape=data.shape[-1],
-                    nz=psi.shape[-2],
-                    n=psi.shape[-1],
-                    model=model,
-            ) as operator, Comm(num_gpu, mpi) as comm:
-                logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
-                            "iterations.".format(algorithm, *data.shape[-3:],
-                                                 num_iter))
-                num_batch = 1 if batch_size is None else max(
-                    1,
-                    int(data.shape[-3] / batch_size / comm.pool.num_workers),
-                )
-                # Divide the inputs into regions
-                odd_pool = comm.pool.num_workers % 2
+    with cp.cuda.Device(num_gpu[0] if isinstance(num_gpu, tuple) else None):
+        # Initialize an operator.
+        with Ptycho(
+                probe_shape=probe.shape[-1],
+                detector_shape=data.shape[-1],
+                nz=psi.shape[-2],
+                n=psi.shape[-1],
+                model=model,
+        ) as operator, Comm(num_gpu, mpi) as comm:
+
+            num_batch = 1 if batch_size is None else max(
+                1,
+                int(data.shape[-3] / batch_size / comm.pool.num_workers),
+            )
+            # Divide the inputs into regions
+            odd_pool = comm.pool.num_workers % 2
+            (
+                order,
+                scan,
+                data,
+                eigen_weights,
+                initial_scan,
+            ) = split_by_scan_grid(
+                comm.pool,
                 (
-                    order,
-                    scan,
-                    data,
-                    eigen_weights,
-                    initial_scan,
-                ) = split_by_scan_grid(
-                    comm.pool,
-                    (
-                        comm.pool.num_workers
-                        if odd_pool else comm.pool.num_workers // 2,
-                        1 if odd_pool else 2,
-                    ),
-                    scan,
-                    data,
-                    eigen_weights,
-                    initial_scan,
-                )
-                result = {
-                    'psi':
-                        comm.pool.bcast([psi.astype('complex64')]),
-                    'probe':
-                        comm.pool.bcast([probe.astype('complex64')]),
+                    comm.pool.num_workers
+                    if odd_pool else comm.pool.num_workers // 2,
+                    1 if odd_pool else 2,
+                ),
+                scan,
+                data,
+                eigen_weights,
+                initial_scan,
+            )
+            reorder = np.argsort(np.concatenate(order))
+            result = dict(
+                psi=comm.pool.bcast([psi.astype('complex64')]),
+                probe=comm.pool.bcast([probe.astype('complex64')]),
+                scan=scan,
+                probe_options=probe_options.put()
+                if probe_options is not None else None,
+                object_options=object_options.put()
+                if object_options is not None else None,
+            )
+            if eigen_probe is not None:
+                result.update({
                     'eigen_probe':
                         comm.pool.bcast([eigen_probe.astype('complex64')])
                         if eigen_probe is not None else None,
-                    'scan':
-                        scan,
                     'eigen_weights':
                         eigen_weights,
-                }
-                if position_options:
-                    result['position_options'] = [
-                        position_options.split(x) for x in order
-                    ]
-                    result['position_options'] = comm.pool.map(
-                        PositionOptions.put,
-                        result['position_options'],
-                    )
-                if probe_options:
-                    result['probe_options'] = probe_options.put()
-                if object_options:
-                    result['object_options'] = object_options.put()
-                for key, value in kwargs.items():
-                    if np.ndim(value) > 0:
-                        kwargs[key] = comm.pool.bcast([value])
-
-                if initial_scan[0] is None:
-                    initial_scan = comm.pool.map(cp.copy, scan)
-
-                # Unique batch for each device
-                batches = comm.pool.map(
-                    wobbly_center,
-                    scan,
-                    k=num_batch,
+                })
+            if position_options:
+                # TODO: Consider combining put/split, get/join operations?
+                result['position_options'] = comm.pool.map(
+                    PositionOptions.put,
+                    (position_options.split(x) for x in order),
                 )
 
-                result['probe'] = _rescale_obj_probe(
-                    operator,
-                    comm,
-                    data,
-                    result['psi'],
-                    scan,
-                    result['probe'],
-                    num_batch=num_batch,
-                )
+            if initial_scan is None:
+                initial_scan = comm.pool.map(cp.copy, scan)
 
-                costs, times = list(costs), list(times)
-                start = time.perf_counter()
-                for i in range(num_iter):
+            # Unique batch for each device
+            batches = comm.pool.map(
+                cluster_wobbly_center,
+                scan,
+                num_cluster=num_batch,
+            )
 
-                    logger.info(f"{algorithm} epoch {i:,d}")
+            result['probe'] = _rescale_obj_probe(
+                operator,
+                comm,
+                data,
+                result['psi'],
+                scan,
+                result['probe'],
+                num_batch=num_batch,
+            )
 
-                    if probe_options is not None:
-                        if probe_options.centered_intensity_constraint:
-                            result['probe'] = comm.pool.map(
-                                constrain_center_peak,
-                                result['probe'],
-                            )
-                        if probe_options.sparsity_constraint < 1:
-                            result['probe'] = comm.pool.map(
-                                constrain_probe_sparsity,
-                                result['probe'],
-                                f=probe_options.sparsity_constraint,
-                            )
+            costs, times = list(costs), list(times)
+            start = time.perf_counter()
+            for i in range(num_iter):
 
-                    kwargs.update(result)
-                    result = getattr(solvers, algorithm)(
-                        operator,
-                        comm,
-                        data=data,
-                        num_batch=num_batch,
-                        batches=batches,
-                        **kwargs,
-                    )
-                    if result['cost'] is not None:
-                        costs.append(result['cost'])
+                logger.info(f"{algorithm} epoch {i:,d}")
 
-                    if (position_options
-                            and position_options.use_position_regularization):
-
-                        # TODO: Regularize on all GPUs
-                        result['scan'][0], _ = affine_position_regularization(
-                            operator,
-                            result['psi'][0],
-                            result['probe'][0],
-                            initial_scan[0],
-                            result['scan'][0],
+                if probe_options is not None:
+                    if probe_options.centered_intensity_constraint:
+                        result['probe'] = comm.pool.map(
+                            constrain_center_peak,
+                            result['probe'],
+                        )
+                    if probe_options.sparsity_constraint < 1:
+                        result['probe'] = comm.pool.map(
+                            constrain_probe_sparsity,
+                            result['probe'],
+                            f=probe_options.sparsity_constraint,
                         )
 
-                    times.append(time.perf_counter() - start)
-                    start = time.perf_counter()
+                kwargs.update(result)
+                result = getattr(solvers, algorithm)(
+                    operator,
+                    comm,
+                    data=data,
+                    batches=batches,
+                    **kwargs,
+                )
 
-                    # Check for early termination
-                    if i > 0 and abs(
-                        (costs[-1] - costs[-2]) / costs[-2]) < rtol:
-                        logger.info(
-                            "Cost function rtol < %g reached at %d "
-                            "iterations.", rtol, i)
-                        break
+                if (position_options
+                        and position_options.use_position_regularization):
 
-                reorder = np.argsort(np.concatenate(order))
-                result['scan'] = comm.pool.gather(scan, axis=-2)[reorder]
-
-                if position_options:
-                    result['initial_scan'] = comm.pool.gather(initial_scan,
-                                                              axis=-2)[reorder]
-                    result['position_options'] = comm.pool.map(
-                        PositionOptions.get,
-                        result['position_options'],
+                    # TODO: Regularize on all GPUs
+                    result['scan'][0], _ = affine_position_regularization(
+                        operator,
+                        result['psi'][0],
+                        result['probe'][0],
+                        initial_scan[0],
+                        result['scan'][0],
                     )
-                    [
-                        position_options.join(x, o)
-                        for x, o in zip(result['position_options'], order)
-                    ]
-                    result['position_options'] = position_options
-                if probe_options:
-                    result['probe_options'] = result['probe_options'].get()
-                if object_options:
-                    result['object_options'] = result['object_options'].get()
-                if 'eigen_weights' in result:
-                    result['eigen_weights'] = comm.pool.gather(
-                        eigen_weights,
-                        axis=-3,
-                    )[reorder]
-                    result['eigen_probe'] = result['eigen_probe'][0]
-                result['probe'] = result['probe'][0]
-                for k, v in result.items():
-                    if isinstance(v, list):
-                        result[k] = v[0]
-                result['costs'] = costs
-                result['times'] = times
-            return {
-                k: operator.asnumpy(v) if isinstance(v, cp.ndarray) else v
-                for k, v in result.items()
-            }
-    else:
-        raise ValueError(f"The '{algorithm}' algorithm is not an option.\n"
-                         f"\tAvailable algorithms are : {solvers.__all__}")
+
+                costs.append(result['cost'])
+                times.append(time.perf_counter() - start)
+                start = time.perf_counter()
+
+                # Check for early termination
+                if i > 0 and abs((costs[-1] - costs[-2]) / costs[-2]) < rtol:
+                    logger.info(
+                        "Cost function rtol < %g reached at %d "
+                        "iterations.", rtol, i)
+                    break
+
+            if position_options is not None:
+                for x, o in zip(
+                        comm.pool.map(
+                            PositionOptions.get,
+                            result['position_options'],
+                        ),
+                        order,
+                ):
+                    position_options.join(x, o)
+
+            return dict(
+                probe=result['probe'][0].get(),
+                scan=comm.pool.gather(scan, axis=-2)[reorder].get(),
+                psi=result['psi'][0].get(),
+                costs=costs,
+                times=times,
+                eigen_probe=result['eigen_probe'][0].get()
+                if eigen_probe is not None else None,
+                eigen_weights=comm.pool.gather(
+                    result['eigen_weights'],
+                    axis=-3,
+                )[reorder].get() if eigen_weights is not None else None,
+                initial_scan=comm.pool.gather(
+                    initial_scan,
+                    axis=-2,
+                )[reorder].get(),
+                position_options=position_options,
+                probe_options=result['probe_options'].get()
+                if probe_options is not None else None,
+                object_options=result['object_options'].get()
+                if object_options is not None else None,
+            )
 
 
 def _rescale_obj_probe(operator, comm, data, psi, scan, probe, num_batch):
@@ -465,7 +476,7 @@ def split_by_scan_grid(pool, shape, scan, *args, fly=1):
         The number of grid divisions along each dimension.
     scan : (nscan, 2) float32
         The 2D coordinates of the scan positions.
-    args : (nscan, ...) float32
+    args : (nscan, ...) float32 or None
         The arrays to be split by scan position.
     fly : int
         The number of scan positions per frame.
@@ -476,8 +487,8 @@ def split_by_scan_grid(pool, shape, scan, *args, fly=1):
         The locations of the inputs in the original arrays.
     scan : List[array[float32]]
         The divided 2D coordinates of the scan positions.
-    args : List[array[float32]]
-        Each input divided into regions.
+    args : List[array[float32]] or None
+        Each input divided into regions or None if arg was None.
     """
     if len(shape) != 2:
         raise ValueError('The grid shape must have two dimensions.')
@@ -489,9 +500,14 @@ def split_by_scan_grid(pool, shape, scan, *args, fly=1):
     order = [order[m] for m in mask]
 
     def split(m, x):
-        return None if x is None else cp.asarray(x[m], dtype='float32')
+        return cp.asarray(x[m], dtype='float32')
 
-    split_args = [list(pool.map(split, mask, x=arg)) for arg in [scan, *args]]
+    split_args = []
+    for arg in [scan, *args]:
+        if arg is None:
+            split_args.append(None)
+        else:
+            split_args.append(pool.map(split, mask, x=arg))
 
     return (order, *split_args)
 

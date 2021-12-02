@@ -28,8 +28,8 @@ class PositionOptions:
         self,
         N,
         use_adaptive_moment=False,
-        vdecay=0.9,
-        mdecay=0.999,
+        vdecay=0.999,
+        mdecay=0.9,
         use_position_regularization=False,
     ):
         self.use_adaptive_moment = use_adaptive_moment

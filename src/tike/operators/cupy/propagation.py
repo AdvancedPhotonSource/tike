@@ -3,13 +3,13 @@
 __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
-from .cache import CachedFFT
-from .operator import Operator
-
+import cupyx.scipy.fft
 import numpy as np
 
+from .operator import Operator
 
-class Propagation(CachedFFT, Operator):
+
+class Propagation(Operator):
     """A Fourier-based free-space propagation using CuPy.
 
     Take an (..., N, N) array and apply the Fourier transform to the last two
@@ -49,22 +49,22 @@ class Propagation(CachedFFT, Operator):
         """Forward Fourier-based free-space propagation operator."""
         self._check_shape(nearplane)
         shape = nearplane.shape
-        return self._fft2(
+        return cupyx.scipy.fft.fft2(
             nearplane.reshape(-1, self.detector_shape, self.detector_shape),
             norm='ortho',
             axes=(-2, -1),
-            overwrite=overwrite,
+            overwrite_x=overwrite,
         ).reshape(shape)
 
     def adj(self, farplane, overwrite=False, **kwargs):
         """Adjoint Fourier-based free-space propagation operator."""
         self._check_shape(farplane)
         shape = farplane.shape
-        return self._ifft2(
+        return cupyx.scipy.fft.ifft2(
             farplane.reshape(-1, self.detector_shape, self.detector_shape),
             norm='ortho',
             axes=(-2, -1),
-            overwrite=overwrite,
+            overwrite_x=overwrite,
         ).reshape(shape)
 
     def _check_shape(self, x):
@@ -85,13 +85,13 @@ class Propagation(CachedFFT, Operator):
 
     def _gaussian_grad(self, data, farplane, intensity, overwrite=False):
         return farplane * (
-            1 - np.sqrt(data) / (np.sqrt(intensity) + 1e-32)
+            1 - np.sqrt(data) / (np.sqrt(intensity) + 1e-9)
         )[..., np.newaxis, np.newaxis, :, :]  # yapf:disable
 
     def _poisson_cost(self, data, intensity):
-        return np.mean(intensity - data * np.log(intensity + 1e-32))
+        return np.mean(intensity - data * np.log(intensity + 1e-9))
 
     def _poisson_grad(self, data, farplane, intensity, overwrite=False):
         return farplane * (
-            1 - data / (intensity + 1e-32)
+            1 - data / (intensity + 1e-9)
         )[..., np.newaxis, np.newaxis, :, :]  # yapf: disable

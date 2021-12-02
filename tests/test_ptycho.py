@@ -228,8 +228,9 @@ class TestPtychoRecon(unittest.TestCase):
             self.data = archive['data'][0]
             self.probe = archive['probe'][0]
         self.scan -= np.amin(self.scan, axis=-2) - 20
-        self.probe = tike.ptycho.probe.add_modes_random_phase(self.probe, 2)
+        self.probe = tike.ptycho.probe.add_modes_random_phase(self.probe, 5)
         self.probe *= np.random.rand(*self.probe.shape)
+        self.probe = tike.ptycho.probe.orthogonalize_eig(self.probe)
 
     def template_consistent_algorithm(self, algorithm, params={}):
         """Check ptycho.solver.algorithm for consistency."""
@@ -283,10 +284,8 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm(
                 'adam_grad',
                 params={
-                    'subset_is_random':
-                        True,
                     'batch_size':
-                        int(self.data.shape[-3] / 3),
+                        max(1, int(self.data.shape[-3] * 0.05)),
                     'num_gpu':
                         2,
                     'probe_options':
@@ -307,12 +306,12 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm(
                 'cgrad',
                 params={
-                    'subset_is_random': True,
-                    'batch_size': int(self.data.shape[-3] / 3),
+                    'batch_size': max(1, int(self.data.shape[-3] / 3)),
                     'num_gpu': 2,
                     'probe_options': ProbeOptions(),
                     'object_options': ObjectOptions(),
                     'use_mpi': _mpi_size > 1,
+                    'cg_iter': 1,
                 },
             ), f"{'mpi-' if _mpi_size > 1 else ''}cgrad")
 
@@ -322,14 +321,12 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm(
                 'lstsq_grad',
                 params={
-                    'subset_is_random':
-                        True,
                     'batch_size':
-                        int(self.data.shape[-3] / 3),
+                        max(1, int(self.data.shape[-3] * 0.05)),
                     'num_gpu':
                         2,
                     'probe_options':
-                        ProbeOptions(),
+                        ProbeOptions(orthogonality_constraint=True,),
                     'object_options':
                         ObjectOptions(),
                     'use_mpi':
@@ -345,36 +342,60 @@ class TestPtychoRecon(unittest.TestCase):
     def test_consistent_lstsq_grad_variable_probe(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
 
+        probes_with_modes = min(3, self.probe.shape[-3])
         eigen_probe, weights = tike.ptycho.probe.init_varying_probe(
-            self.scan, self.probe, 3)
+            self.scan,
+            self.probe,
+            num_eigen_probes=3,
+            probes_with_modes=probes_with_modes,
+        )
+        result = self.template_consistent_algorithm(
+            'lstsq_grad',
+            params={
+                'batch_size':
+                    max(1, int(self.data.shape[-3] * 0.05)),
+                'num_gpu':
+                    2,
+                'probe_options':
+                    ProbeOptions(),
+                'object_options':
+                    ObjectOptions(),
+                'use_mpi':
+                    _mpi_size > 1,
+                'eigen_probe':
+                    eigen_probe,
+                'eigen_weights':
+                    weights,
+                'position_options':
+                    PositionOptions(
+                        self.scan.shape[0:-1],
+                        use_adaptive_moment=True,
+                    ),
+            },
+        )
+        _save_ptycho_result(
+            result,
+            f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-variable-probe",
+        )
+        assert np.all(
+            result['eigen_weights'][..., 1:, probes_with_modes:] == 0), (
+                "These weights should be unused/untouched "
+                "and should have been initialized to zero.")
 
+    @unittest.case.skipIf(_mpi_size > 1, "MPI not implemented for ePIE.")
+    def test_consistent_epie(self):
+        """Check ptycho.solver.lstsq_grad for consistency."""
         _save_ptycho_result(
             self.template_consistent_algorithm(
-                'lstsq_grad',
+                'epie',
                 params={
-                    'subset_is_random':
-                        True,
-                    'batch_size':
-                        int(self.data.shape[-3] / 3),
-                    'num_gpu':
-                        2,
-                    'probe_options':
-                        ProbeOptions(),
-                    'object_options':
-                        ObjectOptions(),
-                    'use_mpi':
-                        _mpi_size > 1,
-                    'eigen_probe':
-                        eigen_probe,
-                    'eigen_weights':
-                        weights,
-                    'position_options':
-                        PositionOptions(
-                            self.scan.shape[0:-1],
-                            use_adaptive_moment=True,
-                        ),
+                    'batch_size': max(1, int(self.data.shape[-3] * 0.01)),
+                    'num_gpu': 2,
+                    'probe_options': ProbeOptions(),
+                    'object_options': ObjectOptions(),
+                    'use_mpi': _mpi_size > 1,
                 },
-            ), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-variable-probe")
+            ), f"{'mpi-' if _mpi_size > 1 else ''}epie")
 
     def test_invaid_algorithm_name(self):
         """Check that wrong names are handled gracefully."""
@@ -447,7 +468,7 @@ def _save_probe(output_folder, probe):
     import matplotlib.pyplot as plt
     flattened = np.concatenate(
         probe.reshape((-1, *probe.shape[-2:])),
-        axis=-1,
+        axis=1,
     )
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=UserWarning)
@@ -468,25 +489,17 @@ def _save_probe(output_folder, probe):
 def _save_ptycho_result(result, algorithm):
     try:
         import matplotlib.pyplot as plt
+        import tike.view
         fname = os.path.join(testdir, 'result', 'ptycho', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
 
-        fig, ax1 = plt.subplots()
-        plt.title(algorithm)
-
-        color = 'black'
-        ax1.set_xlabel('iteration')
-        ax1.set_ylabel('objective', color=color)
-        ax1.plot(result['costs'], color=color)
-        ax1.tick_params(axis='y', labelcolor=color)
-        ax1.semilogy()
-
-        ax2 = ax1.twinx()
-
-        color = 'red'
-        ax2.set_ylabel('times-per-iteration [s]', color=color)
-        ax2.plot(result['times'], color=color)
-        ax2.tick_params(axis='y', labelcolor=color)
+        fig, ax1, ax2, = tike.view.plot_cost_convergence(
+            result['costs'],
+            result['times'],
+        )
+        ax2.set_xlim(0, 20)
+        ax1.set_ylim(10**-1, 10**1)
+        fig.suptitle(algorithm)
         fig.tight_layout()
 
         plt.savefig(os.path.join(fname, 'convergence.svg'))
@@ -503,7 +516,8 @@ def _save_ptycho_result(result, algorithm):
             np.abs(result['psi']).astype('float32'),
         )
         _save_probe(fname, result['probe'])
-        if 'eigen_probe' in result and result['eigen_probe'] is not None:
+        if (result['eigen_weights'] is not None
+                and result['eigen_weights'].shape[-2] > 1):
             _save_eigen_probe(fname, result['eigen_probe'])
     except ImportError:
         pass

@@ -1,11 +1,13 @@
 """Contains different solver implementations."""
 
 from .adam import adam_grad
-from .combined import cgrad
-from .divided import lstsq_grad
+from .conjugate import cgrad
+from .lstsq import lstsq_grad
+from .epie import epie
 
 __all__ = [
     'adam_grad',
+    'epie',
     'cgrad',
     'lstsq_grad',
 ]

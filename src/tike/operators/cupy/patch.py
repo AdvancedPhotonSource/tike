@@ -117,7 +117,8 @@ class Patch(Operator):
         assert images.shape[:-2] == positions.shape[:-2]
         assert positions.shape[:-2] == patches.shape[:-3], (positions.shape,
                                                             patches.shape)
-        assert positions.shape[-2] * nrepeat == patches.shape[-3]
+        assert positions.shape[-2] * nrepeat == patches.shape[-3], (
+            positions.shape, nrepeat, patches.shape)
         assert positions.shape[-1] == 2
         assert images.dtype == 'complex64'
         assert patches.dtype == 'complex64'

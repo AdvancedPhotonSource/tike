@@ -8,7 +8,7 @@ From the conda-forge channel using Conda
 
 In theory, `tike` is available via conda from the conda-forge channel.
 However, this distribution will only be updated sporadically and is not
-recommended.
+recommended at this time.
 
 ********************
 From the source code
@@ -17,7 +17,7 @@ From the source code
 The build and runtime requirements are listed in `requirements.txt`.
 
 Install the package using typical installation methods: navigate to the
-directory with `setup.py` and ask `pip` to install tike.
+directory with `setup.cfg` and ask `pip` to install tike.
 
 .. code-block:: bash
 
