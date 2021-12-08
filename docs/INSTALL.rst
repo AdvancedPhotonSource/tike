@@ -2,6 +2,10 @@
 Installation Instructions
 #########################
 
+Tike is build on the `CuPy <https://github.com/cupy/cupy/>`_ framework which uses
+NVidia CUDA to accelerate computation. Thus, a CUDA compatible GPU on Windows_x64 or
+Linux_x64 is required. Other platforms are not supported at this time.
+
 ****************************************
 From the conda-forge channel using Conda
 ****************************************
@@ -14,7 +18,8 @@ recommended at this time.
 From the source code
 ********************
 
-The build and runtime requirements are listed in `requirements.txt`.
+The build and runtime requirements are listed in `requirements.txt`. Install these
+packages before installing tike; pip will not install them automatically.
 
 Install the package using typical installation methods: navigate to the
 directory with `setup.cfg` and ask `pip` to install tike.
