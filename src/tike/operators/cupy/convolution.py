@@ -124,7 +124,7 @@ class Convolution(Operator):
         patches *= nearplane[..., self.pad:self.end, self.pad:self.end]
         return patches
 
-    def adj_all(self, nearplane, scan, probe, psi, overwrite=False):
+    def adj_all(self, nearplane, scan, probe, psi, overwrite=False, rpie=False):
         """Peform adj and adj_probe at the same time."""
         assert probe.shape[:-4] == scan.shape[:-2]
         assert psi.shape[:-2] == scan.shape[:-2], (psi.shape, scan.shape)
@@ -148,10 +148,24 @@ class Convolution(Operator):
                                    self.probe_shape, self.probe_shape))
         patches = patches.conj()
         patches *= nearplane[..., self.pad:self.end, self.pad:self.end]
+        if rpie:
+            patches /= _max_amplitude(
+                nearplane[..., self.pad:self.end, self.pad:self.end],
+                alpha=0.05,
+                keepdims=True,
+                axis=(-1, -2),
+            )
 
         if not overwrite:
             nearplane = nearplane.copy()
         nearplane[..., self.pad:self.end, self.pad:self.end] *= probe.conj()
+        if rpie:
+            nearplane[..., self.pad:self.end, self.pad:self.end] /= _max_amplitude(
+                probe.conj(),
+                alpha=0.05,
+                keepdims=True,
+                axis=(-1, -2),
+            )
 
         return self.patch.adj(
             patches=nearplane.reshape(
@@ -163,3 +177,9 @@ class Convolution(Operator):
             patch_width=self.probe_shape,
             nrepeat=nearplane.shape[-3],
         ), patches
+
+
+def _max_amplitude(x, alpha=1, **kwargs):
+    """Return the maximum of the absolute square."""
+    amplitude = (x * x.conj()).real
+    return (1 - alpha) * amplitude + alpha * amplitude.max(**kwargs)

@@ -184,7 +184,7 @@ class Ptycho(Operator):
             keepdims=True,
         )
 
-    def adj_all(self, farplane, probe, scan, psi, overwrite=False):
+    def adj_all(self, farplane, probe, scan, psi, overwrite=False, rpie=False):
         """Please see help(Ptycho) for more info."""
         apsi, aprobe = self.diffraction.adj_all(
             nearplane=self.propagation.adj(
@@ -195,5 +195,6 @@ class Ptycho(Operator):
             scan=scan,
             overwrite=True,
             psi=psi,
+            rpie=rpie,
         )
         return apsi, aprobe[..., None, :, :, :]

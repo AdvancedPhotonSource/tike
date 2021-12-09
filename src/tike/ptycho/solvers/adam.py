@@ -135,6 +135,7 @@ def _grad_all(data, psi, scan, probe, mode=None, op=None):
         scan=scan,
         psi=psi,
         overwrite=True,
+        rpie=True,
     )
     # Use the average gradient for all probe positions
     grad_probe_mean = self.xp.mean(
