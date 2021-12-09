@@ -173,7 +173,7 @@ def simulate(
 def reconstruct(
         data,
         probe, scan,
-        algorithm,
+        algorithm=None,
         psi=None, num_gpu=1, num_iter=1, rtol=-1,
         model='gaussian', use_mpi=False,
         costs=[], times=[],
@@ -244,7 +244,9 @@ def reconstruct(
         function to resume reconstruction from the previous state.
 
     """
-    if algorithm not in solvers.__all__:
+    if algorithm is None:
+        algorithm = solvers.__all__[0]
+    elif algorithm not in solvers.__all__:
         raise ValueError(f"The '{algorithm}' algorithm is not an option.\n"
                          f"\tAvailable algorithms are : {solvers.__all__}")
     logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
