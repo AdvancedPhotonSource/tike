@@ -11,7 +11,7 @@ from ..probe import orthogonalize_eig
 logger = logging.getLogger(__name__)
 
 
-def epie(
+def rpie(
     op,
     comm,
     data,
@@ -24,7 +24,7 @@ def epie(
     object_options=None,
     cost=None,
 ):
-    """Solve the ptychography problem using extended ptychographical engine.
+    """Solve the ptychography problem using regularized ptychographical engine.
 
     Parameters
     ----------
@@ -169,9 +169,10 @@ def _update_wavefront(data, varying_probe, scan, psi, op=None):
     return farplane[..., pad:end, pad:end], cost
 
 
-def max_amplitude(x, **kwargs):
+def _max_amplitude(x, alpha=1, **kwargs):
     """Return the maximum of the absolute square."""
-    return (x * x.conj()).real.max(**kwargs)
+    amplitude = (x * x.conj()).real
+    return (1 - alpha) * amplitude + alpha * amplitude.max(**kwargs)
 
 
 def _update_nearplane(
@@ -205,6 +206,7 @@ def _update_nearplane(
             psi,
             scan_,
             probe,
+            alpha=0.05,
             m=m,
             recover_psi=recover_psi,
             recover_probe=recover_probe,
@@ -254,6 +256,7 @@ def _get_nearplane_gradients(
     psi,
     scan,
     probe,
+    alpha,
     m=0,
     recover_psi=True,
     recover_probe=True,
@@ -262,8 +265,9 @@ def _get_nearplane_gradients(
     diff = nearplane[..., [m], :, :] - (probe[..., [m], :, :] * patches)
 
     if recover_psi:
-        grad_psi = cp.conj(probe[..., [m], :, :]) * diff / max_amplitude(
+        grad_psi = cp.conj(probe[..., [m], :, :]) * diff / _max_amplitude(
             probe[..., [m], :, :],
+            alpha=alpha,
             keepdims=True,
             axis=(-1, -2),
         )
@@ -274,8 +278,9 @@ def _get_nearplane_gradients(
         )
 
     if recover_probe:
-        grad_probe = cp.conj(patches) * diff / max_amplitude(
+        grad_probe = cp.conj(patches) * diff / _max_amplitude(
             patches,
+            alpha=alpha,
             keepdims=True,
             axis=(-1, -2),
         )

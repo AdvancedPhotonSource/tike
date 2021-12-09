@@ -279,7 +279,7 @@ class TestPtychoRecon(unittest.TestCase):
         return result
 
     def test_consistent_adam_grad(self):
-        """Check ptycho.solver.cgrad for consistency."""
+        """Check ptycho.solver.adam_grad for consistency."""
         _save_ptycho_result(
             self.template_consistent_algorithm(
                 'adam_grad',
@@ -382,12 +382,12 @@ class TestPtychoRecon(unittest.TestCase):
                 "These weights should be unused/untouched "
                 "and should have been initialized to zero.")
 
-    @unittest.case.skipIf(_mpi_size > 1, "MPI not implemented for ePIE.")
-    def test_consistent_epie(self):
-        """Check ptycho.solver.lstsq_grad for consistency."""
+    @unittest.case.skipIf(_mpi_size > 1, "MPI not implemented for rPIE.")
+    def test_consistent_rpie(self):
+        """Check ptycho.solver.rpie for consistency."""
         _save_ptycho_result(
             self.template_consistent_algorithm(
-                'epie',
+                'rpie',
                 params={
                     'batch_size': max(1, int(self.data.shape[-3] * 0.01)),
                     'num_gpu': 2,
@@ -395,7 +395,7 @@ class TestPtychoRecon(unittest.TestCase):
                     'object_options': ObjectOptions(),
                     'use_mpi': _mpi_size > 1,
                 },
-            ), f"{'mpi-' if _mpi_size > 1 else ''}epie")
+            ), f"{'mpi-' if _mpi_size > 1 else ''}rpie")
 
     def test_invaid_algorithm_name(self):
         """Check that wrong names are handled gracefully."""
