@@ -35,6 +35,7 @@ allowed to vary.
 
 """
 
+import dataclasses
 import logging
 
 import cupy as cp
@@ -47,6 +48,7 @@ import tike.random
 logger = logging.getLogger(__name__)
 
 
+@dataclasses.dataclass
 class ProbeOptions:
     """Manage data and setting related to probe correction.
 
@@ -57,33 +59,15 @@ class ProbeOptions:
     num_eigen_probes : int
         The number of eigen probes/components.
     """
+    orthogonality_constraint: bool = True
+    centered_intensity_constraint: bool = False
+    sparsity_constraint: float = 1
 
-    def __init__(
-        self,
-        num_eigen_probes=0,
-        orthogonality_constraint=True,
-        use_adaptive_moment=False,
-        vdecay=0.999,
-        mdecay=0.9,
-        centered_intensity_constraint=False,
-        sparsity_constraint=1,
-    ):
-        self.orthogonality_constraint = orthogonality_constraint
-        self._weights = None
-        self._eigen_probes = None
-        if num_eigen_probes > 0:
-            pass
-        self.use_adaptive_moment = use_adaptive_moment
-        self.vdecay = vdecay
-        self.mdecay = mdecay
-        self.v = None
-        self.m = None
-        self.centered_intensity_constraint = centered_intensity_constraint
-        self.sparsity_constraint = sparsity_constraint
-
-    @property
-    def num_eigen_probes(self):
-        return 0 if self._weights is None else self._weights.shape[-2]
+    use_adaptive_moment: bool = False
+    vdecay: float = 0.999
+    mdecay: float = 0.9
+    v: dataclasses.field(init=False) = None
+    m: dataclasses.field(init=False) = None
 
     def put(self):
         """Copy to the current GPU memory."""

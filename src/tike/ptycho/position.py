@@ -1,5 +1,6 @@
 """Functions for manipulating and updating scanning positions."""
 
+import dataclasses
 import logging
 
 import cupy as cp
@@ -11,6 +12,7 @@ import tike.linalg
 logger = logging.getLogger(__name__)
 
 
+@dataclasses.dataclass
 class PositionOptions:
     """Manage data and settings related to position correction.
 
@@ -23,25 +25,16 @@ class PositionOptions:
         error model.
 
     """
+    N: int
 
-    def __init__(
-        self,
-        N,
-        use_adaptive_moment=False,
-        vdecay=0.999,
-        mdecay=0.9,
-        use_position_regularization=False,
-    ):
-        self.use_adaptive_moment = use_adaptive_moment
-        self.vdecay = vdecay
-        self.mdecay = mdecay
-        if use_adaptive_moment:
-            self._momentum = np.zeros((*N, 4), dtype='float32')
+    use_adaptive_moment: bool = False
+    vdecay: float = 0.999
+    mdecay: float = 0.9
+    use_position_regularization: bool = False
 
-        self.use_position_regularization = use_position_regularization
-        if use_position_regularization:
-            # TODO: Initialize affine transformation matrix
-            pass
+    def __post_init__(self):
+        if self.use_adaptive_moment:
+            self._momentum = np.zeros((*self.N, 4), dtype='float32')
 
     def split(self, indices):
         """Split the PositionOption meta-data along indices."""

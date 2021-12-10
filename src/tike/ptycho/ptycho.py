@@ -170,21 +170,29 @@ def simulate(
         return operator.asnumpy(data.real)
 
 
+
+
 def reconstruct(
-        data,
-        probe, scan,
-        algorithm=None,
-        psi=None, num_gpu=1, num_iter=1, rtol=-1,
-        model='gaussian', use_mpi=False,
-        costs=[], times=[],
-        eigen_probe=None, eigen_weights=None,
-        batch_size=None,
-        initial_scan=None,
-        position_options=None,
-        probe_options=None,
-        object_options=None,
-        **kwargs
-):  # yapf: disable
+    data,
+    probe,
+    scan,
+    algorithm=None,
+    psi=None,
+    num_gpu=1,
+    num_iter=1,
+    rtol=-1,
+    model='gaussian',
+    use_mpi=False,
+    costs=[],
+    times=[],
+    eigen_probe=None,
+    eigen_weights=None,
+    batch_size=None,
+    initial_scan=None,
+    position_options=None,
+    probe_options=None,
+    object_options=None,
+):
     """Solve the ptychography problem using the given `algorithm`.
 
     Parameters
@@ -301,7 +309,6 @@ def reconstruct(
                 probe_options,
                 comm,
                 result,
-                kwargs,
                 algorithm,
                 operator,
                 data,
@@ -424,7 +431,6 @@ def _iterate(
     probe_options,
     comm,
     result,
-    kwargs,
     algorithm,
     operator,
     data,
@@ -445,13 +451,12 @@ def _iterate(
                 f=probe_options.sparsity_constraint,
             )
 
-    kwargs.update(result)
     result = getattr(solvers, algorithm)(
         operator,
         comm,
         data=data,
         batches=batches,
-        **kwargs,
+        **result,
     )
 
     if (position_options and position_options.use_position_regularization):

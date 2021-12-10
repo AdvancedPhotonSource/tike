@@ -311,7 +311,6 @@ class TestPtychoRecon(unittest.TestCase):
                     'probe_options': ProbeOptions(),
                     'object_options': ObjectOptions(),
                     'use_mpi': _mpi_size > 1,
-                    'cg_iter': 1,
                 },
             ), f"{'mpi-' if _mpi_size > 1 else ''}cgrad")
 
