@@ -4,7 +4,6 @@ import dataclasses
 import logging
 
 import cupy as cp
-from cupyx.scipy.fft import fft2, ifft2
 import numpy as np
 
 import tike.linalg
@@ -18,6 +17,9 @@ class PositionOptions:
 
     Properties
     ----------
+    initial_scan: (POSI, 2) float32
+        The original scan positions before they were updated using position
+        correction.
     use_adaptive_moment : bool
         Whether AdaM is used to accelerate the position correction updates.
     use_position_regularization : bool
@@ -26,6 +28,7 @@ class PositionOptions:
 
     """
     N: int
+    initial_scan: np.array = None
 
     use_adaptive_moment: bool = False
     vdecay: float = 0.999

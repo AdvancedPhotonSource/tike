@@ -34,3 +34,4 @@ from .object import ObjectOptions
 from .position import check_allowed_positions, PositionOptions
 from .probe import ProbeOptions
 from .ptycho import *
+from .solvers import *
