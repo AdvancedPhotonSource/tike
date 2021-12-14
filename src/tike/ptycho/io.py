@@ -56,27 +56,27 @@ def read_aps_velociprobe(
 ):
     """Load ptychography data from the Advanced Photon Source Velociprobe.
 
-    Expects one HDF5 file and one CSV file with the following organization
+    Expects one HDF5 file and one CSV file with the following organization::
 
-    diffraction_path:
-        /entry
-            /data
-                /data_000000:int[FRAME, WIDE, HIGH] {unit: counts}
-                /data_000001:int[FRAME, WIDE, HIGH] {unit: counts}
-                ...
-            /instrument
-                /detector
-                    /beam_center_x:float            {unit: pixel}
-                    /beam_center_y:float            {unit: pixel}
-                    /detectorSpecific
-                        /photon_energy:float        {unit: eV}
-                        /x_pixels_in_detector:int
-                        /y_pixels_in_detector:int
-                    /detector_distance:float        {unit: m}
-                    /x_pixel_size:float             {unit: m}
-            /sample
-                /goniometer
-                    /chi:float[]                    {unit: degree }
+        diffraction_path:
+            /entry
+                /data
+                    /data_000000:int[FRAME, WIDE, HIGH] {unit: counts}
+                    /data_000001:int[FRAME, WIDE, HIGH] {unit: counts}
+                    ...
+                /instrument
+                    /detector
+                        /beam_center_x:float            {unit: pixel}
+                        /beam_center_y:float            {unit: pixel}
+                        /detectorSpecific
+                            /photon_energy:float        {unit: eV}
+                            /x_pixels_in_detector:int
+                            /y_pixels_in_detector:int
+                        /detector_distance:float        {unit: m}
+                        /x_pixel_size:float             {unit: m}
+                /sample
+                    /goniometer
+                        /chi:float[]                    {unit: degree }
 
     Where FRAME is the number of detector frames recorded and WIDE/HIGH is the
     width and height. The number of data_000000 links may be more than the
