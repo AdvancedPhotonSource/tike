@@ -417,8 +417,8 @@ class TestProbe(unittest.TestCase):
         R = comm.pool.bcast([np.random.rand(*leading, posi, 1, 1, wide, high)])
         eigen_probe = comm.pool.bcast(
             [np.random.rand(*leading, 1, eigen, 1, wide, high)])
-        weights = np.random.rand(*leading, posi)
-        weights -= np.mean(weights)
+        weights = np.random.rand(*leading, posi, eigen + 1, 1)
+        weights -= np.mean(weights, axis=-3, keepdims=True)
         weights = comm.pool.bcast([weights])
         patches = comm.pool.bcast(
             [np.random.rand(*leading, posi, 1, 1, wide, high)])
@@ -432,6 +432,8 @@ class TestProbe(unittest.TestCase):
             weights=weights,
             patches=patches,
             diff=diff,
+            c=1,
+            m=0,
         )
 
         assert eigen_probe[0].shape == new_probe[0].shape

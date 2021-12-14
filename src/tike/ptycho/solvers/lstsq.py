@@ -445,18 +445,17 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                     -2] == eigen_probe[0].shape[-4] + 1
                 for n in range(1, eigen_probe[0].shape[-4] + 1):
 
-                    a, b = update_eigen_probe(
+                    eigen_probe, eigen_weights = update_eigen_probe(
                         comm,
                         R,
-                        [p[..., n - 1:n, m:m + 1, :, :] for p in eigen_probe],
-                        [w[..., n, m] for w in eigen_weights],
+                        eigen_probe,
+                        eigen_weights,
                         patches,
                         diff,
                         β=0.01,  # TODO: Adjust according to mini-batch size
+                        c=n,
+                        m=m,
                     )
-                    for p, w, x, y in zip(eigen_probe, eigen_weights, a, b):
-                        p[..., n - 1:n, m:m + 1, :, :] = x
-                        w[..., n, m] = y
 
                     if n + 1 < eigen_weights[0].shape[-2]:
                         # Subtract projection of R onto new probe from R
