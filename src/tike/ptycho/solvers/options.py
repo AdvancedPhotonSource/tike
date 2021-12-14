@@ -1,5 +1,6 @@
 from abc import ABC
 import dataclasses
+from typing import List
 
 
 @dataclasses.dataclass
@@ -23,9 +24,9 @@ class IterativeOptions(ABC):
     name: str = dataclasses.field(default=None, init=False)
 
     batch_size: int = None
-    costs: list[float] = dataclasses.field(default_factory=list)
+    costs: List[float] = dataclasses.field(default_factory=list)
     num_iter: int = 1
-    times: list[float] = dataclasses.field(default_factory=list)
+    times: List[float] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass
