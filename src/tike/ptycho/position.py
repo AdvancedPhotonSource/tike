@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class PositionOptions:
     """Manage data and settings related to position correction.
 
-    Properties
+    Attributes
     ----------
     initial_scan: (POSI, 2) float32
         The original scan positions before they were updated using position
