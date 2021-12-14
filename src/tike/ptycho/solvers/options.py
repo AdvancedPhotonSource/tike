@@ -30,6 +30,11 @@ class IterativeOptions(ABC):
 
 @dataclasses.dataclass
 class AdamOptions(IterativeOptions):
+    name: str = dataclasses.field(default='adam_grad', init=False)
+
+
+@dataclasses.dataclass
+class CgradOptions(IterativeOptions):
     """
 
     Parameters
@@ -39,15 +44,10 @@ class AdamOptions(IterativeOptions):
     step_length : float
         Scales the inital search directions before the line search.
     """
-    name: str = dataclasses.field(default='adam_grad', init=False)
-
-    cg_iter: int = 4
-    step_length: float = 1
-
-
-@dataclasses.dataclass
-class CgradOptions(IterativeOptions):
     name: str = dataclasses.field(default='cgrad', init=False)
+
+    cg_iter: int = 2
+    step_length: float = 1
 
 
 @dataclasses.dataclass

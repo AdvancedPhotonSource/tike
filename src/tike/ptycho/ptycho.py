@@ -297,7 +297,6 @@ def reconstruct(
 
             # TODO: Grab intermediate psi/probe from GPU.
 
-            algorithm_options.costs.append(result['cost'])
             algorithm_options.times.append(time.perf_counter() - start)
             start = time.perf_counter()
 
@@ -360,6 +359,7 @@ def _setup(
         if probe_options is not None else None,
         object_options=object_options.put()
         if object_options is not None else None,
+        algorithm_options=algorithm_options,
     )
     if eigen_probe is not None:
         result.update({
