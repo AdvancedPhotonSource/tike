@@ -13,27 +13,27 @@ logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class PositionOptions:
-    """Manage data and settings related to position correction.
+    """Manage data and settings related to position correction."""
 
-    Attributes
-    ----------
-    initial_scan: (POSI, 2) float32
-        The original scan positions before they were updated using position
-        correction.
-    use_adaptive_moment : bool
-        Whether AdaM is used to accelerate the position correction updates.
-    use_position_regularization : bool
-        Whether the positions are constrained to fit a random error plus affine
-        error model.
-
-    """
     N: int
+    """The number of scanning positions."""
+
     initial_scan: np.array = None
+    """The original scan positions before they were updated using position
+    correction."""
 
     use_adaptive_moment: bool = False
+    """Whether AdaM is used to accelerate the position correction updates."""
+
     vdecay: float = 0.999
+    """The proportion of the second moment that is previous second moments."""
+
     mdecay: float = 0.9
+    """The proportion of the first moment that is previous first moments."""
+
     use_position_regularization: bool = False
+    """Whether the positions are constrained to fit a random error plus affine
+    error model."""
 
     def __post_init__(self):
         if self.use_adaptive_moment:

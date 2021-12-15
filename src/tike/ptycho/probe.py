@@ -50,24 +50,31 @@ logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class ProbeOptions:
-    """Manage data and setting related to probe correction.
+    """Manage data and setting related to probe correction."""
 
-    Attributes
-    ----------
-    orthogonality_constraint : bool
-        Forces probes to be orthogonal each iteration.
-    num_eigen_probes : int
-        The number of eigen probes/components.
-    """
     orthogonality_constraint: bool = True
+    """Forces probes to be orthogonal each iteration."""
+
     centered_intensity_constraint: bool = False
+    """Forces the probe intensity to be centered."""
+
     sparsity_constraint: float = 1
+    """Forces a maximum proportion of non-zero elements."""
 
     use_adaptive_moment: bool = False
+    """Whether or not to use adaptive moment."""
+
     vdecay: float = 0.999
+    """The proportion of the second moment that is previous second moments."""
+
     mdecay: float = 0.9
-    v: dataclasses.field(init=False) = None
-    m: dataclasses.field(init=False) = None
+    """The proportion of the first moment that is previous first moments."""
+
+    v: np.array = dataclasses.field(init=False, default_factory=lambda: None)
+    """The second moment for adaptive moment."""
+
+    m: np.array = dataclasses.field(init=False, default_factory=lambda: None)
+    """The first moment for adaptive moment."""
 
     def put(self):
         """Copy to the current GPU memory."""

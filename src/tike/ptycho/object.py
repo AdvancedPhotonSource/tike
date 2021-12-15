@@ -17,26 +17,30 @@ logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class ObjectOptions:
-    """Manage data and setting related to object correction.
+    """Manage data and setting related to object correction."""
 
-    Attributes
-    ----------
-    positivity_constraint : float [0, 1]
-        This value is passed to the tike.ptycho.object.positivity_constraint
-        function.
-    smoothness_constraint : float [0, 1/8]
-        This value is passed to the tike.ptycho.object.smoothness_constraint
-        function.
-
-    """
     positivity_constraint: float = 0
+    """This value is passed to the tike.ptycho.object.positivity_constraint
+    function."""
+
     smoothness_constraint: float = 0
+    """This value is passed to the tike.ptycho.object.smoothness_constraint
+    function."""
 
     use_adaptive_moment: bool = False
+    """Whether or not to use adaptive moment."""
+
     vdecay: float = 0.999
+    """The proportion of the second moment that is previous second moments."""
+
     mdecay: float = 0.9
-    v: dataclasses.field(init=False) = None
-    m: dataclasses.field(init=False) = None
+    """The proportion of the first moment that is previous first moments."""
+
+    v: np.array = dataclasses.field(init=False, default_factory=lambda: None)
+    """The second moment for adaptive moment."""
+
+    m: np.array = dataclasses.field(init=False, default_factory=lambda: None)
+    """The first moment for adaptive moment."""
 
     def put(self):
         """Copy to the current GPU memory."""

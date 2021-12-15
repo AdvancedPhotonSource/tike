@@ -5,28 +5,25 @@ from typing import List
 
 @dataclasses.dataclass
 class IterativeOptions(ABC):
-    """
-
-    Parameters
-    ----------
-    batch_size : int
-        The approximate number of scan positions processed by each GPU
-        simultaneously per view.
-    costs : list[float]
-        The objective function value at previous iterations
-    num_iter : int
-        The number of epochs to process before returning.
-    times : list[float]
-        The per-iteration wall-time for each previous iteration.
+    """A base class providing options for iterative algorithms.
 
     .. versionadded:: 0.20.0
     """
     name: str = dataclasses.field(default=None, init=False)
+    """The name of the algorithm."""
 
     batch_size: int = None
+    """The approximate number of scan positions processed by each GPU
+    simultaneously per view."""
+
     costs: List[float] = dataclasses.field(default_factory=list)
+    """The objective function value at previous iterations."""
+
     num_iter: int = 1
+    """The number of epochs to process before returning."""
+
     times: List[float] = dataclasses.field(default_factory=list)
+    """The per-iteration wall-time for each previous iteration."""
 
 
 @dataclasses.dataclass
@@ -36,19 +33,13 @@ class AdamOptions(IterativeOptions):
 
 @dataclasses.dataclass
 class CgradOptions(IterativeOptions):
-    """
-
-    Parameters
-    ----------
-    cg_iter : int
-        The number of conjugate directions to search for each update.
-    step_length : float
-        Scales the inital search directions before the line search.
-    """
     name: str = dataclasses.field(default='cgrad', init=False)
 
     cg_iter: int = 2
+    """The number of conjugate directions to search for each update."""
+
     step_length: float = 1
+    """Scales the inital search directions before the line search."""
 
 
 @dataclasses.dataclass
