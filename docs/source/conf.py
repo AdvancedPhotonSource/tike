@@ -131,6 +131,7 @@ htmlhelp_basename = project+'doc'
 autodoc_mock_imports = [
     'cupy',
     'cupyx',
+    'h5py',
     'importlib_resources',
     'matplotlib',
     'matplotlib.pyplot',

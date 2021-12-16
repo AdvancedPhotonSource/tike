@@ -22,6 +22,9 @@ ptycho
    :maxdepth: 3
    :hidden:
 
+   ptycho.fresnel
+   ptycho.io
+   ptycho.learn
    ptycho.object
    ptycho.position
    ptycho.probe

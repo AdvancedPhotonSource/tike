@@ -1,5 +1,4 @@
-# This is the python version code for initialize probes
-
+"""Functions for probe initialization using a model of Fresnel optics."""
 import numpy as np
 
 

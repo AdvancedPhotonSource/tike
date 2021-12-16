@@ -35,6 +35,7 @@ allowed to vary.
 
 """
 
+import dataclasses
 import logging
 
 import cupy as cp
@@ -47,45 +48,35 @@ import tike.random
 logger = logging.getLogger(__name__)
 
 
+@dataclasses.dataclass
 class ProbeOptions:
-    """Manage data and setting related to probe correction.
+    """Manage data and setting related to probe correction."""
 
-    Attributes
-    ----------
-    orthogonality_constraint : bool
-        Forces probes to be orthogonal each iteration.
-    num_eigen_probes : int
-        The number of eigen probes/components.
-    """
+    orthogonality_constraint: bool = True
+    """Forces probes to be orthogonal each iteration."""
 
-    def __init__(
-        self,
-        num_eigen_probes=0,
-        orthogonality_constraint=True,
-        use_adaptive_moment=False,
-        vdecay=0.999,
-        mdecay=0.9,
-        centered_intensity_constraint=False,
-        sparsity_constraint=1,
-    ):
-        self.orthogonality_constraint = orthogonality_constraint
-        self._weights = None
-        self._eigen_probes = None
-        if num_eigen_probes > 0:
-            pass
-        self.use_adaptive_moment = use_adaptive_moment
-        self.vdecay = vdecay
-        self.mdecay = mdecay
-        self.v = None
-        self.m = None
-        self.centered_intensity_constraint = centered_intensity_constraint
-        self.sparsity_constraint = sparsity_constraint
+    centered_intensity_constraint: bool = False
+    """Forces the probe intensity to be centered."""
 
-    @property
-    def num_eigen_probes(self):
-        return 0 if self._weights is None else self._weights.shape[-2]
+    sparsity_constraint: float = 1
+    """Forces a maximum proportion of non-zero elements."""
 
-    def put(self):
+    use_adaptive_moment: bool = False
+    """Whether or not to use adaptive moment."""
+
+    vdecay: float = 0.999
+    """The proportion of the second moment that is previous second moments."""
+
+    mdecay: float = 0.9
+    """The proportion of the first moment that is previous first moments."""
+
+    v: np.array = dataclasses.field(init=False, default_factory=lambda: None)
+    """The second moment for adaptive moment."""
+
+    m: np.array = dataclasses.field(init=False, default_factory=lambda: None)
+    """The first moment for adaptive moment."""
+
+    def copy_to_device(self):
         """Copy to the current GPU memory."""
         if self.v is not None:
             self.v = cp.asarray(self.v)
@@ -93,7 +84,7 @@ class ProbeOptions:
             self.m = cp.asarray(self.m)
         return self
 
-    def get(self):
+    def copy_to_host(self):
         """Copy to the host CPU memory."""
         if self.v is not None:
             self.v = cp.asnumpy(self.v)
