@@ -334,7 +334,7 @@ class TestPtychoRecon(unittest.TestCase):
                     _mpi_size > 1,
                 'position_options':
                     PositionOptions(
-                        self.scan.shape[0:-1],
+                        self.scan.shape[-2],
                         use_adaptive_moment=True,
                     ),
             },), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad")
@@ -369,7 +369,7 @@ class TestPtychoRecon(unittest.TestCase):
                 weights,
             'position_options':
                 PositionOptions(
-                    self.scan.shape[0:-1],
+                    self.scan.shape[-2],
                     use_adaptive_moment=True,
                 ),
         },)

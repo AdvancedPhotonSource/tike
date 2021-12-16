@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class PositionOptions:
     """Manage data and settings related to position correction."""
 
-    N: int
+    num_positions: int
     """The number of scanning positions."""
 
     initial_scan: np.array = None
@@ -37,12 +37,12 @@ class PositionOptions:
 
     def __post_init__(self):
         if self.use_adaptive_moment:
-            self._momentum = np.zeros((*self.N, 4), dtype='float32')
+            self._momentum = np.zeros((self.num_positions, 4), dtype='float32')
 
     def split(self, indices):
         """Split the PositionOption meta-data along indices."""
         new = PositionOptions(
-            (0,),
+            0,
             use_adaptive_moment=self.use_adaptive_moment,
             vdecay=self.vdecay,
             mdecay=self.mdecay,
