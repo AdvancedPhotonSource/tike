@@ -58,13 +58,13 @@ class PositionOptions:
             self._momentum[..., indices, :] = other._momentum
         return self
 
-    def put(self):
+    def copy_to_device(self):
         """Copy to the current GPU memory."""
         if self.use_adaptive_moment:
             self._momentum = cp.asarray(self._momentum)
         return self
 
-    def get(self):
+    def copy_to_host(self):
         """Copy to the host CPU memory."""
         if self.use_adaptive_moment:
             self._momentum = cp.asnumpy(self._momentum)

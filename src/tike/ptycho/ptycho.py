@@ -355,9 +355,9 @@ def _setup(
         psi=comm.pool.bcast([psi.astype('complex64')]),
         probe=comm.pool.bcast([probe.astype('complex64')]),
         scan=scan,
-        probe_options=probe_options.put()
+        probe_options=probe_options.copy_to_device()
         if probe_options is not None else None,
-        object_options=object_options.put()
+        object_options=object_options.copy_to_device()
         if object_options is not None else None,
         algorithm_options=algorithm_options,
     )
@@ -372,7 +372,7 @@ def _setup(
     if position_options:
         # TODO: Consider combining put/split, get/join operations?
         result['position_options'] = comm.pool.map(
-            PositionOptions.put,
+            PositionOptions.copy_to_device,
             (position_options.split(x) for x in comm.order),
         )
         if initial_scan is None:
@@ -465,7 +465,7 @@ def _teardown(
     if position_options is not None:
         for x, o in zip(
                 comm.pool.map(
-                    PositionOptions.get,
+                    PositionOptions.copy_to_host,
                     result['position_options'],
                 ),
                 comm.order,
@@ -484,11 +484,11 @@ def _teardown(
             result['eigen_weights'],
             axis=-3,
         )[reorder].get() if eigen_weights is not None else None,
-        object_options=result['object_options'].get()
+        object_options=result['object_options'].copy_to_host()
         if object_options is not None else None,
         position_options=position_options,
         probe=result['probe'][0].get(),
-        probe_options=result['probe_options'].get()
+        probe_options=result['probe_options'].copy_to_host()
         if probe_options is not None else None,
         psi=result['psi'][0].get(),
         scan=comm.pool.gather(scan, axis=-2)[reorder].get(),

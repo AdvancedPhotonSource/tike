@@ -76,7 +76,7 @@ class ProbeOptions:
     m: np.array = dataclasses.field(init=False, default_factory=lambda: None)
     """The first moment for adaptive moment."""
 
-    def put(self):
+    def copy_to_device(self):
         """Copy to the current GPU memory."""
         if self.v is not None:
             self.v = cp.asarray(self.v)
@@ -84,7 +84,7 @@ class ProbeOptions:
             self.m = cp.asarray(self.m)
         return self
 
-    def get(self):
+    def copy_to_host(self):
         """Copy to the host CPU memory."""
         if self.v is not None:
             self.v = cp.asnumpy(self.v)
