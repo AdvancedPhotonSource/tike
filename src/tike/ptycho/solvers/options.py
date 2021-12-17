@@ -16,13 +16,13 @@ class IterativeOptions(ABC):
     """The approximate number of scan positions processed by each GPU
     simultaneously per view."""
 
-    costs: List[float] = dataclasses.field(default_factory=list)
+    costs: List[float] = dataclasses.field(init=False, default_factory=list)
     """The objective function value at previous iterations."""
 
     num_iter: int = 1
     """The number of epochs to process before returning."""
 
-    times: List[float] = dataclasses.field(default_factory=list)
+    times: List[float] = dataclasses.field(init=False, default_factory=list)
     """The per-iteration wall-time for each previous iteration."""
 
 
