@@ -35,6 +35,7 @@ allowed to vary.
 
 """
 
+import dataclasses
 import logging
 
 import cupy as cp
@@ -47,45 +48,35 @@ import tike.random
 logger = logging.getLogger(__name__)
 
 
+@dataclasses.dataclass
 class ProbeOptions:
-    """Manage data and setting related to probe correction.
+    """Manage data and setting related to probe correction."""
 
-    Attributes
-    ----------
-    orthogonality_constraint : bool
-        Forces probes to be orthogonal each iteration.
-    num_eigen_probes : int
-        The number of eigen probes/components.
-    """
+    orthogonality_constraint: bool = True
+    """Forces probes to be orthogonal each iteration."""
 
-    def __init__(
-        self,
-        num_eigen_probes=0,
-        orthogonality_constraint=True,
-        use_adaptive_moment=False,
-        vdecay=0.999,
-        mdecay=0.9,
-        centered_intensity_constraint=False,
-        sparsity_constraint=1,
-    ):
-        self.orthogonality_constraint = orthogonality_constraint
-        self._weights = None
-        self._eigen_probes = None
-        if num_eigen_probes > 0:
-            pass
-        self.use_adaptive_moment = use_adaptive_moment
-        self.vdecay = vdecay
-        self.mdecay = mdecay
-        self.v = None
-        self.m = None
-        self.centered_intensity_constraint = centered_intensity_constraint
-        self.sparsity_constraint = sparsity_constraint
+    centered_intensity_constraint: bool = False
+    """Forces the probe intensity to be centered."""
 
-    @property
-    def num_eigen_probes(self):
-        return 0 if self._weights is None else self._weights.shape[-2]
+    sparsity_constraint: float = 1
+    """Forces a maximum proportion of non-zero elements."""
 
-    def put(self):
+    use_adaptive_moment: bool = False
+    """Whether or not to use adaptive moment."""
+
+    vdecay: float = 0.999
+    """The proportion of the second moment that is previous second moments."""
+
+    mdecay: float = 0.9
+    """The proportion of the first moment that is previous first moments."""
+
+    v: np.array = dataclasses.field(init=False, default_factory=lambda: None)
+    """The second moment for adaptive moment."""
+
+    m: np.array = dataclasses.field(init=False, default_factory=lambda: None)
+    """The first moment for adaptive moment."""
+
+    def copy_to_device(self):
         """Copy to the current GPU memory."""
         if self.v is not None:
             self.v = cp.asarray(self.v)
@@ -93,7 +84,7 @@ class ProbeOptions:
             self.m = cp.asarray(self.m)
         return self
 
-    def get(self):
+    def copy_to_host(self):
         """Copy to the host CPU memory."""
         if self.v is not None:
             self.v = cp.asnumpy(self.v)
@@ -166,7 +157,17 @@ def constrain_variable_probe(variable_probe, weights):
     return variable_probe, weights
 
 
-def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
+def update_eigen_probe(
+    comm,
+    R,
+    eigen_probe,
+    weights,
+    patches,
+    diff,
+    β=0.1,
+    c=1,
+    m=0,
+):
     """Update eigen probes using residual probe updates.
 
     This update is copied from the source code of ptychoshelves. It is similar
@@ -183,12 +184,12 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
         update from the varying probe updates for each position
     patches : (..., POSI, 1, 1, WIDE, HIGH) complex64
     diff : (..., POSI, 1, 1, WIDE, HIGH) complex64
-    eigen_probe : (..., 1, 1, 1, WIDE, HIGH) complex64
+    eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
         The eigen probe being updated.
     β : float
         A relaxation constant that controls how quickly the eigen probe modes
         are updated. Recommended to be < 1 for mini-batch updates.
-    weights : (..., POSI) float32
+    weights : (..., POSI, EIGEN, SHARED) float32
         A vector whose elements are sums of the previous optimal updates for
         each posiiton.
 
@@ -203,14 +204,15 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
     Optics Express. 2018.
     """
     assert R[0].shape[-3] == R[0].shape[-4] == 1
-    assert eigen_probe[0].shape[-3] == 1 == eigen_probe[0].shape[-5]
-    assert R[0].shape[:-5] == eigen_probe[0].shape[:-5] == weights[0].shape[:-1]
-    assert weights[0].shape[-1] == R[0].shape[-5]
+    assert 1 == eigen_probe[0].shape[-5]
+    assert R[0].shape[:-5] == eigen_probe[0].shape[:-5] == weights[0].shape[:-3]
+    assert weights[0].shape[-3] == R[0].shape[-5]
     assert R[0].shape[-2:] == eigen_probe[0].shape[-2:]
 
     def _get_update(R, eigen_probe, weights):
         # (..., POSI, 1, 1, 1, 1) to match other arrays
-        weights = weights[..., None, None, None, None]
+        weights = weights[..., c:c + 1, m:m + 1, None, None]
+        eigen_probe = eigen_probe[..., c - 1:c, m:m + 1, :, :]
         norm_weights = np.linalg.norm(weights, axis=-5, keepdims=True)**2
 
         if np.all(norm_weights == 0):
@@ -218,18 +220,18 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
 
         # FIXME: What happens when weights is zero!?
         proj = (np.real(R.conj() * eigen_probe) + weights) / norm_weights
-        return weights, np.mean(
+        return np.mean(
             R * np.mean(proj, axis=(-2, -1), keepdims=True),
             axis=-5,
             keepdims=True,
         )
 
-    weights, update = (list(a) for a in zip(*comm.pool.map(
+    update = comm.pool.map(
         _get_update,
         R,
         eigen_probe,
         weights,
-    )))
+    )
     if comm.use_mpi:
         update[0] = comm.Allreduce_mean(
             update,
@@ -243,28 +245,31 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
         )])
 
     def _get_d(patches, diff, eigen_probe, update, β):
-        eigen_probe += β * update / np.linalg.norm(
-            update,
+        eigen_probe[..., c - 1:c,
+                    m:m + 1, :, :] += β * update / tike.linalg.mnorm(
+                        update,
+                        axis=(-2, -1),
+                        keepdims=True,
+                    )
+        eigen_probe[..., c - 1:c, m:m + 1, :, :] /= tike.linalg.mnorm(
+            eigen_probe[..., c - 1:c, m:m + 1, :, :],
             axis=(-2, -1),
             keepdims=True,
         )
         assert np.all(np.isfinite(eigen_probe))
 
-        eigen_probe /= np.linalg.norm(eigen_probe, axis=(-2, -1), keepdims=True)
-
         # Determine new eigen_weights for the updated eigen probe
-        phi = patches * eigen_probe
+        phi = patches * eigen_probe[..., c - 1:c, m:m + 1, :, :]
         n = np.mean(
             np.real(diff * phi.conj()),
             axis=(-1, -2),
-            keepdims=True,
+            keepdims=False,
         )
-        norm_phi = np.square(np.abs(phi))
-        d = np.mean(norm_phi, axis=(-1, -2), keepdims=True)
-        d_mean = np.mean(d, axis=-5, keepdims=True)
-        return n, d, d_mean
+        d = np.mean(np.square(np.abs(phi)), axis=(-1, -2), keepdims=False)
+        d_mean = np.mean(d, axis=-3, keepdims=True)
+        return eigen_probe, n, d, d_mean
 
-    (n, d, d_mean) = (list(a) for a in zip(*comm.pool.map(
+    (eigen_probe, n, d, d_mean) = (list(a) for a in zip(*comm.pool.map(
         _get_d,
         patches,
         diff,
@@ -276,58 +281,32 @@ def update_eigen_probe(comm, R, eigen_probe, weights, patches, diff, β=0.1):
     if comm.use_mpi:
         d_mean[0] = comm.Allreduce_mean(
             d_mean,
-            axis=-5,
+            axis=-3,
         )
         d_mean = comm.pool.bcast([d_mean[0]])
     else:
         d_mean = comm.pool.bcast([comm.pool.reduce_mean(
             d_mean,
-            axis=-5,
+            axis=-3,
         )])
 
     def _get_weights_mean(n, d, d_mean, weights):
         d += 0.1 * d_mean
 
-        weight_update = (n / d).reshape(*weights.shape)
+        weight_update = (n / d).reshape(*weights[..., c:c + 1, m:m + 1].shape)
         assert np.all(np.isfinite(weight_update))
 
         # (33) The sum of all previous steps constrained to zero-mean
-        weights += weight_update
-        return np.mean(
-            weights,
-            axis=-5,
-            keepdims=True,
-        )
+        weights[..., c:c + 1, m:m + 1] += weight_update
+        return weights
 
-    weights_mean = list(comm.pool.map(
+    weights = list(comm.pool.map(
         _get_weights_mean,
         n,
         d,
         d_mean,
         weights,
     ))
-    if comm.use_mpi:
-        weights_mean[0] = comm.Allreduce_mean(
-            weights_mean,
-            axis=-5,
-        )
-        weights_mean = comm.pool.bcast([weights_mean[0]])
-    else:
-        weights_mean = comm.pool.bcast(
-            [comm.pool.reduce_mean(
-                weights_mean,
-                axis=-5,
-            )])
-
-    def _update_weights(weights, weights_mean):
-        weights -= weights_mean
-        return weights[..., 0, 0, 0, 0]
-
-    weights = comm.pool.map(
-        _update_weights,
-        weights,
-        weights_mean,
-    )
 
     return eigen_probe, weights
 

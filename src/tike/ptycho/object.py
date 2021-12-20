@@ -5,6 +5,7 @@ the complex refractive indices in the field of view.
 
 """
 
+import dataclasses
 import logging
 
 import cupy as cp
@@ -14,38 +15,34 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-# TODO: Use dataclass decorator when python 3.6 reaches EOL
+@dataclasses.dataclass
 class ObjectOptions:
-    """Manage data and setting related to object correction.
+    """Manage data and setting related to object correction."""
 
-    Attributes
-    ----------
-    positivity_constraint : float [0, 1]
-        This value is passed to the tike.ptycho.object.positivity_constraint
-        function.
-    smoothness_constraint : float [0, 1/8]
-        This value is passed to the tike.ptycho.object.smoothness_constraint
-        function.
+    positivity_constraint: float = 0
+    """This value is passed to the tike.ptycho.object.positivity_constraint
+    function."""
 
-    """
+    smoothness_constraint: float = 0
+    """This value is passed to the tike.ptycho.object.smoothness_constraint
+    function."""
 
-    def __init__(
-        self,
-        positivity_constraint=0,
-        smoothness_constraint=0,
-        use_adaptive_moment=False,
-        vdecay=0.999,
-        mdecay=0.9,
-    ):
-        self.positivity_constraint = positivity_constraint
-        self.smoothness_constraint = smoothness_constraint
-        self.use_adaptive_moment = use_adaptive_moment
-        self.vdecay = vdecay
-        self.mdecay = mdecay
-        self.v = None
-        self.m = None
+    use_adaptive_moment: bool = False
+    """Whether or not to use adaptive moment."""
 
-    def put(self):
+    vdecay: float = 0.999
+    """The proportion of the second moment that is previous second moments."""
+
+    mdecay: float = 0.9
+    """The proportion of the first moment that is previous first moments."""
+
+    v: np.array = dataclasses.field(init=False, default_factory=lambda: None)
+    """The second moment for adaptive moment."""
+
+    m: np.array = dataclasses.field(init=False, default_factory=lambda: None)
+    """The first moment for adaptive moment."""
+
+    def copy_to_device(self):
         """Copy to the current GPU memory."""
         if self.v is not None:
             self.v = cp.asarray(self.v)
@@ -53,7 +50,7 @@ class ObjectOptions:
             self.m = cp.asarray(self.m)
         return self
 
-    def get(self):
+    def copy_to_host(self):
         """Copy to the host CPU memory."""
         if self.v is not None:
             self.v = cp.asnumpy(self.v)

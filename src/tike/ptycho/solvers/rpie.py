@@ -15,14 +15,15 @@ def rpie(
     op,
     comm,
     data,
+    batches,
+    *,
     probe,
     scan,
     psi,
-    batches,
+    algorithm_options,
     probe_options=None,
     position_options=None,
     object_options=None,
-    cost=None,
 ):
     """Solve the ptychography problem using regularized ptychographical engine.
 
@@ -37,6 +38,10 @@ def rpie(
         the intensity (square of the absolute value) of the propagated
         wavefront; i.e. what the detector records. FFT-shifted so the
         diffraction peak is at the corners.
+    batches : list(list((BATCH_SIZE, ) int, ...), ...)
+        A list of list of indices along the FRAME axis of `data` for
+        each device which define the batches of `data` to process
+        simultaneously.
     probe : list((1, 1, SHARED, WIDE, HIGH) complex64, ...)
         A list of duplicate CuPy arrays for each device containing
         the shared complex illumination function amongst all positions.
@@ -48,23 +53,20 @@ def rpie(
     psi : list((WIDE, HIGH) complex64, ...)
         A list of duplicate CuPy arrays for each device containing
         the wavefront modulation coefficients of the object.
-    batches : list(list((BATCH_SIZE, ) int, ...), ...)
-        A list of list of indices along the FRAME axis of `data` for
-        each device which define the batches of `data` to process
-        simultaneously.
+    algorithm_options : :py:class:`tike.ptycho.IterativeOptions`
+        The options class for this algorithm.
     position_options : :py:class:`tike.ptycho.PositionOptions`
         A class containing settings related to position correction.
     probe_options : :py:class:`tike.ptycho.ProbeOptions`
         A class containing settings related to probe updates.
     object_options : :py:class:`tike.ptycho.ObjectOptions`
         A class containing settings related to object updates.
-    cost : float
-        The current objective function value.
 
     Returns
     -------
     result : dict
-        A dictionary containing the updated inputs if they can be updated.
+        A dictionary containing the updated keyword-only arguments passed to
+        this function.
 
     References
     ----------
@@ -116,6 +118,7 @@ def rpie(
             beigen_weights,
             object_options is not None,
             probe_options is not None,
+            algorithm_options=algorithm_options,
         )
 
         comm.pool.map(
@@ -138,16 +141,16 @@ def rpie(
                             psi,
                             a=object_options.smoothness_constraint)
 
-    result = {
-        'psi': psi,
+    algorithm_options.costs.append(cost)
+    return {
         'probe': probe,
-        'cost': cost,
+        'psi': psi,
         'scan': scan,
+        'algorithm_options': algorithm_options,
         'probe_options': probe_options,
         'object_options': object_options,
         'position_options': position_options,
     }
-    return result
 
 
 def _update_wavefront(data, varying_probe, scan, psi, op=None):
@@ -188,6 +191,7 @@ def _update_nearplane(
     recover_psi,
     recover_probe,
     step_length=1.0,
+    algorithm_options=None,
 ):
 
     patches = comm.pool.map(_get_patches, nearplane_, psi, scan_, op=op)
@@ -206,7 +210,7 @@ def _update_nearplane(
             psi,
             scan_,
             probe,
-            alpha=0.05,
+            alpha=algorithm_options.alpha,
             m=m,
             recover_psi=recover_psi,
             recover_probe=recover_probe,

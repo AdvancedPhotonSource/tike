@@ -17,16 +17,17 @@ def lstsq_grad(
     op,
     comm,
     data,
+    batches,
+    *,
     probe,
     scan,
     psi,
-    batches,
+    algorithm_options,
     eigen_probe=None,
     eigen_weights=None,
     probe_options=None,
     position_options=None,
     object_options=None,
-    cost=None,
 ):
     """Solve the ptychography problem using Odstrcil et al's approach.
 
@@ -44,6 +45,10 @@ def lstsq_grad(
         the intensity (square of the absolute value) of the propagated
         wavefront; i.e. what the detector records. FFT-shifted so the
         diffraction peak is at the corners.
+    batches : list(list((BATCH_SIZE, ) int, ...), ...)
+        A list of list of indices along the FRAME axis of `data` for
+        each device which define the batches of `data` to process
+        simultaneously.
     probe : list((1, 1, SHARED, WIDE, HIGH) complex64, ...)
         A list of duplicate CuPy arrays for each device containing
         the shared complex illumination function amongst all positions.
@@ -55,29 +60,20 @@ def lstsq_grad(
     psi : list((WIDE, HIGH) complex64, ...)
         A list of duplicate CuPy arrays for each device containing
         the wavefront modulation coefficients of the object.
-    batches : list(list((BATCH_SIZE, ) int, ...), ...)
-        A list of list of indices along the FRAME axis of `data` for
-        each device which define the batches of `data` to process
-        simultaneously.
-    eigen_probe : list((EIGEN, SHARED, WIDE, HIGH) complex64, ...)
-        A list of duplicate CuPy arrays for each device containing
-        the eigen probes for all positions.
-    eigen_weights : list((POSI, EIGEN, SHARED) float32, ...)
-        A list of unique CuPy arrays for each device containing
-        the relative intensity of the eigen probes at each position.
+    algorithm_options : :py:class:`tike.ptycho.IterativeOptions`
+        The options class for this algorithm.
     position_options : :py:class:`tike.ptycho.PositionOptions`
         A class containing settings related to position correction.
     probe_options : :py:class:`tike.ptycho.ProbeOptions`
         A class containing settings related to probe updates.
     object_options : :py:class:`tike.ptycho.ObjectOptions`
         A class containing settings related to object updates.
-    cost : float
-        The current objective function value.
 
     Returns
     -------
     result : dict
-        A dictionary containing the updated inputs if they can be updated.
+        A dictionary containing the updated keyword-only arguments passed to
+        this function.
 
     References
     ----------
@@ -197,23 +193,18 @@ def lstsq_grad(
             eigen_weights,
         )))
 
-    result = {
-        'psi': psi,
+    algorithm_options.costs.append(cost)
+    return {
         'probe': probe,
-        'cost': cost,
+        'psi': psi,
         'scan': scan,
+        'eigen_probe': eigen_probe,
+        'eigen_weights': eigen_weights,
+        'algorithm_options': algorithm_options,
+        'probe_options': probe_options,
+        'object_options': object_options,
+        'position_options': position_options,
     }
-    if isinstance(eigen_probe, list):
-        result['eigen_probe'] = eigen_probe
-        result['eigen_weights'] = eigen_weights
-    if position_options:
-        result['position_options'] = position_options
-    if probe_options:
-        result['probe_options'] = probe_options
-    if object_options:
-        result['object_options'] = object_options
-
-    return result
 
 
 def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
@@ -445,18 +436,17 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                     -2] == eigen_probe[0].shape[-4] + 1
                 for n in range(1, eigen_probe[0].shape[-4] + 1):
 
-                    a, b = update_eigen_probe(
+                    eigen_probe, eigen_weights = update_eigen_probe(
                         comm,
                         R,
-                        [p[..., n - 1:n, m:m + 1, :, :] for p in eigen_probe],
-                        [w[..., n, m] for w in eigen_weights],
+                        eigen_probe,
+                        eigen_weights,
                         patches,
                         diff,
                         β=0.01,  # TODO: Adjust according to mini-batch size
+                        c=n,
+                        m=m,
                     )
-                    for p, w, x, y in zip(eigen_probe, eigen_weights, a, b):
-                        p[..., n - 1:n, m:m + 1, :, :] = x
-                        w[..., n, m] = y
 
                     if n + 1 < eigen_weights[0].shape[-2]:
                         # Subtract projection of R onto new probe from R

@@ -1,9 +1,9 @@
 """Functions for manipulating and updating scanning positions."""
 
+import dataclasses
 import logging
 
 import cupy as cp
-from cupyx.scipy.fft import fft2, ifft2
 import numpy as np
 
 import tike.linalg
@@ -11,42 +11,38 @@ import tike.linalg
 logger = logging.getLogger(__name__)
 
 
+@dataclasses.dataclass
 class PositionOptions:
-    """Manage data and settings related to position correction.
+    """Manage data and settings related to position correction."""
 
-    Properties
-    ----------
-    use_adaptive_moment : bool
-        Whether AdaM is used to accelerate the position correction updates.
-    use_position_regularization : bool
-        Whether the positions are constrained to fit a random error plus affine
-        error model.
+    num_positions: int
+    """The number of scanning positions."""
 
-    """
+    initial_scan: np.array = None
+    """The original scan positions before they were updated using position
+    correction."""
 
-    def __init__(
-        self,
-        N,
-        use_adaptive_moment=False,
-        vdecay=0.999,
-        mdecay=0.9,
-        use_position_regularization=False,
-    ):
-        self.use_adaptive_moment = use_adaptive_moment
-        self.vdecay = vdecay
-        self.mdecay = mdecay
-        if use_adaptive_moment:
-            self._momentum = np.zeros((*N, 4), dtype='float32')
+    use_adaptive_moment: bool = False
+    """Whether AdaM is used to accelerate the position correction updates."""
 
-        self.use_position_regularization = use_position_regularization
-        if use_position_regularization:
-            # TODO: Initialize affine transformation matrix
-            pass
+    vdecay: float = 0.999
+    """The proportion of the second moment that is previous second moments."""
+
+    mdecay: float = 0.9
+    """The proportion of the first moment that is previous first moments."""
+
+    use_position_regularization: bool = False
+    """Whether the positions are constrained to fit a random error plus affine
+    error model."""
+
+    def __post_init__(self):
+        if self.use_adaptive_moment:
+            self._momentum = np.zeros((self.num_positions, 4), dtype='float32')
 
     def split(self, indices):
         """Split the PositionOption meta-data along indices."""
         new = PositionOptions(
-            (0,),
+            0,
             use_adaptive_moment=self.use_adaptive_moment,
             vdecay=self.vdecay,
             mdecay=self.mdecay,
@@ -62,13 +58,13 @@ class PositionOptions:
             self._momentum[..., indices, :] = other._momentum
         return self
 
-    def put(self):
+    def copy_to_device(self):
         """Copy to the current GPU memory."""
         if self.use_adaptive_moment:
             self._momentum = cp.asarray(self._momentum)
         return self
 
-    def get(self):
+    def copy_to_host(self):
         """Copy to the host CPU memory."""
         if self.use_adaptive_moment:
             self._momentum = cp.asnumpy(self._momentum)
