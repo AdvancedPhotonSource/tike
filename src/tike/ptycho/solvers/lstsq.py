@@ -213,7 +213,7 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
     pad, end = op.diffraction.pad, op.diffraction.end
 
     patches = op.diffraction.patch.fwd(
-        patches=cp.zeros(nearplane[..., [m], pad:end, pad:end].shape,
+        patches=cp.zeros(nearplane[..., [m], :, :].shape,
                          dtype='complex64')[..., 0, 0, :, :],
         images=psi,
         positions=scan_,
@@ -222,8 +222,7 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
     # χ (diff) is the target for the nearplane problem; the difference
     # between the desired nearplane and the current nearplane that we wish
     # to minimize.
-    diff = nearplane[..., [m], pad:end,
-                     pad:end] - unique_probe[..., [m], :, :] * patches
+    diff = nearplane[..., [m], :, :] - unique_probe[..., [m], :, :] * patches
 
     logger.info('%10s cost is %+12.5e', 'nearplane', norm(diff))
 
@@ -270,20 +269,17 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
         dPO = None
         A4 = None
 
-    if __debug__:
-        patches = op.diffraction.patch.fwd(
-            patches=cp.zeros(nearplane[..., [m], pad:end, pad:end].shape,
-                             dtype='complex64')[..., 0, 0, :, :],
-            images=psi,
-            positions=scan_,
-        )[..., None, None, :, :]
-        logger.info(
-            '%10s cost is %+12.5e', 'nearplane',
-            norm(probe[..., [m], :, :] * patches -
-                 nearplane[..., [m], pad:end, pad:end]))
-
-    return (patches, diff, grad_probe, common_grad_psi, common_grad_probe, dOP,
-            dPO, A1, A4)
+    return (
+        patches,
+        diff,
+        grad_probe,
+        common_grad_psi,
+        common_grad_probe,
+        dOP,
+        dPO,
+        A1,
+        A4,
+    )
 
 
 def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe):
@@ -345,9 +341,20 @@ def _get_coefs_intensity(weights, xi, P, O, m):
     return weights
 
 
-def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
-                      eigen_probe, eigen_weights, recover_psi, recover_probe,
-                      position_options):
+def _update_nearplane(
+    op,
+    comm,
+    nearplane,
+    psi,
+    scan_,
+    probe,
+    unique_probe,
+    eigen_probe,
+    eigen_weights,
+    recover_psi,
+    recover_probe,
+    position_options,
+):
 
     for m in range(probe[0].shape[-3]):
 
@@ -530,18 +537,10 @@ def _update_wavefront(data, varying_probe, scan, psi, op):
     logger.info('%10s cost is %+12.5e', 'farplane', cost)
     farplane -= 0.5 * op.propagation.grad(data, farplane, intensity)
 
-    if __debug__:
-        intensity = cp.sum(
-            cp.square(cp.abs(farplane)),
-            axis=list(range(1, farplane.ndim - 2)),
-        )
-        cost = op.propagation.cost(data, intensity)
-        logger.info('%10s cost is %+12.5e', 'farplane', cost)
-        # TODO: Only compute cost every 20 iterations or on a log sampling?
-
     farplane = op.propagation.adj(farplane, overwrite=True)
 
-    return farplane, cost
+    pad, end = op.diffraction.pad, op.diffraction.end
+    return farplane[..., pad:end, pad:end], cost
 
 
 def _mad(x, **kwargs):
