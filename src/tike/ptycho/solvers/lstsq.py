@@ -87,6 +87,22 @@ def lstsq_grad(
 
     for n in randomizer.permutation(len(batches[0])):
 
+        total_illumination = comm.pool.map(
+            _get_total_illumination,
+            psi,
+            probe,
+            scan,
+            op=op,
+        )
+
+        total_patches = comm.pool.map(
+            _get_total_patches,
+            psi,
+            probe,
+            scan,
+            op=op,
+        )
+
         bdata = comm.pool.map(get_batch, data, batches, n=n)
         bscan = comm.pool.map(get_batch, scan, batches, n=n)
 
@@ -150,6 +166,8 @@ def lstsq_grad(
             object_options is not None,
             probe_options is not None,
             bposition_options,
+            total_illumination,
+            total_patches,
         )
 
         if position_options:
@@ -207,22 +225,55 @@ def lstsq_grad(
     }
 
 
-def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
-                             recover_psi, recover_probe):
+def _get_total_illumination(psi, probe, scan, op=None):
+    """Return the illumination of the primary probe."""
+    total_illumination = list()
+    for i in range(probe.shape[-3]):
+        primary = probe[0, 0, i, :, :]
+        primary = primary * primary.conj()
+        primary = cp.copy(
+            cp.broadcast_to(primary, (*scan.shape[:-1], *probe.shape[-2:])))
+        total_illumination.append(
+            op.diffraction.patch.adj(
+                patches=primary,
+                images=cp.zeros(psi.shape, dtype='complex64'),
+                positions=scan,
+            ).real)
+    return total_illumination
 
-    pad, end = op.diffraction.pad, op.diffraction.end
 
+def _get_total_patches(psi, probe, scan, op):
     patches = op.diffraction.patch.fwd(
-        patches=cp.zeros(nearplane[..., [m], :, :].shape,
-                         dtype='complex64')[..., 0, 0, :, :],
+        patches=cp.zeros(
+            (*scan.shape[:-1], *probe.shape[-2:]),
+            dtype='complex64',
+        ),
         images=psi,
-        positions=scan_,
-    )[..., None, None, :, :]
+        positions=scan,
+    )
+    return cp.sum(patches * patches.conj(), axis=-3).real
+
+
+def _get_nearplane_gradients(
+    nearplane,
+    psi,
+    scan_,
+    probe,
+    unique_probe,
+    patches,
+    total_illumination,
+    total_patches,
+    *,
+    op,
+    m,
+    recover_psi,
+    recover_probe,
+):
 
     # χ (diff) is the target for the nearplane problem; the difference
     # between the desired nearplane and the current nearplane that we wish
     # to minimize.
-    diff = nearplane[..., [m], :, :] - unique_probe[..., [m], :, :] * patches
+    diff = nearplane[..., [m], :, :]
 
     logger.info('%10s cost is %+12.5e', 'nearplane', norm(diff))
 
@@ -236,7 +287,7 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
             patches=grad_psi[..., 0, 0, :, :],
             images=cp.zeros(psi.shape, dtype='complex64'),
             positions=scan_,
-        )
+        ) / (total_illumination[m] + total_illumination[m].max())
 
         dOP = op.diffraction.patch.fwd(
             patches=cp.zeros(patches.shape, dtype='complex64')[..., 0, 0, :, :],
@@ -255,11 +306,11 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
         # (25a) Common probe gradient. Use simple average instead of
         # division as described in publication because that's what
         # ptychoshelves does
-        common_grad_probe = cp.mean(
+        common_grad_probe = cp.sum(
             grad_probe,
             axis=-5,
             keepdims=True,
-        )
+        ) / (total_patches + total_patches.max())
 
         dPO = common_grad_probe * patches
         A4 = cp.sum((dPO * dPO.conj()).real + 0.5, axis=(-2, -1))
@@ -270,7 +321,6 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
         A4 = None
 
     return (
-        patches,
         diff,
         grad_probe,
         common_grad_psi,
@@ -341,6 +391,18 @@ def _get_coefs_intensity(weights, xi, P, O, m):
     return weights
 
 
+def _get_patches(nearplane, psi, scan, op=None):
+    patches = op.diffraction.patch.fwd(
+        patches=cp.zeros(
+            nearplane[..., 0, 0, :, :].shape,
+            dtype='complex64',
+        ),
+        images=psi,
+        positions=scan,
+    )[..., None, None, :, :]
+    return patches
+
+
 def _update_nearplane(
     op,
     comm,
@@ -354,12 +416,15 @@ def _update_nearplane(
     recover_psi,
     recover_probe,
     position_options,
+    total_illumination,
+    total_patches,
 ):
+
+    patches = comm.pool.map(_get_patches, nearplane, psi, scan_, op=op)
 
     for m in range(probe[0].shape[-3]):
 
         (
-            patches,
             diff,
             grad_probe,
             common_grad_psi,
@@ -375,6 +440,9 @@ def _update_nearplane(
             scan_,
             probe,
             unique_probe,
+            patches,
+            total_illumination,
+            total_patches,
             op=op,
             m=m,
             recover_psi=recover_psi,
@@ -484,7 +552,7 @@ def _update_nearplane(
                 )[..., 0, 0, 0]
                 common_grad_psi[0] = comm.reduce(common_grad_psi, 'gpu')[0]
 
-            psi[0] += weighted_step_psi[0] * common_grad_psi[0]
+            psi[0] += 0.01 * (common_grad_psi[0])
             psi = comm.pool.bcast([psi[0]])
 
         if recover_probe:
@@ -508,8 +576,7 @@ def _update_nearplane(
                 )
 
             # (27a) Probe update
-            probe[0][..., [m], :, :] += (weighted_step_probe[0] *
-                                         common_grad_probe[0])
+            probe[0][..., [m], :, :] += 0.1 * (common_grad_probe[0])
             probe = comm.pool.bcast([probe[0]])
 
         if position_options and m == 0:
@@ -528,16 +595,24 @@ def _update_nearplane(
 
 def _update_wavefront(data, varying_probe, scan, psi, op):
 
-    farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
-    intensity = cp.sum(
-        cp.square(cp.abs(farplane)),
-        axis=list(range(1, farplane.ndim - 2)),
+    intensity, farplane = op._compute_intensity(
+        data,
+        psi,
+        scan,
+        varying_probe,
     )
     cost = op.propagation.cost(data, intensity)
     logger.info('%10s cost is %+12.5e', 'farplane', cost)
-    farplane -= 0.5 * op.propagation.grad(data, farplane, intensity)
 
-    farplane = op.propagation.adj(farplane, overwrite=True)
+    farplane = op.propagation.adj(
+        farplane=op.propagation.grad(
+            data,
+            farplane,
+            intensity,
+            overwrite=True,
+        ),
+        overwrite=True,
+    )
 
     pad, end = op.diffraction.pad, op.diffraction.end
     return farplane[..., pad:end, pad:end], cost

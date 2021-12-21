@@ -327,16 +327,18 @@ class TestPtychoRecon(unittest.TestCase):
                 'num_gpu':
                     2,
                 'probe_options':
-                    ProbeOptions(orthogonality_constraint=True,),
+                    ProbeOptions(
+                        orthogonality_constraint=False,
+                    ),
                 'object_options':
                     ObjectOptions(),
                 'use_mpi':
                     _mpi_size > 1,
-                'position_options':
-                    PositionOptions(
-                        self.scan.shape[-2],
-                        use_adaptive_moment=True,
-                    ),
+                # 'position_options':
+                #     PositionOptions(
+                #         self.scan.shape[-2],
+                #         use_adaptive_moment=True,
+                #     ),
             },), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad")
 
     def test_consistent_lstsq_grad_variable_probe(self):
