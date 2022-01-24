@@ -389,7 +389,7 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm(params={
                 'algorithm_options':
                     tike.ptycho.RpieOptions(
-                        batch_size=max(1, int(self.data.shape[-3] * 0.01)),
+                        batch_size=max(1, int(self.data.shape[-3] * 0.20)),
                         num_iter=16,
                     ),
                 'num_gpu':
@@ -400,7 +400,7 @@ class TestPtychoRecon(unittest.TestCase):
                     ObjectOptions(),
                 'use_mpi':
                     _mpi_size > 1,
-            },), f"{'mpi-' if _mpi_size > 1 else ''}epie")
+            },), f"{'mpi-' if _mpi_size > 1 else ''}rpie")
 
     def test_invalid_algorithm_name(self):
         """Check that wrong names are handled gracefully."""

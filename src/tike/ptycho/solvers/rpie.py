@@ -195,49 +195,63 @@ def _update_nearplane(
 ):
 
     patches = comm.pool.map(_get_patches, nearplane_, psi, scan_, op=op)
-    probe_step = step_length / scan_[0].shape[0]
-    psi_step = probe_step / probe[0].shape[-3]
 
-    for m in range(probe[0].shape[-3]):
+    (
+        psi_update_numerator,
+        psi_update_denominator,
+        probe_update_numerator,
+        probe_update_denominator,
+    ) = (list(a) for a in zip(*comm.pool.map(
+        _get_nearplane_gradients,
+        nearplane_,
+        patches,
+        psi,
+        scan_,
+        probe,
+        recover_psi=recover_psi,
+        recover_probe=recover_probe,
+        op=op,
+    )))
 
-        (
-            common_grad_psi,
-            common_grad_probe,
-        ) = (list(a) for a in zip(*comm.pool.map(
-            _get_nearplane_gradients,
-            nearplane_,
-            patches,
-            psi,
-            scan_,
-            probe,
-            alpha=algorithm_options.alpha,
-            m=m,
-            recover_psi=recover_psi,
-            recover_probe=recover_probe,
-            op=op,
-        )))
+    alpha = algorithm_options.alpha
 
-        if recover_psi:
-            if comm.use_mpi:
-                common_grad_psi = comm.Allreduce_reduce(
-                    common_grad_psi,
-                    'gpu',
-                )[0]
-            else:
-                common_grad_psi = comm.reduce(common_grad_psi, 'gpu')[0]
-            psi[0] += psi_step * common_grad_psi
-            psi = comm.pool.bcast([psi[0]])
+    if recover_psi:
+        if comm.use_mpi:
+            psi_update_numerator = comm.Allreduce_reduce(
+                psi_update_numerator, 'gpu')[0]
+            psi_update_denominator = comm.Allreduce_reduce(
+                psi_update_denominator, 'gpu')[0]
+        else:
+            psi_update_numerator = comm.reduce(psi_update_numerator, 'gpu')[0]
+            psi_update_denominator = comm.reduce(psi_update_denominator,
+                                                 'gpu')[0]
 
-        if recover_probe:
-            if comm.use_mpi:
-                common_grad_probe = comm.Allreduce_reduce(
-                    common_grad_probe,
-                    'gpu',
-                )[0]
-            else:
-                common_grad_probe = comm.reduce(common_grad_probe, 'gpu')[0]
-            probe[0][..., [m], :, :] += probe_step * common_grad_probe
-            probe = comm.pool.bcast([probe[0]])
+        psi[0] += step_length * psi_update_numerator / (
+            (1 - alpha) * psi_update_denominator +
+            alpha * psi_update_denominator.max())
+
+        psi = comm.pool.bcast([psi[0]])
+
+    if recover_probe:
+        if comm.use_mpi:
+            probe_update_numerator = comm.Allreduce_reduce(
+                probe_update_numerator, 'gpu')[0]
+            probe_update_denominator = comm.Allreduce_reduce(
+                probe_update_denominator, 'gpu')[0]
+        else:
+            probe_update_numerator = comm.reduce(probe_update_numerator,
+                                                 'gpu')[0]
+            probe_update_denominator = comm.reduce(probe_update_denominator,
+                                                   'gpu')[0]
+
+        for m in range(probe[0].shape[-3]):
+
+            probe[0][..., [m], :, :] += step_length * (
+                probe_update_numerator[..., [m], :, :] /
+                ((1 - alpha) * probe_update_denominator[..., [m], :, :] +
+                 alpha * probe_update_denominator.max()))
+
+        probe = comm.pool.bcast([probe[0]])
 
     return psi, probe, eigen_probe, eigen_weights
 
@@ -260,38 +274,54 @@ def _get_nearplane_gradients(
     psi,
     scan,
     probe,
-    alpha,
-    m=0,
     recover_psi=True,
     recover_probe=True,
     op=None,
 ):
-    diff = nearplane[..., [m], :, :] - (probe[..., [m], :, :] * patches)
+    psi_update_numerator = cp.zeros(psi.shape, dtype='complex64')
+    psi_update_denominator = cp.zeros(psi.shape, dtype='complex64')
+    probe_update_numerator = cp.zeros(probe.shape, dtype='complex64')
 
-    if recover_psi:
-        grad_psi = cp.conj(probe[..., [m], :, :]) * diff / _max_amplitude(
-            probe[..., [m], :, :],
-            alpha=alpha,
-            keepdims=True,
-            axis=(-1, -2),
-        )
-        common_grad_psi = op.diffraction.patch.adj(
-            patches=grad_psi[..., 0, 0, :, :],
-            images=cp.zeros(psi.shape, dtype='complex64'),
-            positions=scan,
-        )
+    for m in range(probe.shape[-3]):
+
+        diff = nearplane[..., [m], :, :] - (probe[..., [m], :, :] * patches)
+
+        if recover_psi:
+            grad_psi = cp.conj(probe[..., [m], :, :]) * diff
+            psi_update_numerator = op.diffraction.patch.adj(
+                patches=grad_psi[..., 0, 0, :, :],
+                images=psi_update_numerator,
+                positions=scan,
+            )
+            probe_amp = probe[..., 0, 0, [m], :, :] * probe[..., 0, 0,
+                                                            [m], :, :].conj()
+            # TODO: Allow this kind of broadcasting inside the patch operator
+            probe_amp = cp.tile(probe_amp, (scan.shape[-2], 1, 1))
+            psi_update_denominator = op.diffraction.patch.adj(
+                patches=probe_amp,
+                images=psi_update_denominator,
+                positions=scan,
+            )
+
+        if recover_probe:
+            probe_update_numerator[..., [m], :, :] = cp.sum(
+                cp.conj(patches) * diff,
+                axis=-5,
+                keepdims=True,
+            )
 
     if recover_probe:
-        grad_probe = cp.conj(patches) * diff / _max_amplitude(
-            patches,
-            alpha=alpha,
-            keepdims=True,
-            axis=(-1, -2),
-        )
-        common_grad_probe = cp.sum(
-            grad_probe,
+        probe_update_denominator = cp.sum(
+            patches * patches.conj(),
             axis=-5,
             keepdims=True,
         )
+    else:
+        probe_update_denominator = None
 
-    return common_grad_psi, common_grad_probe
+    return (
+        psi_update_numerator,
+        psi_update_denominator,
+        probe_update_numerator,
+        probe_update_denominator,
+    )
