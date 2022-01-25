@@ -97,6 +97,7 @@ def rpie(
         ))
 
         if comm.use_mpi:
+            # TODO: This reduction should be mean
             cost = comm.Allreduce_reduce(cost, 'cpu')
         else:
             cost = comm.reduce(cost, 'cpu')

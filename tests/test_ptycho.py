@@ -382,7 +382,6 @@ class TestPtychoRecon(unittest.TestCase):
                 "These weights should be unused/untouched "
                 "and should have been initialized to zero.")
 
-    @unittest.case.skipIf(_mpi_size > 1, "MPI not implemented for rPIE.")
     def test_consistent_rpie(self):
         """Check ptycho.solver.rpie for consistency."""
         _save_ptycho_result(
