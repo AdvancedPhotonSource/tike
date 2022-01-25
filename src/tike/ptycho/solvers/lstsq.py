@@ -84,24 +84,23 @@ def lstsq_grad(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
+    total_illumination = comm.pool.map(
+        _get_total_illumination,
+        psi,
+        probe,
+        scan,
+        op=op,
+    )
+
+    total_patches = comm.pool.map(
+        _get_total_patches,
+        psi,
+        probe,
+        scan,
+        op=op,
+    )
 
     for n in randomizer.permutation(len(batches[0])):
-
-        total_illumination = comm.pool.map(
-            _get_total_illumination,
-            psi,
-            probe,
-            scan,
-            op=op,
-        )
-
-        total_patches = comm.pool.map(
-            _get_total_patches,
-            psi,
-            probe,
-            scan,
-            op=op,
-        )
 
         bdata = comm.pool.map(get_batch, data, batches, n=n)
         bscan = comm.pool.map(get_batch, scan, batches, n=n)
@@ -227,19 +226,20 @@ def lstsq_grad(
 
 def _get_total_illumination(psi, probe, scan, op=None):
     """Return the illumination of the primary probe."""
-    total_illumination = list()
+    _total_illumination = list()
     for i in range(probe.shape[-3]):
         primary = probe[0, 0, i, :, :]
         primary = primary * primary.conj()
         primary = cp.copy(
             cp.broadcast_to(primary, (*scan.shape[:-1], *probe.shape[-2:])))
-        total_illumination.append(
-            op.diffraction.patch.adj(
-                patches=primary,
-                images=cp.zeros(psi.shape, dtype='complex64'),
-                positions=scan,
-            ).real)
-    return total_illumination
+        total_illumination = op.diffraction.patch.adj(
+            patches=primary,
+            images=cp.zeros(psi.shape, dtype='complex64'),
+            positions=scan,
+        ).real
+        _total_illumination.append(total_illumination +
+                                   total_illumination.max())
+    return _total_illumination
 
 
 def _get_total_patches(psi, probe, scan, op):
@@ -251,7 +251,8 @@ def _get_total_patches(psi, probe, scan, op):
         images=psi,
         positions=scan,
     )
-    return cp.sum(patches * patches.conj(), axis=-3).real
+    total_patches = cp.sum(patches * patches.conj(), axis=-3).real
+    return total_patches + total_patches.max()
 
 
 def _get_nearplane_gradients(
@@ -278,7 +279,7 @@ def _get_nearplane_gradients(
     logger.info('%10s cost is %+12.5e', 'nearplane', norm(diff))
 
     if recover_psi:
-        grad_psi = cp.conj(unique_probe[..., [m], :, :]) * diff
+        grad_psi = cp.conj(unique_probe[..., [m], :, :]) * diff  # (24b)
 
         # (25b) Common object gradient. Use a weighted (normalized) sum
         # instead of division as described in publication to improve
@@ -287,13 +288,9 @@ def _get_nearplane_gradients(
             patches=grad_psi[..., 0, 0, :, :],
             images=cp.zeros(psi.shape, dtype='complex64'),
             positions=scan_,
-        ) / (total_illumination[m] + total_illumination[m].max())
+        ) / total_illumination[m]
 
-        dOP = op.diffraction.patch.fwd(
-            patches=cp.zeros(patches.shape, dtype='complex64')[..., 0, 0, :, :],
-            images=common_grad_psi,
-            positions=scan_,
-        )[..., None, None, :, :] * unique_probe[..., [m], :, :]
+        dOP = grad_psi * unique_probe[..., [m], :, :]
         A1 = cp.sum((dOP * dOP.conj()).real + 0.5, axis=(-2, -1))
     else:
         common_grad_psi = None
@@ -301,7 +298,7 @@ def _get_nearplane_gradients(
         A1 = None
 
     if recover_probe:
-        grad_probe = cp.conj(patches) * diff
+        grad_probe = cp.conj(patches) * diff  # (24a)
 
         # (25a) Common probe gradient. Use simple average instead of
         # division as described in publication because that's what
@@ -310,9 +307,9 @@ def _get_nearplane_gradients(
             grad_probe,
             axis=-5,
             keepdims=True,
-        ) / (total_patches + total_patches.max())
+        ) / total_patches
 
-        dPO = common_grad_probe * patches
+        dPO = grad_probe * patches
         A4 = cp.sum((dPO * dPO.conj()).real + 0.5, axis=(-2, -1))
     else:
         grad_probe = None
@@ -320,19 +317,6 @@ def _get_nearplane_gradients(
         dPO = None
         A4 = None
 
-    return (
-        diff,
-        grad_probe,
-        common_grad_psi,
-        common_grad_probe,
-        dOP,
-        dPO,
-        A1,
-        A4,
-    )
-
-
-def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe):
     # (22) Use least-squares to find the optimal step sizes simultaneously
     if recover_psi and recover_probe:
         b1 = cp.sum((dOP.conj() * diff).real, axis=(-2, -1))
@@ -351,18 +335,46 @@ def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe):
 
     if recover_psi:
         step = x1[..., None, None]
-
-        # (27b) Object update
-        weighted_step_psi = cp.mean(step, keepdims=True, axis=-5)
+        num_weighted_step_psi = cp.sum(
+            step * unique_probe[..., [m], :, :],
+            keepdims=True,
+            axis=-5,
+        )
+        den_weighted_step_psi = cp.sum(
+            unique_probe[..., [m], :, :],
+            keepdims=True,
+            axis=-5,
+        )
+    else:
+        num_weighted_step_psi = None
+        den_weighted_step_psi = None
 
     if recover_probe:
         step = x2[..., None, None]
-
-        weighted_step_probe = cp.mean(step, axis=-5, keepdims=True)
+        num_weighted_step_probe = cp.sum(
+            step * patches,
+            keepdims=True,
+            axis=-5,
+        )
+        den_weighted_step_probe = cp.sum(
+            patches,
+            keepdims=True,
+            axis=-5,
+        )
     else:
-        weighted_step_probe = None
+        num_weighted_step_probe = None
+        den_weighted_step_probe = None
 
-    return weighted_step_psi, weighted_step_probe
+    return (
+        diff,
+        grad_probe,
+        common_grad_psi,
+        common_grad_probe,
+        num_weighted_step_psi,
+        den_weighted_step_psi,
+        num_weighted_step_probe,
+        den_weighted_step_probe,
+    )
 
 
 def _update_A(A, delta):
@@ -429,10 +441,10 @@ def _update_nearplane(
             grad_probe,
             common_grad_psi,
             common_grad_probe,
-            dOP,
-            dPO,
-            A1,
-            A4,
+            num_weighted_step_psi,
+            den_weighted_step_psi,
+            num_weighted_step_probe,
+            den_weighted_step_probe,
         ) = (list(a) for a in zip(*comm.pool.map(
             _get_nearplane_gradients,
             nearplane,
@@ -537,46 +549,61 @@ def _update_nearplane(
         # Update each direction
         if recover_psi:
             if comm.use_mpi:
-                weighted_step_psi[0] = comm.Allreduce_mean(
-                    weighted_step_psi,
-                    axis=-5,
-                )[..., 0, 0, 0]
-                common_grad_psi[0] = comm.Allreduce_reduce(
+                # weighted_step_psi[0] = comm.Allreduce_mean(
+                #     weighted_step_psi,
+                #     axis=-5,
+                # )[..., 0, 0, 0]
+                common_grad_psi = comm.Allreduce_reduce(
                     common_grad_psi,
                     dest='gpu',
                 )[0]
             else:
-                weighted_step_psi[0] = comm.pool.reduce_mean(
-                    weighted_step_psi,
-                    axis=-5,
-                )[..., 0, 0, 0]
-                common_grad_psi[0] = comm.reduce(common_grad_psi, 'gpu')[0]
+                num_weighted_step_psi = comm.reduce(
+                    num_weighted_step_psi,
+                    'gpu',
+                )[0][..., 0, 0, 0]
+                den_weighted_step_psi = comm.reduce(
+                    den_weighted_step_psi,
+                    'gpu',
+                )[0][..., 0, 0, 0]
+                common_grad_psi = comm.reduce(
+                    common_grad_psi,
+                    'gpu',
+                )[0]
 
-            psi[0] += 0.01 * (common_grad_psi[0])
+            # (27b) Object update
+            psi[0] -= (common_grad_psi * num_weighted_step_psi /
+                       den_weighted_step_psi)
             psi = comm.pool.bcast([psi[0]])
 
         if recover_probe:
             if comm.use_mpi:
-                weighted_step_probe[0] = comm.Allreduce_mean(
-                    weighted_step_probe,
-                    axis=-5,
-                )
+                # weighted_step_probe[0] = comm.Allreduce_mean(
+                #     weighted_step_probe,
+                #     axis=-5,
+                # )
                 common_grad_probe[0] = comm.Allreduce_mean(
                     common_grad_probe,
                     axis=-5,
                 )
             else:
-                weighted_step_probe[0] = comm.pool.reduce_mean(
-                    weighted_step_probe,
-                    axis=-5,
-                )
-                common_grad_probe[0] = comm.pool.reduce_mean(
+                num_weighted_step_probe = comm.reduce(
+                    num_weighted_step_probe,
+                    'gpu',
+                )[0]
+                den_weighted_step_probe = comm.reduce(
+                    den_weighted_step_probe,
+                    'gpu',
+                )[0]
+                common_grad_probe = comm.reduce(
                     common_grad_probe,
-                    axis=-5,
-                )
+                    'gpu',
+                )[0]
 
             # (27a) Probe update
-            probe[0][..., [m], :, :] += 0.1 * (common_grad_probe[0])
+            probe[0][..., [m], :, :] -= (common_grad_probe *
+                                         num_weighted_step_probe /
+                                         den_weighted_step_probe)
             probe = comm.pool.bcast([probe[0]])
 
         if position_options and m == 0:
