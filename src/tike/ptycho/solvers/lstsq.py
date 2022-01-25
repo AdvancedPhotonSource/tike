@@ -234,11 +234,13 @@ def _get_total_illumination(psi, probe, scan, op=None):
             cp.broadcast_to(primary, (*scan.shape[:-1], *probe.shape[-2:])))
         total_illumination = op.diffraction.patch.adj(
             patches=primary,
-            images=cp.zeros(psi.shape, dtype='complex64'),
+            images=cp.ones(psi.shape, dtype='complex64') * 1e-8j,
             positions=scan,
-        ).real
-        _total_illumination.append(total_illumination +
-                                   total_illumination.max())
+        ).real / 2
+        total_illumination = cp.sqrt(total_illumination**2 +
+                                     (0.1 * total_illumination.max())**2)
+        assert cp.all(cp.isfinite(total_illumination))
+        _total_illumination.append(total_illumination)
     return _total_illumination
 
 
@@ -252,6 +254,7 @@ def _get_total_patches(psi, probe, scan, op):
         positions=scan,
     )
     total_patches = cp.sum(patches * patches.conj(), axis=-3).real
+    assert cp.all(cp.isfinite(total_patches))
     return total_patches + total_patches.max()
 
 
@@ -275,6 +278,7 @@ def _get_nearplane_gradients(
     # between the desired nearplane and the current nearplane that we wish
     # to minimize.
     diff = nearplane[..., [m], :, :]
+    assert cp.all(cp.isfinite(diff))
 
     logger.info('%10s cost is %+12.5e', 'nearplane', norm(diff))
 
@@ -289,9 +293,11 @@ def _get_nearplane_gradients(
             images=cp.zeros(psi.shape, dtype='complex64'),
             positions=scan_,
         ) / total_illumination[m]
+        assert cp.all(cp.isfinite(common_grad_psi))
 
         dOP = grad_psi * unique_probe[..., [m], :, :]
-        A1 = cp.sum((dOP * dOP.conj()).real + 0.5, axis=(-2, -1))
+        assert cp.all(cp.isfinite(dOP))
+        A1 = cp.sum((dOP * dOP.conj()).real, axis=(-2, -1)) + 0.5
     else:
         common_grad_psi = None
         dOP = None
@@ -308,6 +314,12 @@ def _get_nearplane_gradients(
             axis=-5,
             keepdims=True,
         ) / total_patches
+        # common_grad_probe = cp.mean(
+        #     grad_probe,
+        #     axis=-5,
+        #     keepdims=True,
+        # )  # TODO: Must change multi-device behavior
+        # assert cp.all(cp.isfinite(common_grad_probe))
 
         dPO = grad_probe * patches
         A4 = cp.sum((dPO * dPO.conj()).real + 0.5, axis=(-2, -1))
@@ -328,6 +340,8 @@ def _get_nearplane_gradients(
         x2 = cp.conj(A1 * b2 - A3 * b1) / determinant
     elif recover_psi:
         b1 = cp.sum((dOP.conj() * diff).real, axis=(-2, -1))
+        assert cp.all(cp.isfinite(b1)), b1
+        assert cp.all(cp.isfinite(A1)), A1
         x1 = b1 / A1
     elif recover_probe:
         b2 = cp.sum((dPO.conj() * diff).real, axis=(-2, -1))
@@ -335,6 +349,7 @@ def _get_nearplane_gradients(
 
     if recover_psi:
         step = x1[..., None, None]
+        assert cp.all(cp.isfinite(step))
         num_weighted_step_psi = cp.sum(
             step * unique_probe[..., [m], :, :],
             keepdims=True,
@@ -351,6 +366,7 @@ def _get_nearplane_gradients(
 
     if recover_probe:
         step = x2[..., None, None]
+        assert cp.all(cp.isfinite(step))
         num_weighted_step_probe = cp.sum(
             step * patches,
             keepdims=True,
@@ -461,91 +477,6 @@ def _update_nearplane(
             recover_probe=recover_probe,
         )))
 
-        if recover_psi:
-            if comm.use_mpi:
-                delta = comm.Allreduce_mean(A1, axis=-3)
-            else:
-                delta = comm.pool.reduce_mean(A1, axis=-3)
-            A1 = comm.pool.map(_update_A, A1, comm.pool.bcast([delta]))
-
-        if recover_probe:
-            if comm.use_mpi:
-                delta = comm.Allreduce_mean(A4, axis=-3)
-            else:
-                delta = comm.pool.reduce_mean(A4, axis=-3)
-            A4 = comm.pool.map(_update_A, A4, comm.pool.bcast([delta]))
-
-        if recover_probe or recover_psi:
-            (
-                weighted_step_psi,
-                weighted_step_probe,
-            ) = (list(a) for a in zip(*comm.pool.map(
-                _get_nearplane_steps,
-                diff,
-                dOP,
-                dPO,
-                A1,
-                A4,
-                recover_psi=recover_psi,
-                recover_probe=recover_probe,
-            )))
-
-        if recover_probe and eigen_weights[0] is not None:
-            logger.info('Updating eigen probes')
-
-            eigen_weights = comm.pool.map(
-                _get_coefs_intensity,
-                eigen_weights,
-                diff,
-                [p[..., m:m + 1, :, :] for p in probe],
-                patches,
-                m=m,
-            )
-
-            # (30) residual probe updates
-            if eigen_weights[0].shape[-2] > 1:
-                if comm.use_mpi:
-                    grad_probe_mean = comm.Allreduce_mean(
-                        common_grad_probe,
-                        axis=-5,
-                    )
-                    grad_probe_mean = comm.pool.bcast([grad_probe_mean])
-                else:
-                    grad_probe_mean = comm.pool.bcast(
-                        [comm.pool.reduce_mean(
-                            common_grad_probe,
-                            axis=-5,
-                        )])
-                R = comm.pool.map(_get_residuals, grad_probe, grad_probe_mean)
-
-            if m < eigen_probe[0].shape[-3]:
-                assert eigen_weights[0].shape[
-                    -2] == eigen_probe[0].shape[-4] + 1
-                for n in range(1, eigen_probe[0].shape[-4] + 1):
-
-                    eigen_probe, eigen_weights = update_eigen_probe(
-                        comm,
-                        R,
-                        eigen_probe,
-                        eigen_weights,
-                        patches,
-                        diff,
-                        β=0.01,  # TODO: Adjust according to mini-batch size
-                        c=n,
-                        m=m,
-                    )
-
-                    if n + 1 < eigen_weights[0].shape[-2]:
-                        # Subtract projection of R onto new probe from R
-                        R = comm.pool.map(
-                            _update_residuals,
-                            R,
-                            eigen_probe,
-                            axis=(-2, -1),
-                            c=n - 1,
-                            m=m,
-                        )
-
         # Update each direction
         if recover_psi:
             if comm.use_mpi:
@@ -572,8 +503,12 @@ def _update_nearplane(
                 )[0]
 
             # (27b) Object update
+            assert cp.all(cp.isfinite(common_grad_psi))
+            assert cp.all(cp.isfinite(num_weighted_step_psi))
+            assert cp.all(cp.isfinite(den_weighted_step_psi))
             psi[0] -= (common_grad_psi * num_weighted_step_psi /
                        den_weighted_step_psi)
+            assert cp.all(cp.isfinite(psi[0]))
             psi = comm.pool.bcast([psi[0]])
 
         if recover_probe:
@@ -632,7 +567,7 @@ def _update_wavefront(data, varying_probe, scan, psi, op):
     logger.info('%10s cost is %+12.5e', 'farplane', cost)
 
     farplane = op.propagation.adj(
-        farplane=op.propagation.grad(
+        farplane=0.1 * op.propagation.grad(
             data,
             farplane,
             intensity,

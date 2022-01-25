@@ -236,7 +236,7 @@ class TestPtychoRecon(unittest.TestCase):
         """Check ptycho.solver.algorithm for consistency."""
 
         result = {
-            'psi': np.ones((500, 500), dtype=np.complex64),
+            'psi': 1e-6 * np.ones((500, 500), dtype=np.complex64),
             'probe': self.probe,
         }
 
@@ -321,14 +321,14 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm(params={
                 'algorithm_options':
                     tike.ptycho.LstsqOptions(
-                        batch_size=max(1, int(self.data.shape[-3] * 0.05)),
-                        num_iter=16,
+                        batch_size=max(1, int(self.data.shape[-3] * 0.15)),
+                        num_iter=128,
                     ),
                 'num_gpu':
                     2,
                 'probe_options':
                     ProbeOptions(
-                        orthogonality_constraint=False,
+                        orthogonality_constraint=True,
                     ),
                 'object_options':
                     ObjectOptions(),
@@ -508,7 +508,7 @@ def _save_ptycho_result(result, algorithm):
             result['algorithm_options'].times,
         )
         ax2.set_xlim(0, 20)
-        ax1.set_ylim(10**-1, 10**1)
+        # ax1.set_ylim(10**-1, 10**1)
         fig.suptitle(algorithm)
         fig.tight_layout()
 
