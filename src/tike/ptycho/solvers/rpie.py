@@ -173,12 +173,6 @@ def _update_wavefront(data, varying_probe, scan, psi, op=None):
     return farplane[..., pad:end, pad:end], cost
 
 
-def _max_amplitude(x, alpha=1, **kwargs):
-    """Return the maximum of the absolute square."""
-    amplitude = (x * x.conj()).real
-    return (1 - alpha) * amplitude + alpha * amplitude.max(**kwargs)
-
-
 def _update_nearplane(
     op,
     comm,
