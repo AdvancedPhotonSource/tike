@@ -12,9 +12,9 @@ class IterativeOptions(ABC):
     name: str = dataclasses.field(default=None, init=False)
     """The name of the algorithm."""
 
-    batch_size: int = None
-    """The approximate number of scan positions processed by each GPU
-    simultaneously per view."""
+    num_batch: int = None
+    """The dataset is divided into this number of groups where each group is
+    processed sequentially."""
 
     costs: List[float] = dataclasses.field(init=False, default_factory=list)
     """The objective function value at previous iterations."""
@@ -46,7 +46,7 @@ class CgradOptions(IterativeOptions):
 class RpieOptions(IterativeOptions):
     name: str = dataclasses.field(default='rpie', init=False)
 
-    batch_size: int = 1
+    num_batch: int = 5
 
     alpha: float = 0.05
     """A hyper-parameter which controls the step length. RPIE becomes EPIE when

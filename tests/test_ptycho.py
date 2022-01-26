@@ -280,7 +280,7 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm(params={
                 'algorithm_options':
                     tike.ptycho.AdamOptions(
-                        batch_size=max(1, int(self.data.shape[-3] * 0.05)),
+                        num_batch=5,
                         num_iter=16,
                     ),
                 'num_gpu':
@@ -302,7 +302,7 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm(params={
                 'algorithm_options':
                     tike.ptycho.CgradOptions(
-                        batch_size=max(1, int(self.data.shape[-3] / 3)),
+                        num_batch=5,
                         num_iter=16,
                     ),
                 'num_gpu':
@@ -321,7 +321,7 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm(params={
                 'algorithm_options':
                     tike.ptycho.LstsqOptions(
-                        batch_size=max(1, int(self.data.shape[-3] * 0.05)),
+                        num_batch=5,
                         num_iter=16,
                     ),
                 'num_gpu':
@@ -352,7 +352,7 @@ class TestPtychoRecon(unittest.TestCase):
         result = self.template_consistent_algorithm(params={
             'algorithm_options':
                 tike.ptycho.LstsqOptions(
-                    batch_size=max(1, int(self.data.shape[-3] * 0.05)),
+                    num_batch=5,
                     num_iter=16,
                 ),
             'num_gpu':
@@ -388,7 +388,7 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm(params={
                 'algorithm_options':
                     tike.ptycho.RpieOptions(
-                        batch_size=max(1, int(self.data.shape[-3] * 0.20)),
+                        num_batch=5,
                         num_iter=16,
                     ),
                 'num_gpu':

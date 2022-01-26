@@ -327,11 +327,6 @@ def _setup(
     probe_options,
     scan,
 ):
-    num_batch = 1 if algorithm_options.batch_size is None else max(
-        1,
-        int(data.shape[-3] / algorithm_options.batch_size /
-            comm.pool.num_workers),
-    )
     # Divide the inputs into regions
     odd_pool = comm.pool.num_workers % 2
     (
@@ -384,7 +379,7 @@ def _setup(
     batches = comm.pool.map(
         cluster_wobbly_center,
         scan,
-        num_cluster=num_batch,
+        num_cluster=algorithm_options.num_batch,
     )
 
     result['probe'] = _rescale_obj_probe(
@@ -394,7 +389,7 @@ def _setup(
         result['psi'],
         scan,
         result['probe'],
-        num_batch=num_batch,
+        num_batch=algorithm_options.num_batch,
     )
 
     return (
