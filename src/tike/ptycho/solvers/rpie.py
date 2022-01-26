@@ -229,7 +229,10 @@ def _update_nearplane(
 
         psi[0] += step_length * psi_update_numerator / (
             (1 - alpha) * psi_update_denominator +
-            alpha * psi_update_denominator.max())
+            alpha * psi_update_denominator.max(
+                axis=(-2, -1),
+                keepdims=True,
+            ))
 
         psi = comm.pool.bcast([psi[0]])
 
@@ -245,12 +248,12 @@ def _update_nearplane(
             probe_update_denominator = comm.reduce(probe_update_denominator,
                                                    'gpu')[0]
 
-        for m in range(probe[0].shape[-3]):
-
-            probe[0][..., [m], :, :] += step_length * (
-                probe_update_numerator[..., [m], :, :] /
-                ((1 - alpha) * probe_update_denominator[..., [m], :, :] +
-                 alpha * probe_update_denominator.max()))
+        probe[0] += step_length * probe_update_numerator / (
+            (1 - alpha) * probe_update_denominator +
+            alpha * probe_update_denominator.max(
+                axis=(-2, -1),
+                keepdims=True,
+            ))
 
         probe = comm.pool.bcast([probe[0]])
 
