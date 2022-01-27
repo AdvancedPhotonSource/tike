@@ -286,10 +286,7 @@ class TestPtychoRecon(unittest.TestCase):
                 'num_gpu':
                     2,
                 'probe_options':
-                    ProbeOptions(
-                        sparsity_constraint=0.6,
-                        centered_intensity_constraint=True,
-                    ),
+                    ProbeOptions(),
                 'object_options':
                     ObjectOptions(),
                 'use_mpi':

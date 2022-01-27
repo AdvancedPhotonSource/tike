@@ -146,28 +146,34 @@ class Convolution(Operator):
         )
         patches = patches.reshape((*scan.shape[:-1], nearplane.shape[-3],
                                    self.probe_shape, self.probe_shape))
+        if rpie:
+            patches_amp = self.xp.sum(
+                patches * patches.conj(),
+                axis=-4,
+                keepdims=True,
+            )
         patches = patches.conj()
         patches *= nearplane[..., self.pad:self.end, self.pad:self.end]
-        if rpie:
-            patches /= _max_amplitude(
-                nearplane[..., self.pad:self.end, self.pad:self.end],
-                alpha=0.05,
-                keepdims=True,
-                axis=(-1, -2),
-            )
 
         if not overwrite:
             nearplane = nearplane.copy()
         nearplane[..., self.pad:self.end, self.pad:self.end] *= probe.conj()
         if rpie:
-            nearplane[..., self.pad:self.end, self.pad:self.end] /= _max_amplitude(
-                probe.conj(),
-                alpha=0.05,
-                keepdims=True,
-                axis=(-1, -2),
+            probe_amp = probe * probe.conj()
+            # TODO: Allow this kind of broadcasting inside the patch operator
+            probe_amp = cp.tile(probe_amp, (scan.shape[-2], 1, 1, 1))
+            probe_amp = self.patch.adj(
+                patches=probe_amp.reshape(
+                    (*scan.shape[:-2], scan.shape[-2] * nearplane.shape[-3],
+                     *nearplane.shape[-2:])),
+                images=self.xp.zeros((*scan.shape[:-2], self.nz, self.n),
+                                     dtype='complex64'),
+                positions=scan,
+                patch_width=self.probe_shape,
+                nrepeat=nearplane.shape[-3],
             )
 
-        return self.patch.adj(
+        apsi = self.patch.adj(
             patches=nearplane.reshape(
                 (*scan.shape[:-2], scan.shape[-2] * nearplane.shape[-3],
                  *nearplane.shape[-2:])),
@@ -176,10 +182,9 @@ class Convolution(Operator):
             positions=scan,
             patch_width=self.probe_shape,
             nrepeat=nearplane.shape[-3],
-        ), patches
+        )
 
-
-def _max_amplitude(x, alpha=1, **kwargs):
-    """Return the maximum of the absolute square."""
-    amplitude = (x * x.conj()).real
-    return (1 - alpha) * amplitude + alpha * amplitude.max(**kwargs)
+        if rpie:
+            return apsi, patches, patches_amp, probe_amp
+        else:
+            return apsi, patches
