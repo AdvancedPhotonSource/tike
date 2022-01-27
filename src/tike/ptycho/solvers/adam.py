@@ -82,6 +82,7 @@ def adam_grad(
             probe,
             object_options,
             probe_options,
+            algorithm_options,
         )
 
     if probe_options and probe_options.orthogonality_constraint:
@@ -156,8 +157,7 @@ def _update_all(
     probe,
     object_options,
     probe_options,
-    step_length=1.0,
-    alpha=0.05,
+    algorithm_options,
 ):
     (
         cost,
@@ -188,10 +188,11 @@ def _update_all(
             dpsi = comm.reduce(grad_psi, 'gpu')[0]
             probe_amp = comm.reduce(probe_amp, 'gpu')[0]
 
-        dpsi /= (1 - alpha) * probe_amp + alpha * probe_amp.max(
-            keepdims=True,
-            axis=(-1, -2),
-        )
+        dpsi /= (1 - algorithm_options.alpha
+                ) * probe_amp + algorithm_options.alpha * probe_amp.max(
+                    keepdims=True,
+                    axis=(-1, -2),
+                )
 
         object_options.use_adaptive_moment = True
         (
@@ -205,7 +206,7 @@ def _update_all(
             vdecay=object_options.vdecay,
             mdecay=object_options.mdecay,
         )
-        psi[0] = psi[0] - step_length * dpsi
+        psi[0] = psi[0] - algorithm_options.step_length * dpsi
         psi = comm.pool.bcast([psi[0]])
 
     if probe_options is not None:
@@ -217,10 +218,11 @@ def _update_all(
             dprobe = comm.reduce(grad_probe, 'gpu')[0]
             psi_amp = comm.reduce(psi_amp, 'gpu')[0]
 
-        dprobe /= (1 - alpha) * psi_amp + alpha * psi_amp.max(
-            keepdims=True,
-            axis=(-1, -2),
-        )
+        dprobe /= (1 - algorithm_options.alpha
+                  ) * psi_amp + algorithm_options.alpha * psi_amp.max(
+                      keepdims=True,
+                      axis=(-1, -2),
+                  )
 
         probe_options.use_adaptive_moment = True
         (
@@ -234,7 +236,7 @@ def _update_all(
             vdecay=probe_options.vdecay,
             mdecay=probe_options.mdecay,
         )
-        probe[0] = probe[0] - step_length * dprobe
+        probe[0] = probe[0] - algorithm_options.step_length * dprobe
         probe = comm.pool.bcast([probe[0]])
 
     return cost, psi, probe

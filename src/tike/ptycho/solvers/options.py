@@ -30,6 +30,12 @@ class IterativeOptions(ABC):
 class AdamOptions(IterativeOptions):
     name: str = dataclasses.field(default='adam_grad', init=False)
 
+    alpha: float = 0.05
+    """A hyper-parameter which controls the type of update regularization.
+    RPIE becomes EPIE when this parameter is 1."""
+
+    step_length: float = 1
+    """Scales the search directions."""
 
 @dataclasses.dataclass
 class CgradOptions(IterativeOptions):
