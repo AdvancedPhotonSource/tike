@@ -275,21 +275,18 @@ class TestPtychoRecon(unittest.TestCase):
         return result
 
     def test_consistent_adam_grad(self):
-        """Check ptycho.solver.cgrad for consistency."""
+        """Check ptycho.solver.adam_grad for consistency."""
         _save_ptycho_result(
             self.template_consistent_algorithm(params={
                 'algorithm_options':
                     tike.ptycho.AdamOptions(
-                        batch_size=max(1, int(self.data.shape[-3] * 0.05)),
+                        num_batch=5,
                         num_iter=16,
                     ),
                 'num_gpu':
                     2,
                 'probe_options':
-                    ProbeOptions(
-                        sparsity_constraint=0.6,
-                        centered_intensity_constraint=True,
-                    ),
+                    ProbeOptions(),
                 'object_options':
                     ObjectOptions(),
                 'use_mpi':
@@ -302,7 +299,7 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm(params={
                 'algorithm_options':
                     tike.ptycho.CgradOptions(
-                        batch_size=max(1, int(self.data.shape[-3] / 3)),
+                        num_batch=5,
                         num_iter=16,
                     ),
                 'num_gpu':
@@ -321,7 +318,7 @@ class TestPtychoRecon(unittest.TestCase):
             self.template_consistent_algorithm(params={
                 'algorithm_options':
                     tike.ptycho.LstsqOptions(
-                        batch_size=max(1, int(self.data.shape[-3] * 0.05)),
+                        num_batch=5,
                         num_iter=16,
                     ),
                 'num_gpu':
@@ -352,7 +349,7 @@ class TestPtychoRecon(unittest.TestCase):
         result = self.template_consistent_algorithm(params={
             'algorithm_options':
                 tike.ptycho.LstsqOptions(
-                    batch_size=max(1, int(self.data.shape[-3] * 0.05)),
+                    num_batch=5,
                     num_iter=16,
                 ),
             'num_gpu':
@@ -382,14 +379,13 @@ class TestPtychoRecon(unittest.TestCase):
                 "These weights should be unused/untouched "
                 "and should have been initialized to zero.")
 
-    @unittest.case.skipIf(_mpi_size > 1, "MPI not implemented for ePIE.")
-    def test_consistent_epie(self):
-        """Check ptycho.solver.lstsq_grad for consistency."""
+    def test_consistent_rpie(self):
+        """Check ptycho.solver.rpie for consistency."""
         _save_ptycho_result(
             self.template_consistent_algorithm(params={
                 'algorithm_options':
-                    tike.ptycho.EpieOptions(
-                        batch_size=max(1, int(self.data.shape[-3] * 0.01)),
+                    tike.ptycho.RpieOptions(
+                        num_batch=5,
                         num_iter=16,
                     ),
                 'num_gpu':
@@ -400,7 +396,7 @@ class TestPtychoRecon(unittest.TestCase):
                     ObjectOptions(),
                 'use_mpi':
                     _mpi_size > 1,
-            },), f"{'mpi-' if _mpi_size > 1 else ''}epie")
+            },), f"{'mpi-' if _mpi_size > 1 else ''}rpie")
 
     def test_invalid_algorithm_name(self):
         """Check that wrong names are handled gracefully."""

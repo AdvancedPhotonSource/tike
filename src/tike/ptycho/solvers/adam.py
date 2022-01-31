@@ -82,6 +82,7 @@ def adam_grad(
             probe,
             object_options,
             probe_options,
+            algorithm_options,
         )
 
     if probe_options and probe_options.orthogonality_constraint:
@@ -126,7 +127,7 @@ def _grad_all(data, psi, scan, probe, mode=None, op=None):
         probe,
     )
     cost = self.propagation.cost(data, intensity)
-    grad_psi, grad_probe = self.adj_all(
+    grad_psi, grad_probe, psi_amp, probe_amp = self.adj_all(
         farplane=self.propagation.grad(
             data,
             farplane[..., mode, :, :],
@@ -137,15 +138,14 @@ def _grad_all(data, psi, scan, probe, mode=None, op=None):
         scan=scan,
         psi=psi,
         overwrite=True,
+        rpie=True,
     )
-    # Use the average gradient for all probe positions
-    grad_probe_mean = self.xp.mean(
+    grad_probe = self.xp.sum(
         grad_probe,
         axis=0,
         keepdims=True,
     )
-    grad_psi /= scan.shape[0]
-    return cost, grad_psi, grad_probe_mean
+    return cost, grad_psi, grad_probe, psi_amp, probe_amp
 
 
 def _update_all(
@@ -157,9 +157,15 @@ def _update_all(
     probe,
     object_options,
     probe_options,
-    step_length=0.1,
+    algorithm_options,
 ):
-    cost, grad_psi, grad_probe_mean = (list(a) for a in zip(*comm.pool.map(
+    (
+        cost,
+        grad_psi,
+        grad_probe,
+        psi_amp,
+        probe_amp,
+    ) = (list(a) for a in zip(*comm.pool.map(
         _grad_all,
         data,
         psi,
@@ -177,10 +183,17 @@ def _update_all(
     if object_options is not None:
         if comm.use_mpi:
             dpsi = comm.Allreduce_reduce(grad_psi, 'gpu')[0]
-            dpsi /= comm.pool.num_workers * comm.mpi.size
+            probe_amp = comm.Allreduce_reduce(probe_amp, 'gpu')[0]
         else:
             dpsi = comm.reduce(grad_psi, 'gpu')[0]
-            dpsi /= comm.pool.num_workers
+            probe_amp = comm.reduce(probe_amp, 'gpu')[0]
+
+        dpsi /= (1 - algorithm_options.alpha
+                ) * probe_amp + algorithm_options.alpha * probe_amp.max(
+                    keepdims=True,
+                    axis=(-1, -2),
+                )
+
         object_options.use_adaptive_moment = True
         (
             dpsi,
@@ -193,16 +206,24 @@ def _update_all(
             vdecay=object_options.vdecay,
             mdecay=object_options.mdecay,
         )
-        psi[0] = psi[0] - step_length * dpsi
+        psi[0] = psi[0] - algorithm_options.step_length * dpsi
         psi = comm.pool.bcast([psi[0]])
 
     if probe_options is not None:
         if comm.use_mpi:
-            dprobe = comm.Allreduce_reduce(grad_probe_mean, 'gpu')[0]
-            dprobe /= comm.pool.num_workers * comm.mpi.size
+            dprobe = comm.Allreduce_reduce(grad_probe, 'gpu')[0]
+            psi_amp = comm.Allreduce_reduce(psi_amp, 'gpu')[0]
+
         else:
-            dprobe = comm.reduce(grad_probe_mean, 'gpu')[0]
-            dprobe /= comm.pool.num_workers
+            dprobe = comm.reduce(grad_probe, 'gpu')[0]
+            psi_amp = comm.reduce(psi_amp, 'gpu')[0]
+
+        dprobe /= (1 - algorithm_options.alpha
+                  ) * psi_amp + algorithm_options.alpha * psi_amp.max(
+                      keepdims=True,
+                      axis=(-1, -2),
+                  )
+
         probe_options.use_adaptive_moment = True
         (
             dprobe,
@@ -215,7 +236,7 @@ def _update_all(
             vdecay=probe_options.vdecay,
             mdecay=probe_options.mdecay,
         )
-        probe[0] = probe[0] - step_length * dprobe
+        probe[0] = probe[0] - algorithm_options.step_length * dprobe
         probe = comm.pool.bcast([probe[0]])
 
     return cost, psi, probe

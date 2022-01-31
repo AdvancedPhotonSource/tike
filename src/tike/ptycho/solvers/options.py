@@ -12,9 +12,9 @@ class IterativeOptions(ABC):
     name: str = dataclasses.field(default=None, init=False)
     """The name of the algorithm."""
 
-    batch_size: int = None
-    """The approximate number of scan positions processed by each GPU
-    simultaneously per view."""
+    num_batch: int = None
+    """The dataset is divided into this number of groups where each group is
+    processed sequentially."""
 
     costs: List[float] = dataclasses.field(init=False, default_factory=list)
     """The objective function value at previous iterations."""
@@ -30,6 +30,12 @@ class IterativeOptions(ABC):
 class AdamOptions(IterativeOptions):
     name: str = dataclasses.field(default='adam_grad', init=False)
 
+    alpha: float = 0.05
+    """A hyper-parameter which controls the type of update regularization.
+    RPIE becomes EPIE when this parameter is 1."""
+
+    step_length: float = 1
+    """Scales the search directions."""
 
 @dataclasses.dataclass
 class CgradOptions(IterativeOptions):
@@ -43,10 +49,14 @@ class CgradOptions(IterativeOptions):
 
 
 @dataclasses.dataclass
-class EpieOptions(IterativeOptions):
-    name: str = dataclasses.field(default='epie', init=False)
+class RpieOptions(IterativeOptions):
+    name: str = dataclasses.field(default='rpie', init=False)
 
-    batch_size: int = 1
+    num_batch: int = 5
+
+    alpha: float = 0.05
+    """A hyper-parameter which controls the step length. RPIE becomes EPIE when
+    this parameter is 1."""
 
 
 @dataclasses.dataclass
