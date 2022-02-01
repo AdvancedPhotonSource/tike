@@ -206,7 +206,7 @@ def read_aps_velociprobe(
 
     if len(data) != len(scan):
         warnings.warn(
-            f"The number of positions {data.shape} and frames {scan.shape}"
+            f"The number of positions {scan.shape} and frames {data.shape}"
             " is not equal. One of the two will be truncated.")
         num_frame = min(len(data), len(scan))
         scan = scan[:num_frame, ...]
