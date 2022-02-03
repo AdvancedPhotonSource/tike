@@ -11,6 +11,6 @@ solvers
       :recursive:
 
       adam_grad
-      epie
       cgrad
       lstsq_grad
+      rpie
