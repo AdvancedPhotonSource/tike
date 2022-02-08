@@ -1,7 +1,18 @@
+"""Provide functions to generate complex coefficients of Zernike polynomials
+on a discrete grid."""
+
 import numpy as np
 
 
-def Z(m, n, ρ, θ):
+def Z(m: int, n: int, ρ: np.array, θ: np.array) -> np.array:
+    """Return the coefficients of the Zernike[m,n] polynomial.
+
+    Parameters
+    ----------
+    ρ: radius
+    θ: angle
+    """
+
     assert np.all(0 <= ρ <= 1), "Radii must be in range [0, 1]."
     assert n >= 0, "Radial degree must be non-negative."
     _m_ = np.abs(m)
@@ -9,13 +20,13 @@ def Z(m, n, ρ, θ):
     return N(m, n) * R(_m_, n, ρ) * np.exp(1j * _m_ * θ)
 
 
-def N(m, n):
+def N(m: int, n: int) -> int:
     """Zernike normalization factor."""
     # @StevenHenke1 this must be floating point division?
     return np.sqrt(2 * (n + 1) / (1 + (m == 0)))
 
 
-def R(m, n, ρ):
+def R(m: int, n: int, ρ: np.array) -> np.array:
     """Zernike radial polynomial."""
     if (n - m) % 2:
         return 0
@@ -35,7 +46,7 @@ def R(m, n, ρ):
         return result
 
 
-def bino(n, i):
+def bino(n: int, i: int) -> int:
     """One product term of the binomial coefficient."""
     # @StevenHenke4 these must be integer division?
     assert i >= 0
