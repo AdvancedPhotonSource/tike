@@ -486,7 +486,7 @@ def _teardown(
         probe_options=result['probe_options'].copy_to_host()
         if probe_options is not None else None,
         psi=result['psi'][0].get(),
-        scan=comm.pool.gather(scan, axis=-2)[reorder].get(),
+        scan=comm.pool.gather_host(scan, axis=-2)[reorder],
     )
 
 

@@ -9,6 +9,7 @@ import os
 import warnings
 
 import cupy as cp
+import numpy as np
 
 
 class ThreadPool(ThreadPoolExecutor):
@@ -71,6 +72,10 @@ class ThreadPool(ThreadPoolExecutor):
         with cp.cuda.Device(worker):
             return self.xp.asarray(x)
 
+    def _copy_host(self, x, worker: int) -> np.array:
+        with cp.cuda.Device(worker):
+            return self.xp.asnumpy(x)
+
     def bcast(self, x: list, s=1) -> list:
         """Send each x to all device groups.
 
@@ -100,6 +105,19 @@ class ThreadPool(ThreadPoolExecutor):
                 [self._copy_to(part, worker) for part in x],
                 axis,
             )
+
+    def gather_host(self, x: list, axis=0) -> np.array:
+        """Concatenate x on host along the given axis."""
+        if self.num_workers == 1:
+            return cp.asnumpy(x[0])
+
+        def f(x, worker):
+            return self._copy_host(x, worker)
+
+        return np.concatenate(
+            self.map(f, x, self.workers),
+            axis,
+        )
 
     def all_gather(self, x: list, axis=0) -> list:
         """Concatenate x on all workers along the given axis."""
