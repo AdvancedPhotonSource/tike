@@ -390,6 +390,11 @@ class TestPtychoRecon(unittest.TestCase):
                     ),
                 'num_gpu':
                     2,
+                'position_options':
+                    PositionOptions(
+                        self.scan.shape[-2],
+                        use_adaptive_moment=True,
+                    ),
                 'probe_options':
                     ProbeOptions(),
                 'object_options':
