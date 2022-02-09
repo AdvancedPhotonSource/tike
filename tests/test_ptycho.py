@@ -216,27 +216,13 @@ class TestPtychoSimulate(unittest.TestCase):
         np.testing.assert_allclose(np.sqrt(data), np.sqrt(self.data), atol=1e-6)
 
 
-class TestPtychoRecon(unittest.TestCase):
-    """Test various ptychography reconstruction methods for consistency."""
-
-    def setUp(self, filename='data/siemens-star-small.npz.bz2'):
-        """Load a dataset for reconstruction."""
-        dataset_file = os.path.join(testdir, filename)
-        with bz2.open(dataset_file, 'rb') as f:
-            archive = np.load(f)
-            self.scan = archive['scan'][0]
-            self.data = archive['data'][0]
-            self.probe = archive['probe'][0]
-        self.scan -= np.amin(self.scan, axis=-2) - 20
-        self.probe = tike.ptycho.probe.add_modes_random_phase(self.probe, 5)
-        self.probe *= np.random.rand(*self.probe.shape)
-        self.probe = tike.ptycho.probe.orthogonalize_eig(self.probe)
+class TemplatePtychoRecon():
 
     def template_consistent_algorithm(self, *, params={}):
         """Check ptycho.solver.algorithm for consistency."""
 
         result = {
-            'psi': np.ones((500, 500), dtype=np.complex64),
+            'psi': np.ones((520, 520), dtype=np.complex64),
             'probe': self.probe,
         }
 
@@ -273,6 +259,23 @@ class TestPtychoRecon(unittest.TestCase):
         print()
         print('\n'.join(f'{c:1.3e}' for c in result['algorithm_options'].costs))
         return result
+
+
+class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
+    """Test various ptychography reconstruction methods for consistency."""
+
+    def setUp(self, filename='data/siemens-star-small.npz.bz2'):
+        """Load a dataset for reconstruction."""
+        dataset_file = os.path.join(testdir, filename)
+        with bz2.open(dataset_file, 'rb') as f:
+            archive = np.load(f)
+            self.scan = archive['scan'][0]
+            self.data = archive['data'][0]
+            self.probe = archive['probe'][0]
+        self.scan -= np.amin(self.scan, axis=-2) - 20
+        self.probe = tike.ptycho.probe.add_modes_random_phase(self.probe, 5)
+        self.probe *= np.random.rand(*self.probe.shape)
+        self.probe = tike.ptycho.probe.orthogonalize_eig(self.probe)
 
     def test_consistent_adam_grad(self):
         """Check ptycho.solver.adam_grad for consistency."""
@@ -329,11 +332,6 @@ class TestPtychoRecon(unittest.TestCase):
                     ObjectOptions(),
                 'use_mpi':
                     _mpi_size > 1,
-                'position_options':
-                    PositionOptions(
-                        self.scan.shape[-2],
-                        use_adaptive_moment=True,
-                    ),
             },), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad")
 
     def test_consistent_lstsq_grad_variable_probe(self):
@@ -364,11 +362,6 @@ class TestPtychoRecon(unittest.TestCase):
                 eigen_probe,
             'eigen_weights':
                 weights,
-            'position_options':
-                PositionOptions(
-                    self.scan.shape[-2],
-                    use_adaptive_moment=True,
-                ),
         },)
         _save_ptycho_result(
             result,
@@ -390,11 +383,6 @@ class TestPtychoRecon(unittest.TestCase):
                     ),
                 'num_gpu':
                     2,
-                'position_options':
-                    PositionOptions(
-                        self.scan.shape[-2],
-                        use_adaptive_moment=True,
-                    ),
                 'probe_options':
                     ProbeOptions(),
                 'object_options':
@@ -408,6 +396,76 @@ class TestPtychoRecon(unittest.TestCase):
         with self.assertRaises(AttributeError):
             self.template_consistent_algorithm(params=dict(
                 algorithm_options=tike.ptycho.solvers.EpaeOptions()))
+
+
+class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
+    """Test various ptychography reconstruction methods position correction."""
+
+    def setUp(self, filename='data/position-error-247.pickle.lzma'):
+        """Load a dataset for reconstruction.
+
+        This position correction test dataset was collected by Tao Zhou at the
+        Center for Nanoscale Materials Hard X-ray Nanoprobe
+        (https://www.anl.gov/cnm).
+        """
+        dataset_file = os.path.join(testdir, filename)
+        with lzma.open(dataset_file, 'rb') as f:
+            [
+                self.data,
+                self.scan,
+                self.scan_truth,
+                self.probe,
+            ] = pickle.load(f)
+        self.scan -= np.amin(self.scan, axis=-2) - 8
+        self.scan_truth -= np.amin(self.scan_truth, axis=-2) - 8
+
+    def test_consistent_rpie(self):
+        """Check ptycho.solver.rpie position correction."""
+        _save_ptycho_result(
+            self.template_consistent_algorithm(params={
+                'algorithm_options':
+                    tike.ptycho.RpieOptions(
+                        num_batch=5,
+                        num_iter=64,
+                    ),
+                'num_gpu':
+                    2,
+                'position_options':
+                    PositionOptions(
+                        self.scan.shape[-2],
+                        use_adaptive_moment=True,
+                    ),
+                'probe_options':
+                    ProbeOptions(),
+                'object_options':
+                    ObjectOptions(),
+                'use_mpi':
+                    _mpi_size > 1,
+            },), f"{'mpi-' if _mpi_size > 1 else ''}rpie-position")
+
+    def test_consistent_lstsq_grad(self):
+        """Check ptycho.solver.lstsq_grad for consistency."""
+        _save_ptycho_result(
+            self.template_consistent_algorithm(params={
+                'algorithm_options':
+                    tike.ptycho.LstsqOptions(
+                        num_batch=5,
+                        num_iter=64,
+                    ),
+                'num_gpu':
+                    2,
+                'position_options':
+                    PositionOptions(
+                        self.scan.shape[-2],
+                        use_adaptive_moment=True,
+                    ),
+                'probe_options':
+                    ProbeOptions(),
+                'object_options':
+                    ObjectOptions(),
+                'use_mpi':
+                    _mpi_size > 1,
+            },), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-position")
 
 
 class TestProbe(unittest.TestCase):
@@ -507,7 +565,6 @@ def _save_ptycho_result(result, algorithm):
             result['algorithm_options'].times,
         )
         ax2.set_xlim(0, 20)
-        ax1.set_ylim(10**-1, 10**1)
         fig.suptitle(algorithm)
         fig.tight_layout()
 
