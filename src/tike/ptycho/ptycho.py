@@ -375,16 +375,6 @@ def _setup(
         num_cluster=algorithm_options.num_batch,
     )
 
-    result['probe'] = _rescale_obj_probe(
-        operator,
-        comm,
-        data,
-        result['psi'],
-        scan,
-        result['probe'],
-        num_batch=algorithm_options.num_batch,
-    )
-
     return (
         batches,
         data,
@@ -415,6 +405,14 @@ def _iterate(
                 result['probe'],
                 f=probe_options.sparsity_constraint,
             )
+
+    result['psi'], result['probe'] = _rescale_obj_probe(
+        operator,
+        comm,
+        result['psi'],
+        result['scan'],
+        result['probe'],
+    )
 
     result = getattr(solvers, algorithm_options.name)(
         operator,
@@ -479,44 +477,62 @@ def _teardown(
     )
 
 
-def _rescale_obj_probe(operator, comm, data, psi, scan, probe, num_batch):
-    """Keep the object amplitude around 1 by scaling probe by a constant."""
+def _update_total_illumination(probe, scan, op=None, psi_shape=None):
+    """Return the illumination of the primary probe."""
+    primary = probe * probe.conj()
+    primary = cp.sum(primary, axis=-3, keepdims=True)
+    primary = primary[0, 0, 0, :, :]
+    primary = cp.copy(
+        cp.broadcast_to(primary, (*scan.shape[:-1], *probe.shape[-2:])))
+    total_illumination = op.diffraction.patch.adj(
+        patches=primary,
+        images=cp.zeros(psi_shape, dtype='complex64'),
+        positions=scan,
+    ).real
+    return total_illumination
 
-    def _get_rescale(data, psi, scan, probe, num_batch, operator):
-        i = batch_indicies(data.shape[-3], num_batch, use_random=True)[0]
 
-        intensity, _ = operator._compute_intensity(data[..., i, :, :], psi,
-                                                   scan[..., i, :], probe)
+def __rescale_obj_probe(psi, probe, total_illumination):
+    """Keep the object amplitude around 1 by scaling probe by a constant.
 
-        n1 = np.linalg.norm(np.ravel(np.sqrt(data[..., i, :, :])))**2
-        n2 = np.linalg.norm(np.ravel(np.sqrt(intensity)))**2
-
-        return n1, n2
-
-    n1, n2 = zip(*comm.pool.map(
-        _get_rescale,
-        data,
-        psi,
-        scan,
-        probe,
-        num_batch=num_batch,
-        operator=operator,
-    ))
-
-    if comm.use_mpi:
-        n1 = np.sqrt(comm.Allreduce_reduce(n1, 'cpu'))
-        n2 = np.sqrt(comm.Allreduce_reduce(n2, 'cpu'))
-    else:
-        n1 = np.sqrt(comm.reduce(n1, 'cpu'))
-        n2 = np.sqrt(comm.reduce(n2, 'cpu'))
-
-    rescale = n1 / n2
+    Rescale the object by the weighted L2 norm of the object. i.e. square root
+    of the weighted mean of the squares of the object transmission amplitude.
+    Weight using the total illumination of the probe.
+    """
+    W = total_illumination / cp.linalg.norm(total_illumination, ord=2)
+    rescale = cp.sqrt(cp.sum(W * cp.square(cp.abs(psi))))
 
     logger.info("object and probe rescaled by %f", rescale)
 
-    probe[0] *= rescale
+    probe *= rescale
+    psi /= rescale
 
-    return comm.pool.bcast([probe[0]])
+    return psi, probe
+
+
+def _rescale_obj_probe(op, comm, psi, scan, probe):
+    """Keep the object amplitude around 1 by scaling probe by a constant."""
+
+    total_illumination = comm.pool.map(
+        _update_total_illumination,
+        probe,
+        scan,
+        op=op,
+        psi_shape=psi[0].shape,
+    )
+    if comm.use_mpi:
+        total_illumination = comm.Allreduce_reduce(total_illumination, 'gpu')
+    else:
+        total_illumination = comm.reduce(total_illumination, 'gpu')
+
+    psi, probe = (list(a) for a in zip(*comm.pool.map(
+        __rescale_obj_probe,
+        psi,
+        probe,
+        total_illumination,
+    )))
+
+    return psi, probe
 
 
 def split_by_scan_grid(pool, shape, scan, *args, fly=1):
