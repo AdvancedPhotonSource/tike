@@ -245,7 +245,6 @@ def reconstruct(
                 "across processes.")
     else:
         mpi = None
-    (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
     check_allowed_positions(scan, psi, probe.shape)
     with cp.cuda.Device(num_gpu[0] if isinstance(num_gpu, tuple) else None):
         operator = Ptycho(
