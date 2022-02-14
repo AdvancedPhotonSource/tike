@@ -209,8 +209,8 @@ def _image_grad(x):
     # FIXME: Use different gradient approximation that does not use FFT. Because
     # FFT caches are per-thread and per-device, using FFT is inefficient.
     ramp = 2j * cp.pi * cp.linspace(-0.5, 0.5, x.shape[-1], dtype='float32')
-    grad_x = cupyx.scipy.fft.ifft2(ramp * cupyx.scipy.fft.fft2(x))
-    grad_y = cupyx.scipy.fft.ifft2(ramp[:, None] * cupyx.scipy.fft.fft2(x))
+    grad_x = cupyx.scipy.fft.ifft2(ramp[:, None] * cupyx.scipy.fft.fft2(x))
+    grad_y = cupyx.scipy.fft.ifft2(ramp * cupyx.scipy.fft.fft2(x))
     return grad_x, grad_y
 
 

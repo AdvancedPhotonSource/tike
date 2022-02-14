@@ -2,7 +2,7 @@ import logging
 
 import cupy as cp
 
-from tike.linalg import norm
+import tike.linalg
 from tike.opt import get_batch, put_batch, randomizer, adam
 
 from ..object import positivity_constraint, smoothness_constraint
@@ -218,6 +218,8 @@ def _update_nearplane(
         psi_update_denominator,
         probe_update_numerator,
         probe_update_denominator,
+        position_update_numerator,
+        position_update_denominator,
     ) = (list(a) for a in zip(*comm.pool.map(
         _get_nearplane_gradients,
         nearplane_,
@@ -227,21 +229,9 @@ def _update_nearplane(
         probe,
         recover_psi=recover_psi,
         recover_probe=recover_probe,
+        recover_positions=position_options is not None,
         op=op,
     )))
-
-    if position_options is not None:
-        (
-            scan_,
-            position_options,
-        ) = (list(a) for a in zip(*comm.pool.map(
-            _update_position,
-            position_options,
-            nearplane_,
-            patches,
-            scan_,
-            probe,
-        )))
 
     alpha = algorithm_options.alpha
 
@@ -286,6 +276,20 @@ def _update_nearplane(
 
         probe = comm.pool.bcast([probe[0]])
 
+    if position_options:
+        (
+            scan_,
+            position_options,
+        ) = (list(a) for a in zip(*comm.pool.map(
+            _update_position,
+            scan_,
+            position_options,
+            position_update_numerator,
+            position_update_denominator,
+            max_shift=probe[0].shape[-1] * 0.1,
+            alpha=alpha,
+        )))
+
     return psi, probe, eigen_probe, eigen_weights, scan_, position_options
 
 
@@ -309,11 +313,16 @@ def _get_nearplane_gradients(
     probe,
     recover_psi=True,
     recover_probe=True,
+    recover_positions=True,
     op=None,
 ):
     psi_update_numerator = cp.zeros(psi.shape, dtype='complex64')
     psi_update_denominator = cp.zeros(psi.shape, dtype='complex64')
     probe_update_numerator = cp.zeros(probe.shape, dtype='complex64')
+    position_update_numerator = cp.zeros(scan.shape, dtype='float32')
+    position_update_denominator = cp.zeros(scan.shape, dtype='float32')
+
+    grad_x, grad_y = _image_grad(patches)
 
     for m in range(probe.shape[-3]):
 
@@ -343,6 +352,24 @@ def _get_nearplane_gradients(
                 keepdims=True,
             )
 
+        if recover_positions:
+            position_update_numerator[..., 0] = cp.sum(
+                cp.real(cp.conj(grad_x * probe[..., [m], :, :]) * diff),
+                axis=(-2, -1),
+            )[..., 0, 0]
+            position_update_denominator[..., 0] = cp.sum(
+                cp.abs(grad_x * probe[..., [m], :, :])**2,
+                axis=(-2, -1),
+            )[..., 0, 0]
+            position_update_numerator[..., 1] = cp.sum(
+                cp.real(cp.conj(grad_y * probe[..., [m], :, :]) * diff),
+                axis=(-2, -1),
+            )[..., 0, 0]
+            position_update_denominator[..., 1] = cp.sum(
+                cp.abs(grad_y * probe[..., [m], :, :])**2,
+                axis=(-2, -1),
+            )[..., 0, 0]
+
     if recover_probe:
         probe_update_denominator = cp.sum(
             patches * patches.conj(),
@@ -357,6 +384,8 @@ def _get_nearplane_gradients(
         psi_update_denominator,
         probe_update_numerator,
         probe_update_denominator,
+        position_update_numerator,
+        position_update_denominator,
     )
 
 
@@ -366,33 +395,20 @@ def _mad(x, **kwargs):
 
 
 def _update_position(
-    position_options,
-    nearplane,
-    patches,
     scan,
-    probe,
+    position_options,
+    position_update_numerator,
+    position_update_denominator,
+    alpha=0.05,
+    max_shift=1,
 ):
-    m = 0
-    diff = nearplane[..., [m], :, :] - (probe[..., [m], :, :] * patches)
-    main_probe = probe[..., [m], :, :]
+    step = position_update_numerator / (
+        (1 - alpha) * position_update_denominator +
+        alpha * position_update_denominator.max()
+    )
 
-    # According to the manuscript, we can either shift the probe or the object
-    # and they are equivalent (in theory). Here we shift the object because
-    # that is what ptychoshelves does.
-    grad_x, grad_y = _image_grad(patches)
-
-    numerator = cp.sum(cp.real(diff * cp.conj(grad_x * main_probe)),
-                       axis=(-2, -1))
-    denominator = cp.sum(cp.abs(grad_x * main_probe)**2, axis=(-2, -1))
-    step_x = numerator / (denominator + 1e-6)
-
-    numerator = cp.sum(cp.real(diff * cp.conj(grad_y * main_probe)),
-                       axis=(-2, -1))
-    denominator = cp.sum(cp.abs(grad_y * main_probe)**2, axis=(-2, -1))
-    step_y = numerator / (denominator + 1e-6)
-
-    step_x = step_x[..., 0, 0]
-    step_y = step_y[..., 0, 0]
+    step_x = step[..., 0]
+    step_y = step[..., 1]
 
     if position_options.use_adaptive_moment:
         logger.info(
@@ -411,7 +427,6 @@ def _update_position(
             mdecay=position_options.mdecay)
 
     # Step limit for stability
-    max_shift = patches.shape[-1] * 0.1
     _max_shift = cp.minimum(
         max_shift,
         _mad(
@@ -428,12 +443,9 @@ def _update_position(
     # Ensure net movement is zero
     step_x -= cp.mean(step_x, axis=-1, keepdims=True)
     step_y -= cp.mean(step_y, axis=-1, keepdims=True)
-    logger.info('position update norm is %+.3e', norm(step_x))
+    logger.info('position update norm is %+.3e', tike.linalg.norm(step_x))
 
-    # print(cp.abs(step_x) > 0.5)
-    # print(cp.abs(step_y) > 0.5)
-
-    scan[..., 0] -= step_y
-    scan[..., 1] -= step_x
+    scan[..., 0] -= step_x
+    scan[..., 1] -= step_y
 
     return scan, position_options

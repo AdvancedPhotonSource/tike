@@ -222,7 +222,7 @@ class TemplatePtychoRecon():
         """Check ptycho.solver.algorithm for consistency."""
 
         result = {
-            'psi': np.ones((520, 520), dtype=np.complex64),
+            'psi': np.ones((600, 600), dtype=np.complex64),
             'probe': self.probe,
         }
 
@@ -401,7 +401,7 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
 class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
     """Test various ptychography reconstruction methods position correction."""
 
-    def setUp(self, filename='data/position-error-247.pickle.lzma'):
+    def setUp(self, filename='data/position-error-247.pickle.bz2'):
         """Load a dataset for reconstruction.
 
         This position correction test dataset was collected by Tao Zhou at the
@@ -409,63 +409,105 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
         (https://www.anl.gov/cnm).
         """
         dataset_file = os.path.join(testdir, filename)
-        with lzma.open(dataset_file, 'rb') as f:
+        with bz2.open(dataset_file, 'rb') as f:
             [
                 self.data,
                 self.scan,
                 self.scan_truth,
                 self.probe,
             ] = pickle.load(f)
-        self.scan -= np.amin(self.scan, axis=-2) - 8
-        self.scan_truth -= np.amin(self.scan_truth, axis=-2) - 8
+
+    def _save_position_error_variance(self, result, algorithm):
+        try:
+            import matplotlib.pyplot as plt
+            import tike.view
+            fname = os.path.join(testdir, 'result', 'ptycho', f'{algorithm}')
+            os.makedirs(fname, exist_ok=True)
+
+            plt.figure(dpi=600)
+            plt.title(algorithm)
+            tike.view.plot_positions_convergence(
+                self.scan_truth,
+                result['position_options'].initial_scan,
+                result['scan'],
+            )
+            plt.savefig(os.path.join(fname, 'position-error.svg'))
+            plt.close()
+        except ImportError:
+            pass
+
+    def test_consistent_rpie_ref(self):
+        """Check ptycho.solver.rpie position correction."""
+        algorithm = f"{'mpi-' if _mpi_size > 1 else ''}rpie-position-ref"
+        result = self.template_consistent_algorithm(params={
+            'algorithm_options':
+                tike.ptycho.RpieOptions(
+                    num_batch=5,
+                    num_iter=16,
+                ),
+            'num_gpu':
+                2,
+            'probe_options':
+                ProbeOptions(),
+            'object_options':
+                ObjectOptions(),
+            'use_mpi':
+                _mpi_size > 1,
+        },)
+        _save_ptycho_result(result, algorithm)
+        self._save_position_error_variance(result, algorithm)
 
     def test_consistent_rpie(self):
         """Check ptycho.solver.rpie position correction."""
-        _save_ptycho_result(
-            self.template_consistent_algorithm(params={
-                'algorithm_options':
-                    tike.ptycho.RpieOptions(
-                        num_batch=5,
-                        num_iter=64,
-                    ),
-                'num_gpu':
-                    2,
-                'position_options':
-                    PositionOptions(
-                        self.scan.shape[-2],
-                        use_adaptive_moment=True,
-                    ),
-                'probe_options':
-                    ProbeOptions(),
-                'object_options':
-                    ObjectOptions(),
-                'use_mpi':
-                    _mpi_size > 1,
-            },), f"{'mpi-' if _mpi_size > 1 else ''}rpie-position")
+        algorithm = f"{'mpi-' if _mpi_size > 1 else ''}rpie-position"
+        result = self.template_consistent_algorithm(params={
+            'algorithm_options':
+                tike.ptycho.RpieOptions(
+                    num_batch=5,
+                    num_iter=16,
+                ),
+            'num_gpu':
+                2,
+            'position_options':
+                PositionOptions(
+                    self.scan,
+                    use_adaptive_moment=True,
+                ),
+            'probe_options':
+                ProbeOptions(),
+            'object_options':
+                ObjectOptions(),
+            'use_mpi':
+                _mpi_size > 1,
+        },)
+        _save_ptycho_result(result, algorithm)
+        self._save_position_error_variance(result, algorithm)
 
     def test_consistent_lstsq_grad(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
-        _save_ptycho_result(
-            self.template_consistent_algorithm(params={
-                'algorithm_options':
-                    tike.ptycho.LstsqOptions(
-                        num_batch=5,
-                        num_iter=64,
-                    ),
-                'num_gpu':
-                    2,
-                'position_options':
-                    PositionOptions(
-                        self.scan.shape[-2],
-                        use_adaptive_moment=True,
-                    ),
-                'probe_options':
-                    ProbeOptions(),
-                'object_options':
-                    ObjectOptions(),
-                'use_mpi':
-                    _mpi_size > 1,
-            },), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-position")
+        algorithm = f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-position"
+        result = self.template_consistent_algorithm(params={
+            'algorithm_options':
+                tike.ptycho.LstsqOptions(
+                    num_batch=5,
+                    num_iter=16,
+                ),
+            'num_gpu':
+                2,
+            'position_options':
+                PositionOptions(
+                    self.scan,
+                    use_adaptive_moment=True,
+                ),
+            'probe_options':
+                ProbeOptions(),
+            'object_options':
+                ObjectOptions(),
+            'use_mpi':
+                _mpi_size > 1,
+        },)
+        _save_ptycho_result(result, algorithm)
+        self._save_position_error_variance(result, algorithm)
 
 
 class TestProbe(unittest.TestCase):
