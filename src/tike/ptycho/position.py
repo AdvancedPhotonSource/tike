@@ -4,6 +4,7 @@ import dataclasses
 import logging
 
 import cupy as cp
+import cupyx.scipy.fft
 import numpy as np
 
 import tike.linalg
@@ -15,10 +16,7 @@ logger = logging.getLogger(__name__)
 class PositionOptions:
     """Manage data and settings related to position correction."""
 
-    num_positions: int
-    """The number of scanning positions."""
-
-    initial_scan: np.array = None
+    initial_scan: np.array
     """The original scan positions before they were updated using position
     correction."""
 
@@ -37,12 +35,15 @@ class PositionOptions:
 
     def __post_init__(self):
         if self.use_adaptive_moment:
-            self._momentum = np.zeros((self.num_positions, 4), dtype='float32')
+            self._momentum = np.zeros(
+                (*self.initial_scan.shape[:-1], 4),
+                dtype='float32',
+            )
 
     def split(self, indices):
         """Split the PositionOption meta-data along indices."""
         new = PositionOptions(
-            0,
+            self.initial_scan[..., indices, :],
             use_adaptive_moment=self.use_adaptive_moment,
             vdecay=self.vdecay,
             mdecay=self.mdecay,
@@ -54,18 +55,21 @@ class PositionOptions:
 
     def join(self, other, indices):
         """Replace the PositionOption meta-data with other data."""
+        self.initial_scan[..., indices, :] = other.initial_scan
         if self.use_adaptive_moment:
             self._momentum[..., indices, :] = other._momentum
         return self
 
     def copy_to_device(self):
         """Copy to the current GPU memory."""
+        self.initial_scan = cp.asarray(self.initial_scan)
         if self.use_adaptive_moment:
             self._momentum = cp.asarray(self._momentum)
         return self
 
     def copy_to_host(self):
         """Copy to the host CPU memory."""
+        self.initial_scan = cp.asnumpy(self.initial_scan)
         if self.use_adaptive_moment:
             self._momentum = cp.asnumpy(self._momentum)
         return self

@@ -333,7 +333,6 @@ def _setup(
         scan,
         data,
         eigen_weights,
-        initial_scan,
     ) = split_by_scan_grid(
         comm.pool,
         (
@@ -343,7 +342,6 @@ def _setup(
         scan,
         data,
         eigen_weights,
-        None if position_options is None else position_options.initial_scan,
     )
     result = dict(
         psi=comm.pool.bcast([psi.astype('complex64')]),
@@ -369,10 +367,6 @@ def _setup(
             PositionOptions.copy_to_device,
             (position_options.split(x) for x in comm.order),
         )
-        if initial_scan is None:
-            position_options.initial_scan = comm.pool.map(cp.copy, scan)
-        else:
-            position_options.initial_scan = initial_scan
 
     # Unique batch for each device
     batches = comm.pool.map(
@@ -465,10 +459,6 @@ def _teardown(
                 comm.order,
         ):
             position_options.join(x, o)
-        position_options.initial_scan = comm.pool.gather(
-            position_options.initial_scan,
-            axis=-2,
-        )[reorder].get()
 
     return dict(
         algorithm_options=algorithm_options,
