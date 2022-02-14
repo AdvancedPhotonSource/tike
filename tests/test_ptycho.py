@@ -455,7 +455,6 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
                 _mpi_size > 1,
         },)
         _save_ptycho_result(result, algorithm)
-        self._save_position_error_variance(result, algorithm)
 
     def test_consistent_rpie(self):
         """Check ptycho.solver.rpie position correction."""
