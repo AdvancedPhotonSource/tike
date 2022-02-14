@@ -201,7 +201,7 @@ def plot_positions_convergence(true, *args):
                                         zorder=1)
         plt.gca().add_collection(lc)
 
-    limits = np.amax(np.abs(args), axis=(-3, -2))
+    limits = np.maximum(np.amax(np.abs(args), axis=(-3, -2)), 1)
     plt.xlim([-limits[0], limits[0]])
     plt.ylim([-limits[1], limits[1]])
 
