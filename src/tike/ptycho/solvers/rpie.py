@@ -402,6 +402,17 @@ def _mad(x, **kwargs):
     return cp.mean(cp.abs(x - cp.median(x, **kwargs)), **kwargs)
 
 
+def _gaussian_penalty_grad(x, x0, variance=1.0):
+    delta = x - x0
+    k = -2.0 / variance
+    return k * delta * cp.exp(0.5 * k * delta * delta)
+
+
+def _l2_penalty_grad(x, x0, variance=1.0):
+    delta = x - x0
+    return 2 * delta / variance
+
+
 def _update_position(
     scan,
     position_options,

@@ -32,6 +32,12 @@ class PositionOptions:
     """Whether the positions are constrained to fit a random error plus affine
     error model."""
 
+    penalty_weight: float = 0
+    """Weight of the Gaussian penalty term."""
+
+    penalty_variance: float = 1.0
+    """Variance of the Gaussian penalty term."""
+
     def __post_init__(self):
         if self.use_adaptive_moment:
             self._momentum = np.zeros(
