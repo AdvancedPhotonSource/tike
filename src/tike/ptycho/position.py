@@ -4,6 +4,7 @@ import dataclasses
 import logging
 
 import cupy as cp
+import cupyx.scipy.fft
 import numpy as np
 
 import tike.linalg
@@ -15,10 +16,7 @@ logger = logging.getLogger(__name__)
 class PositionOptions:
     """Manage data and settings related to position correction."""
 
-    num_positions: int
-    """The number of scanning positions."""
-
-    initial_scan: np.array = None
+    initial_scan: np.array
     """The original scan positions before they were updated using position
     correction."""
 
@@ -37,12 +35,15 @@ class PositionOptions:
 
     def __post_init__(self):
         if self.use_adaptive_moment:
-            self._momentum = np.zeros((self.num_positions, 4), dtype='float32')
+            self._momentum = np.zeros(
+                (*self.initial_scan.shape[:-1], 4),
+                dtype='float32',
+            )
 
     def split(self, indices):
         """Split the PositionOption meta-data along indices."""
         new = PositionOptions(
-            0,
+            self.initial_scan[..., indices, :],
             use_adaptive_moment=self.use_adaptive_moment,
             vdecay=self.vdecay,
             mdecay=self.mdecay,
@@ -54,18 +55,21 @@ class PositionOptions:
 
     def join(self, other, indices):
         """Replace the PositionOption meta-data with other data."""
+        self.initial_scan[..., indices, :] = other.initial_scan
         if self.use_adaptive_moment:
             self._momentum[..., indices, :] = other._momentum
         return self
 
     def copy_to_device(self):
         """Copy to the current GPU memory."""
+        self.initial_scan = cp.asarray(self.initial_scan)
         if self.use_adaptive_moment:
             self._momentum = cp.asarray(self._momentum)
         return self
 
     def copy_to_host(self):
         """Copy to the host CPU memory."""
+        self.initial_scan = cp.asnumpy(self.initial_scan)
         if self.use_adaptive_moment:
             self._momentum = cp.asnumpy(self._momentum)
         return self
@@ -200,18 +204,13 @@ def update_positions_pd(operator, data, psi, probe, scan,
     return scan, cost
 
 
-from cupy.fft.config import get_plan_cache
-
-
 def _image_grad(x):
     """Return the gradient of the x for each of the last two dimesions."""
     # FIXME: Use different gradient approximation that does not use FFT. Because
     # FFT caches are per-thread and per-device, using FFT is inefficient.
     ramp = 2j * cp.pi * cp.linspace(-0.5, 0.5, x.shape[-1], dtype='float32')
-    cache = get_plan_cache()
-    cache.set_size(0)
-    grad_x = cp.fft.ifft2(ramp * cp.fft.fft2(x))
-    grad_y = cp.fft.ifft2(ramp[:, None] * cp.fft.fft2(x))
+    grad_x = cupyx.scipy.fft.ifft2(ramp[:, None] * cupyx.scipy.fft.fft2(x))
+    grad_y = cupyx.scipy.fft.ifft2(ramp * cupyx.scipy.fft.fft2(x))
     return grad_x, grad_y
 
 
@@ -290,7 +289,7 @@ def affine_position_regularization(
         images=cp.zeros(psi.shape, dtype='complex64'),
         positions=updated,
     )
-    total_illumination = cp.fft.fft2(total_illumination)
+    total_illumination = cupyx.scipy.fft.fft2(total_illumination)
     total_illumination *= _gaussian_frequency(
         sigma=sigma,
         size=total_illumination.shape[-1],
@@ -299,7 +298,7 @@ def affine_position_regularization(
         sigma=sigma,
         size=total_illumination.shape[-2],
     )[..., None]
-    total_illumination = cp.fft.ifft2(total_illumination)
+    total_illumination = cupyx.scipy.fft.ifft2(total_illumination)
     illum_proj = op.diffraction.patch.fwd(
         images=total_illumination,
         positions=updated,

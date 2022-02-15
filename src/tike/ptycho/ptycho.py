@@ -174,7 +174,7 @@ def reconstruct(
     data,
     probe,
     scan,
-    algorithm_options=solvers.EpieOptions(),
+    algorithm_options=solvers.RpieOptions(),
     eigen_probe=None,
     eigen_weights=None,
     model='gaussian',
@@ -245,7 +245,6 @@ def reconstruct(
                 "across processes.")
     else:
         mpi = None
-    (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
     check_allowed_positions(scan, psi, probe.shape)
     with cp.cuda.Device(num_gpu[0] if isinstance(num_gpu, tuple) else None):
         operator = Ptycho(
@@ -327,11 +326,6 @@ def _setup(
     probe_options,
     scan,
 ):
-    num_batch = 1 if algorithm_options.batch_size is None else max(
-        1,
-        int(data.shape[-3] / algorithm_options.batch_size /
-            comm.pool.num_workers),
-    )
     # Divide the inputs into regions
     odd_pool = comm.pool.num_workers % 2
     (
@@ -339,7 +333,6 @@ def _setup(
         scan,
         data,
         eigen_weights,
-        initial_scan,
     ) = split_by_scan_grid(
         comm.pool,
         (
@@ -349,7 +342,6 @@ def _setup(
         scan,
         data,
         eigen_weights,
-        None if position_options is None else position_options.initial_scan,
     )
     result = dict(
         psi=comm.pool.bcast([psi.astype('complex64')]),
@@ -375,16 +367,12 @@ def _setup(
             PositionOptions.copy_to_device,
             (position_options.split(x) for x in comm.order),
         )
-        if initial_scan is None:
-            position_options.initial_scan = comm.pool.map(cp.copy, scan)
-        else:
-            position_options.initial_scan = initial_scan
 
     # Unique batch for each device
     batches = comm.pool.map(
         cluster_wobbly_center,
         scan,
-        num_cluster=num_batch,
+        num_cluster=algorithm_options.num_batch,
     )
 
     result['probe'] = _rescale_obj_probe(
@@ -394,7 +382,7 @@ def _setup(
         result['psi'],
         scan,
         result['probe'],
-        num_batch=num_batch,
+        num_batch=algorithm_options.num_batch,
     )
 
     return (
@@ -471,10 +459,6 @@ def _teardown(
                 comm.order,
         ):
             position_options.join(x, o)
-        position_options.initial_scan = comm.pool.gather(
-            position_options.initial_scan,
-            axis=-2,
-        )[reorder].get()
 
     return dict(
         algorithm_options=algorithm_options,
@@ -491,7 +475,7 @@ def _teardown(
         probe_options=result['probe_options'].copy_to_host()
         if probe_options is not None else None,
         psi=result['psi'][0].get(),
-        scan=comm.pool.gather(scan, axis=-2)[reorder].get(),
+        scan=comm.pool.gather_host(scan, axis=-2)[reorder],
     )
 
 

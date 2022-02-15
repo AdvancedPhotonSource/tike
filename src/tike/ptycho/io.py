@@ -108,9 +108,9 @@ def read_aps_velociprobe(
         positions together.
     Returns
     -------
-    data : (1, FRAME, WIDE, HIGH) float32
+    data : (FRAME, WIDE, HIGH) float32
         Diffraction patterns; cropped square and peak FFT shifted to corner.
-    scan : (1, POSI, 2) float32
+    scan : (POSI, 2) float32
         Scan positions; rescaled to pixel coordinates but uncentered.
 
     """
@@ -206,7 +206,7 @@ def read_aps_velociprobe(
 
     if len(data) != len(scan):
         warnings.warn(
-            f"The number of positions {data.shape} and frames {scan.shape}"
+            f"The number of positions {scan.shape} and frames {data.shape}"
             " is not equal. One of the two will be truncated.")
         num_frame = min(len(data), len(scan))
         scan = scan[:num_frame, ...]
@@ -219,8 +219,5 @@ def read_aps_velociprobe(
         det_pix_width,
         photon_energy,
     )
-
-    data = data[None, ...]
-    scan = scan[None, ...]
 
     return data.astype('float32'), scan.astype('float32')

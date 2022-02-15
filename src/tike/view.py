@@ -108,6 +108,9 @@ def _confidence_ellipse(x, y, ax, n_std=3.0, facecolor='none', **kwargs):
         raise ValueError("x and y must be the same size")
 
     cov = np.cov(x, y)
+    if np.all(np.abs(cov) < 1e-6):
+        return
+
     pearson = cov[0, 1] / np.sqrt(cov[0, 0] * cov[1, 1])
     # Using a special case to obtain the eigenvalues of this
     # two-dimensionl dataset.
@@ -198,7 +201,7 @@ def plot_positions_convergence(true, *args):
                                         zorder=1)
         plt.gca().add_collection(lc)
 
-    limits = np.amax(np.abs(args), axis=(-3, -2))
+    limits = np.maximum(np.amax(np.abs(args), axis=(-3, -2)), 1)
     plt.xlim([-limits[0], limits[0]])
     plt.ylim([-limits[1], limits[1]])
 
