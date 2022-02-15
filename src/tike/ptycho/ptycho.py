@@ -245,7 +245,6 @@ def reconstruct(
                 "across processes.")
     else:
         mpi = None
-    (psi, scan) = get_padded_object(scan, probe) if psi is None else (psi, scan)
     check_allowed_positions(scan, psi, probe.shape)
     with cp.cuda.Device(num_gpu[0] if isinstance(num_gpu, tuple) else None):
         operator = Ptycho(
@@ -334,7 +333,6 @@ def _setup(
         scan,
         data,
         eigen_weights,
-        initial_scan,
     ) = split_by_scan_grid(
         comm.pool,
         (
@@ -344,7 +342,6 @@ def _setup(
         scan,
         data,
         eigen_weights,
-        None if position_options is None else position_options.initial_scan,
     )
     result = dict(
         psi=comm.pool.bcast([psi.astype('complex64')]),
@@ -370,10 +367,6 @@ def _setup(
             PositionOptions.copy_to_device,
             (position_options.split(x) for x in comm.order),
         )
-        if initial_scan is None:
-            position_options.initial_scan = comm.pool.map(cp.copy, scan)
-        else:
-            position_options.initial_scan = initial_scan
 
     # Unique batch for each device
     batches = comm.pool.map(
@@ -466,10 +459,6 @@ def _teardown(
                 comm.order,
         ):
             position_options.join(x, o)
-        position_options.initial_scan = comm.pool.gather(
-            position_options.initial_scan,
-            axis=-2,
-        )[reorder].get()
 
     return dict(
         algorithm_options=algorithm_options,
@@ -486,7 +475,7 @@ def _teardown(
         probe_options=result['probe_options'].copy_to_host()
         if probe_options is not None else None,
         psi=result['psi'][0].get(),
-        scan=comm.pool.gather(scan, axis=-2)[reorder].get(),
+        scan=comm.pool.gather_host(scan, axis=-2)[reorder],
     )
 
 
