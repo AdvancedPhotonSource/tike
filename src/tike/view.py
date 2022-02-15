@@ -108,7 +108,7 @@ def _confidence_ellipse(x, y, ax, n_std=3.0, facecolor='none', **kwargs):
         raise ValueError("x and y must be the same size")
 
     cov = np.cov(x, y)
-    if np.all(cov == 0):
+    if np.all(np.abs(cov) < 1e-6):
         return
 
     pearson = cov[0, 1] / np.sqrt(cov[0, 0] * cov[1, 1])
