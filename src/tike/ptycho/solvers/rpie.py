@@ -438,8 +438,6 @@ def _update_position(
     step_x = cp.maximum(-_max_shift, cp.minimum(step_x, _max_shift))
     step_y = cp.maximum(-_max_shift, cp.minimum(step_y, _max_shift))
 
-    # SYNCHRONIZE ME?
-    # step -= comm.Allreduce_mean(step)
     # Ensure net movement is zero
     step_x -= cp.mean(step_x, axis=-1, keepdims=True)
     step_y -= cp.mean(step_y, axis=-1, keepdims=True)
