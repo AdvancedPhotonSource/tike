@@ -246,17 +246,14 @@ def reconstruct(
     else:
         mpi = None
     check_allowed_positions(scan, psi, probe.shape)
-    with (
-        cp.cuda.Device(num_gpu[0] if isinstance(num_gpu, tuple) else None),
-        Comm(num_gpu, mpi) as comm
-    ):
+    with (cp.cuda.Device(num_gpu[0] if isinstance(num_gpu, tuple) else None)):
         with Ptycho(
                 probe_shape=probe.shape[-1],
                 detector_shape=data.shape[-1],
                 nz=psi.shape[-2],
                 n=psi.shape[-1],
                 model=model,
-        ) as operator:
+        ) as operator, Comm(num_gpu, mpi) as comm:
 
             (
                 batches,
@@ -302,17 +299,17 @@ def reconstruct(
                 algorithm_options.times.append(time.perf_counter() - start)
                 start = time.perf_counter()
 
-        return _teardown(
-            algorithm_options,
-            comm,
-            eigen_probe,
-            eigen_weights,
-            object_options,
-            position_options,
-            probe_options,
-            result,
-            scan,
-        )
+            return _teardown(
+                algorithm_options,
+                comm,
+                eigen_probe,
+                eigen_weights,
+                object_options,
+                position_options,
+                probe_options,
+                result,
+                scan,
+            )
 
 
 def _setup(
