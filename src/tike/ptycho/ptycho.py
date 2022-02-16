@@ -247,57 +247,56 @@ def reconstruct(
         mpi = None
     check_allowed_positions(scan, psi, probe.shape)
     with cp.cuda.Device(num_gpu[0] if isinstance(num_gpu, tuple) else None):
-        operator = Ptycho(
-            probe_shape=probe.shape[-1],
-            detector_shape=data.shape[-1],
-            nz=psi.shape[-2],
-            n=psi.shape[-1],
-            model=model,
-        )
-        comm = Comm(num_gpu, mpi)
+        with Ptycho(
+                probe_shape=probe.shape[-1],
+                detector_shape=data.shape[-1],
+                nz=psi.shape[-2],
+                n=psi.shape[-1],
+                model=model,
+        ) as operator, Comm(num_gpu, mpi) as comm:
 
-        (
-            batches,
-            data,
-            result,
-            scan,
-        ) = _setup(
-            algorithm_options,
-            comm,
-            data,
-            eigen_probe,
-            eigen_weights,
-            object_options,
-            operator,
-            probe,
-            psi,
-            position_options,
-            probe_options,
-            scan,
-        )
-
-        start = time.perf_counter()
-        for i in range(algorithm_options.num_iter):
-
-            logger.info(f"{algorithm_options.name} epoch {i:,d}")
-
-            # TODO: Append new information to everything that emits from _setup.
-
-            result = _iterate(
-                algorithm_options,
+            (
                 batches,
+                data,
+                result,
+                scan,
+            ) = _setup(
+                algorithm_options,
                 comm,
                 data,
+                eigen_probe,
+                eigen_weights,
+                object_options,
                 operator,
+                probe,
+                psi,
                 position_options,
                 probe_options,
-                result,
+                scan,
             )
 
-            # TODO: Grab intermediate psi/probe from GPU.
-
-            algorithm_options.times.append(time.perf_counter() - start)
             start = time.perf_counter()
+            for i in range(algorithm_options.num_iter):
+
+                logger.info(f"{algorithm_options.name} epoch {i:,d}")
+
+                # TODO: Append new information to everything that emits from _setup.
+
+                result = _iterate(
+                    algorithm_options,
+                    batches,
+                    comm,
+                    data,
+                    operator,
+                    position_options,
+                    probe_options,
+                    result,
+                )
+
+                # TODO: Grab intermediate psi/probe from GPU.
+
+                algorithm_options.times.append(time.perf_counter() - start)
+                start = time.perf_counter()
 
         return _teardown(
             algorithm_options,
