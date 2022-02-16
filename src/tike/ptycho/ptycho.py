@@ -246,14 +246,17 @@ def reconstruct(
     else:
         mpi = None
     check_allowed_positions(scan, psi, probe.shape)
-    with cp.cuda.Device(num_gpu[0] if isinstance(num_gpu, tuple) else None):
+    with (
+        cp.cuda.Device(num_gpu[0] if isinstance(num_gpu, tuple) else None),
+        Comm(num_gpu, mpi) as comm
+    ):
         with Ptycho(
                 probe_shape=probe.shape[-1],
                 detector_shape=data.shape[-1],
                 nz=psi.shape[-2],
                 n=psi.shape[-1],
                 model=model,
-        ) as operator, Comm(num_gpu, mpi) as comm:
+        ) as operator:
 
             (
                 batches,

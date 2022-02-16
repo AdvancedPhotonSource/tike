@@ -1,11 +1,11 @@
 __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
-import cupyx.scipy.fft
+from .cache import CachedFFT
 from .operator import Operator
 
 
-class Shift(Operator):
+class Shift(CachedFFT, Operator):
     """Shift last two dimensions of an array using Fourier method."""
 
     def fwd(self, a, shift, overwrite=False, cval=None):
@@ -23,7 +23,7 @@ class Shift(Operator):
             return a
         shape = a.shape
         padded = a.reshape(-1, *shape[-2:])
-        padded = cupyx.scipy.fft.fft2(
+        padded = self._fft2(
             padded,
             axes=(-2, -1),
             overwrite_x=overwrite,
@@ -35,7 +35,7 @@ class Shift(Operator):
         padded *= self.xp.exp(
             -2j * self.xp.pi *
             (x * shift[..., 1, None, None] + y * shift[..., 0, None, None]))
-        padded = cupyx.scipy.fft.ifft2(padded, axes=(-2, -1), overwrite_x=True)
+        padded = self._ifft2(padded, axes=(-2, -1), overwrite_x=True)
         return padded.reshape(*shape)
 
     def adj(self, a, shift, overwrite=False, cval=None):
