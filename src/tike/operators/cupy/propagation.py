@@ -8,6 +8,7 @@ import numpy as np
 from .cache import CachedFFT
 from .operator import Operator
 
+
 class Propagation(CachedFFT, Operator):
     """A Fourier-based free-space propagation using CuPy.
 

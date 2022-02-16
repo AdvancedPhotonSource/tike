@@ -283,7 +283,8 @@ def reconstruct(
 
                 logger.info(f"{algorithm_options.name} epoch {i:,d}")
 
-                # TODO: Append new information to everything that emits from _setup.
+                # TODO: Append new information to everything that emits from
+                # _setup.
 
                 result = _iterate(
                     algorithm_options,
