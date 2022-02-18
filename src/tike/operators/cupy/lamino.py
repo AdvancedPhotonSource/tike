@@ -11,6 +11,7 @@ import cupy as cp
 import cupyx.scipy.fft
 import numpy as np
 
+from .cache import CachedFFT
 from .usfft import eq2us, us2eq, checkerboard
 from .operator import Operator
 
@@ -18,11 +19,7 @@ _cu_source = files('tike.operators.cupy').joinpath('grid.cu').read_text()
 _make_grids_kernel = cp.RawKernel(_cu_source, "make_grids")
 
 
-def _fftn(*args, **kwargs):
-    return cupyx.scipy.fft.fftn(*args, overwrite_x=True, **kwargs)
-
-
-class Lamino(Operator):
+class Lamino(CachedFFT, Operator):
     """A Laminography operator.
 
     Laminography operators to simulate propagation of the beam through the
@@ -60,6 +57,9 @@ class Lamino(Operator):
     def fwd(self, u, theta, **kwargs):
         """Perform the forward Laminography transform."""
 
+        def _fftn(*args, **kwargs):
+            return self._fftn(*args, overwrite_x=True, **kwargs)
+
         xi = self._make_grids(theta)
 
         # USFFT from equally-spaced grid to unequally-spaced grid
@@ -76,7 +76,7 @@ class Lamino(Operator):
         # Inverse 2D FFT
         data = checkerboard(
             self.xp,
-            cupyx.scipy.fft.ifft2(
+            self._ifft2(
                 checkerboard(
                     self.xp,
                     F,
@@ -93,12 +93,15 @@ class Lamino(Operator):
     def adj(self, data, theta, overwrite=False, **kwargs):
         """Perform the adjoint Laminography transform."""
 
+        def _fftn(*args, **kwargs):
+            return self._fftn(*args, overwrite_x=True, **kwargs)
+
         xi = self._make_grids(theta)
 
         # Forward 2D FFT
         F = checkerboard(
             self.xp,
-            cupyx.scipy.fft.fft2(
+            self._fft2(
                 checkerboard(
                     self.xp,
                     data.copy() if not overwrite else data,

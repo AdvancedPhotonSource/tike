@@ -3,13 +3,13 @@
 __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
-import cupyx.scipy.fft
 import numpy as np
 
+from .cache import CachedFFT
 from .operator import Operator
 
 
-class Propagation(Operator):
+class Propagation(CachedFFT, Operator):
     """A Fourier-based free-space propagation using CuPy.
 
     Take an (..., N, N) array and apply the Fourier transform to the last two
@@ -49,7 +49,7 @@ class Propagation(Operator):
         """Forward Fourier-based free-space propagation operator."""
         self._check_shape(nearplane)
         shape = nearplane.shape
-        return cupyx.scipy.fft.fft2(
+        return self._fft2(
             nearplane.reshape(-1, self.detector_shape, self.detector_shape),
             norm='ortho',
             axes=(-2, -1),
@@ -60,7 +60,7 @@ class Propagation(Operator):
         """Adjoint Fourier-based free-space propagation operator."""
         self._check_shape(farplane)
         shape = farplane.shape
-        return cupyx.scipy.fft.ifft2(
+        return self._ifft2(
             farplane.reshape(-1, self.detector_shape, self.detector_shape),
             norm='ortho',
             axes=(-2, -1),
