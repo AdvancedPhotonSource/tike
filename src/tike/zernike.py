@@ -1,56 +1,66 @@
 """Provide functions to generate complex coefficients of Zernike polynomials
 on a discrete grid."""
 
+from math import factorial
 import numpy as np
 
 
-def Z(m: int, n: int, ρ: np.array, θ: np.array) -> np.array:
+def Z(m: int, n: int, radius: np.array, angle: np.array) -> np.array:
     """Return the coefficients of the Zernike[m,n] polynomial.
 
     Parameters
     ----------
-    ρ: radius
-    θ: angle
+    m : int
+        angular frequency
+    n : int
+        radial degree
+    radius: float [0, 1]
+        radius
+    angle: float radians
+        angle
     """
-
-    assert np.all(0 <= ρ <= 1), "Radii must be in range [0, 1]."
     assert n >= 0, "Radial degree must be non-negative."
     _m_ = np.abs(m)
     assert _m_ <= n, "Angular frequency must be less than radial degree."
-    return N(m, n) * R(_m_, n, ρ) * np.exp(1j * _m_ * θ)
+    polynomial = R(_m_, n, radius) * np.exp(1j * m * angle)
+    polynomial[np.logical_or(radius < 0, radius > 1)] = np.nan
+    return polynomial
 
 
 def N(m: int, n: int) -> int:
     """Zernike normalization factor."""
-    # @StevenHenke1 this must be floating point division?
     return np.sqrt(2 * (n + 1) / (1 + (m == 0)))
 
 
-def R(m: int, n: int, ρ: np.array) -> np.array:
+def R(m: int, n: int, radius: np.array) -> np.array:
     """Zernike radial polynomial."""
-    if (n - m) % 2:
-        return 0
-    else:
-        # Initialize with k=0 case because this term will always be included
-        sign = 1
-        b0 = 1
-        b1 = 1
-        result = ρ**n
-        # @StevenHenke2 these must be integer division?
-        # @StevenHenke3 Does this sum include k = (n - m) // 2 ?
-        for k in range(1, (n - m) // 2 + 1):
-            sign = -sign
-            b0 *= bino(n - k, k)
-            b1 *= bino(n - 2 * k, (n - m) // 2 - k)
-            result += sign * b0 * b1 * ρ**(n - 2 * k)
-        return result
+    # Initialize with k=0 case because this term will always be included
+    sign = 1
+    result = bino(n, m, 0) * radius**n
+    for k in range(1, n - m + 1):
+        sign = -sign
+        result += sign * bino(n, m, k) * radius**(n - k)
+    return result
 
 
-def bino(n: int, i: int) -> int:
-    """One product term of the binomial coefficient."""
-    # @StevenHenke4 these must be integer division?
-    assert i >= 0
-    if i == 0:
-        return 1
-    else:
-        return (n - i + 1) // i
+def bino(n: int, m: int, k: int) -> int:
+    """Return the approximate binomial coeffient (a b)."""
+    return int(
+        factorial(2 * n + 1 - k) / factorial(k) / factorial(n - m - k) /
+        factorial(n + m - k + 1))
+
+
+def mode(size: int, n: int) -> np.array:
+    endpoint = 1.0 - 1 / (2 * size)
+    x = np.linspace(-endpoint, endpoint, size, endpoint=True)
+    coords = np.meshgrid(x, x, indexing='ij')
+    radius = np.linalg.norm(coords, axis=0)
+    theta = np.arctan(coords[0] / coords[1])
+
+    basis = []
+    for _n in range(0, n):
+        for m in range(-_n, _n + 1):
+            basis.append(Z(m, n, radius, theta))
+
+    basis = np.stack(basis, axis=0)
+    return basis
