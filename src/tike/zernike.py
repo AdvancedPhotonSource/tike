@@ -1,27 +1,30 @@
-"""Provide functions to generate complex coefficients of Zernike polynomials
-on a discrete grid."""
+"""Provide functions to evaluate Zernike polynomials on a discrete grid."""
 
-from math import factorial
 import numpy as np
 
 
 def Z(m: int, n: int, radius: np.array, angle: np.array) -> np.array:
-    """Return the coefficients of the Zernike[m,n] polynomial.
+    """Return values of Zernike[m,n] polynomial at given radii, angles.
+
+    Values outside valid radius will be zero.
 
     Parameters
     ----------
     m : int
-        angular frequency
+        Angular frequency of the polynomial.
     n : int
-        radial degree
+        Radial degree of the polynomial.
     radius: float [0, 1]
-        radius
+        The radial coordinates of the evaluated polynomial.
     angle: float radians
-        angle
+        The angular coordinates of the evaluated polynomial.
+
     """
-    assert n >= 0, "Radial degree must be non-negative."
+    if n < 0:
+        raise ValueError("Radial degree must be non-negative.")
     _m_ = np.abs(m)
-    assert _m_ <= n, "Angular frequency must be less than radial degree."
+    if _m_ > n:
+        raise ValueError("Angular frequency must be less than radial degree.")
     if m < 0:
         polynomial = R(_m_, n, radius) * np.sin(m * angle)
     else:
@@ -36,19 +39,38 @@ def N(m: int, n: int) -> float:
 
 
 def R(m: int, n: int, radius: np.array) -> np.array:
-    """Zernike radial polynomial."""
+    """Return the values of the Zernike radial polynomial at the given radii.
+
+    This polynomial matches Figure 3 in Lakshminarayanan & Fleck (2011).
+
+    Parameters
+    ----------
+    m : int
+        Angular frequency of the polynomial.
+    n : int
+        Radial degree of the polynomial.
+    radius: float [0, 1]
+        The radial coordinates of the evaluated polynomial.
+
+    References
+    ----------
+    Vasudevan Lakshminarayanan & Andre Fleck (2011): Zernike polynomials: a
+    guide, Journal of ModernOptics, 58:7, 545-561
+    http://dx.doi.org/10.1080/09500340.2011.554896
+
+    """
     # Initialize with k=0 case because this term will always be included
     sign = -1
     result = 0 * radius
     for k in range(0, (n - m) // 2 + 1):
         sign = -sign
-        b0 = bino(n - k, k)
-        b1 = bino(n - 2 * k, (n - m) // 2 - k)
+        b0 = _bino(n - k, k)
+        b1 = _bino(n - 2 * k, (n - m) // 2 - k)
         result += sign * b0 * b1 * radius**(n - 2 * k)
     return result
 
 
-def bino(a: int, b: int) -> int:
+def _bino(a: int, b: int) -> int:
     """Return the approximate binomial coeffient (a b)."""
     result = 1
     for i in range(1, b + 1):
@@ -56,8 +78,23 @@ def bino(a: int, b: int) -> int:
     return result
 
 
-def zernike_basis(size: int, degree: int) -> np.array:
-    """Return all circular Zernike basis for radial degree up to n."""
+def basis(size: int, degree: int) -> np.array:
+    """Return all circular Zernike basis up to given radial degree.
+
+    Parameters
+    ----------
+    size : int
+        The width of the discrete basis in pixel.
+    degree : int
+        The maximum radial degree of the polynomial (not inclusive). The number
+        of degrees included in the set of bases.
+
+    Returns
+    -------
+    basis : (degree, size, size)
+        The Zernike bases.
+
+    """
     endpoint = 1.0 - 1.0 / (2 * size)
     x = np.linspace(-endpoint, endpoint, size, endpoint=True)
     coords = np.meshgrid(x, x, indexing='ij')
@@ -65,14 +102,15 @@ def zernike_basis(size: int, degree: int) -> np.array:
     theta = np.arctan2(coords[0], coords[1])
 
     basis = []
-    for m, n in valid_zernike_indices(degree):
+    for m, n in valid_indices(degree):
         basis.append(Z(m, n, radius, theta))
 
     basis = np.stack(basis, axis=0)
     return basis
 
 
-def valid_zernike_indices(degree):
+def valid_indices(degree: int) -> tuple:
+    """Enumerate all valid zernike indices (m,n) up to the given degree."""
     for n in range(0, degree):
         for m in range(-n, n + 1):
             if (n - abs(m)) % 2 == 0:

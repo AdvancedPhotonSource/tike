@@ -15,7 +15,7 @@ class TestZernike(unittest.TestCase):
 
         fname = os.path.join(testdir, 'result', 'zernike')
         os.makedirs(fname, exist_ok=True)
-        for i, Z in enumerate(tike.zernike.zernike_basis(256, degree=10)):
+        for i, Z in enumerate(tike.zernike.basis(256, degree=10)):
             plt.figure()
             tike.view.plot_complex(Z, rmin=-1, rmax=1)
             plt.savefig(os.path.join(fname, f"zernike-{i:02d}.png"))
@@ -38,6 +38,7 @@ class TestZernike(unittest.TestCase):
                 )
                 labels.append(n)
         plt.legend(labels)
+        plt.ylim([-1, 1])
         plt.savefig(os.path.join(fname, f"radial-function-{m}.png"))
         plt.close()
 
