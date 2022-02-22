@@ -42,15 +42,18 @@ def R(m: int, n: int, radius: np.array) -> np.array:
     result = 0 * radius
     for k in range(0, (n - m) // 2 + 1):
         sign = -sign
-        result += sign * bino(n, m, k) * radius**(n - 2 * k)
+        b0 = bino(n - k, k)
+        b1 = bino(n - 2 * k, (n - m) // 2 - k)
+        result += sign * b0 * b1 * radius**(n - 2 * k)
     return result
 
 
-def bino(n: int, m: int, k: int) -> int:
+def bino(a: int, b: int) -> int:
     """Return the approximate binomial coeffient (a b)."""
-    return int(
-        factorial(n - k) / factorial(k) / factorial((n + m) // 2 - k) /
-        factorial((n - m) // 2 - k))
+    result = 1
+    for i in range(1, b + 1):
+        result *= (a - i + 1) / i
+    return result
 
 
 def zernike_basis(size: int, degree: int) -> np.array:
