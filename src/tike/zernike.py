@@ -97,7 +97,7 @@ def basis(size: int, degree: int) -> np.array:
     """
     endpoint = 1.0 - 1.0 / (2 * size)
     x = np.linspace(-endpoint, endpoint, size, endpoint=True)
-    coords = np.meshgrid(x, x, indexing='ij')
+    coords = np.stack(np.meshgrid(x, x, indexing='ij'), axis=0)
     radius = np.linalg.norm(coords, axis=0)
     theta = np.arctan2(coords[0], coords[1])
 
