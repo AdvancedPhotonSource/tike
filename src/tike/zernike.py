@@ -78,7 +78,7 @@ def _bino(a: int, b: int) -> int:
     return result
 
 
-def basis(size: int, degree: int) -> np.array:
+def basis(size: int, degree_min: int, degree_max: int) -> np.array:
     """Return all circular Zernike basis up to given radial degree.
 
     Parameters
@@ -102,16 +102,16 @@ def basis(size: int, degree: int) -> np.array:
     theta = np.arctan2(coords[0], coords[1])
 
     basis = []
-    for m, n in valid_indices(degree):
+    for m, n in valid_indices(degree_min, degree_max):
         basis.append(Z(m, n, radius, theta))
 
     basis = np.stack(basis, axis=0)
     return basis
 
 
-def valid_indices(degree: int) -> tuple:
+def valid_indices(degree_min: int, degree_max: int) -> tuple:
     """Enumerate all valid zernike indices (m,n) up to the given degree."""
-    for n in range(0, degree):
+    for n in range(degree_min, degree_max):
         for m in range(-n, n + 1):
             if (n - abs(m)) % 2 == 0:
                 yield m, n
