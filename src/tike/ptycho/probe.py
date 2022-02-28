@@ -110,7 +110,7 @@ def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
 
     Returns
     -------
-    unique_probes : (..., POSI, 1, 1, WIDE, HIGH)
+    unique_probes : (..., POSI, 1, SHARED, WIDE, HIGH)
     """
     if weights is not None:
         # The zeroth eigen_probe is the shared_probe
@@ -359,7 +359,7 @@ def simulate_varying_weights(scan, eigen_probe):
 def init_varying_probe(
     scan,
     shared_probe,
-    num_eigen_probes,
+    num_eigen_probes=0,
     probes_with_modes=1,
 ):
     """Initialize arrays varying probe / eigen probes.

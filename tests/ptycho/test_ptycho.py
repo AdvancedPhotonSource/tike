@@ -67,7 +67,7 @@ __author__ = "Daniel Ching, Xiaodong Yu"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
-testdir = os.path.dirname(__file__)
+testdir = os.path.dirname(os.path.dirname(__file__))
 _mpi_size = MPI.COMM_WORLD.Get_size()
 
 
@@ -391,6 +391,35 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
                     _mpi_size > 1,
             },), f"{'mpi-' if _mpi_size > 1 else ''}rpie")
 
+    def test_consistent_rpie_variable_probe(self):
+        """Check ptycho.solver.lstsq_grad for consistency."""
+
+        probes_with_modes = min(10, self.probe.shape[-3])
+        _, weights = tike.ptycho.probe.init_varying_probe(
+            self.scan,
+            self.probe,
+            num_eigen_probes=1,
+            probes_with_modes=probes_with_modes,
+        )
+        _save_ptycho_result(
+            self.template_consistent_algorithm(params={
+                'algorithm_options':
+                    tike.ptycho.RpieOptions(
+                        num_batch=5,
+                        num_iter=16,
+                    ),
+                'num_gpu':
+                    2,
+                'probe_options':
+                    ProbeOptions(),
+                'object_options':
+                    ObjectOptions(),
+                'use_mpi':
+                    _mpi_size > 1,
+                'eigen_weights':
+                    weights,
+            },), f"{'mpi-' if _mpi_size > 1 else ''}rpie-variable-probe")
+
     def test_invalid_algorithm_name(self):
         """Check that wrong names are handled gracefully."""
         with self.assertRaises(AttributeError):
@@ -507,42 +536,6 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
         },)
         _save_ptycho_result(result, algorithm)
         self._save_position_error_variance(result, algorithm)
-
-
-class TestProbe(unittest.TestCase):
-
-    def test_eigen_probe(self):
-
-        leading = (2,)
-        wide = 18
-        high = 21
-        posi = 53
-        eigen = 1
-        comm = Comm(2, None)
-
-        R = comm.pool.bcast([np.random.rand(*leading, posi, 1, 1, wide, high)])
-        eigen_probe = comm.pool.bcast(
-            [np.random.rand(*leading, 1, eigen, 1, wide, high)])
-        weights = np.random.rand(*leading, posi, eigen + 1, 1)
-        weights -= np.mean(weights, axis=-3, keepdims=True)
-        weights = comm.pool.bcast([weights])
-        patches = comm.pool.bcast(
-            [np.random.rand(*leading, posi, 1, 1, wide, high)])
-        diff = comm.pool.bcast(
-            [np.random.rand(*leading, posi, 1, 1, wide, high)])
-
-        new_probe, new_weights = tike.ptycho.probe.update_eigen_probe(
-            comm=comm,
-            R=R,
-            eigen_probe=eigen_probe,
-            weights=weights,
-            patches=patches,
-            diff=diff,
-            c=1,
-            m=0,
-        )
-
-        assert eigen_probe[0].shape == new_probe[0].shape
 
 
 def _save_eigen_probe(output_folder, eigen_probe):
