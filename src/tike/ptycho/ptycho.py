@@ -375,12 +375,12 @@ def _setup(
         num_cluster=algorithm_options.num_batch,
     )
 
-    result['probe'] = _rescale_obj_probe(
+    result['probe'] = _rescale_probe(
         operator,
         comm,
         data,
         result['psi'],
-        scan,
+        result['scan'],
         result['probe'],
         num_batch=algorithm_options.num_batch,
     )
@@ -479,17 +479,29 @@ def _teardown(
     )
 
 
-def _rescale_obj_probe(operator, comm, data, psi, scan, probe, num_batch):
-    """Keep the object amplitude around 1 by scaling probe by a constant."""
+def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
+    """Rescale probe so model and measured intensity are similar magnitude.
+
+    Rescales the probe so that the sum of modeled intensity at the detector is
+    approximately equal to the measure intensity at the detector.
+    """
 
     def _get_rescale(data, psi, scan, probe, num_batch, operator):
-        i = batch_indicies(data.shape[-3], num_batch, use_random=True)[0]
 
-        intensity, _ = operator._compute_intensity(data[..., i, :, :], psi,
-                                                   scan[..., i, :], probe)
+        n1 = 0.0
+        n2 = 0.0
 
-        n1 = np.linalg.norm(np.ravel(np.sqrt(data[..., i, :, :])))**2
-        n2 = np.linalg.norm(np.ravel(np.sqrt(intensity)))**2
+        for b in batch_indicies(data.shape[-3], num_batch, use_random=False):
+
+            intensity, _ = operator._compute_intensity(
+                data[..., b, :, :],
+                psi,
+                scan[..., b, :],
+                probe,
+            )
+
+            n1 += np.sum(data[..., b, :, :])
+            n2 += np.sum(intensity)
 
         return n1, n2
 
@@ -512,7 +524,7 @@ def _rescale_obj_probe(operator, comm, data, psi, scan, probe, num_batch):
 
     rescale = n1 / n2
 
-    logger.info("object and probe rescaled by %f", rescale)
+    logger.info("Probe rescaled by %f", rescale)
 
     probe[0] *= rescale
 
