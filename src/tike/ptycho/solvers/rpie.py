@@ -248,12 +248,15 @@ def _update_nearplane(
         probe_update_denominator,
         position_update_numerator,
         position_update_denominator,
+        weight_update_numerator,
+        weight_update_denominator,
     ) = (list(a) for a in zip(*comm.pool.map(
         _get_nearplane_gradients,
         nearplane_,
         patches,
         psi,
         scan_,
+        probe,
         unique_probe,
         recover_psi=recover_psi,
         recover_probe=recover_probe,
@@ -305,13 +308,14 @@ def _update_nearplane(
         probe = comm.pool.bcast([probe[0]])
 
         if eigen_weights is not None:
-            (probe, eigen_weights) = (list(a) for a in zip(*comm.pool.map(
+            eigen_weights = comm.pool.map(
                 _update_weights,
                 eigen_weights,
-                probe,
-                patches,
-                nearplane_,
-            )))
+                weight_update_numerator,
+                weight_update_denominator,
+                step_length=0.1,
+                alpha=alpha,
+            )
 
     if position_options:
         (
@@ -330,17 +334,14 @@ def _update_nearplane(
     return psi, probe, eigen_probe, eigen_weights, scan_, position_options
 
 
-def _update_weights(eigen_weights, probe, patches, nearplane):
-    OP = patches * probe
-    xi = nearplane - OP
-    num = cp.sum(cp.real(cp.conj(OP) * xi), axis=(-1, -2))
-    den = cp.sum(cp.abs(OP)**2, axis=(-1, -2))
-
-    eigen_weights -= 0.05 * num / den
-
-    print(eigen_weights.shape)
-
-    return probe, eigen_weights
+def _update_weights(
+    eigen_weights,
+    n,
+    d,
+    step_length,
+    alpha,
+):
+    return eigen_weights + step_length * n / ((1 - alpha) * d + alpha * d.max())
 
 
 def _get_patches(nearplane, psi, scan, op=None):
@@ -361,6 +362,7 @@ def _get_nearplane_gradients(
     psi,
     scan,
     probe,
+    uprobe,
     recover_psi=True,
     recover_probe=True,
     recover_positions=True,
@@ -368,25 +370,26 @@ def _get_nearplane_gradients(
 ):
     psi_update_numerator = cp.zeros(psi.shape, dtype='complex64')
     psi_update_denominator = cp.zeros(psi.shape, dtype='complex64')
-    probe_update_numerator = cp.zeros(probe[0:1, :, :, :, :].shape,
-                                      dtype='complex64')
+    probe_update_numerator = cp.zeros(probe.shape, dtype='complex64')
     position_update_numerator = cp.zeros(scan.shape, dtype='float32')
     position_update_denominator = cp.zeros(scan.shape, dtype='float32')
+    weight_update_numerator = cp.zeros(uprobe.shape[:-2], dtype='float32')
+    weight_update_denominator = cp.zeros(uprobe.shape[:-2], dtype='float32')
 
     grad_x, grad_y = _image_grad(op, patches)
 
     for m in range(probe.shape[-3]):
 
-        diff = nearplane[..., [m], :, :] - (probe[..., [m], :, :] * patches)
+        diff = nearplane[..., [m], :, :] - (uprobe[..., [m], :, :] * patches)
 
         if recover_psi:
-            grad_psi = cp.conj(probe[..., [m], :, :]) * diff
+            grad_psi = cp.conj(uprobe[..., [m], :, :]) * diff
             psi_update_numerator = op.diffraction.patch.adj(
                 patches=grad_psi[..., 0, 0, :, :],
                 images=psi_update_numerator,
                 positions=scan,
             )
-            probe_amp = probe[..., 0, m, :, :] * probe[..., 0, m, :, :].conj()
+            probe_amp = uprobe[..., 0, m, :, :] * uprobe[..., 0, m, :, :].conj()
             # TODO: Allow this kind of broadcasting inside the patch operator
             if probe_amp.shape[-3] == 1:
                 probe_amp = cp.tile(probe_amp, (scan.shape[-2], 1, 1))
@@ -402,22 +405,32 @@ def _get_nearplane_gradients(
                 axis=-5,
                 keepdims=True,
             )
+            weight_update_numerator[..., [m]] = cp.sum(
+                cp.real(cp.conj(probe[..., [m], :, :] * patches) * diff),
+                axis=(-2, -1),
+                keepdims=False,
+            )
+            weight_update_denominator[..., [m]] = cp.sum(
+                cp.abs(probe[..., [m], :, :] * patches)**2,
+                axis=(-2, -1),
+                keepdims=False,
+            )
 
         if recover_positions:
             position_update_numerator[..., 0] = cp.sum(
-                cp.real(cp.conj(grad_x * probe[..., [m], :, :]) * diff),
+                cp.real(cp.conj(grad_x * uprobe[..., [m], :, :]) * diff),
                 axis=(-2, -1),
             )[..., 0, 0]
             position_update_denominator[..., 0] = cp.sum(
-                cp.abs(grad_x * probe[..., [m], :, :])**2,
+                cp.abs(grad_x * uprobe[..., [m], :, :])**2,
                 axis=(-2, -1),
             )[..., 0, 0]
             position_update_numerator[..., 1] = cp.sum(
-                cp.real(cp.conj(grad_y * probe[..., [m], :, :]) * diff),
+                cp.real(cp.conj(grad_y * uprobe[..., [m], :, :]) * diff),
                 axis=(-2, -1),
             )[..., 0, 0]
             position_update_denominator[..., 1] = cp.sum(
-                cp.abs(grad_y * probe[..., [m], :, :])**2,
+                cp.abs(grad_y * uprobe[..., [m], :, :])**2,
                 axis=(-2, -1),
             )[..., 0, 0]
 
@@ -437,6 +450,8 @@ def _get_nearplane_gradients(
         probe_update_denominator,
         position_update_numerator,
         position_update_denominator,
+        weight_update_numerator,
+        weight_update_denominator,
     )
 
 
