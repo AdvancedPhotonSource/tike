@@ -627,17 +627,7 @@ def _save_ptycho_result(result, algorithm):
 def _save_eigen_weights(fname, weights):
     import matplotlib.pyplot as plt
     plt.figure()
-
-    n = weights.shape[-1]
-
-    ax1 = plt.subplot(n, 1, 1)
-    ax1.plot(weights[..., 0])
-
-    for i in range(1, weights.shape[-1]):
-
-        axi = plt.subplot(n, 1, i + 1, sharex=ax1, sharey=ax1)
-        axi.plot(weights[..., i])
-
+    tike.view.plot_eigen_weights(weights)
     plt.suptitle('weights')
     plt.tight_layout()
     plt.savefig(f'{fname}/weights.svg')
