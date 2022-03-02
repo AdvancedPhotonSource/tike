@@ -437,6 +437,31 @@ def _iterate(
             result['scan'][0],
         )
 
+    if 'eigen_weights' in result and result['eigen_weights'] is not None:
+        reorder = np.argsort(np.concatenate(comm.order))
+        eigen_weights = comm.pool.gather(
+            result['eigen_weights'],
+            axis=-3,
+        )[reorder].get()
+
+        import scipy.ndimage
+        eigen_weights = scipy.ndimage.gaussian_filter1d(
+            eigen_weights,
+            axis=0,
+            sigma=5.0,
+        )
+        eigen_weights[...,
+                      0, :] -= np.mean(eigen_weights[..., 0, :], axis=0) - 1.0
+
+        def split(m, x):
+            return cp.asarray(x[m], dtype='float32')
+
+        result['eigen_weights'] = comm.pool.map(
+            split,
+            comm.order,
+            x=eigen_weights,
+        )
+
     return result
 
 
