@@ -405,6 +405,7 @@ def _get_nearplane_gradients(
                 axis=-5,
                 keepdims=True,
             )
+        if weight_update_numerator.shape[0] > 1:
             weight_update_numerator[..., [m]] = cp.sum(
                 cp.real(cp.conj(probe[..., [m], :, :] * patches) * diff),
                 axis=(-2, -1),
