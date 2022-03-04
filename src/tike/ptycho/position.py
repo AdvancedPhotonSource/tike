@@ -107,13 +107,16 @@ class PositionOptions:
         self._momentum[..., 3] = x
 
 
-def check_allowed_positions(scan, psi, probe_shape):
+def check_allowed_positions(scan: np.array, psi: np.array, probe_shape: tuple):
     """Check that all positions are within the field of view.
 
-    The field of view must have 1 pixel buffer around the edge. i.e. positions
-    must be >= 1 and < the object shape - 1 - probe.shape. This padding is to
-    allow approximating gradients and to provide better interpolation near the
-    edges of the field of view.
+    Raises
+    ------
+    ValueError
+        The field of view must have 1 pixel buffer around the edge. i.e.
+        positions must be >= 2 and < the object.shape - 2 - probe.shape. This
+        padding is to allow approximating gradients and to provide better
+        interpolation near the edges of the field of view.
     """
     int_scan = scan // 1
     less_than_one = int_scan < 1
@@ -124,11 +127,12 @@ def check_allowed_positions(scan, psi, probe_shape):
     )
     if np.any(less_than_one) or np.any(greater_than_psi):
         x = np.logical_or(less_than_one, greater_than_psi)
-        raise ValueError("Scan positions must be positive valued "
-                         "and fit within the field of view "
-                         "with at least a 1 pixel buffer around the edge. "
-                         "These scan positions exist outside field of view:\n"
-                         f"{scan[np.logical_or(x[..., 0], x[..., 1])]}")
+        raise ValueError(
+            "Scan positions must be >= 2 and "
+            "scan positions + 2 + probe.shape must be < object.shape. "
+            "psi may be too small or the scan positions may be scaled wrong. "
+            "These scan positions exist outside field of view:\n"
+            f"{scan[np.logical_or(x[..., 0], x[..., 1])]}")
 
 
 def update_positions_pd(operator, data, psi, probe, scan,
