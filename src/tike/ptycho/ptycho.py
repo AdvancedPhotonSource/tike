@@ -173,6 +173,7 @@ def simulate(
 def reconstruct(
     data,
     probe,
+    psi,
     scan,
     algorithm_options=solvers.RpieOptions(),
     eigen_probe=None,
@@ -182,7 +183,6 @@ def reconstruct(
     object_options=None,
     position_options=None,
     probe_options=None,
-    psi=None,
     use_mpi=False,
 ):
     """Solve the ptychography problem using the given `algorithm`.
