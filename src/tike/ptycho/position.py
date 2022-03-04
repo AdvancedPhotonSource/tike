@@ -113,7 +113,7 @@ def check_allowed_positions(scan: np.array, psi: np.array, probe_shape: tuple):
     Raises
     ------
     ValueError
-        The field of view must have 1 pixel buffer around the edge. i.e.
+        The field of view must have 2 pixel buffer around the edge. i.e.
         positions must be >= 2 and < the object.shape - 2 - probe.shape. This
         padding is to allow approximating gradients and to provide better
         interpolation near the edges of the field of view.
