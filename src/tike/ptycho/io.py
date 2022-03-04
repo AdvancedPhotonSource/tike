@@ -53,6 +53,7 @@ def read_aps_velociprobe(
         position_path,
         xy_columns=(5, 1),
         trigger_column=7,
+        max_crop=2048,
 ):
     """Load ptychography data from the Advanced Photon Source Velociprobe.
 
@@ -106,6 +107,9 @@ def read_aps_velociprobe(
     trigger_column : int
         The column in the 8 column raw position file to use for grouping
         positions together.
+    max_crop : int
+        Crop the diffraction pattern to at most this width.
+
     Returns
     -------
     data : (FRAME, WIDE, HIGH) float32
@@ -136,8 +140,10 @@ def read_aps_velociprobe(
 
         # Autodetect the diffraction pattern size by doubling until it
         # doesn't fit on the detector anymore.
+        max_radius = max_crop // 2
         radius = 2
-        while (beam_center_x + radius < detect_width
+        while (radius <= max_radius
+               and beam_center_x + radius < detect_width
                and beam_center_y + radius < detect_height
                and beam_center_x - radius >= 0 and beam_center_y - radius >= 0):
             radius *= 2
