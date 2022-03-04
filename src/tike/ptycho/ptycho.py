@@ -540,15 +540,21 @@ def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
 
         return n1, n2
 
-    n1, n2 = zip(*comm.pool.map(
-        _get_rescale,
-        data,
-        psi,
-        scan,
-        probe,
-        num_batch=num_batch,
-        operator=operator,
-    ))
+    try:
+        n1, n2 = zip(*comm.pool.map(
+            _get_rescale,
+            data,
+            psi,
+            scan,
+            probe,
+            num_batch=num_batch,
+            operator=operator,
+        ))
+    except cp.cuda.memory.OutOfMemoryError:
+        raise ValueError(
+            "tike.ptycho.reconstruct ran out of memory! "
+            "Increase num_batch to process your data in smaller chunks "
+            "or use CuPy to switch to the Unified Memory Pool.")
 
     if comm.use_mpi:
         n1 = np.sqrt(comm.Allreduce_reduce(n1, 'cpu'))
