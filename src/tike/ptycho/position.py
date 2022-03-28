@@ -107,13 +107,16 @@ class PositionOptions:
         self._momentum[..., 3] = x
 
 
-def check_allowed_positions(scan, psi, probe_shape):
+def check_allowed_positions(scan: np.array, psi: np.array, probe_shape: tuple):
     """Check that all positions are within the field of view.
 
-    The field of view must have 1 pixel buffer around the edge. i.e. positions
-    must be >= 1 and < the object shape - 1 - probe.shape. This padding is to
-    allow approximating gradients and to provide better interpolation near the
-    edges of the field of view.
+    Raises
+    ------
+    ValueError
+        The field of view must have 2 pixel buffer around the edge. i.e.
+        positions must be >= 2 and < the object.shape - 2 - probe.shape. This
+        padding is to allow approximating gradients and to provide better
+        interpolation near the edges of the field of view.
     """
     int_scan = scan // 1
     less_than_one = int_scan < 1
@@ -124,11 +127,12 @@ def check_allowed_positions(scan, psi, probe_shape):
     )
     if np.any(less_than_one) or np.any(greater_than_psi):
         x = np.logical_or(less_than_one, greater_than_psi)
-        raise ValueError("Scan positions must be positive valued "
-                         "and fit within the field of view "
-                         "with at least a 1 pixel buffer around the edge. "
-                         "These scan positions exist outside field of view:\n"
-                         f"{scan[np.logical_or(x[..., 0], x[..., 1])]}")
+        raise ValueError(
+            "Scan positions must be >= 2 and "
+            "scan positions + 2 + probe.shape must be < object.shape. "
+            "psi may be too small or the scan positions may be scaled wrong. "
+            "These scan positions exist outside field of view:\n"
+            f"{scan[np.logical_or(x[..., 0], x[..., 1])]}")
 
 
 def update_positions_pd(operator, data, psi, probe, scan,
@@ -204,13 +208,13 @@ def update_positions_pd(operator, data, psi, probe, scan,
     return scan, cost
 
 
-def _image_grad(x):
+def _image_grad(op, x):
     """Return the gradient of the x for each of the last two dimesions."""
     # FIXME: Use different gradient approximation that does not use FFT. Because
     # FFT caches are per-thread and per-device, using FFT is inefficient.
     ramp = 2j * cp.pi * cp.linspace(-0.5, 0.5, x.shape[-1], dtype='float32')
-    grad_x = cupyx.scipy.fft.ifft2(ramp[:, None] * cupyx.scipy.fft.fft2(x))
-    grad_y = cupyx.scipy.fft.ifft2(ramp * cupyx.scipy.fft.fft2(x))
+    grad_x = op.propagation._ifft2(ramp[:, None] * op.propagation._fft2(x))
+    grad_y = op.propagation._ifft2(ramp * op.propagation._fft2(x))
     return grad_x, grad_y
 
 
@@ -278,7 +282,7 @@ def affine_position_regularization(
     X, Y = cp.mgrid[-ny // 2:ny // 2, -nx // 2:nx // 2]
     spatial_filter = cp.exp(-(X**16 + Y**16) / (min(nx, ny) / 2.2)**16)
     obj_proj *= spatial_filter
-    dX, dY = _image_grad(obj_proj)
+    dX, dY = _image_grad(op, obj_proj)
 
     illum = probe[..., :, 0, 0, :, :]
     illum = illum * illum.conj()
@@ -289,7 +293,7 @@ def affine_position_regularization(
         images=cp.zeros(psi.shape, dtype='complex64'),
         positions=updated,
     )
-    total_illumination = cupyx.scipy.fft.fft2(total_illumination)
+    total_illumination = op.propagation._fft2(total_illumination)
     total_illumination *= _gaussian_frequency(
         sigma=sigma,
         size=total_illumination.shape[-1],
@@ -298,7 +302,7 @@ def affine_position_regularization(
         sigma=sigma,
         size=total_illumination.shape[-2],
     )[..., None]
-    total_illumination = cupyx.scipy.fft.ifft2(total_illumination)
+    total_illumination = op.propagation._ifft2(total_illumination)
     illum_proj = op.diffraction.patch.fwd(
         images=total_illumination,
         positions=updated,

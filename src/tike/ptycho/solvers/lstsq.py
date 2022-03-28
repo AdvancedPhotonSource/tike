@@ -550,6 +550,7 @@ def _update_nearplane(
                 scan_,
                 unique_probe,
                 m=m,
+                op=op,
             ))
 
     return psi, probe, eigen_probe, eigen_weights, scan_, position_options
@@ -592,13 +593,14 @@ def _update_position(
     scan,
     unique_probe,
     m,
+    op,
 ):
     main_probe = unique_probe[..., m:m + 1, :, :]
 
     # According to the manuscript, we can either shift the probe or the object
     # and they are equivalent (in theory). Here we shift the object because
     # that is what ptychoshelves does.
-    grad_x, grad_y = _image_grad(patches)
+    grad_x, grad_y = _image_grad(op, patches)
 
     numerator = cp.sum(cp.real(diff * cp.conj(grad_x * main_probe)),
                        axis=(-2, -1))

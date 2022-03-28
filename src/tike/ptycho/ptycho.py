@@ -173,6 +173,7 @@ def simulate(
 def reconstruct(
     data,
     probe,
+    psi,
     scan,
     algorithm_options=solvers.RpieOptions(),
     eigen_probe=None,
@@ -182,7 +183,6 @@ def reconstruct(
     object_options=None,
     position_options=None,
     probe_options=None,
-    psi=None,
     use_mpi=False,
 ):
     """Solve the ptychography problem using the given `algorithm`.
@@ -222,6 +222,11 @@ def reconstruct(
     use_mpi : bool
         Whether to use MPI or not.
 
+    Raises
+    ------
+        ValueError
+            When shapes are incorrect for various input parameters.
+
     Returns
     -------
     result : dict
@@ -229,6 +234,37 @@ def reconstruct(
         function to resume reconstruction from the previous state.
 
     """
+    if (np.any(np.asarray(data.shape) < 1) or data.ndim != 3
+            or data.shape[-2] != data.shape[-1]):
+        raise ValueError(
+            f"data shape {data.shape} is incorrect. "
+            "It should be (N, W, H), "
+            "where N >= 1 is the number of square diffraction patterns.")
+    if (scan.ndim != 2 or scan.shape[1] != 2
+            or np.any(np.asarray(scan.shape) < 1)):
+        raise ValueError(f"scan shape {scan.shape} is incorrect. "
+                         "It should be (N, 2) "
+                         "where N >= 1 is the number of scan positions.")
+    if data.shape[0] != scan.shape[0]:
+        raise ValueError(
+            f"data shape {data.shape} and scan shape {scan.shape} "
+            "are incompatible. They should have the same leading dimension.")
+    if (probe.ndim != 5 or probe.shape[:2] != (1, 1)
+            or np.any(np.asarray(probe.shape) < 1)
+            or probe.shape[-2] != probe.shape[-1]):
+        raise ValueError(f"probe shape {probe.shape} is incorrect. "
+                         "It should be (1, 1, S, W, H) "
+                         "where S >=1 is the number of probes, and "
+                         "W, H >= 1 are the square probe grid dimensions.")
+    if np.any(np.asarray(probe.shape[-2:]) > np.asarray(data.shape[-2:])):
+        raise ValueError(f"probe shape {probe.shape} is incorrect."
+                         "The probe width/height must be "
+                         f"<= the data width/height {data.shape}.")
+    if (psi.ndim != 2
+            or np.any(np.asarray(psi.shape) <= np.asarray(probe.shape[-2:]))):
+        raise ValueError(f"psi shape {psi.shape} is incorrect. "
+                         "It should be (W, H) where W, H > probe.shape[-2:].")
+    check_allowed_positions(scan, psi, probe.shape)
     logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                 "iterations.".format(
                     algorithm_options.name,
@@ -245,71 +281,70 @@ def reconstruct(
                 "across processes.")
     else:
         mpi = None
-    check_allowed_positions(scan, psi, probe.shape)
-    with cp.cuda.Device(num_gpu[0] if isinstance(num_gpu, tuple) else None):
-        operator = Ptycho(
-            probe_shape=probe.shape[-1],
-            detector_shape=data.shape[-1],
-            nz=psi.shape[-2],
-            n=psi.shape[-1],
-            model=model,
-        )
-        comm = Comm(num_gpu, mpi)
+    with (cp.cuda.Device(num_gpu[0] if isinstance(num_gpu, tuple) else None)):
+        with Ptycho(
+                probe_shape=probe.shape[-1],
+                detector_shape=data.shape[-1],
+                nz=psi.shape[-2],
+                n=psi.shape[-1],
+                model=model,
+        ) as operator, Comm(num_gpu, mpi) as comm:
 
-        (
-            batches,
-            data,
-            result,
-            scan,
-        ) = _setup(
-            algorithm_options,
-            comm,
-            data,
-            eigen_probe,
-            eigen_weights,
-            object_options,
-            operator,
-            probe,
-            psi,
-            position_options,
-            probe_options,
-            scan,
-        )
-
-        start = time.perf_counter()
-        for i in range(algorithm_options.num_iter):
-
-            logger.info(f"{algorithm_options.name} epoch {i:,d}")
-
-            # TODO: Append new information to everything that emits from _setup.
-
-            result = _iterate(
-                algorithm_options,
+            (
                 batches,
+                data,
+                result,
+                scan,
+            ) = _setup(
+                algorithm_options,
                 comm,
                 data,
+                eigen_probe,
+                eigen_weights,
+                object_options,
                 operator,
+                probe,
+                psi,
+                position_options,
+                probe_options,
+                scan,
+            )
+
+            start = time.perf_counter()
+            for i in range(algorithm_options.num_iter):
+
+                logger.info(f"{algorithm_options.name} epoch {i:,d}")
+
+                # TODO: Append new information to everything that emits from
+                # _setup.
+
+                result = _iterate(
+                    algorithm_options,
+                    batches,
+                    comm,
+                    data,
+                    operator,
+                    position_options,
+                    probe_options,
+                    result,
+                )
+
+                # TODO: Grab intermediate psi/probe from GPU.
+
+                algorithm_options.times.append(time.perf_counter() - start)
+                start = time.perf_counter()
+
+            return _teardown(
+                algorithm_options,
+                comm,
+                eigen_probe,
+                eigen_weights,
+                object_options,
                 position_options,
                 probe_options,
                 result,
+                scan,
             )
-
-            # TODO: Grab intermediate psi/probe from GPU.
-
-            algorithm_options.times.append(time.perf_counter() - start)
-            start = time.perf_counter()
-
-        return _teardown(
-            algorithm_options,
-            comm,
-            eigen_probe,
-            eigen_weights,
-            object_options,
-            position_options,
-            probe_options,
-            result,
-            scan,
-        )
 
 
 def _setup(
@@ -375,12 +410,12 @@ def _setup(
         num_cluster=algorithm_options.num_batch,
     )
 
-    result['probe'] = _rescale_obj_probe(
+    result['probe'] = _rescale_probe(
         operator,
         comm,
         data,
         result['psi'],
-        scan,
+        result['scan'],
         result['probe'],
         num_batch=algorithm_options.num_batch,
     )
@@ -479,29 +514,47 @@ def _teardown(
     )
 
 
-def _rescale_obj_probe(operator, comm, data, psi, scan, probe, num_batch):
-    """Keep the object amplitude around 1 by scaling probe by a constant."""
+def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
+    """Rescale probe so model and measured intensity are similar magnitude.
+
+    Rescales the probe so that the sum of modeled intensity at the detector is
+    approximately equal to the measure intensity at the detector.
+    """
 
     def _get_rescale(data, psi, scan, probe, num_batch, operator):
-        i = batch_indicies(data.shape[-3], num_batch, use_random=True)[0]
 
-        intensity, _ = operator._compute_intensity(data[..., i, :, :], psi,
-                                                   scan[..., i, :], probe)
+        n1 = 0.0
+        n2 = 0.0
 
-        n1 = np.linalg.norm(np.ravel(np.sqrt(data[..., i, :, :])))**2
-        n2 = np.linalg.norm(np.ravel(np.sqrt(intensity)))**2
+        for b in batch_indicies(data.shape[-3], num_batch, use_random=False):
+
+            intensity, _ = operator._compute_intensity(
+                data[..., b, :, :],
+                psi,
+                scan[..., b, :],
+                probe,
+            )
+
+            n1 += np.sum(data[..., b, :, :])
+            n2 += np.sum(intensity)
 
         return n1, n2
 
-    n1, n2 = zip(*comm.pool.map(
-        _get_rescale,
-        data,
-        psi,
-        scan,
-        probe,
-        num_batch=num_batch,
-        operator=operator,
-    ))
+    try:
+        n1, n2 = zip(*comm.pool.map(
+            _get_rescale,
+            data,
+            psi,
+            scan,
+            probe,
+            num_batch=num_batch,
+            operator=operator,
+        ))
+    except cp.cuda.memory.OutOfMemoryError:
+        raise ValueError(
+            "tike.ptycho.reconstruct ran out of memory! "
+            "Increase num_batch to process your data in smaller chunks "
+            "or use CuPy to switch to the Unified Memory Pool.")
 
     if comm.use_mpi:
         n1 = np.sqrt(comm.Allreduce_reduce(n1, 'cpu'))
@@ -512,7 +565,7 @@ def _rescale_obj_probe(operator, comm, data, psi, scan, probe, num_batch):
 
     rescale = n1 / n2
 
-    logger.info("object and probe rescaled by %f", rescale)
+    logger.info("Probe rescaled by %f", rescale)
 
     probe[0] *= rescale
 
