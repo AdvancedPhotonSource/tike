@@ -222,8 +222,7 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
     # χ (diff) is the target for the nearplane problem; the difference
     # between the desired nearplane and the current nearplane that we wish
     # to minimize.
-    diff = nearplane[..., [m], pad:end,
-                     pad:end] - unique_probe[..., [m], :, :] * patches
+    diff = nearplane[..., [m], pad:end, pad:end]
 
     logger.info('%10s cost is %+12.5e', 'nearplane', norm(diff))
 
@@ -304,13 +303,13 @@ def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe):
         x2 = b2 / A4
 
     if recover_psi:
-        step = x1[..., None, None]
+        step = 0.9 * cp.maximum(0, x1[..., None, None].real)
 
         # (27b) Object update
         weighted_step_psi = cp.mean(step, keepdims=True, axis=-5)
 
     if recover_probe:
-        step = x2[..., None, None]
+        step = 0.9 * cp.maximum(0, x2[..., None, None].real)
 
         weighted_step_probe = cp.mean(step, axis=-5, keepdims=True)
     else:
@@ -477,7 +476,8 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                 )[..., 0, 0, 0]
                 common_grad_psi[0] = comm.reduce(common_grad_psi, 'gpu')[0]
 
-            psi[0] += weighted_step_psi[0] * common_grad_psi[0]
+            psi[0] += (weighted_step_psi[0] /
+                       probe[0].shape[-3]) * common_grad_psi[0]
             psi = comm.pool.bcast([psi[0]])
 
         if recover_probe:
@@ -529,16 +529,7 @@ def _update_wavefront(data, varying_probe, scan, psi, op):
     )
     cost = op.propagation.cost(data, intensity)
     logger.info('%10s cost is %+12.5e', 'farplane', cost)
-    farplane -= 0.5 * op.propagation.grad(data, farplane, intensity)
-
-    if __debug__:
-        intensity = cp.sum(
-            cp.square(cp.abs(farplane)),
-            axis=list(range(1, farplane.ndim - 2)),
-        )
-        cost = op.propagation.cost(data, intensity)
-        logger.info('%10s cost is %+12.5e', 'farplane', cost)
-        # TODO: Only compute cost every 20 iterations or on a log sampling?
+    farplane = -op.propagation.grad(data, farplane, intensity)
 
     farplane = op.propagation.adj(farplane, overwrite=True)
 
