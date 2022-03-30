@@ -226,6 +226,8 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
 
     logger.info('%10s cost is %+12.5e', 'nearplane', norm(diff))
 
+    eps = 1e-9 / (diff.shape[-2] * diff.shape[-1])
+
     if recover_psi:
         grad_psi = cp.conj(unique_probe[..., [m], :, :]) * diff
 
@@ -243,7 +245,7 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
             images=common_grad_psi,
             positions=scan_,
         )[..., None, None, :, :] * unique_probe[..., [m], :, :]
-        A1 = cp.sum((dOP * dOP.conj()).real + 0.5, axis=(-2, -1))
+        A1 = cp.sum((dOP * dOP.conj()).real + eps, axis=(-2, -1))
     else:
         common_grad_psi = None
         dOP = None
@@ -262,7 +264,7 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
         )
 
         dPO = common_grad_probe * patches
-        A4 = cp.sum((dPO * dPO.conj()).real + 0.5, axis=(-2, -1))
+        A4 = cp.sum((dPO * dPO.conj()).real + eps, axis=(-2, -1))
     else:
         grad_probe = None
         common_grad_probe = None
