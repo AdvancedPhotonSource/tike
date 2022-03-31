@@ -207,8 +207,19 @@ def lstsq_grad(
     }
 
 
-def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
-                             recover_psi, recover_probe):
+def _get_nearplane_gradients(
+    nearplane,
+    psi,
+    scan_,
+    probe,
+    unique_probe,
+    op,
+    m,
+    recover_psi,
+    recover_probe,
+    *,
+    alpha=0.05,
+):
 
     pad, end = op.diffraction.pad, op.diffraction.end
 
@@ -229,7 +240,7 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
     eps = 1e-9 / (diff.shape[-2] * diff.shape[-1])
 
     if recover_psi:
-        grad_psi = cp.conj(unique_probe[..., [m], :, :]) * diff
+        grad_psi = cp.conj(unique_probe[..., [m], :, :]) * diff  # (24b)
 
         # (25b) Common object gradient. Use a weighted (normalized) sum
         # instead of division as described in publication to improve
@@ -239,6 +250,21 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
             images=cp.zeros(psi.shape, dtype='complex64'),
             positions=scan_,
         )
+        probe_amp = (probe[..., 0, 0, [m], :, :] *
+                     probe[..., 0, 0, [m], :, :].conj())
+        # TODO: Allow this kind of broadcasting inside the patch operator
+        probe_amp = cp.tile(probe_amp, (scan_.shape[-2], 1, 1))
+        psi_update_denominator = cp.zeros(psi.shape, dtype='complex64')
+        psi_update_denominator = op.diffraction.patch.adj(
+            patches=probe_amp,
+            images=psi_update_denominator,
+            positions=scan_,
+        )
+        common_grad_psi /= ((1 - alpha) * psi_update_denominator +
+                            alpha * psi_update_denominator.max(
+                                axis=(-2, -1),
+                                keepdims=True,
+                            ))
 
         dOP = op.diffraction.patch.fwd(
             patches=cp.zeros(patches.shape, dtype='complex64')[..., 0, 0, :, :],
@@ -252,7 +278,7 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
         A1 = None
 
     if recover_probe:
-        grad_probe = cp.conj(patches) * diff
+        grad_probe = cp.conj(patches) * diff  # (24a)
 
         # (25a) Common probe gradient. Use simple average instead of
         # division as described in publication because that's what
@@ -262,6 +288,16 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
             axis=-5,
             keepdims=True,
         )
+        probe_update_denominator = cp.sum(
+            patches * patches.conj(),
+            axis=-5,
+            keepdims=True,
+        )
+        common_grad_probe /= ((1 - alpha) * probe_update_denominator +
+                              alpha * probe_update_denominator.max(
+                                  axis=(-2, -1),
+                                  keepdims=True,
+                              ))
 
         dPO = common_grad_probe * patches
         A4 = cp.sum((dPO * dPO.conj()).real + eps, axis=(-2, -1))
@@ -270,18 +306,6 @@ def _get_nearplane_gradients(nearplane, psi, scan_, probe, unique_probe, op, m,
         common_grad_probe = None
         dPO = None
         A4 = None
-
-    if __debug__:
-        patches = op.diffraction.patch.fwd(
-            patches=cp.zeros(nearplane[..., [m], pad:end, pad:end].shape,
-                             dtype='complex64')[..., 0, 0, :, :],
-            images=psi,
-            positions=scan_,
-        )[..., None, None, :, :]
-        logger.info(
-            '%10s cost is %+12.5e', 'nearplane',
-            norm(probe[..., [m], :, :] * patches -
-                 nearplane[..., [m], pad:end, pad:end]))
 
     return (patches, diff, grad_probe, common_grad_psi, common_grad_probe, dOP,
             dPO, A1, A4)
@@ -478,6 +502,7 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                 )[..., 0, 0, 0]
                 common_grad_psi[0] = comm.reduce(common_grad_psi, 'gpu')[0]
 
+            # (27b) Object update
             psi[0] += (weighted_step_psi[0] /
                        probe[0].shape[-3]) * common_grad_psi[0]
             psi = comm.pool.bcast([psi[0]])
