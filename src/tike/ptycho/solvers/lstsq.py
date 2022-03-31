@@ -153,8 +153,12 @@ def lstsq_grad(
         )
 
         if position_options:
-            comm.pool.map(PositionOptions.join, position_options,
-                          bposition_options, [b[n] for b in batches])
+            comm.pool.map(
+                PositionOptions.join,
+                position_options,
+                bposition_options,
+                [b[n] for b in batches],
+            )
 
         if isinstance(eigen_probe, list):
             comm.pool.map(
@@ -221,27 +225,21 @@ def _get_nearplane_gradients(
     alpha=0.05,
 ):
 
-    pad, end = op.diffraction.pad, op.diffraction.end
+    diff = nearplane[..., [m], :, :]
 
     patches = op.diffraction.patch.fwd(
-        patches=cp.zeros(nearplane[..., [m], pad:end, pad:end].shape,
-                         dtype='complex64')[..., 0, 0, :, :],
+        patches=cp.zeros(diff.shape, dtype='complex64')[..., 0, 0, :, :],
         images=psi,
         positions=scan_,
     )[..., None, None, :, :]
-
-    # χ (diff) is the target for the nearplane problem; the difference
-    # between the desired nearplane and the current nearplane that we wish
-    # to minimize.
-    diff = nearplane[..., [m], pad:end, pad:end]
 
     logger.info('%10s cost is %+12.5e', 'nearplane', norm(diff))
 
     eps = 1e-9 / (diff.shape[-2] * diff.shape[-1])
 
     if recover_psi:
-        grad_psi = cp.conj(unique_probe[..., [m], :, :]) * diff  # (24b)
-
+        # (24b)
+        grad_psi = cp.conj(unique_probe[..., [m], :, :]) * diff
         # (25b) Common object gradient. Use a weighted (normalized) sum
         # instead of division as described in publication to improve
         # numerical stability.
@@ -250,14 +248,14 @@ def _get_nearplane_gradients(
             images=cp.zeros(psi.shape, dtype='complex64'),
             positions=scan_,
         )
-        probe_amp = (probe[..., 0, 0, [m], :, :] *
-                     probe[..., 0, 0, [m], :, :].conj())
+        probe_amp = (unique_probe[..., 0, m, :, :] *
+                     unique_probe[..., 0, m, :, :].conj())
         # TODO: Allow this kind of broadcasting inside the patch operator
-        probe_amp = cp.tile(probe_amp, (scan_.shape[-2], 1, 1))
-        psi_update_denominator = cp.zeros(psi.shape, dtype='complex64')
+        if probe_amp.shape[-3] == 1:
+            probe_amp = cp.tile(probe_amp, (scan_.shape[-2], 1, 1))
         psi_update_denominator = op.diffraction.patch.adj(
             patches=probe_amp,
-            images=psi_update_denominator,
+            images=cp.zeros(psi.shape, dtype='complex64'),
             positions=scan_,
         )
         common_grad_psi /= ((1 - alpha) * psi_update_denominator +
@@ -278,8 +276,8 @@ def _get_nearplane_gradients(
         A1 = None
 
     if recover_probe:
-        grad_probe = cp.conj(patches) * diff  # (24a)
-
+        # (24a)
+        grad_probe = cp.conj(patches) * diff
         # (25a) Common probe gradient. Use simple average instead of
         # division as described in publication because that's what
         # ptychoshelves does
@@ -560,7 +558,8 @@ def _update_wavefront(data, varying_probe, scan, psi, op):
 
     farplane = op.propagation.adj(farplane, overwrite=True)
 
-    return farplane, cost
+    pad, end = op.diffraction.pad, op.diffraction.end
+    return farplane[..., pad:end, pad:end], cost
 
 
 def _mad(x, **kwargs):
