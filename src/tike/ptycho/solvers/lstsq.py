@@ -178,9 +178,7 @@ def lstsq_grad(
         )
 
     if probe_options and probe_options.orthogonality_constraint:
-        # TODO: Check which probe ortho is used per epoch
-        probe[0] = orthogonalize_gs(probe[0], axis=(-2, -1))
-        probe = comm.pool.bcast([probe[0]])
+        probe = comm.pool.map(orthogonalize_eig, probe)
 
     if object_options:
         psi = comm.pool.map(positivity_constraint,
