@@ -178,6 +178,7 @@ def lstsq_grad(
         )
 
     if probe_options and probe_options.orthogonality_constraint:
+        # TODO: Check which probe ortho is used per epoch
         probe[0] = orthogonalize_gs(probe[0], axis=(-2, -1))
         probe = comm.pool.bcast([probe[0]])
 
@@ -215,14 +216,12 @@ def _get_nearplane_gradients(
     nearplane,
     psi,
     scan_,
-    probe,
     unique_probe,
+    *,
     op,
     m,
     recover_psi,
     recover_probe,
-    *,
-    alpha=0.05,
 ):
 
     diff = nearplane[..., [m], :, :]
@@ -235,19 +234,17 @@ def _get_nearplane_gradients(
 
     logger.info('%10s cost is %+12.5e', 'nearplane', norm(diff))
 
-    eps = 1e-9 / (diff.shape[-2] * diff.shape[-1])
-
     if recover_psi:
         # (24b)
         grad_psi = cp.conj(unique_probe[..., [m], :, :]) * diff
-        # (25b) Common object gradient. Use a weighted (normalized) sum
-        # instead of division as described in publication to improve
-        # numerical stability.
+        # (25b) Common object gradient.
         common_grad_psi = op.diffraction.patch.adj(
             patches=grad_psi[..., 0, 0, :, :],
             images=cp.zeros(psi.shape, dtype='complex64'),
             positions=scan_,
         )
+        # Sum of the probe amplitude over field of view for preconditioning the
+        # object update.
         probe_amp = (unique_probe[..., 0, m, :, :] *
                      unique_probe[..., 0, m, :, :].conj())
         # TODO: Allow this kind of broadcasting inside the patch operator
@@ -258,12 +255,71 @@ def _get_nearplane_gradients(
             images=cp.zeros(psi.shape, dtype='complex64'),
             positions=scan_,
         )
+    else:
+        common_grad_psi = None
+        psi_update_denominator = None
+
+    if recover_probe:
+        # (24a)
+        grad_probe = cp.conj(patches) * diff
+        # (25a) Common probe gradient. Use simple average instead of
+        # division as described in publication because that's what
+        # ptychoshelves does
+        common_grad_probe = cp.sum(
+            grad_probe,
+            axis=-5,
+            keepdims=True,
+        )
+        # Sum the amplitude of all the object patches to precondition the probe
+        # update.
+        probe_update_denominator = cp.sum(
+            patches * patches.conj(),
+            axis=-5,
+            keepdims=True,
+        )
+    else:
+        grad_probe = None
+        common_grad_probe = None
+        probe_update_denominator = None
+
+    return (
+        patches,
+        diff,
+        grad_probe,
+        common_grad_psi,
+        common_grad_probe,
+        psi_update_denominator,
+        probe_update_denominator,
+    )
+
+
+def _precondition_nearplane_gradients(
+    nearplane,
+    scan_,
+    unique_probe,
+    common_grad_psi,
+    common_grad_probe,
+    psi_update_denominator,
+    probe_update_denominator,
+    patches,
+    *,
+    op,
+    m,
+    recover_psi,
+    recover_probe,
+    alpha=0.05,
+):
+
+    diff = nearplane[..., [m], :, :]
+
+    eps = 1e-9 / (diff.shape[-2] * diff.shape[-1])
+
+    if recover_psi:
         common_grad_psi /= ((1 - alpha) * psi_update_denominator +
                             alpha * psi_update_denominator.max(
                                 axis=(-2, -1),
                                 keepdims=True,
                             ))
-
         dOP = op.diffraction.patch.fwd(
             patches=cp.zeros(patches.shape, dtype='complex64')[..., 0, 0, :, :],
             images=common_grad_psi,
@@ -276,21 +332,6 @@ def _get_nearplane_gradients(
         A1 = None
 
     if recover_probe:
-        # (24a)
-        grad_probe = cp.conj(patches) * diff
-        # (25a) Common probe gradient. Use simple average instead of
-        # division as described in publication because that's what
-        # ptychoshelves does
-        common_grad_probe = cp.mean(
-            grad_probe,
-            axis=-5,
-            keepdims=True,
-        )
-        probe_update_denominator = cp.sum(
-            patches * patches.conj(),
-            axis=-5,
-            keepdims=True,
-        )
         common_grad_probe /= ((1 - alpha) * probe_update_denominator +
                               alpha * probe_update_denominator.max(
                                   axis=(-2, -1),
@@ -300,13 +341,18 @@ def _get_nearplane_gradients(
         dPO = common_grad_probe * patches
         A4 = cp.sum((dPO * dPO.conj()).real + eps, axis=(-2, -1))
     else:
-        grad_probe = None
         common_grad_probe = None
         dPO = None
         A4 = None
 
-    return (patches, diff, grad_probe, common_grad_psi, common_grad_probe, dOP,
-            dPO, A1, A4)
+    return (
+        common_grad_psi,
+        common_grad_probe,
+        dOP,
+        dPO,
+        A1,
+        A4,
+    )
 
 
 def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe):
@@ -380,17 +426,56 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             grad_probe,
             common_grad_psi,
             common_grad_probe,
-            dOP,
-            dPO,
-            A1,
-            A4,
+            psi_update_denominator,
+            probe_update_denominator,
         ) = (list(a) for a in zip(*comm.pool.map(
             _get_nearplane_gradients,
             nearplane,
             psi,
             scan_,
-            probe,
             unique_probe,
+            op=op,
+            m=m,
+            recover_psi=recover_psi,
+            recover_probe=recover_probe,
+        )))
+
+        if recover_psi:
+            if comm.use_mpi:
+                common_grad_psi = comm.Allreduce(common_grad_psi)
+                psi_update_denominator = comm.Allreduce(psi_update_denominator)
+            else:
+                common_grad_psi = comm.pool.allreduce(common_grad_psi)
+                psi_update_denominator = comm.pool.allreduce(
+                    psi_update_denominator)
+
+        if recover_probe:
+            if comm.use_mpi:
+                common_grad_probe = comm.Allreduce(common_grad_probe)
+                probe_update_denominator = comm.Allreduce(
+                    probe_update_denominator)
+            else:
+                common_grad_probe = comm.pool.allreduce(common_grad_probe)
+                probe_update_denominator = comm.pool.allreduce(
+                    probe_update_denominator)
+
+        (
+            common_grad_psi,
+            common_grad_probe,
+            dOP,
+            dPO,
+            A1,
+            A4,
+        ) = (list(a) for a in zip(*comm.pool.map(
+            _precondition_nearplane_gradients,
+            nearplane,
+            scan_,
+            unique_probe,
+            common_grad_psi,
+            common_grad_probe,
+            psi_update_denominator,
+            probe_update_denominator,
+            patches,
             op=op,
             m=m,
             recover_psi=recover_psi,
@@ -489,16 +574,11 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                     weighted_step_psi,
                     axis=-5,
                 )[..., 0, 0, 0]
-                common_grad_psi[0] = comm.Allreduce_reduce(
-                    common_grad_psi,
-                    dest='gpu',
-                )[0]
             else:
                 weighted_step_psi[0] = comm.pool.reduce_mean(
                     weighted_step_psi,
                     axis=-5,
                 )[..., 0, 0, 0]
-                common_grad_psi[0] = comm.reduce(common_grad_psi, 'gpu')[0]
 
             # (27b) Object update
             psi[0] += (weighted_step_psi[0] /
@@ -511,17 +591,9 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                     weighted_step_probe,
                     axis=-5,
                 )
-                common_grad_probe[0] = comm.Allreduce_mean(
-                    common_grad_probe,
-                    axis=-5,
-                )
             else:
                 weighted_step_probe[0] = comm.pool.reduce_mean(
                     weighted_step_probe,
-                    axis=-5,
-                )
-                common_grad_probe[0] = comm.pool.reduce_mean(
-                    common_grad_probe,
                     axis=-5,
                 )
 
@@ -640,3 +712,15 @@ def _update_position(
     scan[..., 1] -= step_x
 
     return scan, position_options
+
+
+def _get_patches(nearplane, psi, scan, op=None):
+    patches = op.diffraction.patch.fwd(
+        patches=cp.zeros(
+            nearplane[..., 0, 0, :, :].shape,
+            dtype='complex64',
+        ),
+        images=psi,
+        positions=scan,
+    )[..., None, None, :, :]
+    return patches
