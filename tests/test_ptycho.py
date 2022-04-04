@@ -327,7 +327,9 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
                 'num_gpu':
                     2,
                 'probe_options':
-                    ProbeOptions(orthogonality_constraint=True,),
+                    ProbeOptions(
+                        orthogonality_constraint=True,
+                    ),
                 'object_options':
                     ObjectOptions(),
                 'use_mpi':
