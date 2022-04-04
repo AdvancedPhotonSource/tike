@@ -1,4 +1,4 @@
-cupy>=7
+cupy>=7,!=10.3.0
 mpi4py>=3
 importlib_resources # backport for python<3.9
 importlib_metadata # backport for python<3.8
