@@ -210,216 +210,32 @@ def lstsq_grad(
     }
 
 
-def _get_nearplane_gradients(
-    nearplane,
-    psi,
-    scan_,
-    unique_probe,
-    *,
-    op,
-    m,
-    recover_psi,
-    recover_probe,
-):
+def _update_wavefront(data, varying_probe, scan, psi, op):
 
-    diff = nearplane[..., [m], :, :]
-
-    patches = op.diffraction.patch.fwd(
-        patches=cp.zeros(diff.shape, dtype='complex64')[..., 0, 0, :, :],
-        images=psi,
-        positions=scan_,
-    )[..., None, None, :, :]
-
-    logger.info('%10s cost is %+12.5e', 'nearplane', norm(diff))
-
-    if recover_psi:
-        # (24b)
-        grad_psi = cp.conj(unique_probe[..., [m], :, :]) * diff
-        # (25b) Common object gradient.
-        common_grad_psi = op.diffraction.patch.adj(
-            patches=grad_psi[..., 0, 0, :, :],
-            images=cp.zeros(psi.shape, dtype='complex64'),
-            positions=scan_,
-        )
-        # Sum of the probe amplitude over field of view for preconditioning the
-        # object update.
-        probe_amp = (unique_probe[..., 0, m, :, :] *
-                     unique_probe[..., 0, m, :, :].conj())
-        # TODO: Allow this kind of broadcasting inside the patch operator
-        if probe_amp.shape[-3] == 1:
-            probe_amp = cp.tile(probe_amp, (scan_.shape[-2], 1, 1))
-        psi_update_denominator = op.diffraction.patch.adj(
-            patches=probe_amp,
-            images=cp.zeros(psi.shape, dtype='complex64'),
-            positions=scan_,
-        )
-    else:
-        common_grad_psi = None
-        psi_update_denominator = None
-
-    if recover_probe:
-        # (24a)
-        grad_probe = cp.conj(patches) * diff
-        # (25a) Common probe gradient. Use simple average instead of
-        # division as described in publication because that's what
-        # ptychoshelves does
-        common_grad_probe = cp.sum(
-            grad_probe,
-            axis=-5,
-            keepdims=True,
-        )
-        # Sum the amplitude of all the object patches to precondition the probe
-        # update.
-        probe_update_denominator = cp.sum(
-            patches * patches.conj(),
-            axis=-5,
-            keepdims=True,
-        )
-    else:
-        grad_probe = None
-        common_grad_probe = None
-        probe_update_denominator = None
-
-    return (
-        patches,
-        diff,
-        grad_probe,
-        common_grad_psi,
-        common_grad_probe,
-        psi_update_denominator,
-        probe_update_denominator,
+    farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
+    intensity = cp.sum(
+        cp.square(cp.abs(farplane)),
+        axis=list(range(1, farplane.ndim - 2)),
     )
+    cost = op.propagation.cost(data, intensity)
+    logger.info('%10s cost is %+12.5e', 'farplane', cost)
+    farplane = -op.propagation.grad(data, farplane, intensity)
 
+    farplane = op.propagation.adj(farplane, overwrite=True)
 
-def _precondition_nearplane_gradients(
-    nearplane,
-    scan_,
-    unique_probe,
-    common_grad_psi,
-    common_grad_probe,
-    psi_update_denominator,
-    probe_update_denominator,
-    patches,
-    *,
-    op,
-    m,
-    recover_psi,
-    recover_probe,
-    alpha=0.05,
-):
-
-    diff = nearplane[..., [m], :, :]
-
-    eps = 1e-9 / (diff.shape[-2] * diff.shape[-1])
-
-    if recover_psi:
-        common_grad_psi /= ((1 - alpha) * psi_update_denominator +
-                            alpha * psi_update_denominator.max(
-                                axis=(-2, -1),
-                                keepdims=True,
-                            ))
-        dOP = op.diffraction.patch.fwd(
-            patches=cp.zeros(patches.shape, dtype='complex64')[..., 0, 0, :, :],
-            images=common_grad_psi,
-            positions=scan_,
-        )[..., None, None, :, :] * unique_probe[..., [m], :, :]
-        A1 = cp.sum((dOP * dOP.conj()).real + eps, axis=(-2, -1))
-    else:
-        common_grad_psi = None
-        dOP = None
-        A1 = None
-
-    if recover_probe:
-        common_grad_probe /= ((1 - alpha) * probe_update_denominator +
-                              alpha * probe_update_denominator.max(
-                                  axis=(-2, -1),
-                                  keepdims=True,
-                              ))
-
-        dPO = common_grad_probe * patches
-        A4 = cp.sum((dPO * dPO.conj()).real + eps, axis=(-2, -1))
-    else:
-        common_grad_probe = None
-        dPO = None
-        A4 = None
-
-    return (
-        common_grad_psi,
-        common_grad_probe,
-        dOP,
-        dPO,
-        A1,
-        A4,
-    )
-
-
-def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe):
-    # (22) Use least-squares to find the optimal step sizes simultaneously
-    if recover_psi and recover_probe:
-        b1 = cp.sum((dOP.conj() * diff).real, axis=(-2, -1))
-        b2 = cp.sum((dPO.conj() * diff).real, axis=(-2, -1))
-        A2 = cp.sum((dOP * dPO.conj()), axis=(-2, -1))
-        A3 = A2.conj()
-        determinant = A1 * A4 - A2 * A3
-        x1 = -cp.conj(A2 * b2 - A4 * b1) / determinant
-        x2 = cp.conj(A1 * b2 - A3 * b1) / determinant
-    elif recover_psi:
-        b1 = cp.sum((dOP.conj() * diff).real, axis=(-2, -1))
-        x1 = b1 / A1
-    elif recover_probe:
-        b2 = cp.sum((dPO.conj() * diff).real, axis=(-2, -1))
-        x2 = b2 / A4
-
-    if recover_psi:
-        step = 0.9 * cp.maximum(0, x1[..., None, None].real)
-
-        # (27b) Object update
-        weighted_step_psi = cp.mean(step, keepdims=True, axis=-5)
-
-    if recover_probe:
-        step = 0.9 * cp.maximum(0, x2[..., None, None].real)
-
-        weighted_step_probe = cp.mean(step, axis=-5, keepdims=True)
-    else:
-        weighted_step_probe = None
-
-    return weighted_step_psi, weighted_step_probe
-
-
-def _update_A(A, delta):
-    A += 0.5 * delta
-    return A
-
-
-def _get_residuals(grad_probe, grad_probe_mean):
-    return grad_probe - grad_probe_mean
-
-
-def _update_residuals(R, eigen_probe, axis, c, m):
-    R -= projection(
-        R,
-        eigen_probe[..., c:c + 1, m:m + 1, :, :],
-        axis=axis,
-    )
-    return R
-
-
-def _get_coefs_intensity(weights, xi, P, O, m):
-    OP = O * P
-    num = cp.sum(cp.real(cp.conj(OP) * xi), axis=(-1, -2))
-    den = cp.sum(cp.abs(OP)**2, axis=(-1, -2))
-    weights[..., 0:1, m:m + 1] = weights[..., 0:1, m:m + 1] + 0.1 * num / den
-    return weights
+    pad, end = op.diffraction.pad, op.diffraction.end
+    return farplane[..., pad:end, pad:end], cost
 
 
 def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                       eigen_probe, eigen_weights, recover_psi, recover_probe,
                       position_options):
 
+    patches = comm.pool.map(_get_patches, nearplane, psi, scan_, op=op)
+
     for m in range(probe[0].shape[-3]):
 
         (
-            patches,
             diff,
             grad_probe,
             common_grad_psi,
@@ -432,6 +248,7 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             psi,
             scan_,
             unique_probe,
+            patches,
             op=op,
             m=m,
             recover_psi=recover_psi,
@@ -485,14 +302,16 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                 delta = comm.Allreduce_mean(A1, axis=-3)
             else:
                 delta = comm.pool.reduce_mean(A1, axis=-3)
-            A1 = comm.pool.map(_update_A, A1, comm.pool.bcast([delta]))
+            A1 = comm.pool.map(_A_diagonal_dominant, A1,
+                               comm.pool.bcast([delta]))
 
         if recover_probe:
             if comm.use_mpi:
                 delta = comm.Allreduce_mean(A4, axis=-3)
             else:
                 delta = comm.pool.reduce_mean(A4, axis=-3)
-            A4 = comm.pool.map(_update_A, A4, comm.pool.bcast([delta]))
+            A4 = comm.pool.map(_A_diagonal_dominant, A4,
+                               comm.pool.bcast([delta]))
 
         if recover_probe or recover_psi:
             (
@@ -615,26 +434,212 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
     return psi, probe, eigen_probe, eigen_weights, scan_, position_options
 
 
-def _update_wavefront(data, varying_probe, scan, psi, op):
+def _get_patches(nearplane, psi, scan, *, op):
+    patches = op.diffraction.patch.fwd(
+        patches=cp.zeros(
+            nearplane[..., 0, 0, :, :].shape,
+            dtype='complex64',
+        ),
+        images=psi,
+        positions=scan,
+    )[..., None, None, :, :]
+    return patches
 
-    farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
-    intensity = cp.sum(
-        cp.square(cp.abs(farplane)),
-        axis=list(range(1, farplane.ndim - 2)),
+
+def _get_nearplane_gradients(
+    nearplane,
+    psi,
+    scan_,
+    unique_probe,
+    patches,
+    *,
+    op,
+    m,
+    recover_psi,
+    recover_probe,
+):
+
+    diff = nearplane[..., [m], :, :]
+
+    logger.info('%10s cost is %+12.5e', 'nearplane', norm(diff))
+
+    if recover_psi:
+        # (24b)
+        grad_psi = cp.conj(unique_probe[..., [m], :, :]) * diff
+        # (25b) Common object gradient.
+        common_grad_psi = op.diffraction.patch.adj(
+            patches=grad_psi[..., 0, 0, :, :],
+            images=cp.zeros(psi.shape, dtype='complex64'),
+            positions=scan_,
+        )
+        # Sum of the probe amplitude over field of view for preconditioning the
+        # object update.
+        probe_amp = (unique_probe[..., 0, m, :, :] *
+                     unique_probe[..., 0, m, :, :].conj())
+        # TODO: Allow this kind of broadcasting inside the patch operator
+        if probe_amp.shape[-3] == 1:
+            probe_amp = cp.tile(probe_amp, (scan_.shape[-2], 1, 1))
+        psi_update_denominator = op.diffraction.patch.adj(
+            patches=probe_amp,
+            images=cp.zeros(psi.shape, dtype='complex64'),
+            positions=scan_,
+        )
+    else:
+        common_grad_psi = None
+        psi_update_denominator = None
+
+    if recover_probe:
+        # (24a)
+        grad_probe = cp.conj(patches) * diff
+        # (25a) Common probe gradient. Use simple average instead of
+        # division as described in publication because that's what
+        # ptychoshelves does
+        common_grad_probe = cp.sum(
+            grad_probe,
+            axis=-5,
+            keepdims=True,
+        )
+        # Sum the amplitude of all the object patches to precondition the probe
+        # update.
+        probe_update_denominator = cp.sum(
+            patches * patches.conj(),
+            axis=-5,
+            keepdims=True,
+        )
+    else:
+        grad_probe = None
+        common_grad_probe = None
+        probe_update_denominator = None
+
+    return (
+        diff,
+        grad_probe,
+        common_grad_psi,
+        common_grad_probe,
+        psi_update_denominator,
+        probe_update_denominator,
     )
-    cost = op.propagation.cost(data, intensity)
-    logger.info('%10s cost is %+12.5e', 'farplane', cost)
-    farplane = -op.propagation.grad(data, farplane, intensity)
-
-    farplane = op.propagation.adj(farplane, overwrite=True)
-
-    pad, end = op.diffraction.pad, op.diffraction.end
-    return farplane[..., pad:end, pad:end], cost
 
 
-def _mad(x, **kwargs):
-    """Return the mean absolute deviation around the median."""
-    return cp.mean(cp.abs(x - cp.median(x, **kwargs)), **kwargs)
+def _precondition_nearplane_gradients(
+    nearplane,
+    scan_,
+    unique_probe,
+    common_grad_psi,
+    common_grad_probe,
+    psi_update_denominator,
+    probe_update_denominator,
+    patches,
+    *,
+    op,
+    m,
+    recover_psi,
+    recover_probe,
+    alpha=0.05,
+):
+
+    diff = nearplane[..., [m], :, :]
+
+    eps = 1e-9 / (diff.shape[-2] * diff.shape[-1])
+
+    if recover_psi:
+        common_grad_psi /= ((1 - alpha) * psi_update_denominator +
+                            alpha * psi_update_denominator.max(
+                                axis=(-2, -1),
+                                keepdims=True,
+                            ))
+        dOP = op.diffraction.patch.fwd(
+            patches=cp.zeros(patches.shape, dtype='complex64')[..., 0, 0, :, :],
+            images=common_grad_psi,
+            positions=scan_,
+        )[..., None, None, :, :] * unique_probe[..., [m], :, :]
+        A1 = cp.sum((dOP * dOP.conj()).real + eps, axis=(-2, -1))
+    else:
+        common_grad_psi = None
+        dOP = None
+        A1 = None
+
+    if recover_probe:
+        common_grad_probe /= ((1 - alpha) * probe_update_denominator +
+                              alpha * probe_update_denominator.max(
+                                  axis=(-2, -1),
+                                  keepdims=True,
+                              ))
+
+        dPO = common_grad_probe * patches
+        A4 = cp.sum((dPO * dPO.conj()).real + eps, axis=(-2, -1))
+    else:
+        common_grad_probe = None
+        dPO = None
+        A4 = None
+
+    return (
+        common_grad_psi,
+        common_grad_probe,
+        dOP,
+        dPO,
+        A1,
+        A4,
+    )
+
+
+def _A_diagonal_dominant(A, delta):
+    A += 0.5 * delta
+    return A
+
+
+def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe):
+    # (22) Use least-squares to find the optimal step sizes simultaneously
+    if recover_psi and recover_probe:
+        b1 = cp.sum((dOP.conj() * diff).real, axis=(-2, -1))
+        b2 = cp.sum((dPO.conj() * diff).real, axis=(-2, -1))
+        A2 = cp.sum((dOP * dPO.conj()), axis=(-2, -1))
+        A3 = A2.conj()
+        determinant = A1 * A4 - A2 * A3
+        x1 = -cp.conj(A2 * b2 - A4 * b1) / determinant
+        x2 = cp.conj(A1 * b2 - A3 * b1) / determinant
+    elif recover_psi:
+        b1 = cp.sum((dOP.conj() * diff).real, axis=(-2, -1))
+        x1 = b1 / A1
+    elif recover_probe:
+        b2 = cp.sum((dPO.conj() * diff).real, axis=(-2, -1))
+        x2 = b2 / A4
+
+    if recover_psi:
+        step = 0.9 * cp.maximum(0, x1[..., None, None].real)
+
+        # (27b) Object update
+        weighted_step_psi = cp.mean(step, keepdims=True, axis=-5)
+
+    if recover_probe:
+        step = 0.9 * cp.maximum(0, x2[..., None, None].real)
+
+        weighted_step_probe = cp.mean(step, axis=-5, keepdims=True)
+    else:
+        weighted_step_probe = None
+
+    return weighted_step_psi, weighted_step_probe
+
+
+def _get_coefs_intensity(weights, xi, P, O, m):
+    OP = O * P
+    num = cp.sum(cp.real(cp.conj(OP) * xi), axis=(-1, -2))
+    den = cp.sum(cp.abs(OP)**2, axis=(-1, -2))
+    weights[..., 0:1, m:m + 1] = weights[..., 0:1, m:m + 1] + 0.1 * num / den
+    return weights
+
+
+def _get_residuals(grad_probe, grad_probe_mean):
+    return grad_probe - grad_probe_mean
+
+
+def _update_residuals(R, eigen_probe, axis, c, m):
+    R -= projection(
+        R,
+        eigen_probe[..., c:c + 1, m:m + 1, :, :],
+        axis=axis,
+    )
+    return R
 
 
 def _update_position(
@@ -712,13 +717,6 @@ def _update_position(
     return scan, position_options
 
 
-def _get_patches(nearplane, psi, scan, op=None):
-    patches = op.diffraction.patch.fwd(
-        patches=cp.zeros(
-            nearplane[..., 0, 0, :, :].shape,
-            dtype='complex64',
-        ),
-        images=psi,
-        positions=scan,
-    )[..., None, None, :, :]
-    return patches
+def _mad(x, **kwargs):
+    """Return the mean absolute deviation around the median."""
+    return cp.mean(cp.abs(x - cp.median(x, **kwargs)), **kwargs)
