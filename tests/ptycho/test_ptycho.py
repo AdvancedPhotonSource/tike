@@ -587,12 +587,21 @@ def _save_ptycho_result(result, algorithm):
             np.abs(result['psi']).astype('float32'),
         )
         _save_probe(fname, result['probe'])
-        if (result['eigen_weights'] is not None
-                and result['eigen_weights'].shape[-2] > 1):
-            _save_eigen_probe(fname, result['eigen_probe'])
+        if result['eigen_weights'] is not None:
+            _save_eigen_weights(fname, result['eigen_weights'])
+            if result['eigen_weights'].shape[-2] > 1:
+                _save_eigen_probe(fname, result['eigen_probe'])
     except ImportError:
         pass
 
+
+def _save_eigen_weights(fname, weights):
+    import matplotlib.pyplot as plt
+    plt.figure()
+    tike.view.plot_eigen_weights(weights)
+    plt.suptitle('weights')
+    plt.tight_layout()
+    plt.savefig(f'{fname}/weights.svg')
 
 if __name__ == '__main__':
     unittest.main()
