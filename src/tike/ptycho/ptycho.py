@@ -393,8 +393,10 @@ def _setup(
             'eigen_probe':
                 comm.pool.bcast([eigen_probe.astype('complex64')])
                 if eigen_probe is not None else None,
-            'eigen_weights':
-                eigen_weights,
+        })
+    if eigen_weights is not None:
+        result.update({
+            'eigen_weights': eigen_weights,
         })
     if position_options:
         # TODO: Consider combining put/split, get/join operations?
