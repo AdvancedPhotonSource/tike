@@ -2,13 +2,12 @@ import logging
 
 import cupy as cp
 
-from tike.linalg import projection, norm, orthogonalize_gs
-from tike.opt import randomizer, get_batch, put_batch, adam
+import tike.linalg
+import tike.opt
+import tike.ptycho.probe
 
 from ..position import PositionOptions, update_positions_pd, _image_grad
 from ..object import positivity_constraint, smoothness_constraint
-from ..probe import (orthogonalize_eig, get_varying_probe, update_eigen_probe,
-                     constrain_variable_probe)
 
 logger = logging.getLogger(__name__)
 
@@ -84,37 +83,41 @@ def lstsq_grad(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
+    if eigen_probe is None:
+        beigen_probe = [None] * comm.pool.num_workers
+    else:
+        beigen_probe = eigen_probe
 
-    for n in randomizer.permutation(len(batches[0])):
+    for n in tike.opt.randomizer.permutation(len(batches[0])):
 
-        bdata = comm.pool.map(get_batch, data, batches, n=n)
-        bscan = comm.pool.map(get_batch, scan, batches, n=n)
+        bdata = comm.pool.map(tike.opt.get_batch, data, batches, n=n)
+        bscan = comm.pool.map(tike.opt.get_batch, scan, batches, n=n)
 
-        if position_options:
-            bposition_options = comm.pool.map(PositionOptions.split,
-                                              position_options,
-                                              [b[n] for b in batches])
-        else:
+        if position_options is None:
             bposition_options = None
+        else:
+            bposition_options = comm.pool.map(
+                PositionOptions.split,
+                position_options,
+                [b[n] for b in batches],
+            )
 
-        if isinstance(eigen_probe, list):
+        if eigen_weights is None:
+            unique_probe = probe
+            beigen_weights = [None] * comm.pool.num_workers
+        else:
             beigen_weights = comm.pool.map(
-                get_batch,
+                tike.opt.get_batch,
                 eigen_weights,
                 batches,
                 n=n,
             )
-            beigen_probe = eigen_probe
-        else:
-            beigen_probe = [None] * comm.pool.num_workers
-            beigen_weights = [None] * comm.pool.num_workers
-
-        unique_probe = comm.pool.map(
-            get_varying_probe,
-            probe,
-            beigen_probe,
-            beigen_weights,
-        )
+            unique_probe = comm.pool.map(
+                tike.ptycho.probe.get_varying_probe,
+                probe,
+                beigen_probe,
+                beigen_weights,
+            )
 
         nearplane, cost = zip(*comm.pool.map(
             _update_wavefront,
@@ -160,9 +163,9 @@ def lstsq_grad(
                 [b[n] for b in batches],
             )
 
-        if isinstance(eigen_probe, list):
+        if eigen_weights is not None:
             comm.pool.map(
-                put_batch,
+                tike.opt.put_batch,
                 beigen_weights,
                 eigen_weights,
                 batches,
@@ -170,7 +173,7 @@ def lstsq_grad(
             )
 
         comm.pool.map(
-            put_batch,
+            tike.opt.put_batch,
             bscan,
             scan,
             batches,
@@ -178,7 +181,7 @@ def lstsq_grad(
         )
 
     if probe_options and probe_options.orthogonality_constraint:
-        probe = comm.pool.map(orthogonalize_eig, probe)
+        probe = comm.pool.map(tike.ptycho.probe.orthogonalize_eig, probe)
 
     if object_options:
         psi = comm.pool.map(positivity_constraint,
@@ -189,10 +192,10 @@ def lstsq_grad(
                             psi,
                             a=object_options.smoothness_constraint)
 
-    if isinstance(eigen_probe, list):
+    if eigen_probe is not None:
         eigen_probe, eigen_weights = (list(a) for a in zip(*comm.pool.map(
-            constrain_variable_probe,
-            eigen_probe,
+            tike.ptycho.probe.constrain_variable_probe,
+            beigen_probe,
             eigen_weights,
         )))
 
@@ -328,14 +331,14 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                 recover_probe=recover_probe,
             )))
 
-        if recover_probe and eigen_weights[0] is not None:
+        if m == 0 and recover_probe and eigen_weights[0] is not None:
             logger.info('Updating eigen probes')
 
             eigen_weights = comm.pool.map(
                 _get_coefs_intensity,
                 eigen_weights,
                 diff,
-                [p[..., m:m + 1, :, :] for p in probe],
+                probe,
                 patches,
                 m=m,
             )
@@ -356,12 +359,15 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                         )])
                 R = comm.pool.map(_get_residuals, grad_probe, grad_probe_mean)
 
-            if m < eigen_probe[0].shape[-3]:
+            if eigen_probe[0] is not None and m < eigen_probe[0].shape[-3]:
                 assert eigen_weights[0].shape[
                     -2] == eigen_probe[0].shape[-4] + 1
                 for n in range(1, eigen_probe[0].shape[-4] + 1):
 
-                    eigen_probe, eigen_weights = update_eigen_probe(
+                    (
+                        eigen_probe,
+                        eigen_weights,
+                    ) = tike.ptycho.probe.update_eigen_probe(
                         comm,
                         R,
                         eigen_probe,
@@ -461,7 +467,7 @@ def _get_nearplane_gradients(
 
     diff = nearplane[..., [m], :, :]
 
-    logger.info('%10s cost is %+12.5e', 'nearplane', norm(diff))
+    logger.info('%10s cost is %+12.5e', 'nearplane', tike.linalg.norm(diff))
 
     if recover_psi:
         # (24b)
@@ -622,10 +628,10 @@ def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe):
 
 
 def _get_coefs_intensity(weights, xi, P, O, m):
-    OP = O * P
+    OP = O * P[..., [m], :, :]
     num = cp.sum(cp.real(cp.conj(OP) * xi), axis=(-1, -2))
     den = cp.sum(cp.abs(OP)**2, axis=(-1, -2))
-    weights[..., 0:1, m:m + 1] = weights[..., 0:1, m:m + 1] + 0.1 * num / den
+    weights[..., 0:1, [m]] = weights[..., 0:1, [m]] + 0.1 * num / den
     return weights
 
 
@@ -634,7 +640,7 @@ def _get_residuals(grad_probe, grad_probe_mean):
 
 
 def _update_residuals(R, eigen_probe, axis, c, m):
-    R -= projection(
+    R -= tike.linalg.projection(
         R,
         eigen_probe[..., c:c + 1, m:m + 1, :, :],
         axis=axis,
@@ -675,13 +681,13 @@ def _update_position(
     if position_options.use_adaptive_moment:
         logger.info(
             "position correction with ADAptive Momemtum acceleration enabled.")
-        step_x, position_options.vx, position_options.mx = adam(
+        step_x, position_options.vx, position_options.mx = tike.opt.adam(
             step_x,
             position_options.vx,
             position_options.mx,
             vdecay=position_options.vdecay,
             mdecay=position_options.mdecay)
-        step_y, position_options.vy, position_options.my = adam(
+        step_y, position_options.vy, position_options.my = tike.opt.adam(
             step_y,
             position_options.vy,
             position_options.my,
@@ -706,7 +712,7 @@ def _update_position(
     # Ensure net movement is zero
     step_x -= cp.mean(step_x, axis=-1, keepdims=True)
     step_y -= cp.mean(step_y, axis=-1, keepdims=True)
-    logger.info('position update norm is %+.3e', norm(step_x))
+    logger.info('position update norm is %+.3e', tike.linalg.norm(step_x))
 
     # print(cp.abs(step_x) > 0.5)
     # print(cp.abs(step_y) > 0.5)
