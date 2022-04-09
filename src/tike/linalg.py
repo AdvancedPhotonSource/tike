@@ -20,12 +20,12 @@ def norm(x, axis=None, keepdims=False):
 def projection(a, b, axis=None):
     """Return complex vector projection of a onto b for along given axis."""
     bh = b / inner(b, b, axis=axis, keepdims=True)
-    return inner(b, a, axis=axis, keepdims=True) * bh
+    return inner(a, b, axis=axis, keepdims=True) * bh
 
 
 def inner(x, y, axis=None, keepdims=False):
     """Return the complex inner product; the order of the operands matters."""
-    return (x.conj() * y).sum(axis=axis, keepdims=keepdims)
+    return (x * y.conj()).sum(axis=axis, keepdims=keepdims)
 
 
 def lstsq(a, b, weights=None):

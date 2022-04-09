@@ -245,17 +245,13 @@ class TemplatePtychoRecon():
 
         result['scan'] = self.scan
 
-        params.update(result)
-        result = tike.ptycho.reconstruct(
-            **params,
-            data=self.data,
-        )
         # Call twice to check that reconstruction continuation is correct
-        params.update(result)
-        result = tike.ptycho.reconstruct(
-            **params,
-            data=self.data,
-        )
+        for _ in range(2):
+            params.update(result)
+            result = tike.ptycho.reconstruct(
+                **params,
+                data=self.data,
+            )
         print()
         print('\n'.join(f'{c:1.3e}' for c in result['algorithm_options'].costs))
         return result

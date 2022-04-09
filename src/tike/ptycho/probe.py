@@ -42,7 +42,7 @@ import cupy as cp
 import cupyx.scipy.ndimage
 import numpy as np
 
-from tike.linalg import orthogonalize_gs
+import tike.linalg
 import tike.random
 
 logger = logging.getLogger(__name__)
@@ -213,7 +213,7 @@ def update_eigen_probe(
         # (..., POSI, 1, 1, 1, 1) to match other arrays
         weights = weights[..., c:c + 1, m:m + 1, None, None]
         eigen_probe = eigen_probe[..., c - 1:c, m:m + 1, :, :]
-        norm_weights = np.linalg.norm(weights, axis=-5, keepdims=True)**2
+        norm_weights = tike.linalg.norm(weights, axis=-5, keepdims=True)**2
 
         if np.all(norm_weights == 0):
             raise ValueError('eigen_probe weights cannot all be zero?')
@@ -291,9 +291,11 @@ def update_eigen_probe(
         )])
 
     def _get_weights_mean(n, d, d_mean, weights):
-        d += 0.1 * d_mean
-
-        weight_update = (n / d).reshape(*weights[..., c:c + 1, m:m + 1].shape)
+        # yapf: disable
+        weight_update = (
+            n / (d + 0.1 * d_mean)
+        ).reshape(*weights[..., c:c + 1, m:m + 1].shape)
+        # yapf: enable
         assert np.all(np.isfinite(weight_update))
 
         # (33) The sum of all previous steps constrained to zero-mean
