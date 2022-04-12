@@ -516,32 +516,32 @@ def _teardown(
     )
 
 
+def _get_rescale(data, psi, scan, probe, num_batch, operator):
+
+    n1 = 0.0
+    n2 = 0.0
+
+    for b in batch_indicies(data.shape[-3], num_batch, use_random=False):
+
+        intensity, _ = operator._compute_intensity(
+            data[..., b, :, :],
+            psi,
+            scan[..., b, :],
+            probe,
+        )
+
+        n1 += np.sum(data[..., b, :, :])
+        n2 += np.sum(intensity)
+
+    return n1, n2
+
+
 def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
     """Rescale probe so model and measured intensity are similar magnitude.
 
     Rescales the probe so that the sum of modeled intensity at the detector is
     approximately equal to the measure intensity at the detector.
     """
-
-    def _get_rescale(data, psi, scan, probe, num_batch, operator):
-
-        n1 = 0.0
-        n2 = 0.0
-
-        for b in batch_indicies(data.shape[-3], num_batch, use_random=False):
-
-            intensity, _ = operator._compute_intensity(
-                data[..., b, :, :],
-                psi,
-                scan[..., b, :],
-                probe,
-            )
-
-            n1 += np.sum(data[..., b, :, :])
-            n2 += np.sum(intensity)
-
-        return n1, n2
-
     try:
         n1, n2 = zip(*comm.pool.map(
             _get_rescale,
