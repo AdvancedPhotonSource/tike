@@ -88,6 +88,18 @@ def lstsq_grad(
     else:
         beigen_probe = eigen_probe
 
+    psi_update_denominator = [None] * comm.pool.num_workers
+    for n in tike.opt.randomizer.permutation(len(batches[0])):
+        bscan = comm.pool.map(tike.opt.get_batch, scan, batches, n=n)
+        psi_update_denominator = comm.pool.map(
+            _psi_preconditioner,
+            psi_update_denominator,
+            probe,
+            bscan,
+            psi,
+            op=op,
+        )
+
     for n in tike.opt.randomizer.permutation(len(batches[0])):
 
         bdata = comm.pool.map(tike.opt.get_batch, data, batches, n=n)
@@ -153,6 +165,8 @@ def lstsq_grad(
             object_options is not None,
             probe_options is not None,
             bposition_options,
+            num_batch=algorithm_options.num_batch,
+            psi_update_denominator=psi_update_denominator,
         )
 
         if position_options:
@@ -213,6 +227,33 @@ def lstsq_grad(
     }
 
 
+def _psi_preconditioner(psi_update_denominator,
+                        unique_probe,
+                        scan_,
+                        psi,
+                        *,
+                        op,
+                        m=0):
+    # Sum of the probe amplitude over field of view for preconditioning the
+    # object update.
+    probe_amp = (unique_probe[..., 0, m, :, :] *
+                 unique_probe[..., 0, m, :, :].conj())
+    # TODO: Allow this kind of broadcasting inside the patch operator
+    if probe_amp.shape[-3] == 1:
+        probe_amp = cp.tile(probe_amp, (scan_.shape[-2], 1, 1))
+    if psi_update_denominator is None:
+        psi_update_denominator = cp.zeros(
+            shape=psi.shape,
+            dtype='complex64',
+        )
+    psi_update_denominator = op.diffraction.patch.adj(
+        patches=probe_amp,
+        images=psi_update_denominator,
+        positions=scan_,
+    )
+    return psi_update_denominator
+
+
 def _update_wavefront(data, varying_probe, scan, psi, op):
 
     farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
@@ -230,9 +271,22 @@ def _update_wavefront(data, varying_probe, scan, psi, op):
     return farplane[..., pad:end, pad:end], cost
 
 
-def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
-                      eigen_probe, eigen_weights, recover_psi, recover_probe,
-                      position_options):
+def _update_nearplane(
+    op,
+    comm,
+    nearplane,
+    psi,
+    scan_,
+    probe,
+    unique_probe,
+    eigen_probe,
+    eigen_weights,
+    recover_psi,
+    recover_probe,
+    position_options,
+    num_batch,
+    psi_update_denominator,
+):
 
     patches = comm.pool.map(_get_patches, nearplane, psi, scan_, op=op)
 
@@ -243,7 +297,7 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
             grad_probe,
             common_grad_psi,
             common_grad_probe,
-            psi_update_denominator,
+            _,
             probe_update_denominator,
         ) = (list(a) for a in zip(*comm.pool.map(
             _get_nearplane_gradients,
@@ -374,7 +428,7 @@ def _update_nearplane(op, comm, nearplane, psi, scan_, probe, unique_probe,
                         eigen_weights,
                         patches,
                         diff,
-                        β=0.01,  # TODO: Adjust according to mini-batch size
+                        β=min(0.1, 1.0 / num_batch),
                         c=n,
                         m=m,
                     )
@@ -478,21 +532,9 @@ def _get_nearplane_gradients(
             images=cp.zeros(psi.shape, dtype='complex64'),
             positions=scan_,
         )
-        # Sum of the probe amplitude over field of view for preconditioning the
-        # object update.
-        probe_amp = (unique_probe[..., 0, m, :, :] *
-                     unique_probe[..., 0, m, :, :].conj())
-        # TODO: Allow this kind of broadcasting inside the patch operator
-        if probe_amp.shape[-3] == 1:
-            probe_amp = cp.tile(probe_amp, (scan_.shape[-2], 1, 1))
-        psi_update_denominator = op.diffraction.patch.adj(
-            patches=probe_amp,
-            images=cp.zeros(psi.shape, dtype='complex64'),
-            positions=scan_,
-        )
     else:
         common_grad_psi = None
-        psi_update_denominator = None
+    psi_update_denominator = None
 
     if recover_probe:
         # (24a)
