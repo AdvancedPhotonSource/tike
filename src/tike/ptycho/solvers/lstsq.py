@@ -5,8 +5,9 @@ import cupy as cp
 import tike.linalg
 import tike.opt
 import tike.ptycho.probe
+import tike.ptycho.position
 
-from ..position import PositionOptions, update_positions_pd, _image_grad
+from ..position import PositionOptions
 from ..object import positivity_constraint, smoothness_constraint
 
 logger = logging.getLogger(__name__)
@@ -714,23 +715,28 @@ def _update_position(
     unique_probe,
     m,
     op,
+    *,
+    alpha=0.05,
+    max_shift=1,
 ):
     main_probe = unique_probe[..., m:m + 1, :, :]
 
     # According to the manuscript, we can either shift the probe or the object
     # and they are equivalent (in theory). Here we shift the object because
     # that is what ptychoshelves does.
-    grad_x, grad_y = _image_grad(op, patches)
+    grad_y, grad_x = tike.ptycho.position._image_grad(op, patches)
 
     numerator = cp.sum(cp.real(diff * cp.conj(grad_x * main_probe)),
                        axis=(-2, -1))
     denominator = cp.sum(cp.abs(grad_x * main_probe)**2, axis=(-2, -1))
-    step_x = numerator / (denominator + 1e-6)
+    step_x = numerator / (
+        (1 - alpha) * denominator + alpha * max(denominator.max(), 1e-6))
 
     numerator = cp.sum(cp.real(diff * cp.conj(grad_y * main_probe)),
                        axis=(-2, -1))
     denominator = cp.sum(cp.abs(grad_y * main_probe)**2, axis=(-2, -1))
-    step_y = numerator / (denominator + 1e-6)
+    step_y = numerator / (
+        (1 - alpha) * denominator + alpha * max(denominator.max(), 1e-6))
 
     step_x = step_x[..., 0, 0]
     step_y = step_y[..., 0, 0]
@@ -753,7 +759,6 @@ def _update_position(
             mdecay=position_options.mdecay)
 
     # Step limit for stability
-    max_shift = patches.shape[-1] * 0.1
     _max_shift = cp.minimum(
         max_shift,
         _mad(
