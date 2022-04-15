@@ -37,6 +37,7 @@ class AdamOptions(IterativeOptions):
     step_length: float = 1
     """Scales the search directions."""
 
+
 @dataclasses.dataclass
 class CgradOptions(IterativeOptions):
     name: str = dataclasses.field(default='cgrad', init=False)

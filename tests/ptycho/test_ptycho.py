@@ -67,7 +67,7 @@ __author__ = "Daniel Ching, Xiaodong Yu"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
-testdir = os.path.dirname(__file__)
+testdir = os.path.dirname(os.path.dirname(__file__))
 _mpi_size = MPI.COMM_WORLD.Get_size()
 
 
@@ -245,17 +245,13 @@ class TemplatePtychoRecon():
 
         result['scan'] = self.scan
 
-        params.update(result)
-        result = tike.ptycho.reconstruct(
-            **params,
-            data=self.data,
-        )
         # Call twice to check that reconstruction continuation is correct
-        params.update(result)
-        result = tike.ptycho.reconstruct(
-            **params,
-            data=self.data,
-        )
+        for _ in range(2):
+            params.update(result)
+            result = tike.ptycho.reconstruct(
+                **params,
+                data=self.data,
+            )
         print()
         print('\n'.join(f'{c:1.3e}' for c in result['algorithm_options'].costs))
         return result
@@ -327,9 +323,7 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
                 'num_gpu':
                     2,
                 'probe_options':
-                    ProbeOptions(
-                        orthogonality_constraint=True,
-                    ),
+                    ProbeOptions(orthogonality_constraint=True,),
                 'object_options':
                     ObjectOptions(),
                 'use_mpi':
@@ -511,42 +505,6 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
         self._save_position_error_variance(result, algorithm)
 
 
-class TestProbe(unittest.TestCase):
-
-    def test_eigen_probe(self):
-
-        leading = (2,)
-        wide = 18
-        high = 21
-        posi = 53
-        eigen = 1
-        comm = Comm(2, None)
-
-        R = comm.pool.bcast([np.random.rand(*leading, posi, 1, 1, wide, high)])
-        eigen_probe = comm.pool.bcast(
-            [np.random.rand(*leading, 1, eigen, 1, wide, high)])
-        weights = np.random.rand(*leading, posi, eigen + 1, 1)
-        weights -= np.mean(weights, axis=-3, keepdims=True)
-        weights = comm.pool.bcast([weights])
-        patches = comm.pool.bcast(
-            [np.random.rand(*leading, posi, 1, 1, wide, high)])
-        diff = comm.pool.bcast(
-            [np.random.rand(*leading, posi, 1, 1, wide, high)])
-
-        new_probe, new_weights = tike.ptycho.probe.update_eigen_probe(
-            comm=comm,
-            R=R,
-            eigen_probe=eigen_probe,
-            weights=weights,
-            patches=patches,
-            diff=diff,
-            c=1,
-            m=0,
-        )
-
-        assert eigen_probe[0].shape == new_probe[0].shape
-
-
 def _save_eigen_probe(output_folder, eigen_probe):
     import matplotlib.pyplot as plt
     flattened = []
@@ -625,12 +583,21 @@ def _save_ptycho_result(result, algorithm):
             np.abs(result['psi']).astype('float32'),
         )
         _save_probe(fname, result['probe'])
-        if (result['eigen_weights'] is not None
-                and result['eigen_weights'].shape[-2] > 1):
-            _save_eigen_probe(fname, result['eigen_probe'])
+        if result['eigen_weights'] is not None:
+            _save_eigen_weights(fname, result['eigen_weights'])
+            if result['eigen_weights'].shape[-2] > 1:
+                _save_eigen_probe(fname, result['eigen_probe'])
     except ImportError:
         pass
 
+
+def _save_eigen_weights(fname, weights):
+    import matplotlib.pyplot as plt
+    plt.figure()
+    tike.view.plot_eigen_weights(weights)
+    plt.suptitle('weights')
+    plt.tight_layout()
+    plt.savefig(f'{fname}/weights.svg')
 
 if __name__ == '__main__':
     unittest.main()

@@ -393,8 +393,10 @@ def _setup(
             'eigen_probe':
                 comm.pool.bcast([eigen_probe.astype('complex64')])
                 if eigen_probe is not None else None,
-            'eigen_weights':
-                eigen_weights,
+        })
+    if eigen_weights is not None:
+        result.update({
+            'eigen_weights': eigen_weights,
         })
     if position_options:
         # TODO: Consider combining put/split, get/join operations?
@@ -514,32 +516,32 @@ def _teardown(
     )
 
 
+def _get_rescale(data, psi, scan, probe, num_batch, operator):
+
+    n1 = 0.0
+    n2 = 0.0
+
+    for b in batch_indicies(data.shape[-3], num_batch, use_random=False):
+
+        intensity, _ = operator._compute_intensity(
+            data[..., b, :, :],
+            psi,
+            scan[..., b, :],
+            probe,
+        )
+
+        n1 += np.sum(data[..., b, :, :])
+        n2 += np.sum(intensity)
+
+    return n1, n2
+
+
 def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
     """Rescale probe so model and measured intensity are similar magnitude.
 
     Rescales the probe so that the sum of modeled intensity at the detector is
     approximately equal to the measure intensity at the detector.
     """
-
-    def _get_rescale(data, psi, scan, probe, num_batch, operator):
-
-        n1 = 0.0
-        n2 = 0.0
-
-        for b in batch_indicies(data.shape[-3], num_batch, use_random=False):
-
-            intensity, _ = operator._compute_intensity(
-                data[..., b, :, :],
-                psi,
-                scan[..., b, :],
-                probe,
-            )
-
-            n1 += np.sum(data[..., b, :, :])
-            n2 += np.sum(intensity)
-
-        return n1, n2
-
     try:
         n1, n2 = zip(*comm.pool.map(
             _get_rescale,
@@ -570,6 +572,10 @@ def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
     probe[0] *= rescale
 
     return comm.pool.bcast([probe[0]])
+
+
+def _split(m, x):
+    return cp.asarray(x[m], dtype='float32')
 
 
 def split_by_scan_grid(pool, shape, scan, *args, fly=1):
@@ -606,15 +612,12 @@ def split_by_scan_grid(pool, shape, scan, *args, fly=1):
     order = np.arange(scan.shape[-2])
     order = [order[m] for m in mask]
 
-    def split(m, x):
-        return cp.asarray(x[m], dtype='float32')
-
     split_args = []
     for arg in [scan, *args]:
         if arg is None:
             split_args.append(None)
         else:
-            split_args.append(pool.map(split, mask, x=arg))
+            split_args.append(pool.map(_split, mask, x=arg))
 
     return (order, *split_args)
 

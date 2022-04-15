@@ -502,3 +502,19 @@ def plot_cost_convergence(costs, times):
     ax2.tick_params(axis='x', labelcolor=color)
 
     return fig, ax1, ax2
+
+
+def plot_eigen_weights(weights):
+    """Plot stacked line plots of probe intensity weights by position."""
+    n = weights.shape[-1]
+
+    ax1 = None
+    for i in range(0, weights.shape[-1]):
+        axi = plt.subplot(n, 1, i + 1, sharey=ax1)
+        if i == 0:
+            ax1 = axi
+        axi.plot(weights[..., i])
+        if i < weights.shape[-1] - 1:
+            axi.set_xticklabels([])
+
+    axi.set_xlabel('positions')
