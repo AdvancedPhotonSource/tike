@@ -76,6 +76,15 @@ class ProbeOptions:
     m: np.array = dataclasses.field(init=False, default_factory=lambda: None)
     """The first moment for adaptive moment."""
 
+    probe_support: float = 0.0
+    """Weight of the finite probe support constraint in range [0.0, 1.0]."""
+
+    probe_support_radius: float = 0.5
+    """Radius of finite probe support as fraction of probe grid. [0.0, 0.5]."""
+
+    probe_support_degree: float = 2
+    """Degree of the superellise defining the probe support."""
+
     def copy_to_device(self):
         """Copy to the current GPU memory."""
         if self.v is not None:
@@ -514,7 +523,10 @@ def constrain_center_peak(probe):
     maximum intensity is centered.
     """
     half = probe.shape[-2] // 2, probe.shape[-1] // 2
-    logger.info("Constrained probe intensity to center with sigma=%f", half[0])
+    logger.info(
+        "Constrained probe intensity to center with sigma=%.3e",
+        half[0],
+    )
     # First reshape the probe to 3D so it is a single stack of 2D images.
     stack = probe.reshape((-1, *probe.shape[-2:]))
     intensity = cupyx.scipy.ndimage.gaussian_filter(
@@ -538,7 +550,7 @@ def constrain_probe_sparsity(probe, f):
     """Constrain the probe intensity so no more than f/1 elements are nonzero."""
     if f == 1:
         return probe
-    logger.info("Constrained probe intensity spasity to %f", f)
+    logger.info("Constrained probe intensity spasity to %.3e", f)
     # First reshape the probe to 3D so it is a single stack of 2D images.
     stack = probe.reshape((-1, *probe.shape[-2:]))
     intensity = np.sum(np.square(np.abs(stack)), axis=0)
@@ -557,6 +569,41 @@ def constrain_probe_sparsity(probe, f):
     return probe
 
 
+def finite_probe_support(probe, *, radius=0.5, degree=2, p=0.999):
+    """Enforce finite probe support with a superellise mask.
+
+    The boundary of the mask is determined by the equation:
+
+    abs(x / radius)**degree + abs(y / radius)**degree <= 1.0
+
+
+    Parameters
+    ----------
+    radius : float (0, 0.5]
+        The radius of the superellipse.
+    degree : float > 0
+        The exponent of the terms in the superellipse equation.
+        Degree > 0, < 1 is astroid-like.
+        Degree 1 is a rhombus.
+        Degree > 1, < 2 is a rounded rhombus.
+        Degree 2 is a circle.
+        Degree > 2 is a squircle.
+    """
+    if p <= 0:
+        return probe
+    logger.info(
+        "Probe support constraint with weight %.3e, radius %.3e, degree %.3e",
+        p,
+        radius,
+        degree,
+    )
+    N = probe.shape[-1]
+    centers = cp.linspace(-0.5, 0.5, num=N, endpoint=False) + 0.5 / N
+    i, j = cp.meshgrid(centers, centers)
+    mask = cp.abs(i / radius)**degree + cp.abs(j / radius)**degree
+    return probe * ((1 - p) + p * (mask <= 1.0)).astype('float32')
+
+
 if __name__ == "__main__":
     cp.random.seed()
     x = (cp.random.rand(7, 1, 9, 3, 3) +
@@ -569,3 +616,11 @@ if __name__ == "__main__":
     print(p1)
     p2 = constrain_probe_sparsity(p1, 0.6)
     print(p2)
+
+    import sys
+    np.set_printoptions(threshold=sys.maxsize)
+    print(finite_probe_support(
+        np.zeros((25, 25)),
+        radius=0.5 / 3,
+        degree=2.0,
+    ))
