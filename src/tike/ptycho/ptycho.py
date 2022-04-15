@@ -574,6 +574,10 @@ def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
     return comm.pool.bcast([probe[0]])
 
 
+def _split(m, x):
+    return cp.asarray(x[m], dtype='float32')
+
+
 def split_by_scan_grid(pool, shape, scan, *args, fly=1):
     """Split the field of view into a 2D grid.
 
@@ -608,15 +612,12 @@ def split_by_scan_grid(pool, shape, scan, *args, fly=1):
     order = np.arange(scan.shape[-2])
     order = [order[m] for m in mask]
 
-    def split(m, x):
-        return cp.asarray(x[m], dtype='float32')
-
     split_args = []
     for arg in [scan, *args]:
         if arg is None:
             split_args.append(None)
         else:
-            split_args.append(pool.map(split, mask, x=arg))
+            split_args.append(pool.map(_split, mask, x=arg))
 
     return (order, *split_args)
 
