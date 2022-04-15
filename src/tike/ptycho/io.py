@@ -142,10 +142,12 @@ def read_aps_velociprobe(
         # doesn't fit on the detector anymore.
         max_radius = max_crop // 2
         radius = 2
-        while (radius <= max_radius
-               and beam_center_x + radius < detect_width
-               and beam_center_y + radius < detect_height
-               and beam_center_x - radius >= 0 and beam_center_y - radius >= 0):
+        while (
+            radius <= max_radius
+            and beam_center_x + radius < detect_width
+            and beam_center_y + radius < detect_height
+            and beam_center_x - radius >= 0 and beam_center_y - radius >= 0
+        ):  # yapf:disable
             radius *= 2
         radius = radius // 2
         logger.info(f'Autodetected diffraction size is {2* radius}.')
@@ -225,5 +227,13 @@ def read_aps_velociprobe(
         det_pix_width,
         photon_energy,
     )
+
+    if np.any(np.logical_not(np.isfinite(data))):
+        warnings.warn("Some values in the diffraction data are not finite. "
+                      "Photon counts must be >= 0 and finite.")
+
+    if np.any(data < 0):
+        warnings.warn("Some values in the diffraction data are negative. "
+                      "Photon counts must be >= 0 and finite.")
 
     return data.astype('float32'), scan.astype('float32')
