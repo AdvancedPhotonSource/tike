@@ -16,6 +16,9 @@ class IterativeOptions(ABC):
     """The dataset is divided into this number of groups where each group is
     processed sequentially."""
 
+    batch_method: str = 'cluster_wobbly_center'
+    """The name of the batch selection method."""
+
     costs: List[float] = dataclasses.field(init=False, default_factory=list)
     """The objective function value at previous iterations."""
 
