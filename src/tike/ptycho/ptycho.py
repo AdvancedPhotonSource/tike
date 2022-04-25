@@ -65,7 +65,7 @@ from tike.operators import Ptycho
 from tike.communicators import Comm, MPIComm
 from tike.opt import batch_indicies
 from tike.ptycho import solvers
-from tike.random import cluster_wobbly_center
+import tike.random
 
 from .object import get_padded_object
 from .position import (
@@ -407,7 +407,7 @@ def _setup(
 
     # Unique batch for each device
     batches = comm.pool.map(
-        cluster_wobbly_center,
+        getattr(tike.random, algorithm_options.batch_method),
         scan,
         num_cluster=algorithm_options.num_batch,
     )

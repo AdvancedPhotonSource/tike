@@ -45,6 +45,7 @@ jobs:
       pytest
       python=$(python.version)
       cudatoolkit=$(CUDA_VERSION)
+      "openmpi=*=h*"
     displayName: Create build environment
 
   - script: conda list -n tike
