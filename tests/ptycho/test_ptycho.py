@@ -325,7 +325,9 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
                 'probe_options':
                     ProbeOptions(orthogonality_constraint=True,),
                 'object_options':
-                    ObjectOptions(),
+                    ObjectOptions(
+                        use_adaptive_moment=True,
+                    ),
                 'use_mpi':
                     _mpi_size > 1,
             },), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad")
@@ -351,7 +353,9 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
             'probe_options':
                 ProbeOptions(),
             'object_options':
-                ObjectOptions(),
+                ObjectOptions(
+                    use_adaptive_moment=True,
+                ),
             'use_mpi':
                 _mpi_size > 1,
             'eigen_probe':
