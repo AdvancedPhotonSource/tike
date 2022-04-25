@@ -1,7 +1,12 @@
 """Provides random number generators for complex data types."""
 
+import logging
+
 import cupy as cp
 import numpy as np
+
+
+logger = logging.getLogger(__name__)
 
 
 def numpy_complex(*shape):
@@ -47,6 +52,7 @@ def cluster_wobbly_center(population, num_cluster):
     Maximal Heterogeneity Based Clustering Approach for Obtaining Samples."
     arXiv preprint arXiv:1709.01423 (2017).
     """
+    logger.info("Clustering method is wobbly center.")
     xp = cp.get_array_module(population)
     if num_cluster == 1 or num_cluster == population.shape[0]:
         return xp.split(xp.arange(population.shape[0]), num_cluster)
@@ -111,6 +117,7 @@ def cluster_compact(population, num_cluster, max_iter=500):
         uses uint16 as cluster tag, so it cannot count more than that number of
         clusters.
     """
+    logger.info("Clustering method is compact.")
     # Indexing and serial operations is very slow on GPU, so always use host
     population = cp.asnumpy(population)
     if num_cluster == 1 or num_cluster == population.shape[0]:
