@@ -167,6 +167,7 @@ def lstsq_grad(
             bposition_options,
             num_batch=algorithm_options.num_batch,
             psi_update_denominator=psi_update_denominator,
+            object_options=object_options,
         )
 
         if position_options:
@@ -286,6 +287,8 @@ def _update_nearplane(
     position_options,
     num_batch,
     psi_update_denominator,
+    *,
+    object_options,
 ):
 
     patches = comm.pool.map(_get_patches, nearplane, psi, scan_, op=op)
@@ -458,8 +461,21 @@ def _update_nearplane(
                 )[..., 0, 0, 0]
 
             # (27b) Object update
-            psi[0] += (weighted_step_psi[0] /
-                       probe[0].shape[-3]) * common_grad_psi[0]
+            dpsi = (weighted_step_psi[0] /
+                    probe[0].shape[-3]) * common_grad_psi[0]
+            if object_options.use_adaptive_moment:
+                (
+                    dpsi,
+                    object_options.v,
+                    object_options.m,
+                ) = tike.opt.adam(
+                    g=dpsi,
+                    v=object_options.v,
+                    m=object_options.m,
+                    vdecay=object_options.vdecay,
+                    mdecay=object_options.mdecay,
+                )
+            psi[0] = psi[0] + dpsi
             psi = comm.pool.bcast([psi[0]])
 
         if recover_probe:
