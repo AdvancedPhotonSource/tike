@@ -212,9 +212,21 @@ def _image_grad(op, x):
     """Return the gradient of the x for each of the last two dimesions."""
     # FIXME: Use different gradient approximation that does not use FFT. Because
     # FFT caches are per-thread and per-device, using FFT is inefficient.
-    ramp = 2j * cp.pi * cp.linspace(-0.5, 0.5, x.shape[-1], dtype='float32')
-    grad_x = op.propagation._ifft2(ramp[:, None] * op.propagation._fft2(x))
-    grad_y = op.propagation._ifft2(ramp * op.propagation._fft2(x))
+    ramp = 2j * cp.pi * cp.linspace(
+        -0.5,
+        0.5,
+        x.shape[-1],
+        dtype='float32',
+        endpoint=False,
+    )
+    grad_x = op.propagation._ifftn(
+        ramp[:, None] * op.propagation._fftn(x, axes=(-2,)),
+        axes=(-2,),
+    )
+    grad_y = op.propagation._ifftn(
+        ramp * op.propagation._fftn(x, axes=(-1,)),
+        axes=(-1,),
+    )
     return grad_x, grad_y
 
 

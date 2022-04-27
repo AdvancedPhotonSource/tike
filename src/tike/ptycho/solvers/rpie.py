@@ -3,10 +3,11 @@ import logging
 import cupy as cp
 
 import tike.linalg
-from tike.opt import get_batch, put_batch, randomizer, adam
+import tike.opt
+import tike.ptycho.position
 
 from ..object import positivity_constraint, smoothness_constraint
-from ..position import PositionOptions, _image_grad
+from ..position import PositionOptions
 from ..probe import orthogonalize_eig
 
 logger = logging.getLogger(__name__)
@@ -79,10 +80,10 @@ def rpie(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
-    for n in randomizer.permutation(len(batches[0])):
+    for n in tike.opt.randomizer.permutation(len(batches[0])):
 
-        bdata = comm.pool.map(get_batch, data, batches, n=n)
-        bscan = comm.pool.map(get_batch, scan, batches, n=n)
+        bdata = comm.pool.map(tike.opt.get_batch, data, batches, n=n)
+        bscan = comm.pool.map(tike.opt.get_batch, scan, batches, n=n)
 
         if position_options is None:
             bposition_options = None
@@ -144,7 +145,7 @@ def rpie(
             )
 
         comm.pool.map(
-            put_batch,
+            tike.opt.put_batch,
             bscan,
             scan,
             batches,
@@ -322,7 +323,7 @@ def _get_nearplane_gradients(
     position_update_numerator = cp.zeros(scan.shape, dtype='float32')
     position_update_denominator = cp.zeros(scan.shape, dtype='float32')
 
-    grad_x, grad_y = _image_grad(op, patches)
+    grad_x, grad_y = tike.ptycho.position._image_grad(op, patches)
 
     for m in range(probe.shape[-3]):
 
@@ -353,19 +354,19 @@ def _get_nearplane_gradients(
             )
 
         if recover_positions:
-            position_update_numerator[..., 0] = cp.sum(
+            position_update_numerator[..., 0] += cp.sum(
                 cp.real(cp.conj(grad_x * probe[..., [m], :, :]) * diff),
                 axis=(-2, -1),
             )[..., 0, 0]
-            position_update_denominator[..., 0] = cp.sum(
+            position_update_denominator[..., 0] += cp.sum(
                 cp.abs(grad_x * probe[..., [m], :, :])**2,
                 axis=(-2, -1),
             )[..., 0, 0]
-            position_update_numerator[..., 1] = cp.sum(
+            position_update_numerator[..., 1] += cp.sum(
                 cp.real(cp.conj(grad_y * probe[..., [m], :, :]) * diff),
                 axis=(-2, -1),
             )[..., 0, 0]
-            position_update_denominator[..., 1] = cp.sum(
+            position_update_denominator[..., 1] += cp.sum(
                 cp.abs(grad_y * probe[..., [m], :, :])**2,
                 axis=(-2, -1),
             )[..., 0, 0]
@@ -404,7 +405,7 @@ def _update_position(
 ):
     step = position_update_numerator / (
         (1 - alpha) * position_update_denominator +
-        alpha * position_update_denominator.max())
+        alpha * max(position_update_denominator.max(), 1e-6))
 
     step_x = step[..., 0]
     step_y = step[..., 1]
@@ -412,13 +413,13 @@ def _update_position(
     if position_options.use_adaptive_moment:
         logger.info(
             "position correction with ADAptive Momemtum acceleration enabled.")
-        step_x, position_options.vx, position_options.mx = adam(
+        step_x, position_options.vx, position_options.mx = tike.opt.adam(
             step_x,
             position_options.vx,
             position_options.mx,
             vdecay=position_options.vdecay,
             mdecay=position_options.mdecay)
-        step_y, position_options.vy, position_options.my = adam(
+        step_y, position_options.vy, position_options.my = tike.opt.adam(
             step_y,
             position_options.vy,
             position_options.my,
