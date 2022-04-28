@@ -285,9 +285,7 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
                 'num_gpu':
                     2,
                 'probe_options':
-                    ProbeOptions(
-                        probe_support=0.1,
-                    ),
+                    ProbeOptions(),
                 'object_options':
                     ObjectOptions(),
                 'use_mpi':

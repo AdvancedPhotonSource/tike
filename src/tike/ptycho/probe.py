@@ -76,14 +76,14 @@ class ProbeOptions:
     m: np.array = dataclasses.field(init=False, default_factory=lambda: None)
     """The first moment for adaptive moment."""
 
-    probe_support: float = 0.0
+    probe_support: float = 1.0
     """Weight of the finite probe support constraint in range [0.0, 1.0]."""
 
-    probe_support_radius: float = 0.5
+    probe_support_radius: float = 0.5 * 0.6
     """Radius of finite probe support as fraction of probe grid. [0.0, 0.5]."""
 
     probe_support_degree: float = 2
-    """Degree of the superellise defining the probe support."""
+    """Degree of the supergaussian defining the probe support."""
 
     def copy_to_device(self):
         """Copy to the current GPU memory."""
@@ -569,25 +569,26 @@ def constrain_probe_sparsity(probe, f):
     return probe
 
 
-def finite_probe_support(probe, *, radius=0.5, degree=2, p=1.0):
-    """Enforce finite probe support with a superellise mask.
+def finite_probe_support(probe, *, radius=0.5, degree=5, p=1.0):
+    """Enforce finite probe support with a supergaussian penalty.
 
-    The boundary of the mask is determined by the equation:
+    A mask which provides an illumination penalty is determined by the equation:
 
-    abs(x / radius)**degree + abs(y / radius)**degree <= 1.0
+    penalty = p - p * exp( -( (x / radius)**2 + (y / radius)**2 )**degree)
+
+    where the maximum penalty is p and the minium penalty is 0.
 
 
     Parameters
     ----------
     radius : float (0, 0.5]
-        The radius of the superellipse.
-    degree : float > 0
-        The exponent of the terms in the superellipse equation.
-        Degree > 0, < 1 is astroid-like.
-        Degree 1 is a rhombus.
-        Degree > 1, < 2 is a rounded rhombus.
-        Degree 2 is a circle.
-        Degree > 2 is a squircle.
+        The radius of the supergaussian.
+    degree : float >= 0
+        The exponent of the terms in the supergaussian equation.
+        Degree = 0 is a flat penalty.
+        Degree > 0, < 1 is flatter than a gaussian.
+        Degree 1 is a gaussian.
+        Degree > 1 is more like a top-hat than a gaussian.
     """
     if p <= 0:
         return 0.0
@@ -600,8 +601,8 @@ def finite_probe_support(probe, *, radius=0.5, degree=2, p=1.0):
     N = probe.shape[-1]
     centers = cp.linspace(-0.5, 0.5, num=N, endpoint=False) + 0.5 / N
     i, j = cp.meshgrid(centers, centers)
-    mask = cp.abs(i / radius)**degree + cp.abs(j / radius)**degree
-    return p * (mask > 1.0).astype('float32')
+    mask = 1 - cp.exp(-(cp.square(i / radius) + cp.square(j / radius))**degree)
+    return p * mask.astype('float32')
 
 
 if __name__ == "__main__":
@@ -618,9 +619,9 @@ if __name__ == "__main__":
     print(p2)
 
     import sys
-    np.set_printoptions(threshold=sys.maxsize)
+    np.set_printoptions(threshold=sys.maxsize, precision=2)
     print(finite_probe_support(
-        np.zeros((25, 25)),
-        radius=0.5 / 3,
-        degree=2.0,
+        np.zeros((24, 24)),
+        radius=0.5,
+        degree=5,
     ))
