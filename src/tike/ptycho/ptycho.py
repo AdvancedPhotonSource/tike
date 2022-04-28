@@ -76,7 +76,6 @@ from .position import (
 from .probe import (
     constrain_center_peak,
     constrain_probe_sparsity,
-    finite_probe_support,
     get_varying_probe,
 )
 
@@ -453,22 +452,6 @@ def _iterate(
                 result['probe'],
                 f=probe_options.sparsity_constraint,
             )
-        if probe_options.probe_support > 0:
-            result['probe'] = comm.pool.map(
-                finite_probe_support,
-                result['probe'],
-                radius=probe_options.probe_support_radius,
-                degree=probe_options.probe_support_degree,
-                p=probe_options.probe_support,
-            )
-            if 'eigen_probe' in result and result['eigen_probe'] is not None:
-                result['eigen_probe'] = comm.pool.map(
-                    finite_probe_support,
-                    result['eigen_probe'],
-                    radius=probe_options.probe_support_radius,
-                    degree=probe_options.probe_support_degree,
-                    p=probe_options.probe_support,
-                )
 
     result = getattr(solvers, algorithm_options.name)(
         operator,

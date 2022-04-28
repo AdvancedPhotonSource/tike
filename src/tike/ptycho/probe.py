@@ -569,7 +569,7 @@ def constrain_probe_sparsity(probe, f):
     return probe
 
 
-def finite_probe_support(probe, *, radius=0.5, degree=2, p=0.999):
+def finite_probe_support(probe, *, radius=0.5, degree=2, p=1.0):
     """Enforce finite probe support with a superellise mask.
 
     The boundary of the mask is determined by the equation:
@@ -590,7 +590,7 @@ def finite_probe_support(probe, *, radius=0.5, degree=2, p=0.999):
         Degree > 2 is a squircle.
     """
     if p <= 0:
-        return probe
+        return 0.0
     logger.info(
         "Probe support constraint with weight %.3e, radius %.3e, degree %.3e",
         p,
@@ -601,7 +601,7 @@ def finite_probe_support(probe, *, radius=0.5, degree=2, p=0.999):
     centers = cp.linspace(-0.5, 0.5, num=N, endpoint=False) + 0.5 / N
     i, j = cp.meshgrid(centers, centers)
     mask = cp.abs(i / radius)**degree + cp.abs(j / radius)**degree
-    return probe * ((1 - p) + p * (mask <= 1.0)).astype('float32')
+    return p * (mask > 1.0).astype('float32')
 
 
 if __name__ == "__main__":
