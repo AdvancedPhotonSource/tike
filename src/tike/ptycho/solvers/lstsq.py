@@ -349,6 +349,7 @@ def _update_nearplane(
             nearplane,
             scan_,
             unique_probe,
+            probe,
             common_grad_psi,
             common_grad_probe,
             psi_update_denominator,
@@ -593,6 +594,7 @@ def _precondition_nearplane_gradients(
     nearplane,
     scan_,
     unique_probe,
+    probe,
     common_grad_psi,
     common_grad_probe,
     psi_update_denominator,
@@ -637,11 +639,12 @@ def _precondition_nearplane_gradients(
             degree=probe_options.probe_support_degree,
         )
 
-        common_grad_probe = (common_grad_probe - b * unique_probe[..., [m], :, :]) / ((1 - alpha) * probe_update_denominator +
-                              alpha * probe_update_denominator.max(
-                                  axis=(-2, -1),
-                                  keepdims=True,
-                              ) + b)
+        common_grad_probe = (common_grad_probe - b * probe[..., [m], :, :]) / (
+            (1 - alpha) * probe_update_denominator +
+            alpha * probe_update_denominator.max(
+                axis=(-2, -1),
+                keepdims=True,
+            ) + b)
 
         dPO = common_grad_probe * patches
         A4 = cp.sum((dPO * dPO.conj()).real + eps, axis=(-2, -1))
