@@ -52,6 +52,7 @@ __docformat__ = 'restructuredtext en'
 __all__ = [
     "reconstruct",
     "simulate",
+    "Reconstruction",
 ]
 
 from itertools import product, chain
@@ -234,117 +235,213 @@ def reconstruct(
         function to resume reconstruction from the previous state.
 
     """
-    if (np.any(np.asarray(data.shape) < 1) or data.ndim != 3
-            or data.shape[-2] != data.shape[-1]):
-        raise ValueError(
-            f"data shape {data.shape} is incorrect. "
-            "It should be (N, W, H), "
-            "where N >= 1 is the number of square diffraction patterns.")
-    if (scan.ndim != 2 or scan.shape[1] != 2
-            or np.any(np.asarray(scan.shape) < 1)):
-        raise ValueError(f"scan shape {scan.shape} is incorrect. "
-                         "It should be (N, 2) "
-                         "where N >= 1 is the number of scan positions.")
-    if data.shape[0] != scan.shape[0]:
-        raise ValueError(
-            f"data shape {data.shape} and scan shape {scan.shape} "
-            "are incompatible. They should have the same leading dimension.")
-    if (probe.ndim != 5 or probe.shape[:2] != (1, 1)
-            or np.any(np.asarray(probe.shape) < 1)
-            or probe.shape[-2] != probe.shape[-1]):
-        raise ValueError(f"probe shape {probe.shape} is incorrect. "
-                         "It should be (1, 1, S, W, H) "
-                         "where S >=1 is the number of probes, and "
-                         "W, H >= 1 are the square probe grid dimensions.")
-    if np.any(np.asarray(probe.shape[-2:]) > np.asarray(data.shape[-2:])):
-        raise ValueError(f"probe shape {probe.shape} is incorrect."
-                         "The probe width/height must be "
-                         f"<= the data width/height {data.shape}.")
-    if (psi.ndim != 2
-            or np.any(np.asarray(psi.shape) <= np.asarray(probe.shape[-2:]))):
-        raise ValueError(f"psi shape {psi.shape} is incorrect. "
-                         "It should be (W, H) where W, H > probe.shape[-2:].")
-    check_allowed_positions(scan, psi, probe.shape)
-    logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
-                "iterations.".format(
-                    algorithm_options.name,
-                    *data.shape[-3:],
-                    algorithm_options.num_iter,
-                ))
+    with tike.ptycho.Reconstruction(
+            data,
+            probe,
+            psi,
+            scan,
+            algorithm_options,
+            eigen_probe,
+            eigen_weights,
+            model,
+            num_gpu,
+            object_options,
+            position_options,
+            probe_options,
+            use_mpi,
+    ) as context:
+        context.iterate(algorithm_options.num_iter)
+        result = context.get_result()
+    return result
 
-    if use_mpi is True:
-        mpi = MPIComm
-        if psi is None:
+
+class Reconstruction():
+
+    def __init__(
+        self,
+        data,
+        probe,
+        psi,
+        scan,
+        algorithm_options=solvers.RpieOptions(),
+        eigen_probe=None,
+        eigen_weights=None,
+        model='gaussian',
+        num_gpu=1,
+        object_options=None,
+        position_options=None,
+        probe_options=None,
+        use_mpi=False,
+    ):
+        if (np.any(np.asarray(data.shape) < 1) or data.ndim != 3
+                or data.shape[-2] != data.shape[-1]):
             raise ValueError(
-                "When MPI is enabled, initial object guess cannot be None; "
-                "automatic psi initialization is not synchronized "
-                "across processes.")
-    else:
-        mpi = None
-    with (cp.cuda.Device(num_gpu[0] if isinstance(num_gpu, tuple) else None)):
-        with Ptycho(
-                probe_shape=probe.shape[-1],
-                detector_shape=data.shape[-1],
-                nz=psi.shape[-2],
-                n=psi.shape[-1],
-                model=model,
-        ) as operator, Comm(num_gpu, mpi) as comm:
+                f"data shape {data.shape} is incorrect. "
+                "It should be (N, W, H), "
+                "where N >= 1 is the number of square diffraction patterns.")
+        if (scan.ndim != 2 or scan.shape[1] != 2
+                or np.any(np.asarray(scan.shape) < 1)):
+            raise ValueError(f"scan shape {scan.shape} is incorrect. "
+                             "It should be (N, 2) "
+                             "where N >= 1 is the number of scan positions.")
+        if data.shape[0] != scan.shape[0]:
+            raise ValueError(
+                f"data shape {data.shape} and scan shape {scan.shape} "
+                "are incompatible. They should have the same leading dimension."
+            )
+        if (probe.ndim != 5 or probe.shape[:2] != (1, 1)
+                or np.any(np.asarray(probe.shape) < 1)
+                or probe.shape[-2] != probe.shape[-1]):
+            raise ValueError(f"probe shape {probe.shape} is incorrect. "
+                             "It should be (1, 1, S, W, H) "
+                             "where S >=1 is the number of probes, and "
+                             "W, H >= 1 are the square probe grid dimensions.")
+        if np.any(np.asarray(probe.shape[-2:]) > np.asarray(data.shape[-2:])):
+            raise ValueError(f"probe shape {probe.shape} is incorrect."
+                             "The probe width/height must be "
+                             f"<= the data width/height {data.shape}.")
+        if (psi.ndim != 2 or
+                np.any(np.asarray(psi.shape) <= np.asarray(probe.shape[-2:]))):
+            raise ValueError(
+                f"psi shape {psi.shape} is incorrect. "
+                "It should be (W, H) where W, H > probe.shape[-2:].")
+        check_allowed_positions(scan, psi, probe.shape)
+        logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
+                    "iterations.".format(
+                        algorithm_options.name,
+                        *data.shape[-3:],
+                        algorithm_options.num_iter,
+                    ))
 
-            (
-                batches,
-                data,
-                result,
-                scan,
-            ) = _setup(
-                algorithm_options,
-                comm,
-                data,
-                eigen_probe,
-                eigen_weights,
-                object_options,
-                operator,
-                probe,
-                psi,
-                position_options,
-                probe_options,
-                scan,
+        if use_mpi is True:
+            mpi = MPIComm
+            if psi is None:
+                raise ValueError(
+                    "When MPI is enabled, initial object guess cannot be None; "
+                    "automatic psi initialization is not synchronized "
+                    "across processes.")
+        else:
+            mpi = None
+
+        self.data = data
+        self.probe = probe
+        self.psi = psi
+        self.scan = scan
+        self.algorithm_options = algorithm_options
+        self.eigen_probe = eigen_probe
+        self.eigen_weights = eigen_weights
+
+        self.object_options = object_options
+        self.position_options = position_options
+        self.probe_options = probe_options
+
+        self.device = cp.cuda.Device(
+            num_gpu[0] if isinstance(num_gpu, tuple) else None)
+        self.operator = Ptycho(
+            probe_shape=probe.shape[-1],
+            detector_shape=data.shape[-1],
+            nz=psi.shape[-2],
+            n=psi.shape[-1],
+            model=model,
+        )
+        self.comm = Comm(num_gpu, mpi)
+
+    def __enter__(self):
+        self.device.__enter__()
+        self.operator.__enter__()
+        self.comm.__enter__()
+
+        (
+            self.batches,
+            self.data,
+            self.result,
+            self.scan,
+        ) = _setup(
+            self.algorithm_options,
+            self.comm,
+            self.data,
+            self.eigen_probe,
+            self.eigen_weights,
+            self.object_options,
+            self.operator,
+            self.probe,
+            self.psi,
+            self.position_options,
+            self.probe_options,
+            self.scan,
+        )
+        return self
+
+    def iterate(self, num_iter):
+        start = time.perf_counter()
+        for i in range(num_iter):
+
+            logger.info(f"{self.algorithm_options.name} epoch "
+                        f"{len(self.algorithm_options.times):,d}")
+
+            self.result = _iterate(
+                self.algorithm_options,
+                self.batches,
+                self.comm,
+                self.data,
+                self.operator,
+                self.position_options,
+                self.probe_options,
+                self.result,
             )
 
+            self.algorithm_options.times.append(time.perf_counter() - start)
             start = time.perf_counter()
-            for i in range(algorithm_options.num_iter):
 
-                logger.info(f"{algorithm_options.name} epoch {i:,d}")
+    def get_result(self):
+        return _teardown(
+            self.algorithm_options,
+            self.comm,
+            self.eigen_probe,
+            self.eigen_weights,
+            self.object_options,
+            self.position_options,
+            self.probe_options,
+            self.result,
+            self.scan,
+        )
 
-                # TODO: Append new information to everything that emits from
-                # _setup.
+    def __exit__(self, type, value, traceback):
+        self.comm.__exit__(type, value, traceback)
+        self.operator.__exit__(type, value, traceback)
+        self.device.__exit__(type, value, traceback)
 
-                result = _iterate(
-                    algorithm_options,
-                    batches,
-                    comm,
-                    data,
-                    operator,
-                    position_options,
-                    probe_options,
-                    result,
-                )
+    def peek(self):
+        """Peek at the curent values of object and probe mid-reconstruction."""
+        reorder = np.argsort(np.concatenate(self.comm.order))
+        eigen_probe = self.result['eigen_probe'][0].get(
+        ) if 'eigen_probe' in self.result else None
+        eigen_weights = self.comm.pool.gather(
+            self.result['eigen_weights'],
+            axis=-3,
+        )[reorder].get() if 'eigen_weights' in self.result else None
+        probe = self.result['probe'][0].get()
+        psi = self.result['psi'][0].get()
+        return psi, probe, eigen_probe, eigen_weights
 
-                # TODO: Grab intermediate psi/probe from GPU.
+    def _append_new_data(
+        comm,
+        new_data,
+        new_scan,
+        data,
+        scan,
+        eigen_weights,
+        operator,
+        position_options,
+    ):
+        """"Append new diffraction patterns and scan positions to exisiting result."""
+        raise NotImplementedError()
 
-                algorithm_options.times.append(time.perf_counter() - start)
-                start = time.perf_counter()
+        # Assign positions and data to correct devices and batches.
 
-            return _teardown(
-                algorithm_options,
-                comm,
-                eigen_probe,
-                eigen_weights,
-                object_options,
-                position_options,
-                probe_options,
-                result,
-                scan,
-            )
+        # increase the size of eigen_weights and position options
+
+        return eigen_weights, position_options, data, scan
 
 
 def _setup(
