@@ -570,13 +570,15 @@ def constrain_probe_sparsity(probe, f):
 
 
 def finite_probe_support(probe, *, radius=0.5, degree=5, p=1.0):
-    """Enforce finite probe support with a supergaussian penalty.
+    """Returns a supergaussian penalty function for finite probe support.
 
     A mask which provides an illumination penalty is determined by the equation:
 
     penalty = p - p * exp( -( (x / radius)**2 + (y / radius)**2 )**degree)
 
-    where the maximum penalty is p and the minium penalty is 0.
+    where the maximum penalty is p and the minium penalty is 0. This penalty
+    function is used in the probe gradient to supress values in the probe grid
+    far from the center. The penalty is 0 near the center and p at the edge.
 
 
     Parameters
@@ -584,7 +586,8 @@ def finite_probe_support(probe, *, radius=0.5, degree=5, p=1.0):
     radius : float (0, 0.5]
         The radius of the supergaussian.
     degree : float >= 0
-        The exponent of the terms in the supergaussian equation.
+        The exponent of the terms in the supergaussian equation. Controls how
+        hard the penalty transition is outside of the radius.
         Degree = 0 is a flat penalty.
         Degree > 0, < 1 is flatter than a gaussian.
         Degree 1 is a gaussian.
