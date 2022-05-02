@@ -1,8 +1,13 @@
+import os
 import unittest
 
 import numpy as np
+import cupy as cp
 import tike.ptycho.probe
 from tike.communicators import Comm, MPIComm
+
+resultdir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'result',
+                         'ptycho', 'probe')
 
 
 class TestProbe(unittest.TestCase):
@@ -106,6 +111,24 @@ class TestProbe(unittest.TestCase):
 
     def test_init_1_varying_probe_with_multiple_basis(self):
         self.template_init_varing_probe(31, 7, 3, 16, 1)
+
+    def test_probe_support(self):
+        """Finite probe support penalty function is within expected bounds."""
+        penalty = tike.ptycho.probe.finite_probe_support(
+            probe=cp.zeros((101, 101)),  # must be odd shaped for min to be 0
+            radius=0.5 * 0.4,
+            degree=1.0,  # must have degree >= 1 for upper bound to be p
+            p=2.345,
+        )
+        try:
+            import tifffile
+            os.makedirs(resultdir, exist_ok=True)
+            tifffile.imsave(os.path.join(resultdir, 'penalty.tiff'),
+                            penalty.astype('float32').get())
+        except ImportError:
+            pass
+        assert cp.around(cp.min(penalty), 3) == 0.000
+        assert cp.around(cp.max(penalty), 3) == 2.345
 
 
 if __name__ == '__main__':
