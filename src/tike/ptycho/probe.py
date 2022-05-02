@@ -77,7 +77,7 @@ class ProbeOptions:
     """The first moment for adaptive moment."""
 
     probe_support: float = 10.0
-    """Weight of the finite probe support constraint in range [0.0, 1.0]."""
+    """Weight of the finite probe support constraint; zero or greater."""
 
     probe_support_radius: float = 0.5 * 0.6
     """Radius of finite probe support as fraction of probe grid. [0.0, 0.5]."""
