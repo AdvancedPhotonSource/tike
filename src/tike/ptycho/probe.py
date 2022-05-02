@@ -76,13 +76,13 @@ class ProbeOptions:
     m: np.array = dataclasses.field(init=False, default_factory=lambda: None)
     """The first moment for adaptive moment."""
 
-    probe_support: float = 1.0
+    probe_support: float = 10.0
     """Weight of the finite probe support constraint in range [0.0, 1.0]."""
 
     probe_support_radius: float = 0.5 * 0.6
     """Radius of finite probe support as fraction of probe grid. [0.0, 0.5]."""
 
-    probe_support_degree: float = 2
+    probe_support_degree: float = 5
     """Degree of the supergaussian defining the probe support."""
 
     def copy_to_device(self):
