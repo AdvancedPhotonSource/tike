@@ -415,11 +415,11 @@ class Reconstruction():
         """Peek at the curent values of object and probe mid-reconstruction."""
         reorder = np.argsort(np.concatenate(self.comm.order))
         eigen_probe = self.result['eigen_probe'][0].get(
-        ) if 'eigen_probe' in self.result else None
+        ) if self.eigen_probe is not None else None
         eigen_weights = self.comm.pool.gather(
             self.result['eigen_weights'],
             axis=-3,
-        )[reorder].get() if 'eigen_weights' in self.result else None
+        )[reorder].get() if self.eigen_weights is not None else None
         probe = self.result['probe'][0].get()
         psi = self.result['psi'][0].get()
         return psi, probe, eigen_probe, eigen_weights
