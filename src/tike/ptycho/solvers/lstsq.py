@@ -473,7 +473,7 @@ def _update_nearplane(
                     dpsi,
                     object_options.v,
                     object_options.m,
-                ) = tike.opt.adam(
+                ) = tike.opt.momentum(
                     g=dpsi,
                     v=object_options.v,
                     m=object_options.m,
@@ -495,9 +495,25 @@ def _update_nearplane(
                     axis=-5,
                 )
 
+
+            dprobe = weighted_step_probe[0] * common_grad_probe[0]
+            if probe_options.use_adaptive_moment:
+                if probe_options.m is None:
+                    probe_options.m = cp.zeros_like(probe[0])
+                (
+                    dprobe,
+                    probe_options.v,
+                    probe_options.m[..., [m], :, :],
+                ) = tike.opt.momentum(
+                    g=dprobe,
+                    v=probe_options.v,
+                    m=probe_options.m[..., [m], :, :],
+                    vdecay=probe_options.vdecay,
+                    mdecay=probe_options.mdecay,
+                )
+
             # (27a) Probe update
-            probe[0][..., [m], :, :] += (weighted_step_probe[0] *
-                                         common_grad_probe[0])
+            probe[0][..., [m], :, :] += dprobe
             probe = comm.pool.bcast([probe[0]])
 
         if position_options and m == 0:
