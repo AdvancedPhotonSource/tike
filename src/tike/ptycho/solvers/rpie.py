@@ -5,10 +5,9 @@ import cupy as cp
 import tike.linalg
 import tike.opt
 import tike.ptycho.position
+import tike.ptycho.probe
 
 from ..object import positivity_constraint, smoothness_constraint
-from ..position import PositionOptions
-from ..probe import orthogonalize_eig
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +88,7 @@ def rpie(
             bposition_options = None
         else:
             bposition_options = comm.pool.map(
-                PositionOptions.split,
+                tike.ptycho.position.PositionOptions.split,
                 position_options,
                 [b[n] for b in batches],
             )
@@ -134,11 +133,12 @@ def rpie(
             probe_options is not None,
             position_options=bposition_options,
             algorithm_options=algorithm_options,
+            probe_options=probe_options,
         )
 
         if position_options is not None:
             comm.pool.map(
-                PositionOptions.join,
+                tike.ptycho.position.PositionOptions.join,
                 position_options,
                 bposition_options,
                 [b[n] for b in batches],
@@ -153,7 +153,7 @@ def rpie(
         )
 
     if probe_options and probe_options.orthogonality_constraint:
-        probe = comm.pool.map(orthogonalize_eig, probe)
+        probe = comm.pool.map(tike.ptycho.probe.orthogonalize_eig, probe)
 
     if object_options:
         psi = comm.pool.map(positivity_constraint,
@@ -210,6 +210,8 @@ def _update_nearplane(
     step_length=1.0,
     algorithm_options=None,
     position_options=None,
+    *,
+    probe_options=None,
 ):
 
     patches = comm.pool.map(_get_patches, nearplane_, psi, scan_, op=op)
@@ -268,12 +270,21 @@ def _update_nearplane(
             probe_update_denominator = comm.reduce(probe_update_denominator,
                                                    'gpu')[0]
 
-        probe[0] += step_length * probe_update_numerator / (
+        b = tike.ptycho.probe.finite_probe_support(
+            probe[0],
+            p=probe_options.probe_support,
+            radius=probe_options.probe_support_radius,
+            degree=probe_options.probe_support_degree,
+        )
+
+        probe[0] += step_length * (
+            probe_update_numerator - b * probe[0]
+            ) / (
             (1 - alpha) * probe_update_denominator +
             alpha * probe_update_denominator.max(
                 axis=(-2, -1),
                 keepdims=True,
-            ))
+            ) + b)
 
         probe = comm.pool.bcast([probe[0]])
 

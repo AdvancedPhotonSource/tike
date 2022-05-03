@@ -169,6 +169,7 @@ def lstsq_grad(
             num_batch=algorithm_options.num_batch,
             psi_update_denominator=psi_update_denominator,
             object_options=object_options,
+            probe_options=probe_options,
         )
 
         if position_options:
@@ -290,6 +291,7 @@ def _update_nearplane(
     psi_update_denominator,
     *,
     object_options,
+    probe_options,
 ):
 
     patches = comm.pool.map(_get_patches, nearplane, psi, scan_, op=op)
@@ -347,6 +349,7 @@ def _update_nearplane(
             nearplane,
             scan_,
             unique_probe,
+            probe,
             common_grad_psi,
             common_grad_probe,
             psi_update_denominator,
@@ -356,6 +359,7 @@ def _update_nearplane(
             m=m,
             recover_psi=recover_psi,
             recover_probe=recover_probe,
+            probe_options=probe_options,
         )))
 
         if recover_psi:
@@ -590,6 +594,7 @@ def _precondition_nearplane_gradients(
     nearplane,
     scan_,
     unique_probe,
+    probe,
     common_grad_psi,
     common_grad_probe,
     psi_update_denominator,
@@ -601,6 +606,7 @@ def _precondition_nearplane_gradients(
     recover_psi,
     recover_probe,
     alpha=0.05,
+    probe_options,
 ):
 
     diff = nearplane[..., [m], :, :]
@@ -625,11 +631,20 @@ def _precondition_nearplane_gradients(
         A1 = None
 
     if recover_probe:
-        common_grad_probe /= ((1 - alpha) * probe_update_denominator +
-                              alpha * probe_update_denominator.max(
-                                  axis=(-2, -1),
-                                  keepdims=True,
-                              ))
+
+        b = tike.ptycho.probe.finite_probe_support(
+            unique_probe[..., [m], :, :],
+            p=probe_options.probe_support,
+            radius=probe_options.probe_support_radius,
+            degree=probe_options.probe_support_degree,
+        )
+
+        common_grad_probe = (common_grad_probe - b * probe[..., [m], :, :]) / (
+            (1 - alpha) * probe_update_denominator +
+            alpha * probe_update_denominator.max(
+                axis=(-2, -1),
+                keepdims=True,
+            ) + b)
 
         dPO = common_grad_probe * patches
         A4 = cp.sum((dPO * dPO.conj()).real + eps, axis=(-2, -1))
