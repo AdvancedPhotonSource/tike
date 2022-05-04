@@ -256,6 +256,12 @@ def reconstruct(
 
 
 class Reconstruction():
+    """Context manager for streaming ptychography reconstruction.
+
+    Uses same parameters as the functional reconstruct API.
+
+    ..seealso:: tike.ptycho.reconstruct
+    """
 
     def __init__(
         self,
@@ -411,8 +417,13 @@ class Reconstruction():
         self.operator.__exit__(type, value, traceback)
         self.device.__exit__(type, value, traceback)
 
-    def peek(self):
-        """Peek at the curent values of object and probe mid-reconstruction."""
+
+    def get_psi(self):
+        """Return the current object estimate as numpy arrays."""
+        return self.result['psi'][0].get()
+
+    def get_probe(self):
+        """Return the current probe, eigen_probe, weights as numpy arrays."""
         reorder = np.argsort(np.concatenate(self.comm.order))
         eigen_probe = self.result['eigen_probe'][0].get(
         ) if self.eigen_probe is not None else None
@@ -421,7 +432,12 @@ class Reconstruction():
             axis=-3,
         )[reorder].get() if self.eigen_weights is not None else None
         probe = self.result['probe'][0].get()
-        psi = self.result['psi'][0].get()
+        return probe, eigen_probe, eigen_weights
+
+    def peek(self):
+        """Return the curent values of object and probe as numpy arrays."""
+        psi = self.get_psi()
+        probe, eigen_probe, eigen_weights = self.get_probe()
         return psi, probe, eigen_probe, eigen_weights
 
     def _append_new_data(
