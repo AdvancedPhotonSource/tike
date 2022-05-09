@@ -14,13 +14,7 @@ def cgrad(
     data,
     batches,
     *,
-    probe,
-    scan,
-    psi,
-    algorithm_options,
-    probe_options=None,
-    position_options=None,
-    object_options=None,
+    parameters,
 ):
     """Solve the ptychography problem using conjugate gradient.
 
@@ -68,6 +62,13 @@ def cgrad(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
+    probe = parameters.probe
+    scan = parameters.scan
+    psi = parameters.psi
+    algorithm_options = parameters.algorithm_options
+    probe_options = parameters.probe_options
+    position_options = parameters.position_options
+    object_options = parameters.object_options
     for n in randomizer.permutation(len(batches[0])):
 
         bdata = comm.pool.map(get_batch, data, batches, n=n)
@@ -125,15 +126,14 @@ def cgrad(
             # TODO: Assign bscan into scan when positions are updated
 
     algorithm_options.costs.append(cost)
-    return {
-        'probe': probe,
-        'psi': psi,
-        'scan': scan,
-        'algorithm_options': algorithm_options,
-        'probe_options': probe_options,
-        'object_options': object_options,
-        'position_options': position_options,
-    }
+    parameters.probe = probe
+    parameters.psi = psi
+    parameters.scan = scan
+    parameters.algorithm_options = algorithm_options
+    parameters.probe_options = probe_options
+    parameters.object_options = object_options
+    parameters.position_options = position_options
+    return parameters
 
 
 def _update_probe(

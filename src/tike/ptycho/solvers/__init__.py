@@ -13,6 +13,7 @@ __all__ = [
     'CgradOptions',
     'lstsq_grad',
     'LstsqOptions',
+    'PtychoParameters',
     'rpie',
     'RpieOptions',
 ]

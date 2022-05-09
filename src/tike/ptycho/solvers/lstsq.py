@@ -19,15 +19,7 @@ def lstsq_grad(
     data,
     batches,
     *,
-    probe,
-    scan,
-    psi,
-    algorithm_options,
-    eigen_probe=None,
-    eigen_weights=None,
-    probe_options=None,
-    position_options=None,
-    object_options=None,
+    parameters,
 ):
     """Solve the ptychography problem using Odstrcil et al's approach.
 
@@ -84,6 +76,16 @@ def lstsq_grad(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
+    probe = parameters.probe
+    scan = parameters.scan
+    psi = parameters.psi
+    algorithm_options = parameters.algorithm_options
+    probe_options = parameters.probe_options
+    position_options = parameters.position_options
+    object_options = parameters.object_options
+    eigen_probe = parameters.eigen_probe
+    eigen_weights = parameters.eigen_weights
+
     if eigen_probe is None:
         beigen_probe = [None] * comm.pool.num_workers
     else:
@@ -174,7 +176,7 @@ def lstsq_grad(
 
         if position_options:
             comm.pool.map(
-                PositionOptions.join,
+                PositionOptions.insert,
                 position_options,
                 bposition_options,
                 [b[n] for b in batches],
@@ -217,17 +219,16 @@ def lstsq_grad(
         )))
 
     algorithm_options.costs.append(cost)
-    return {
-        'probe': probe,
-        'psi': psi,
-        'scan': scan,
-        'eigen_probe': eigen_probe,
-        'eigen_weights': eigen_weights,
-        'algorithm_options': algorithm_options,
-        'probe_options': probe_options,
-        'object_options': object_options,
-        'position_options': position_options,
-    }
+    parameters.probe = probe
+    parameters.psi = psi
+    parameters.scan = scan
+    parameters.algorithm_options = algorithm_options
+    parameters.probe_options = probe_options
+    parameters.object_options = object_options
+    parameters.position_options = position_options
+    parameters.eigen_weights = eigen_weights
+    parameters.eigen_probe = eigen_probe
+    return parameters
 
 
 def _psi_preconditioner(psi_update_denominator,
@@ -494,7 +495,6 @@ def _update_nearplane(
                     weighted_step_probe,
                     axis=-5,
                 )
-
 
             dprobe = weighted_step_probe[0] * common_grad_probe[0]
             if probe_options.use_adaptive_moment:

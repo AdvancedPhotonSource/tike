@@ -40,6 +40,34 @@ class PositionOptions:
                 dtype='float32',
             )
 
+    def append(self, new_scan):
+        self.initial_scan = np.append(
+            self.initial_scan,
+            values=new_scan,
+            axis=-2,
+        )
+        if self.use_adaptive_moment:
+            self._momentum = np.pad(
+                self._momentum,
+                pad_width=(
+                    (0, len(new_scan)),
+                    (0, 0),
+                ),
+                mode='constant',
+            )
+
+    def empty(self):
+        new = PositionOptions(
+            np.empty((0, 2)),
+            use_adaptive_moment=self.use_adaptive_moment,
+            vdecay=self.vdecay,
+            mdecay=self.mdecay,
+            use_position_regularization=self.use_position_regularization,
+        )
+        if self.use_adaptive_moment:
+            new._momentum = np.empty((0, 4))
+        return new
+
     def split(self, indices):
         """Split the PositionOption meta-data along indices."""
         new = PositionOptions(
@@ -53,11 +81,32 @@ class PositionOptions:
             new._momentum = self._momentum[..., indices, :]
         return new
 
-    def join(self, other, indices):
+    def insert(self, other, indices):
         """Replace the PositionOption meta-data with other data."""
         self.initial_scan[..., indices, :] = other.initial_scan
         if self.use_adaptive_moment:
             self._momentum[..., indices, :] = other._momentum
+        return self
+
+    def join(self, other, indices):
+        """Replace the PositionOption meta-data with other data."""
+        len_scan = self.initial_scan.shape[-2]
+        max_index = max(indices.max() + 1, len_scan)
+        new_initial_scan = np.empty(
+            (*self.initial_scan.shape[:-2], max_index, 2),
+            dtype=self.initial_scan.dtype,
+        )
+        new_initial_scan[..., :len_scan, :] = self.initial_scan
+        new_initial_scan[..., indices, :] = other.initial_scan
+        self.initial_scan = new_initial_scan
+        if self.use_adaptive_moment:
+            new_momentum = np.empty(
+                (*self.initial_scan.shape[:-2], max_index, 4),
+                dtype=self.initial_scan.dtype,
+            )
+            new_momentum[..., :len_scan, :] = self._momentum
+            new_momentum[..., indices, :] = other._momentum
+            self._momentum = new_momentum
         return self
 
     def copy_to_device(self):
