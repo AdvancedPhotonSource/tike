@@ -185,7 +185,6 @@ def reconstruct(
         The intensity (square of the absolute value) of the propagated
         wavefront; i.e. what the detector records. FFT-shifted so the
         diffraction peak is at the corners.
-
     model : "gaussian", "poisson"
         The noise model to use for the cost function.
     num_gpu : int, tuple(int)
@@ -272,7 +271,6 @@ class Reconstruction():
 
         self.data = data
         self.parameters = parameters
-
         self.device = cp.cuda.Device(
             num_gpu[0] if isinstance(num_gpu, tuple) else None)
         self.operator = Ptycho(
@@ -289,16 +287,69 @@ class Reconstruction():
         self.operator.__enter__()
         self.comm.__enter__()
 
+        # Divide the inputs into regions
+        odd_pool = self.comm.pool.num_workers % 2
         (
-            self.batches,
+            self.comm.order,
+            self.parameters.scan,
             self.data,
-            self.parameters,
-        ) = _setup(
+            self.parameters.eigen_weights,
+        ) = split_by_scan_grid(
+            self.comm.pool,
+            (
+                self.comm.pool.num_workers
+                if odd_pool else self.comm.pool.num_workers // 2,
+                1 if odd_pool else 2,
+            ),
+            self.parameters.scan,
+            self.data,
+            self.parameters.eigen_weights,
+        )
+
+        self.parameters.psi = self.comm.pool.bcast(
+            [self.parameters.psi.astype('complex64')])
+
+        self.parameters.probe = self.comm.pool.bcast(
+            [self.parameters.probe.astype('complex64')])
+
+        if self.parameters.probe_options is not None:
+            self.parameters.probe_options = self.parameters.probe_options.copy_to_device(
+            )
+
+        if self.parameters.object_options is not None:
+            self.parameters.object_options = self.parameters.object_options.copy_to_device(
+            )
+
+        if self.parameters.eigen_probe is not None:
+            self.parameters.eigen_probe = self.comm.pool.bcast(
+                [self.parameters.eigen_probe.astype('complex64')])
+
+        if self.parameters.position_options is not None:
+            # TODO: Consider combining put/split, get/join operations?
+            self.parameters.position_options = self.comm.pool.map(
+                PositionOptions.copy_to_device,
+                (self.parameters.position_options.split(x)
+                 for x in self.comm.order),
+            )
+
+        # Unique batch for each device
+        self.batches = self.comm.pool.map(
+            getattr(tike.random,
+                    self.parameters.algorithm_options.batch_method),
+            self.parameters.scan,
+            num_cluster=self.parameters.algorithm_options.num_batch,
+        )
+
+        self.parameters.probe = _rescale_probe(
+            self.operator,
             self.comm,
             self.data,
-            self.operator,
-            self.parameters,
+            self.parameters.psi,
+            self.parameters.scan,
+            self.parameters.probe,
+            num_batch=self.parameters.algorithm_options.num_batch,
         )
+
         return self
 
     def iterate(self, num_iter):
@@ -308,23 +359,87 @@ class Reconstruction():
             logger.info(f"{self.parameters.algorithm_options.name} epoch "
                         f"{len(self.parameters.algorithm_options.times):,d}")
 
-            self.parameters = _iterate(
-                self.batches,
-                self.comm,
-                self.data,
+            if self.parameters.probe_options is not None:
+                if self.parameters.probe_options.centered_intensity_constraint:
+                    self.parameters.probe = self.comm.pool.map(
+                        constrain_center_peak,
+                        self.parameters.probe,
+                    )
+                if self.parameters.probe_options.sparsity_constraint < 1:
+                    self.parameters.probe = self.comm.pool.map(
+                        constrain_probe_sparsity,
+                        self.parameters.probe,
+                        f=self.parameters.probe_options.sparsity_constraint,
+                    )
+
+            self.parameters = getattr(
+                solvers,
+                self.parameters.algorithm_options.name,
+            )(
                 self.operator,
-                self.parameters,
+                self.comm,
+                data=self.data,
+                batches=self.batches,
+                parameters=self.parameters,
             )
+
+            if (self.parameters.position_options and self.parameters
+                    .position_options[0].use_position_regularization):
+
+                # TODO: Regularize on all GPUs
+                self.parameters.scan[0], _ = affine_position_regularization(
+                    self.operator,
+                    self.parameters.psi[0],
+                    self.parameters.probe[0],
+                    self.parameters.position_options.initial_scan[0],
+                    self.parameters.scan[0],
+                )
 
             self.parameters.algorithm_options.times.append(time.perf_counter() -
                                                            start)
             start = time.perf_counter()
 
     def get_result(self):
-        return _teardown(
-            self.comm,
-            self.parameters,
-        )
+        reorder = np.argsort(np.concatenate(self.comm.order))
+        if self.parameters.position_options is not None:
+            host_position_options = self.parameters.position_options[0].empty()
+            for x, o in zip(
+                    self.comm.pool.map(
+                        PositionOptions.copy_to_host,
+                        self.parameters.position_options,
+                    ),
+                    self.comm.order,
+            ):
+                host_position_options = host_position_options.join(x, o)
+            self.parameters.position_options = host_position_options
+
+        if self.parameters.eigen_probe is not None:
+            self.parameters.eigen_probe = self.parameters.eigen_probe[0].get()
+
+        if self.parameters.eigen_weights is not None:
+            self.parameters.eigen_weights = self.comm.pool.gather(
+                self.parameters.eigen_weights,
+                axis=-3,
+            )[reorder].get()
+
+        if self.parameters.object_options is not None:
+            self.parameters.object_options = self.parameters.object_options.copy_to_host(
+            )
+
+        self.parameters.probe = self.parameters.probe[0].get()
+
+        if self.parameters.probe_options is not None:
+            self.parameters.probe_options = self.parameters.probe_options.copy_to_host(
+            )
+
+        self.parameters.psi = self.parameters.psi[0].get()
+
+        self.parameters.scan = self.comm.pool.gather_host(
+            self.parameters.scan,
+            axis=-2,
+        )[reorder]
+
+        return self.parameters
 
     def __exit__(self, type, value, traceback):
         self.comm.__exit__(type, value, traceback)
@@ -429,159 +544,6 @@ class Reconstruction():
 
 def _order_join(a, b):
     return np.append(a, b + len(a))
-
-
-def _setup(
-    comm,
-    data,
-    operator,
-    parameters,
-):
-    # Divide the inputs into regions
-    odd_pool = comm.pool.num_workers % 2
-    (
-        comm.order,
-        parameters.scan,
-        data,
-        parameters.eigen_weights,
-    ) = split_by_scan_grid(
-        comm.pool,
-        (
-            comm.pool.num_workers if odd_pool else comm.pool.num_workers // 2,
-            1 if odd_pool else 2,
-        ),
-        parameters.scan,
-        data,
-        parameters.eigen_weights,
-    )
-
-    parameters.psi = comm.pool.bcast([parameters.psi.astype('complex64')])
-
-    parameters.probe = comm.pool.bcast([parameters.probe.astype('complex64')])
-
-    if parameters.probe_options is not None:
-        parameters.probe_options = parameters.probe_options.copy_to_device()
-
-    if parameters.object_options is not None:
-        parameters.object_options = parameters.object_options.copy_to_device()
-
-    if parameters.eigen_probe is not None:
-        parameters.eigen_probe = comm.pool.bcast(
-            [parameters.eigen_probe.astype('complex64')])
-
-    if parameters.position_options is not None:
-        # TODO: Consider combining put/split, get/join operations?
-        parameters.position_options = comm.pool.map(
-            PositionOptions.copy_to_device,
-            (parameters.position_options.split(x) for x in comm.order),
-        )
-
-    # Unique batch for each device
-    batches = comm.pool.map(
-        getattr(tike.random, parameters.algorithm_options.batch_method),
-        parameters.scan,
-        num_cluster=parameters.algorithm_options.num_batch,
-    )
-
-    parameters.probe = _rescale_probe(
-        operator,
-        comm,
-        data,
-        parameters.psi,
-        parameters.scan,
-        parameters.probe,
-        num_batch=parameters.algorithm_options.num_batch,
-    )
-
-    return (
-        batches,
-        data,
-        parameters,
-    )
-
-
-def _iterate(
-    batches,
-    comm,
-    data,
-    operator,
-    parameters,
-):
-    if parameters.probe_options is not None:
-        if parameters.probe_options.centered_intensity_constraint:
-            parameters.probe = comm.pool.map(
-                constrain_center_peak,
-                parameters.probe,
-            )
-        if parameters.probe_options.sparsity_constraint < 1:
-            parameters.probe = comm.pool.map(
-                constrain_probe_sparsity,
-                parameters.probe,
-                f=parameters.probe_options.sparsity_constraint,
-            )
-
-    parameters = getattr(solvers, parameters.algorithm_options.name)(
-        operator,
-        comm,
-        data=data,
-        batches=batches,
-        parameters=parameters,
-    )
-
-    if (parameters.position_options
-            and parameters.position_options[0].use_position_regularization):
-
-        # TODO: Regularize on all GPUs
-        parameters.scan[0], _ = affine_position_regularization(
-            operator,
-            parameters.psi[0],
-            parameters.probe[0],
-            parameters.position_options.initial_scan[0],
-            parameters.scan[0],
-        )
-
-    return parameters
-
-
-def _teardown(
-    comm,
-    parameters,
-):
-    reorder = np.argsort(np.concatenate(comm.order))
-    if parameters.position_options is not None:
-        host_position_options = parameters.position_options[0].empty()
-        for x, o in zip(
-                comm.pool.map(
-                    PositionOptions.copy_to_host,
-                    parameters.position_options,
-                ),
-                comm.order,
-        ):
-            host_position_options = host_position_options.join(x, o)
-        parameters.position_options = host_position_options
-
-    if parameters.eigen_probe is not None:
-        parameters.eigen_probe = parameters.eigen_probe[0].get()
-
-    if parameters.eigen_weights is not None:
-        parameters.eigen_weights = comm.pool.gather(
-            parameters.eigen_weights,
-            axis=-3,
-        )[reorder].get()
-
-    if parameters.object_options is not None:
-        parameters.object_options = parameters.object_options.copy_to_host()
-
-    parameters.probe = parameters.probe[0].get()
-
-    if parameters.probe_options is not None:
-        parameters.probe_options = parameters.probe_options.copy_to_host()
-
-    parameters.psi = parameters.psi[0].get()
-
-    parameters.scan = comm.pool.gather_host(parameters.scan, axis=-2)[reorder]
-
-    return parameters
 
 
 def _get_rescale(data, psi, scan, probe, num_batch, operator):
