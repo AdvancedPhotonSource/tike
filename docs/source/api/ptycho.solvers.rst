@@ -9,8 +9,3 @@ solvers
    .. autosummary::
       :nosignatures:
       :recursive:
-
-      adam_grad
-      cgrad
-      lstsq_grad
-      rpie

@@ -23,7 +23,7 @@ class IterativeOptions(abc.ABC):
     processed sequentially."""
 
     batch_method: str = 'cluster_wobbly_center'
-    """The name of the batch selection method. Choose from the cluster_ methods
+    """The name of the batch selection method. Choose from the cluster methods
     in the tike.random module."""
 
     costs: typing.List[float] = dataclasses.field(
