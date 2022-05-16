@@ -85,43 +85,41 @@ class LstsqOptions(IterativeOptions):
 class PtychoParameters():
     """A class for storing the ptychography forward model parameters.
 
-    Replaces the dictionary?
-
-    Parameters
-    ----------
-    probe : (1, 1, SHARED, WIDE, HIGH) complex64
-        The shared complex illumination function amongst all positions.
-    scan : (POSI, 2) float32
-        Coordinates of the minimum corner of the probe grid for each
-        measurement in the coordinate system of psi. Coordinate order
-        consistent with WIDE, HIGH order.
-    eigen_probe : (EIGEN, SHARED, WIDE, HIGH) complex64
-        The eigen probes for all positions.
-    eigen_weights : (POSI, EIGEN, SHARED) float32
-        The relative intensity of the eigen probes at each position.
-    object_options : :py:class:`tike.ptycho.ObjectOptions`
-        A class containing settings related to object updates.
-    position_options : :py:class:`tike.ptycho.PositionOptions`
-        A class containing settings related to position correction.
-    probe_options : :py:class:`tike.ptycho.ProbeOptions`
-        A class containing settings related to probe updates.
-    psi : (WIDE, HIGH) complex64
-        The wavefront modulation coefficients of the object.
-    algorithm_options : :py:class:`tike.ptycho.solvers.IterativeOptions`
-        A class containing algorithm specific parameters
-
     .. versionadded:: 0.22.0
     """
     probe: np.array
+    """(1, 1, SHARED, WIDE, HIGH) complex64 The shared illumination function
+    amongst all positions."""
+
     psi: np.array
+    """(WIDE, HIGH) complex64 The wavefront modulation coefficients of
+    the object."""
+
     scan: np.array
+    """(POSI, 2) float32 Coordinates of the minimum corner of the probe
+    grid for each measurement in the coordinate system of psi. Coordinate order
+    consistent with WIDE, HIGH order."""
+
     eigen_probe: np.array = None
+    """(EIGEN, SHARED, WIDE, HIGH) complex64
+    The eigen probes for all positions."""
+
     eigen_weights: np.array = None
+    """(POSI, EIGEN, SHARED) float32
+    The relative intensity of the eigen probes at each position."""
+
     algorithm_options: IterativeOptions = dataclasses.field(
         default_factory=RpieOptions,)
+    """A class containing algorithm specific parameters"""
+
     probe_options: ProbeOptions = None
+    """A class containing settings related to probe updates."""
+
     object_options: ObjectOptions = None
+    """A class containing settings related to object updates."""
+
     position_options: PositionOptions = None
+    """A class containing settings related to position correction."""
 
     def __post_init__(self):
         if (self.scan.ndim != 2 or self.scan.shape[1] != 2

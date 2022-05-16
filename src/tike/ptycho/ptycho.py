@@ -58,6 +58,7 @@ __all__ = [
 from itertools import product
 import logging
 import time
+import typing
 
 import numpy as np
 import cupy as cp
@@ -185,6 +186,8 @@ def reconstruct(
         The intensity (square of the absolute value) of the propagated
         wavefront; i.e. what the detector records. FFT-shifted so the
         diffraction peak is at the corners.
+    parameters: :py:class:`tike.ptycho.solvers.PtychoParameters`
+        A class containing reconstruction parameters.
     model : "gaussian", "poisson"
         The noise model to use for the cost function.
     num_gpu : int, tuple(int)
@@ -223,7 +226,7 @@ class Reconstruction():
 
     Uses same parameters as the functional reconstruct API.
 
-    ..seealso:: tike.ptycho.reconstruct
+    .. seealso:: :py:func:`tike.ptycho.reconstruct`
     """
 
     def __init__(
@@ -352,7 +355,8 @@ class Reconstruction():
 
         return self
 
-    def iterate(self, num_iter):
+    def iterate(self, num_iter: int) -> None:
+        """Advance the reconstruction by num_iter epochs."""
         start = time.perf_counter()
         for i in range(num_iter):
 
@@ -399,7 +403,8 @@ class Reconstruction():
                                                            start)
             start = time.perf_counter()
 
-    def get_result(self):
+    def get_result(self) -> solvers.PtychoParameters:
+        """Return the current parameter estimates."""
         reorder = np.argsort(np.concatenate(self.comm.order))
         if self.parameters.position_options is not None:
             host_position_options = self.parameters.position_options[0].empty()
@@ -446,11 +451,11 @@ class Reconstruction():
         self.operator.__exit__(type, value, traceback)
         self.device.__exit__(type, value, traceback)
 
-    def get_psi(self):
-        """Return the current object estimate as numpy arrays."""
+    def get_psi(self) -> np.array:
+        """Return the current object estimate as a numpy array."""
         return self.parameters.psi[0].get()
 
-    def get_probe(self):
+    def get_probe(self) -> typing.Tuple[np.array, np.array, np.array]:
         """Return the current probe, eigen_probe, weights as numpy arrays."""
         reorder = np.argsort(np.concatenate(self.comm.order))
         if self.parameters.eigen_probe is None:
@@ -467,7 +472,7 @@ class Reconstruction():
         probe = self.parameters.probe[0].get()
         return probe, eigen_probe, eigen_weights
 
-    def peek(self):
+    def peek(self) -> typing.Tuple[np.array, np.array, np.array, np.array]:
         """Return the curent values of object and probe as numpy arrays."""
         psi = self.get_psi()
         probe, eigen_probe, eigen_weights = self.get_probe()
@@ -475,10 +480,10 @@ class Reconstruction():
 
     def append_new_data(
         self,
-        new_data,
-        new_scan,
-    ):
-        """"Append new diffraction patterns and scan positions to exisiting result."""
+        new_data: np.array,
+        new_scan: np.array,
+    ) -> None:
+        """"Append new diffraction patterns and positions to existing result."""
         # Assign positions and data to correct devices.
         odd_pool = self.comm.pool.num_workers % 2
         (
