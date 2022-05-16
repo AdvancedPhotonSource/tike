@@ -47,7 +47,6 @@
 # #########################################################################
 
 import bz2
-from inspect import Parameter
 import lzma
 import os
 import pickle
@@ -61,7 +60,7 @@ import tike.ptycho
 from tike.ptycho.probe import ProbeOptions
 from tike.ptycho.position import PositionOptions
 from tike.ptycho.object import ObjectOptions
-from tike.communicators import Comm, MPIComm
+from tike.communicators import MPIComm
 import tike.random
 
 __author__ = "Daniel Ching, Xiaodong Yu"
