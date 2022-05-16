@@ -264,9 +264,9 @@ class TestLaminoRadon(unittest.TestCase):
 
     def _radon_equal(self, module, eps):
         for tilt, axis, theta in zip(
-            [0, np.pi / 2, np.pi / 2],
-            [0, 1, 2],
-            [0, 0, -np.pi / 2],
+            [0, np.pi / 2,  np.pi / 2],
+            [0,         1,          2],
+            [0,         0, -np.pi / 2],
         ):
             projection = module.simulate(
                 obj=self.original,
@@ -287,9 +287,9 @@ class TestLaminoRadon(unittest.TestCase):
     def _radon_equal_reverse(self, module, eps):
         for tilt, axis, theta, flip in zip(
             [np.pi, -np.pi / 2, np.pi / 2],
-            [0, 1, 2],
-            [0, 0, np.pi / 2],
-            [0, 0, 1],
+            [0,              1,         2],
+            [0,              0, np.pi / 2],
+            [0,              0,         1],
         ):
             projection = module.simulate(
                 obj=self.original,
