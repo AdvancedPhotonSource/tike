@@ -558,7 +558,9 @@ def _get_nearplane_gradients(
 
     diff = nearplane[..., [m], :, :]
 
-    logger.info('%10s cost is %+12.5e', 'nearplane', tike.linalg.norm(diff))
+    if __debug__:
+        logger.debug('%10s cost is %+12.5e', 'nearplane',
+                     tike.linalg.norm(diff))
 
     if recover_psi:
         # (24b)
