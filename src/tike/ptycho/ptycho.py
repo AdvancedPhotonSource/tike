@@ -217,8 +217,7 @@ def reconstruct(
             use_mpi,
     ) as context:
         context.iterate(parameters.algorithm_options.num_iter)
-        result = context.get_result()
-    return result
+    return context.parameters
 
 
 class Reconstruction():
@@ -403,7 +402,7 @@ class Reconstruction():
                                                            start)
             start = time.perf_counter()
 
-    def get_result(self) -> solvers.PtychoParameters:
+    def _get_result(self):
         """Return the current parameter estimates."""
         reorder = np.argsort(np.concatenate(self.comm.order))
         if self.parameters.position_options is not None:
@@ -444,9 +443,8 @@ class Reconstruction():
             axis=-2,
         )[reorder]
 
-        return self.parameters
-
     def __exit__(self, type, value, traceback):
+        self._get_result()
         self.comm.__exit__(type, value, traceback)
         self.operator.__exit__(type, value, traceback)
         self.device.__exit__(type, value, traceback)
