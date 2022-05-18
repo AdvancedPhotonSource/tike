@@ -91,16 +91,25 @@ def lstsq_grad(
     else:
         beigen_probe = eigen_probe
 
-    psi_update_denominator = [None] * comm.pool.num_workers
-    for n in tike.opt.randomizer.permutation(len(batches[0])):
-        bscan = comm.pool.map(tike.opt.get_batch, scan, batches, n=n)
-        psi_update_denominator = comm.pool.map(
-            _psi_preconditioner,
-            psi_update_denominator,
-            probe,
-            bscan,
-            psi,
-            op=op,
+    if object_options is not None:
+        if object_options.preconditioner is None:
+            object_options.preconditioner = [None] * comm.pool.num_workers
+        for n in range(len(batches[0])):
+            bscan = comm.pool.map(tike.opt.get_batch, scan, batches, n=n)
+            object_options.preconditioner = comm.pool.map(
+                _psi_preconditioner,
+                object_options.preconditioner,
+                probe,
+                bscan,
+                psi,
+                op=op,
+            )
+        # Use a rolling average of this preconditioner and the previous
+        # preconditioner
+        object_options.preconditioner = comm.pool.map(
+            cp.divide,
+            object_options.preconditioner,
+            [2] * comm.pool.num_workers,
         )
 
     for n in tike.opt.randomizer.permutation(len(batches[0])):
@@ -169,7 +178,7 @@ def lstsq_grad(
             probe_options is not None,
             bposition_options,
             num_batch=algorithm_options.num_batch,
-            psi_update_denominator=psi_update_denominator,
+            psi_update_denominator=object_options.preconditioner,
             object_options=object_options,
             probe_options=probe_options,
         )
