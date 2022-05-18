@@ -42,7 +42,9 @@ class ObjectOptions:
     m: np.array = dataclasses.field(init=False, default_factory=lambda: None)
     """The first moment for adaptive moment."""
 
-    preconditioner = None
+    preconditioner: np.array = dataclasses.field(init=False,
+                                                 default_factory=lambda: None)
+    """The magnitude of the illumination used for conditioning the object updates."""
 
     def copy_to_device(self):
         """Copy to the current GPU memory."""
