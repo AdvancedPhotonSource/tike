@@ -397,7 +397,7 @@ class TestPtychoOnline(TestPtychoRecon, unittest.TestCase):
                     new_scan=s,
                 )
                 context.iterate(2)
-            result = context.get_result()
+        result = context.parameters
         print()
         print('\n'.join(f'{c:1.3e}' for c in result.algorithm_options.costs))
         return result

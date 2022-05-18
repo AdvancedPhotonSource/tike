@@ -55,6 +55,7 @@ __all__ = [
     "Reconstruction",
 ]
 
+import copy
 from itertools import product
 import logging
 import time
@@ -273,6 +274,7 @@ class Reconstruction():
 
         self.data = data
         self.parameters = parameters
+        self._device_parameters = copy.deepcopy(parameters)
         self.device = cp.cuda.Device(
             num_gpu[0] if isinstance(num_gpu, tuple) else None)
         self.operator = Ptycho(
@@ -293,9 +295,9 @@ class Reconstruction():
         odd_pool = self.comm.pool.num_workers % 2
         (
             self.comm.order,
-            self.parameters.scan,
+            self._device_parameters.scan,
             self.data,
-            self.parameters.eigen_weights,
+            self._device_parameters.eigen_weights,
         ) = split_by_scan_grid(
             self.comm.pool,
             (
@@ -303,53 +305,53 @@ class Reconstruction():
                 if odd_pool else self.comm.pool.num_workers // 2,
                 1 if odd_pool else 2,
             ),
-            self.parameters.scan,
+            self._device_parameters.scan,
             self.data,
-            self.parameters.eigen_weights,
+            self._device_parameters.eigen_weights,
         )
 
-        self.parameters.psi = self.comm.pool.bcast(
-            [self.parameters.psi.astype('complex64')])
+        self._device_parameters.psi = self.comm.pool.bcast(
+            [self._device_parameters.psi.astype('complex64')])
 
-        self.parameters.probe = self.comm.pool.bcast(
-            [self.parameters.probe.astype('complex64')])
+        self._device_parameters.probe = self.comm.pool.bcast(
+            [self._device_parameters.probe.astype('complex64')])
 
-        if self.parameters.probe_options is not None:
-            self.parameters.probe_options = self.parameters.probe_options.copy_to_device(
+        if self._device_parameters.probe_options is not None:
+            self._device_parameters.probe_options = self._device_parameters.probe_options.copy_to_device(
             )
 
-        if self.parameters.object_options is not None:
-            self.parameters.object_options = self.parameters.object_options.copy_to_device(
+        if self._device_parameters.object_options is not None:
+            self._device_parameters.object_options = self._device_parameters.object_options.copy_to_device(
             )
 
-        if self.parameters.eigen_probe is not None:
-            self.parameters.eigen_probe = self.comm.pool.bcast(
-                [self.parameters.eigen_probe.astype('complex64')])
+        if self._device_parameters.eigen_probe is not None:
+            self._device_parameters.eigen_probe = self.comm.pool.bcast(
+                [self._device_parameters.eigen_probe.astype('complex64')])
 
-        if self.parameters.position_options is not None:
+        if self._device_parameters.position_options is not None:
             # TODO: Consider combining put/split, get/join operations?
-            self.parameters.position_options = self.comm.pool.map(
+            self._device_parameters.position_options = self.comm.pool.map(
                 PositionOptions.copy_to_device,
-                (self.parameters.position_options.split(x)
+                (self._device_parameters.position_options.split(x)
                  for x in self.comm.order),
             )
 
         # Unique batch for each device
         self.batches = self.comm.pool.map(
             getattr(tike.random,
-                    self.parameters.algorithm_options.batch_method),
-            self.parameters.scan,
-            num_cluster=self.parameters.algorithm_options.num_batch,
+                    self._device_parameters.algorithm_options.batch_method),
+            self._device_parameters.scan,
+            num_cluster=self._device_parameters.algorithm_options.num_batch,
         )
 
-        self.parameters.probe = _rescale_probe(
+        self._device_parameters.probe = _rescale_probe(
             self.operator,
             self.comm,
             self.data,
-            self.parameters.psi,
-            self.parameters.scan,
-            self.parameters.probe,
-            num_batch=self.parameters.algorithm_options.num_batch,
+            self._device_parameters.psi,
+            self._device_parameters.scan,
+            self._device_parameters.probe,
+            num_batch=self._device_parameters.algorithm_options.num_batch,
         )
 
         return self
@@ -359,89 +361,98 @@ class Reconstruction():
         start = time.perf_counter()
         for i in range(num_iter):
 
-            logger.info(f"{self.parameters.algorithm_options.name} epoch "
-                        f"{len(self.parameters.algorithm_options.times):,d}")
+            logger.info(
+                f"{self._device_parameters.algorithm_options.name} epoch "
+                f"{len(self._device_parameters.algorithm_options.times):,d}")
 
-            if self.parameters.probe_options is not None:
-                if self.parameters.probe_options.centered_intensity_constraint:
-                    self.parameters.probe = self.comm.pool.map(
+            if self._device_parameters.probe_options is not None:
+                if self._device_parameters.probe_options.centered_intensity_constraint:
+                    self._device_parameters.probe = self.comm.pool.map(
                         constrain_center_peak,
-                        self.parameters.probe,
+                        self._device_parameters.probe,
                     )
-                if self.parameters.probe_options.sparsity_constraint < 1:
-                    self.parameters.probe = self.comm.pool.map(
+                if self._device_parameters.probe_options.sparsity_constraint < 1:
+                    self._device_parameters.probe = self.comm.pool.map(
                         constrain_probe_sparsity,
-                        self.parameters.probe,
-                        f=self.parameters.probe_options.sparsity_constraint,
+                        self._device_parameters.probe,
+                        f=self._device_parameters.probe_options
+                        .sparsity_constraint,
                     )
 
-            self.parameters = getattr(
+            self._device_parameters = getattr(
                 solvers,
-                self.parameters.algorithm_options.name,
+                self._device_parameters.algorithm_options.name,
             )(
                 self.operator,
                 self.comm,
                 data=self.data,
                 batches=self.batches,
-                parameters=self.parameters,
+                parameters=self._device_parameters,
             )
 
-            if (self.parameters.position_options and self.parameters
-                    .position_options[0].use_position_regularization):
+            if (self._device_parameters.position_options
+                    and self._device_parameters.position_options[0]
+                    .use_position_regularization):
 
                 # TODO: Regularize on all GPUs
-                self.parameters.scan[0], _ = affine_position_regularization(
-                    self.operator,
-                    self.parameters.psi[0],
-                    self.parameters.probe[0],
-                    self.parameters.position_options.initial_scan[0],
-                    self.parameters.scan[0],
-                )
+                self._device_parameters.scan[
+                    0], _ = affine_position_regularization(
+                        self.operator,
+                        self._device_parameters.psi[0],
+                        self._device_parameters.probe[0],
+                        self._device_parameters.position_options
+                        .initial_scan[0],
+                        self._device_parameters.scan[0],
+                    )
 
-            self.parameters.algorithm_options.times.append(time.perf_counter() -
-                                                           start)
+            self._device_parameters.algorithm_options.times.append(
+                time.perf_counter() - start)
             start = time.perf_counter()
 
     def _get_result(self):
         """Return the current parameter estimates."""
+        self.parameters.probe = self._device_parameters.probe[0].get()
+
+        self.parameters.psi = self._device_parameters.psi[0].get()
+
         reorder = np.argsort(np.concatenate(self.comm.order))
-        if self.parameters.position_options is not None:
-            host_position_options = self.parameters.position_options[0].empty()
+        self.parameters.scan = self.comm.pool.gather_host(
+            self._device_parameters.scan,
+            axis=-2,
+        )[reorder]
+
+        if self._device_parameters.eigen_probe is not None:
+            self.parameters.eigen_probe = self._device_parameters.eigen_probe[
+                0].get()
+
+        if self._device_parameters.eigen_weights is not None:
+            self.parameters.eigen_weights = self.comm.pool.gather(
+                self._device_parameters.eigen_weights,
+                axis=-3,
+            )[reorder].get()
+
+        self.parameters.algorithm_options = self._device_parameters.algorithm_options
+
+        if self._device_parameters.probe_options is not None:
+            self.parameters.probe_options = self._device_parameters.probe_options.copy_to_host(
+            )
+
+        if self._device_parameters.object_options is not None:
+            self.parameters.object_options = self._device_parameters.object_options.copy_to_host(
+            )
+
+        if self._device_parameters.position_options is not None:
+            host_position_options = self._device_parameters.position_options[
+                0].empty()
             for x, o in zip(
                     self.comm.pool.map(
                         PositionOptions.copy_to_host,
-                        self.parameters.position_options,
+                        self._device_parameters.position_options,
                     ),
                     self.comm.order,
             ):
                 host_position_options = host_position_options.join(x, o)
             self.parameters.position_options = host_position_options
-
-        if self.parameters.eigen_probe is not None:
-            self.parameters.eigen_probe = self.parameters.eigen_probe[0].get()
-
-        if self.parameters.eigen_weights is not None:
-            self.parameters.eigen_weights = self.comm.pool.gather(
-                self.parameters.eigen_weights,
-                axis=-3,
-            )[reorder].get()
-
-        if self.parameters.object_options is not None:
-            self.parameters.object_options = self.parameters.object_options.copy_to_host(
-            )
-
-        self.parameters.probe = self.parameters.probe[0].get()
-
-        if self.parameters.probe_options is not None:
-            self.parameters.probe_options = self.parameters.probe_options.copy_to_host(
-            )
-
-        self.parameters.psi = self.parameters.psi[0].get()
-
-        self.parameters.scan = self.comm.pool.gather_host(
-            self.parameters.scan,
-            axis=-2,
-        )[reorder]
 
     def __exit__(self, type, value, traceback):
         self._get_result()
@@ -451,23 +462,23 @@ class Reconstruction():
 
     def get_psi(self) -> np.array:
         """Return the current object estimate as a numpy array."""
-        return self.parameters.psi[0].get()
+        return self._device_parameters.psi[0].get()
 
     def get_probe(self) -> typing.Tuple[np.array, np.array, np.array]:
         """Return the current probe, eigen_probe, weights as numpy arrays."""
         reorder = np.argsort(np.concatenate(self.comm.order))
-        if self.parameters.eigen_probe is None:
+        if self._device_parameters.eigen_probe is None:
             eigen_probe = None
         else:
-            eigen_probe = self.parameters.eigen_probe[0].get()
-        if self.parameters.eigen_weights is None:
+            eigen_probe = self._device_parameters.eigen_probe[0].get()
+        if self._device_parameters.eigen_weights is None:
             eigen_weights = None
         else:
             eigen_weights = self.comm.pool.gather(
-                self.parameters.eigen_weights,
+                self._device_parameters.eigen_weights,
                 axis=-3,
             )[reorder].get()
-        probe = self.parameters.probe[0].get()
+        probe = self._device_parameters.probe[0].get()
         return probe, eigen_probe, eigen_weights
 
     def peek(self) -> typing.Tuple[np.array, np.array, np.array, np.array]:
@@ -505,9 +516,9 @@ class Reconstruction():
             new_data,
             axis=0,
         )
-        self.parameters.scan = self.comm.pool.map(
+        self._device_parameters.scan = self.comm.pool.map(
             cp.append,
-            self.parameters.scan,
+            self._device_parameters.scan,
             new_scan,
             axis=0,
         )
@@ -520,15 +531,15 @@ class Reconstruction():
         # Rebatch on each device
         self.batches = self.comm.pool.map(
             getattr(tike.random,
-                    self.parameters.algorithm_options.batch_method),
-            self.parameters.scan,
-            num_cluster=self.parameters.algorithm_options.num_batch,
+                    self._device_parameters.algorithm_options.batch_method),
+            self._device_parameters.scan,
+            num_cluster=self._device_parameters.algorithm_options.num_batch,
         )
 
-        if self.parameters.eigen_weights is not None:
-            self.parameters.eigen_weights = self.comm.pool.map(
+        if self._device_parameters.eigen_weights is not None:
+            self._device_parameters.eigen_weights = self.comm.pool.map(
                 cp.pad,
-                self.parameters.eigen_weights,
+                self._device_parameters.eigen_weights,
                 pad_width=(
                     (0, len(new_scan)),  # position
                     (0, 0),  # eigen
@@ -537,10 +548,10 @@ class Reconstruction():
                 mode='mean',
             )
 
-        if self.parameters.position_options is not None:
-            self.parameters.position_options = self.comm.pool.map(
+        if self._device_parameters.position_options is not None:
+            self._device_parameters.position_options = self.comm.pool.map(
                 PositionOptions.append,
-                self.parameters.position_options,
+                self._device_parameters.position_options,
                 new_scan,
             )
 
