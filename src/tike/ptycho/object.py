@@ -46,6 +46,10 @@ class ObjectOptions:
                                                  default_factory=lambda: None)
     """The magnitude of the illumination used for conditioning the object updates."""
 
+    combined_update: np.array = dataclasses.field(init=False,
+                                                 default_factory=lambda: None)
+    """Used for compact batch updates."""
+
     def copy_to_device(self):
         """Copy to the current GPU memory."""
         if self.v is not None:
