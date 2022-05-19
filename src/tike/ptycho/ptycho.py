@@ -460,6 +460,12 @@ class Reconstruction():
         self.operator.__exit__(type, value, traceback)
         self.device.__exit__(type, value, traceback)
 
+    def get_convergence(self):
+        return (
+            self._device_parameters.algorithm_options.costs,
+            self._device_parameters.algorithm_options.times,
+        )
+
     def get_psi(self) -> np.array:
         """Return the current object estimate as a numpy array."""
         return self._device_parameters.psi[0].get()
