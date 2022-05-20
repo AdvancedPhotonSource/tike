@@ -1,11 +1,11 @@
-cupy>=7,!=10.3.0
-mpi4py>=3
+cupy>=8,!=10.3.0
 importlib_resources # backport for python<3.9
 importlib_metadata # backport for python<3.8
-matplotlib-base
+matplotlib-base==3
+mpi4py>=3
 numpy>=1.17
 python>=3.6
-py-opencv
-scipy
+py-opencv>=3.4,<5.0
+scipy # required by cupyx.scipy
 setuptools
 setuptools_scm_git_archive
