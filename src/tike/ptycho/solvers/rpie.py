@@ -196,6 +196,7 @@ def _update_nearplane(
     position_options=None,
     *,
     probe_options=None,
+    object_options=None,
 ):
 
     patches = comm.pool.map(_get_patches, nearplane_, psi, scan_, op=op)
@@ -233,12 +234,14 @@ def _update_nearplane(
             psi_update_denominator = comm.reduce(psi_update_denominator,
                                                  'gpu')[0]
 
-        psi[0] += step_length * psi_update_numerator / (
+        b = cp.complex64(1.0 + 0.0j)
+
+        psi[0] += step_length * (psi_update_numerator + object_options.lasso_penalty * (b - psi[0])) / (
             (1 - alpha) * psi_update_denominator +
             alpha * psi_update_denominator.max(
                 axis=(-2, -1),
                 keepdims=True,
-            ))
+            ) + object_options.lasso_penalty)
 
         psi = comm.pool.bcast([psi[0]])
 

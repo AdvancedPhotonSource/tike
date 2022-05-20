@@ -56,6 +56,9 @@ class ObjectOptions:
     clip_magnitude: bool = True
     """Whether to force the object magnitude to remain <= 1."""
 
+    lasso_penalty: float = 0.0
+    """Weight of the penalty to keep object coefficients near 1 + 0j."""
+
     def copy_to_device(self, comm):
         """Copy to the current GPU memory."""
         if self.v is not None:

@@ -380,6 +380,7 @@ def _update_nearplane(
             psi_update_denominator,
             probe_update_denominator,
             patches,
+            psi,
             op=op,
             m=m,
             recover_psi=recover_psi,
@@ -642,6 +643,7 @@ def _precondition_nearplane_gradients(
     psi_update_denominator,
     probe_update_denominator,
     patches,
+    psi,
     *,
     op,
     m,
@@ -656,11 +658,15 @@ def _precondition_nearplane_gradients(
     eps = 1e-9 / (diff.shape[-2] * diff.shape[-1])
 
     if recover_psi:
-        common_grad_psi /= ((1 - alpha) * psi_update_denominator +
-                            alpha * psi_update_denominator.max(
-                                axis=(-2, -1),
-                                keepdims=True,
-                            ))
+
+        b = cp.complex64(1.0 + 0.0j)
+
+        common_grad_psi = (common_grad_psi + b - psi) / (
+            (1 - alpha) * psi_update_denominator +
+            alpha * psi_update_denominator.max(
+                axis=(-2, -1),
+                keepdims=True,
+            ) + b)
         dOP = op.diffraction.patch.fwd(
             patches=cp.zeros(patches.shape, dtype='complex64')[..., 0, 0, :, :],
             images=common_grad_psi,
