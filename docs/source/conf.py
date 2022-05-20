@@ -52,7 +52,7 @@ extensions = ['sphinx.ext.autodoc',
 
 # bibtex setting
 bibtex_bibfiles = [
-    'zrefs.bib',
+    'bibtex/zrefs.bib',
 ]
 
 # extlinks settings

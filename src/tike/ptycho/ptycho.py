@@ -52,11 +52,14 @@ __docformat__ = 'restructuredtext en'
 __all__ = [
     "reconstruct",
     "simulate",
+    "Reconstruction",
 ]
 
-from itertools import product, chain
+import copy
+from itertools import product
 import logging
 import time
+import typing
 
 import numpy as np
 import cupy as cp
@@ -67,7 +70,6 @@ from tike.opt import batch_indicies
 from tike.ptycho import solvers
 import tike.random
 
-from .object import get_padded_object
 from .position import (
     PositionOptions,
     check_allowed_positions,
@@ -172,17 +174,9 @@ def simulate(
 
 def reconstruct(
     data,
-    probe,
-    psi,
-    scan,
-    algorithm_options=solvers.RpieOptions(),
-    eigen_probe=None,
-    eigen_weights=None,
+    parameters,
     model='gaussian',
     num_gpu=1,
-    object_options=None,
-    position_options=None,
-    probe_options=None,
     use_mpi=False,
 ):
     """Solve the ptychography problem using the given `algorithm`.
@@ -193,32 +187,14 @@ def reconstruct(
         The intensity (square of the absolute value) of the propagated
         wavefront; i.e. what the detector records. FFT-shifted so the
         diffraction peak is at the corners.
-    probe : (1, 1, SHARED, WIDE, HIGH) complex64
-        The shared complex illumination function amongst all positions.
-    scan : (POSI, 2) float32
-        Coordinates of the minimum corner of the probe grid for each
-        measurement in the coordinate system of psi. Coordinate order
-        consistent with WIDE, HIGH order.
-    algorithm_options : :py:class:`tike.ptycho.solvers.IterativeOptions`
-        A class containing algorithm specific parameters
-    eigen_probe : (EIGEN, SHARED, WIDE, HIGH) complex64
-        The eigen probes for all positions.
-    eigen_weights : (POSI, EIGEN, SHARED) float32
-        The relative intensity of the eigen probes at each position.
+    parameters: :py:class:`tike.ptycho.solvers.PtychoParameters`
+        A class containing reconstruction parameters.
     model : "gaussian", "poisson"
         The noise model to use for the cost function.
     num_gpu : int, tuple(int)
         The number of GPUs to use or a tuple of the device numbers of the GPUs
         to use. If the number of GPUs is less than the requested number, only
         workers for the available GPUs are allocated.
-    object_options : :py:class:`tike.ptycho.ObjectOptions`
-        A class containing settings related to object updates.
-    position_options : :py:class:`tike.ptycho.PositionOptions`
-        A class containing settings related to position correction.
-    probe_options : :py:class:`tike.ptycho.ProbeOptions`
-        A class containing settings related to probe updates.
-    psi : (WIDE, HIGH) complex64
-        The wavefront modulation coefficients of the object.
     use_mpi : bool
         Whether to use MPI or not.
 
@@ -234,286 +210,360 @@ def reconstruct(
         function to resume reconstruction from the previous state.
 
     """
-    if (np.any(np.asarray(data.shape) < 1) or data.ndim != 3
-            or data.shape[-2] != data.shape[-1]):
-        raise ValueError(
-            f"data shape {data.shape} is incorrect. "
-            "It should be (N, W, H), "
-            "where N >= 1 is the number of square diffraction patterns.")
-    if (scan.ndim != 2 or scan.shape[1] != 2
-            or np.any(np.asarray(scan.shape) < 1)):
-        raise ValueError(f"scan shape {scan.shape} is incorrect. "
-                         "It should be (N, 2) "
-                         "where N >= 1 is the number of scan positions.")
-    if data.shape[0] != scan.shape[0]:
-        raise ValueError(
-            f"data shape {data.shape} and scan shape {scan.shape} "
-            "are incompatible. They should have the same leading dimension.")
-    if (probe.ndim != 5 or probe.shape[:2] != (1, 1)
-            or np.any(np.asarray(probe.shape) < 1)
-            or probe.shape[-2] != probe.shape[-1]):
-        raise ValueError(f"probe shape {probe.shape} is incorrect. "
-                         "It should be (1, 1, S, W, H) "
-                         "where S >=1 is the number of probes, and "
-                         "W, H >= 1 are the square probe grid dimensions.")
-    if np.any(np.asarray(probe.shape[-2:]) > np.asarray(data.shape[-2:])):
-        raise ValueError(f"probe shape {probe.shape} is incorrect."
-                         "The probe width/height must be "
-                         f"<= the data width/height {data.shape}.")
-    if (psi.ndim != 2
-            or np.any(np.asarray(psi.shape) <= np.asarray(probe.shape[-2:]))):
-        raise ValueError(f"psi shape {psi.shape} is incorrect. "
-                         "It should be (W, H) where W, H > probe.shape[-2:].")
-    check_allowed_positions(scan, psi, probe.shape)
-    logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
-                "iterations.".format(
-                    algorithm_options.name,
-                    *data.shape[-3:],
-                    algorithm_options.num_iter,
-                ))
+    with tike.ptycho.Reconstruction(
+            data,
+            parameters,
+            model,
+            num_gpu,
+            use_mpi,
+    ) as context:
+        context.iterate(parameters.algorithm_options.num_iter)
+    return context.parameters
 
-    if use_mpi is True:
-        mpi = MPIComm
-        if psi is None:
+
+class Reconstruction():
+    """Context manager for streaming ptychography reconstruction.
+
+    Uses same parameters as the functional reconstruct API.
+
+    .. seealso:: :py:func:`tike.ptycho.reconstruct`
+    """
+
+    def __init__(
+        self,
+        data,
+        parameters,
+        model='gaussian',
+        num_gpu=1,
+        use_mpi=False,
+    ):
+        if (np.any(np.asarray(data.shape) < 1) or data.ndim != 3
+                or data.shape[-2] != data.shape[-1]):
             raise ValueError(
-                "When MPI is enabled, initial object guess cannot be None; "
-                "automatic psi initialization is not synchronized "
-                "across processes.")
-    else:
-        mpi = None
-    with (cp.cuda.Device(num_gpu[0] if isinstance(num_gpu, tuple) else None)):
-        with Ptycho(
-                probe_shape=probe.shape[-1],
-                detector_shape=data.shape[-1],
-                nz=psi.shape[-2],
-                n=psi.shape[-1],
-                model=model,
-        ) as operator, Comm(num_gpu, mpi) as comm:
-
-            (
-                batches,
-                data,
-                result,
-                scan,
-            ) = _setup(
-                algorithm_options,
-                comm,
-                data,
-                eigen_probe,
-                eigen_weights,
-                object_options,
-                operator,
-                probe,
-                psi,
-                position_options,
-                probe_options,
-                scan,
+                f"data shape {data.shape} is incorrect. "
+                "It should be (N, W, H), "
+                "where N >= 1 is the number of square diffraction patterns.")
+        if data.shape[0] != parameters.scan.shape[0]:
+            raise ValueError(
+                f"data shape {data.shape} and scan shape {parameters.scan.shape} "
+                "are incompatible. They should have the same leading dimension."
             )
+        if np.any(
+                np.asarray(parameters.probe.shape[-2:]) > np.asarray(
+                    data.shape[-2:])):
+            raise ValueError(
+                f"probe shape {parameters.probe.shape} is incorrect."
+                "The probe width/height must be "
+                f"<= the data width/height {data.shape}.")
+        logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
+                    "iterations.".format(
+                        parameters.algorithm_options.name,
+                        *data.shape[-3:],
+                        parameters.algorithm_options.num_iter,
+                    ))
 
-            start = time.perf_counter()
-            for i in range(algorithm_options.num_iter):
+        if use_mpi is True:
+            mpi = MPIComm
+            if parameters.psi is None:
+                raise ValueError(
+                    "When MPI is enabled, initial object guess cannot be None; "
+                    "automatic psi initialization is not synchronized "
+                    "across processes.")
+        else:
+            mpi = None
 
-                logger.info(f"{algorithm_options.name} epoch {i:,d}")
+        self.data = data
+        self.parameters = parameters
+        self._device_parameters = copy.deepcopy(parameters)
+        self.device = cp.cuda.Device(
+            num_gpu[0] if isinstance(num_gpu, tuple) else None)
+        self.operator = Ptycho(
+            probe_shape=parameters.probe.shape[-1],
+            detector_shape=data.shape[-1],
+            nz=parameters.psi.shape[-2],
+            n=parameters.psi.shape[-1],
+            model=model,
+        )
+        self.comm = Comm(num_gpu, mpi)
 
-                # TODO: Append new information to everything that emits from
-                # _setup.
+    def __enter__(self):
+        self.device.__enter__()
+        self.operator.__enter__()
+        self.comm.__enter__()
 
-                result = _iterate(
-                    algorithm_options,
-                    batches,
-                    comm,
-                    data,
-                    operator,
-                    position_options,
-                    probe_options,
-                    result,
-                )
-
-                # TODO: Grab intermediate psi/probe from GPU.
-
-                algorithm_options.times.append(time.perf_counter() - start)
-                start = time.perf_counter()
-
-            return _teardown(
-                algorithm_options,
-                comm,
-                eigen_probe,
-                eigen_weights,
-                object_options,
-                position_options,
-                probe_options,
-                result,
-                scan,
-            )
-
-
-def _setup(
-    algorithm_options,
-    comm,
-    data,
-    eigen_probe,
-    eigen_weights,
-    object_options,
-    operator,
-    probe,
-    psi,
-    position_options,
-    probe_options,
-    scan,
-):
-    # Divide the inputs into regions
-    odd_pool = comm.pool.num_workers % 2
-    (
-        comm.order,
-        scan,
-        data,
-        eigen_weights,
-    ) = split_by_scan_grid(
-        comm.pool,
+        # Divide the inputs into regions
+        odd_pool = self.comm.pool.num_workers % 2
         (
-            comm.pool.num_workers if odd_pool else comm.pool.num_workers // 2,
-            1 if odd_pool else 2,
-        ),
-        scan,
-        data,
-        eigen_weights,
-    )
-    result = dict(
-        psi=comm.pool.bcast([psi.astype('complex64')]),
-        probe=comm.pool.bcast([probe.astype('complex64')]),
-        scan=scan,
-        probe_options=probe_options.copy_to_device()
-        if probe_options is not None else None,
-        object_options=object_options.copy_to_device()
-        if object_options is not None else None,
-        algorithm_options=algorithm_options,
-    )
-    if eigen_probe is not None:
-        result.update({
-            'eigen_probe':
-                comm.pool.bcast([eigen_probe.astype('complex64')])
-                if eigen_probe is not None else None,
-        })
-    if eigen_weights is not None:
-        result.update({
-            'eigen_weights': eigen_weights,
-        })
-    if position_options:
-        # TODO: Consider combining put/split, get/join operations?
-        result['position_options'] = comm.pool.map(
-            PositionOptions.copy_to_device,
-            (position_options.split(x) for x in comm.order),
+            self.comm.order,
+            self._device_parameters.scan,
+            self.data,
+            self._device_parameters.eigen_weights,
+        ) = split_by_scan_grid(
+            self.comm.pool,
+            (
+                self.comm.pool.num_workers
+                if odd_pool else self.comm.pool.num_workers // 2,
+                1 if odd_pool else 2,
+            ),
+            self._device_parameters.scan,
+            self.data,
+            self._device_parameters.eigen_weights,
         )
 
-    # Unique batch for each device
-    batches = comm.pool.map(
-        getattr(tike.random, algorithm_options.batch_method),
-        scan,
-        num_cluster=algorithm_options.num_batch,
-    )
+        self._device_parameters.psi = self.comm.pool.bcast(
+            [self._device_parameters.psi.astype('complex64')])
 
-    result['probe'] = _rescale_probe(
-        operator,
-        comm,
-        data,
-        result['psi'],
-        result['scan'],
-        result['probe'],
-        num_batch=algorithm_options.num_batch,
-    )
+        self._device_parameters.probe = self.comm.pool.bcast(
+            [self._device_parameters.probe.astype('complex64')])
 
-    return (
-        batches,
-        data,
-        result,
-        scan,
-    )
-
-
-def _iterate(
-    algorithm_options,
-    batches,
-    comm,
-    data,
-    operator,
-    position_options,
-    probe_options,
-    result,
-):
-    if probe_options is not None:
-        if probe_options.centered_intensity_constraint:
-            result['probe'] = comm.pool.map(
-                constrain_center_peak,
-                result['probe'],
-            )
-        if probe_options.sparsity_constraint < 1:
-            result['probe'] = comm.pool.map(
-                constrain_probe_sparsity,
-                result['probe'],
-                f=probe_options.sparsity_constraint,
+        if self._device_parameters.probe_options is not None:
+            self._device_parameters.probe_options = self._device_parameters.probe_options.copy_to_device(
             )
 
-    result = getattr(solvers, algorithm_options.name)(
-        operator,
-        comm,
-        data=data,
-        batches=batches,
-        **result,
-    )
+        if self._device_parameters.object_options is not None:
+            self._device_parameters.object_options = self._device_parameters.object_options.copy_to_device(
+            )
 
-    if (position_options and position_options.use_position_regularization):
+        if self._device_parameters.eigen_probe is not None:
+            self._device_parameters.eigen_probe = self.comm.pool.bcast(
+                [self._device_parameters.eigen_probe.astype('complex64')])
 
-        # TODO: Regularize on all GPUs
-        result['scan'][0], _ = affine_position_regularization(
-            operator,
-            result['psi'][0],
-            result['probe'][0],
-            position_options.initial_scan[0],
-            result['scan'][0],
+        if self._device_parameters.position_options is not None:
+            # TODO: Consider combining put/split, get/join operations?
+            self._device_parameters.position_options = self.comm.pool.map(
+                PositionOptions.copy_to_device,
+                (self._device_parameters.position_options.split(x)
+                 for x in self.comm.order),
+            )
+
+        # Unique batch for each device
+        self.batches = self.comm.pool.map(
+            getattr(tike.random,
+                    self._device_parameters.algorithm_options.batch_method),
+            self._device_parameters.scan,
+            num_cluster=self._device_parameters.algorithm_options.num_batch,
         )
 
-    return result
+        self._device_parameters.probe = _rescale_probe(
+            self.operator,
+            self.comm,
+            self.data,
+            self._device_parameters.psi,
+            self._device_parameters.scan,
+            self._device_parameters.probe,
+            num_batch=self._device_parameters.algorithm_options.num_batch,
+        )
 
+        return self
 
-def _teardown(
-    algorithm_options,
-    comm,
-    eigen_probe,
-    eigen_weights,
-    object_options,
-    position_options,
-    probe_options,
-    result,
-    scan,
-):
-    reorder = np.argsort(np.concatenate(comm.order))
-    if position_options is not None:
-        for x, o in zip(
-                comm.pool.map(
-                    PositionOptions.copy_to_host,
-                    result['position_options'],
+    def iterate(self, num_iter: int) -> None:
+        """Advance the reconstruction by num_iter epochs."""
+        start = time.perf_counter()
+        for i in range(num_iter):
+
+            logger.info(
+                f"{self._device_parameters.algorithm_options.name} epoch "
+                f"{len(self._device_parameters.algorithm_options.times):,d}")
+
+            if self._device_parameters.probe_options is not None:
+                if self._device_parameters.probe_options.centered_intensity_constraint:
+                    self._device_parameters.probe = self.comm.pool.map(
+                        constrain_center_peak,
+                        self._device_parameters.probe,
+                    )
+                if self._device_parameters.probe_options.sparsity_constraint < 1:
+                    self._device_parameters.probe = self.comm.pool.map(
+                        constrain_probe_sparsity,
+                        self._device_parameters.probe,
+                        f=self._device_parameters.probe_options
+                        .sparsity_constraint,
+                    )
+
+            self._device_parameters = getattr(
+                solvers,
+                self._device_parameters.algorithm_options.name,
+            )(
+                self.operator,
+                self.comm,
+                data=self.data,
+                batches=self.batches,
+                parameters=self._device_parameters,
+            )
+
+            if (self._device_parameters.position_options
+                    and self._device_parameters.position_options[0]
+                    .use_position_regularization):
+
+                # TODO: Regularize on all GPUs
+                self._device_parameters.scan[
+                    0], _ = affine_position_regularization(
+                        self.operator,
+                        self._device_parameters.psi[0],
+                        self._device_parameters.probe[0],
+                        self._device_parameters.position_options
+                        .initial_scan[0],
+                        self._device_parameters.scan[0],
+                    )
+
+            self._device_parameters.algorithm_options.times.append(
+                time.perf_counter() - start)
+            start = time.perf_counter()
+
+    def _get_result(self):
+        """Return the current parameter estimates."""
+        self.parameters.probe = self._device_parameters.probe[0].get()
+
+        self.parameters.psi = self._device_parameters.psi[0].get()
+
+        reorder = np.argsort(np.concatenate(self.comm.order))
+        self.parameters.scan = self.comm.pool.gather_host(
+            self._device_parameters.scan,
+            axis=-2,
+        )[reorder]
+
+        if self._device_parameters.eigen_probe is not None:
+            self.parameters.eigen_probe = self._device_parameters.eigen_probe[
+                0].get()
+
+        if self._device_parameters.eigen_weights is not None:
+            self.parameters.eigen_weights = self.comm.pool.gather(
+                self._device_parameters.eigen_weights,
+                axis=-3,
+            )[reorder].get()
+
+        self.parameters.algorithm_options = self._device_parameters.algorithm_options
+
+        if self._device_parameters.probe_options is not None:
+            self.parameters.probe_options = self._device_parameters.probe_options.copy_to_host(
+            )
+
+        if self._device_parameters.object_options is not None:
+            self.parameters.object_options = self._device_parameters.object_options.copy_to_host(
+            )
+
+        if self._device_parameters.position_options is not None:
+            host_position_options = self._device_parameters.position_options[
+                0].empty()
+            for x, o in zip(
+                    self.comm.pool.map(
+                        PositionOptions.copy_to_host,
+                        self._device_parameters.position_options,
+                    ),
+                    self.comm.order,
+            ):
+                host_position_options = host_position_options.join(x, o)
+            self.parameters.position_options = host_position_options
+
+    def __exit__(self, type, value, traceback):
+        self._get_result()
+        self.comm.__exit__(type, value, traceback)
+        self.operator.__exit__(type, value, traceback)
+        self.device.__exit__(type, value, traceback)
+
+    def get_convergence(self):
+        return (
+            self._device_parameters.algorithm_options.costs,
+            self._device_parameters.algorithm_options.times,
+        )
+
+    def get_psi(self) -> np.array:
+        """Return the current object estimate as a numpy array."""
+        return self._device_parameters.psi[0].get()
+
+    def get_probe(self) -> typing.Tuple[np.array, np.array, np.array]:
+        """Return the current probe, eigen_probe, weights as numpy arrays."""
+        reorder = np.argsort(np.concatenate(self.comm.order))
+        if self._device_parameters.eigen_probe is None:
+            eigen_probe = None
+        else:
+            eigen_probe = self._device_parameters.eigen_probe[0].get()
+        if self._device_parameters.eigen_weights is None:
+            eigen_weights = None
+        else:
+            eigen_weights = self.comm.pool.gather(
+                self._device_parameters.eigen_weights,
+                axis=-3,
+            )[reorder].get()
+        probe = self._device_parameters.probe[0].get()
+        return probe, eigen_probe, eigen_weights
+
+    def peek(self) -> typing.Tuple[np.array, np.array, np.array, np.array]:
+        """Return the curent values of object and probe as numpy arrays."""
+        psi = self.get_psi()
+        probe, eigen_probe, eigen_weights = self.get_probe()
+        return psi, probe, eigen_probe, eigen_weights
+
+    def append_new_data(
+        self,
+        new_data: np.array,
+        new_scan: np.array,
+    ) -> None:
+        """"Append new diffraction patterns and positions to existing result."""
+        # Assign positions and data to correct devices.
+        odd_pool = self.comm.pool.num_workers % 2
+        (
+            order,
+            new_scan,
+            new_data,
+        ) = split_by_scan_grid(
+            self.comm.pool,
+            (
+                self.comm.pool.num_workers
+                if odd_pool else self.comm.pool.num_workers // 2,
+                1 if odd_pool else 2,
+            ),
+            new_scan,
+            new_data,
+        )
+        # FIXME: Append makes a copy of each array!
+        self.data = self.comm.pool.map(
+            cp.append,
+            self.data,
+            new_data,
+            axis=0,
+        )
+        self._device_parameters.scan = self.comm.pool.map(
+            cp.append,
+            self._device_parameters.scan,
+            new_scan,
+            axis=0,
+        )
+        self.comm.order = self.comm.pool.map(
+            _order_join,
+            self.comm.order,
+            order,
+        )
+
+        # Rebatch on each device
+        self.batches = self.comm.pool.map(
+            getattr(tike.random,
+                    self._device_parameters.algorithm_options.batch_method),
+            self._device_parameters.scan,
+            num_cluster=self._device_parameters.algorithm_options.num_batch,
+        )
+
+        if self._device_parameters.eigen_weights is not None:
+            self._device_parameters.eigen_weights = self.comm.pool.map(
+                cp.pad,
+                self._device_parameters.eigen_weights,
+                pad_width=(
+                    (0, len(new_scan)),  # position
+                    (0, 0),  # eigen
+                    (0, 0),  # shared
                 ),
-                comm.order,
-        ):
-            position_options.join(x, o)
+                mode='mean',
+            )
 
-    return dict(
-        algorithm_options=algorithm_options,
-        eigen_probe=result['eigen_probe'][0].get()
-        if eigen_probe is not None else None,
-        eigen_weights=comm.pool.gather(
-            result['eigen_weights'],
-            axis=-3,
-        )[reorder].get() if eigen_weights is not None else None,
-        object_options=result['object_options'].copy_to_host()
-        if object_options is not None else None,
-        position_options=position_options,
-        probe=result['probe'][0].get(),
-        probe_options=result['probe_options'].copy_to_host()
-        if probe_options is not None else None,
-        psi=result['psi'][0].get(),
-        scan=comm.pool.gather_host(scan, axis=-2)[reorder],
-    )
+        if self._device_parameters.position_options is not None:
+            self._device_parameters.position_options = self.comm.pool.map(
+                PositionOptions.append,
+                self._device_parameters.position_options,
+                new_scan,
+            )
+
+
+def _order_join(a, b):
+    return np.append(a, b + len(a))
 
 
 def _get_rescale(data, psi, scan, probe, num_batch, operator):

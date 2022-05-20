@@ -19,15 +19,7 @@ def lstsq_grad(
     data,
     batches,
     *,
-    probe,
-    scan,
-    psi,
-    algorithm_options,
-    eigen_probe=None,
-    eigen_weights=None,
-    probe_options=None,
-    position_options=None,
-    object_options=None,
+    parameters,
 ):
     """Solve the ptychography problem using Odstrcil et al's approach.
 
@@ -84,6 +76,16 @@ def lstsq_grad(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
+    probe = parameters.probe
+    scan = parameters.scan
+    psi = parameters.psi
+    algorithm_options = parameters.algorithm_options
+    probe_options = parameters.probe_options
+    position_options = parameters.position_options
+    object_options = parameters.object_options
+    eigen_probe = parameters.eigen_probe
+    eigen_weights = parameters.eigen_weights
+
     if eigen_probe is None:
         beigen_probe = [None] * comm.pool.num_workers
     else:
@@ -174,7 +176,7 @@ def lstsq_grad(
 
         if position_options:
             comm.pool.map(
-                PositionOptions.join,
+                PositionOptions.insert,
                 position_options,
                 bposition_options,
                 [b[n] for b in batches],
@@ -217,17 +219,16 @@ def lstsq_grad(
         )))
 
     algorithm_options.costs.append(cost)
-    return {
-        'probe': probe,
-        'psi': psi,
-        'scan': scan,
-        'eigen_probe': eigen_probe,
-        'eigen_weights': eigen_weights,
-        'algorithm_options': algorithm_options,
-        'probe_options': probe_options,
-        'object_options': object_options,
-        'position_options': position_options,
-    }
+    parameters.probe = probe
+    parameters.psi = psi
+    parameters.scan = scan
+    parameters.algorithm_options = algorithm_options
+    parameters.probe_options = probe_options
+    parameters.object_options = object_options
+    parameters.position_options = position_options
+    parameters.eigen_weights = eigen_weights
+    parameters.eigen_probe = eigen_probe
+    return parameters
 
 
 def _psi_preconditioner(psi_update_denominator,
@@ -473,7 +474,7 @@ def _update_nearplane(
                     dpsi,
                     object_options.v,
                     object_options.m,
-                ) = tike.opt.adam(
+                ) = tike.opt.momentum(
                     g=dpsi,
                     v=object_options.v,
                     m=object_options.m,
@@ -495,9 +496,24 @@ def _update_nearplane(
                     axis=-5,
                 )
 
+            dprobe = weighted_step_probe[0] * common_grad_probe[0]
+            if probe_options.use_adaptive_moment:
+                if probe_options.m is None:
+                    probe_options.m = cp.zeros_like(probe[0])
+                (
+                    dprobe,
+                    probe_options.v,
+                    probe_options.m[..., [m], :, :],
+                ) = tike.opt.momentum(
+                    g=dprobe,
+                    v=probe_options.v,
+                    m=probe_options.m[..., [m], :, :],
+                    vdecay=probe_options.vdecay,
+                    mdecay=probe_options.mdecay,
+                )
+
             # (27a) Probe update
-            probe[0][..., [m], :, :] += (weighted_step_probe[0] *
-                                         common_grad_probe[0])
+            probe[0][..., [m], :, :] += dprobe
             probe = comm.pool.bcast([probe[0]])
 
         if position_options and m == 0:
@@ -542,7 +558,9 @@ def _get_nearplane_gradients(
 
     diff = nearplane[..., [m], :, :]
 
-    logger.info('%10s cost is %+12.5e', 'nearplane', tike.linalg.norm(diff))
+    if __debug__:
+        logger.debug('%10s cost is %+12.5e', 'nearplane',
+                     tike.linalg.norm(diff))
 
     if recover_psi:
         # (24b)

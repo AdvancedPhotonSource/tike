@@ -37,6 +37,23 @@ def put_batch(y, x, b, n):
     x[b[n]] = y
 
 
+def momentum(g, v, m, vdecay=None, mdecay=0.9):
+    """Add momentum to the gradient direction.
+
+    Parameters
+    ----------
+    g : vector
+        The current gradient.
+    m : vector
+        The momentum.
+    eps : float
+        A tiny constant to prevent zero division.
+    """
+    m = 0 if m is None else m
+    m = mdecay * m + (1 - mdecay) * g
+    return m, None, m
+
+
 def adagrad(g, v=None, eps=1e-6):
     """Return the adaptive gradient algorithm direction.
 

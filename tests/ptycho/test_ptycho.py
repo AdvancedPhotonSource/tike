@@ -60,7 +60,7 @@ import tike.ptycho
 from tike.ptycho.probe import ProbeOptions
 from tike.ptycho.position import PositionOptions
 from tike.ptycho.object import ObjectOptions
-from tike.communicators import Comm, MPIComm
+from tike.communicators import MPIComm
 import tike.random
 
 __author__ = "Daniel Ching, Xiaodong Yu"
@@ -218,47 +218,50 @@ class TestPtychoSimulate(unittest.TestCase):
 
 class TemplatePtychoRecon():
 
+    def init_params(self):
+        return tike.ptycho.PtychoParameters(
+            psi=np.ones((600, 600), dtype=np.complex64),
+            probe=self.probe,
+            scan=self.scan,
+        )
+
     def template_consistent_algorithm(self, *, params={}):
         """Check ptycho.solver.algorithm for consistency."""
 
-        result = {
-            'psi': np.ones((600, 600), dtype=np.complex64),
-            'probe': self.probe,
-        }
-
         if params.get('use_mpi') is True:
             with MPIComm() as IO:
-                result['probe'] = IO.Bcast(result['probe'])
-                weights = params.get('eigen_weights')
-                if weights is not None:
+                params['parameters'].probe = IO.Bcast(
+                    params['parameters'].probe)
+                if params['parameters'].eigen_weights is not None:
                     (
-                        self.scan,
+                        params['parameters'].scan,
                         self.data,
-                        params['eigen_weights'],
+                        params['parameters'].eigen_weights,
                     ) = IO.MPIio_ptycho(
-                        self.scan,
+                        params['parameters'].scan,
                         self.data,
-                        weights,
+                        params['parameters'].eigen_weights,
                     )
                 else:
-                    self.scan, self.data = IO.MPIio_ptycho(self.scan, self.data)
-
-        result['scan'] = self.scan
+                    params['parameters'].scan, self.data = IO.MPIio_ptycho(
+                        params['parameters'].scan, self.data)
 
         # Call twice to check that reconstruction continuation is correct
         for _ in range(2):
-            params.update(result)
-            result = tike.ptycho.reconstruct(
+            params['parameters'] = tike.ptycho.reconstruct(
                 **params,
                 data=self.data,
             )
         print()
-        print('\n'.join(f'{c:1.3e}' for c in result['algorithm_options'].costs))
-        return result
+        print('\n'.join(
+            f'{c:1.3e}' for c in params['parameters'].algorithm_options.costs))
+        return params['parameters']
 
 
 class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
     """Test various ptychography reconstruction methods for consistency."""
+
+    post_name = ""
 
     def setUp(self, filename='data/siemens-star-small.npz.bz2'):
         """Load a dataset for reconstruction."""
@@ -275,127 +278,129 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
 
     def test_consistent_adam_grad(self):
         """Check ptycho.solver.adam_grad for consistency."""
+        params = self.init_params()
+        params.algorithm_options = tike.ptycho.AdamOptions(
+            num_batch=5,
+            num_iter=16,
+        )
+        params.probe_options = ProbeOptions()
+        params.object_options = ObjectOptions()
         _save_ptycho_result(
             self.template_consistent_algorithm(params={
-                'algorithm_options':
-                    tike.ptycho.AdamOptions(
-                        num_batch=5,
-                        num_iter=16,
-                    ),
-                'num_gpu':
-                    2,
-                'probe_options':
-                    ProbeOptions(),
-                'object_options':
-                    ObjectOptions(),
-                'use_mpi':
-                    _mpi_size > 1,
-            },), f"{'mpi-' if _mpi_size > 1 else ''}adam_grad")
+                'parameters': params,
+                'num_gpu': 2,
+                'use_mpi': _mpi_size > 1,
+            },), f"{'mpi-' if _mpi_size > 1 else ''}adam_grad{self.post_name}")
 
     def test_consistent_cgrad(self):
         """Check ptycho.solver.cgrad for consistency."""
+        params = self.init_params()
+        params.algorithm_options = tike.ptycho.CgradOptions(
+            num_batch=5,
+            num_iter=16,
+        )
+        params.probe_options = ProbeOptions()
+        params.object_options = ObjectOptions()
         _save_ptycho_result(
             self.template_consistent_algorithm(params={
-                'algorithm_options':
-                    tike.ptycho.CgradOptions(
-                        num_batch=5,
-                        num_iter=16,
-                    ),
-                'num_gpu':
-                    2,
-                'probe_options':
-                    ProbeOptions(),
-                'object_options':
-                    ObjectOptions(),
-                'use_mpi':
-                    _mpi_size > 1,
-            },), f"{'mpi-' if _mpi_size > 1 else ''}cgrad")
+                'parameters': params,
+                'num_gpu': 2,
+                'use_mpi': _mpi_size > 1,
+            },), f"{'mpi-' if _mpi_size > 1 else ''}cgrad{self.post_name}")
 
     def test_consistent_lstsq_grad(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
+        params = self.init_params()
+        params.algorithm_options = tike.ptycho.LstsqOptions(
+            num_batch=5,
+            num_iter=16,
+        )
+        params.probe_options = ProbeOptions(use_adaptive_moment=True,)
+        params.object_options = ObjectOptions(use_adaptive_moment=True,)
         _save_ptycho_result(
             self.template_consistent_algorithm(params={
-                'algorithm_options':
-                    tike.ptycho.LstsqOptions(
-                        num_batch=5,
-                        num_iter=16,
-                    ),
-                'num_gpu':
-                    2,
-                'probe_options':
-                    ProbeOptions(orthogonality_constraint=True,),
-                'object_options':
-                    ObjectOptions(
-                        use_adaptive_moment=True,
-                    ),
-                'use_mpi':
-                    _mpi_size > 1,
-            },), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad")
+                'parameters': params,
+                'num_gpu': 2,
+                'use_mpi': _mpi_size > 1,
+            },), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad{self.post_name}")
 
     def test_consistent_lstsq_grad_variable_probe(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
-
-        probes_with_modes = min(3, self.probe.shape[-3])
-        eigen_probe, weights = tike.ptycho.probe.init_varying_probe(
-            self.scan,
-            self.probe,
+        params = self.init_params()
+        probes_with_modes = min(3, params.probe.shape[-3])
+        params.eigen_probe, params.eigen_weights = tike.ptycho.probe.init_varying_probe(
+            params.scan,
+            params.probe,
             num_eigen_probes=3,
             probes_with_modes=probes_with_modes,
         )
+        params.algorithm_options = tike.ptycho.LstsqOptions(
+            num_batch=5,
+            num_iter=16,
+        )
+        params.probe_options = ProbeOptions(use_adaptive_moment=True,)
+        params.object_options = ObjectOptions(use_adaptive_moment=True,)
         result = self.template_consistent_algorithm(params={
-            'algorithm_options':
-                tike.ptycho.LstsqOptions(
-                    num_batch=5,
-                    num_iter=16,
-                ),
-            'num_gpu':
-                2,
-            'probe_options':
-                ProbeOptions(),
-            'object_options':
-                ObjectOptions(
-                    use_adaptive_moment=True,
-                ),
-            'use_mpi':
-                _mpi_size > 1,
-            'eigen_probe':
-                eigen_probe,
-            'eigen_weights':
-                weights,
+            'parameters': params,
+            'num_gpu': 2,
+            'use_mpi': _mpi_size > 1,
         },)
         _save_ptycho_result(
             result,
-            f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-variable-probe",
+            f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-variable-probe{self.post_name}",
         )
-        assert np.all(
-            result['eigen_weights'][..., 1:, probes_with_modes:] == 0), (
-                "These weights should be unused/untouched "
-                "and should have been initialized to zero.")
+        assert np.all(result.eigen_weights[..., 1:, probes_with_modes:] == 0), (
+            "These weights should be unused/untouched "
+            "and should have been initialized to zero.")
 
     def test_consistent_rpie(self):
         """Check ptycho.solver.rpie for consistency."""
+        params = self.init_params()
+        params.algorithm_options = tike.ptycho.RpieOptions(
+            num_batch=5,
+            num_iter=16,
+        )
+        params.probe_options = ProbeOptions()
+        params.object_options = ObjectOptions()
         _save_ptycho_result(
             self.template_consistent_algorithm(params={
-                'algorithm_options':
-                    tike.ptycho.RpieOptions(
-                        num_batch=5,
-                        num_iter=16,
-                    ),
-                'num_gpu':
-                    2,
-                'probe_options':
-                    ProbeOptions(),
-                'object_options':
-                    ObjectOptions(),
-                'use_mpi':
-                    _mpi_size > 1,
-            },), f"{'mpi-' if _mpi_size > 1 else ''}rpie")
+                'parameters': params,
+                'num_gpu': 2,
+                'use_mpi': _mpi_size > 1,
+            },), f"{'mpi-' if _mpi_size > 1 else ''}rpie{self.post_name}")
 
-    def test_invalid_algorithm_name(self):
-        """Check that wrong names are handled gracefully."""
-        with self.assertRaises(AttributeError):
-            self.template_consistent_algorithm(params=dict(
-                algorithm_options=tike.ptycho.solvers.EpaeOptions()))
+
+class TestPtychoOnline(TestPtychoRecon, unittest.TestCase):
+    """Test ptychography reconstruction when data is streaming."""
+
+    post_name = "-online"
+
+    def setUp(self, chunks=16) -> None:
+        TestPtychoRecon.setUp(self)
+        data = np.array_split(self.data, chunks, axis=0)
+        scan = np.array_split(self.scan, chunks, axis=0)
+        assert len(data) == chunks
+        assert len(scan) == chunks
+
+        self.data = data[0]
+        self.scan = scan[0]
+        self.data_more = data[1:]
+        self.scan_more = scan[1:]
+
+    def template_consistent_algorithm(self, *, params={}):
+
+        with tike.ptycho.Reconstruction(**params, data=self.data) as context:
+            context.iterate(2)
+            for d, s in zip(self.data_more, self.scan_more):
+                context.append_new_data(
+                    new_data=d,
+                    new_scan=s,
+                )
+                context.iterate(2)
+        result = context.parameters
+        print()
+        print('\n'.join(f'{c:1.3e}' for c in result.algorithm_options.costs))
+        return result
 
 
 class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
@@ -428,8 +433,8 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
             plt.title(algorithm)
             tike.view.plot_positions_convergence(
                 self.scan_truth,
-                result['position_options'].initial_scan,
-                result['scan'],
+                result.position_options.initial_scan,
+                result.scan,
             )
             plt.savefig(os.path.join(fname, 'position-error.svg'))
             plt.close()
@@ -439,45 +444,38 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
     def test_consistent_rpie_ref(self):
         """Check ptycho.solver.rpie position correction."""
         algorithm = f"{'mpi-' if _mpi_size > 1 else ''}rpie-position-ref"
+        params = self.init_params()
+        params.algorithm_options = tike.ptycho.RpieOptions(
+            num_batch=5,
+            num_iter=16,
+        )
+        params.probe_options = ProbeOptions()
+        params.object_options = ObjectOptions()
         result = self.template_consistent_algorithm(params={
-            'algorithm_options':
-                tike.ptycho.RpieOptions(
-                    num_batch=5,
-                    num_iter=16,
-                ),
-            'num_gpu':
-                2,
-            'probe_options':
-                ProbeOptions(),
-            'object_options':
-                ObjectOptions(),
-            'use_mpi':
-                _mpi_size > 1,
+            'parameters': params,
+            'num_gpu': 2,
+            'use_mpi': _mpi_size > 1,
         },)
         _save_ptycho_result(result, algorithm)
 
     def test_consistent_rpie(self):
         """Check ptycho.solver.rpie position correction."""
         algorithm = f"{'mpi-' if _mpi_size > 1 else ''}rpie-position"
+        params = self.init_params()
+        params.algorithm_options = tike.ptycho.RpieOptions(
+            num_batch=5,
+            num_iter=16,
+        )
+        params.position_options = PositionOptions(
+            self.scan,
+            use_adaptive_moment=True,
+        )
+        params.probe_options = ProbeOptions()
+        params.object_options = ObjectOptions()
         result = self.template_consistent_algorithm(params={
-            'algorithm_options':
-                tike.ptycho.RpieOptions(
-                    num_batch=5,
-                    num_iter=16,
-                ),
-            'num_gpu':
-                2,
-            'position_options':
-                PositionOptions(
-                    self.scan,
-                    use_adaptive_moment=True,
-                ),
-            'probe_options':
-                ProbeOptions(),
-            'object_options':
-                ObjectOptions(),
-            'use_mpi':
-                _mpi_size > 1,
+            'parameters': params,
+            'num_gpu': 2,
+            'use_mpi': _mpi_size > 1,
         },)
         _save_ptycho_result(result, algorithm)
         self._save_position_error_variance(result, algorithm)
@@ -485,25 +483,21 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
     def test_consistent_lstsq_grad(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
         algorithm = f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-position"
+        params = self.init_params()
+        params.algorithm_options = tike.ptycho.LstsqOptions(
+            num_batch=5,
+            num_iter=16,
+        )
+        params.position_options = PositionOptions(
+            self.scan,
+            use_adaptive_moment=True,
+        )
+        params.probe_options = ProbeOptions()
+        params.object_options = ObjectOptions()
         result = self.template_consistent_algorithm(params={
-            'algorithm_options':
-                tike.ptycho.LstsqOptions(
-                    num_batch=5,
-                    num_iter=16,
-                ),
-            'num_gpu':
-                2,
-            'position_options':
-                PositionOptions(
-                    self.scan,
-                    use_adaptive_moment=True,
-                ),
-            'probe_options':
-                ProbeOptions(),
-            'object_options':
-                ObjectOptions(),
-            'use_mpi':
-                _mpi_size > 1,
+            'parameters': params,
+            'num_gpu': 2,
+            'use_mpi': _mpi_size > 1,
         },)
         _save_ptycho_result(result, algorithm)
         self._save_position_error_variance(result, algorithm)
@@ -566,8 +560,8 @@ def _save_ptycho_result(result, algorithm):
         os.makedirs(fname, exist_ok=True)
 
         fig, ax1, ax2, = tike.view.plot_cost_convergence(
-            result['algorithm_options'].costs,
-            result['algorithm_options'].times,
+            result.algorithm_options.costs,
+            result.algorithm_options.times,
         )
         ax2.set_xlim(0, 20)
         fig.suptitle(algorithm)
@@ -576,7 +570,7 @@ def _save_ptycho_result(result, algorithm):
         plt.savefig(os.path.join(fname, 'convergence.svg'))
         plt.imsave(
             f'{fname}/{0}-phase.png',
-            np.angle(result['psi']).astype('float32'),
+            np.angle(result.psi).astype('float32'),
             # The output of np.angle is locked to (-pi, pi]
             cmap=plt.cm.twilight,
             vmin=-np.pi,
@@ -584,13 +578,13 @@ def _save_ptycho_result(result, algorithm):
         )
         plt.imsave(
             f'{fname}/{0}-ampli.png',
-            np.abs(result['psi']).astype('float32'),
+            np.abs(result.psi).astype('float32'),
         )
-        _save_probe(fname, result['probe'])
-        if result['eigen_weights'] is not None:
-            _save_eigen_weights(fname, result['eigen_weights'])
-            if result['eigen_weights'].shape[-2] > 1:
-                _save_eigen_probe(fname, result['eigen_probe'])
+        _save_probe(fname, result.probe)
+        if result.eigen_weights is not None:
+            _save_eigen_weights(fname, result.eigen_weights)
+            if result.eigen_weights.shape[-2] > 1:
+                _save_eigen_probe(fname, result.eigen_probe)
     except ImportError:
         pass
 
@@ -602,6 +596,7 @@ def _save_eigen_weights(fname, weights):
     plt.suptitle('weights')
     plt.tight_layout()
     plt.savefig(f'{fname}/weights.svg')
+
 
 if __name__ == '__main__':
     unittest.main()
