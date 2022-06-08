@@ -221,6 +221,14 @@ def reconstruct(
     return context.parameters
 
 
+def _clip_magnitude(x, a_max):
+    """Clips a complex array's magnitude without changing the phase."""
+    magnitude = np.abs(x)
+    out_of_range = magnitude > a_max
+    x[out_of_range] = a_max * x[out_of_range] / magnitude[out_of_range]
+    return x
+
+
 class Reconstruction():
     """Context manager for streaming ptychography reconstruction.
 
@@ -389,6 +397,13 @@ class Reconstruction():
                 batches=self.batches,
                 parameters=self._device_parameters,
             )
+
+            if self._device_parameters.object_options.clip_magnitude:
+                self._device_parameters.psi = self.comm.pool.map(
+                    _clip_magnitude,
+                    self._device_parameters.psi,
+                    a_max=1.0,
+                )
 
             if (self._device_parameters.position_options
                     and self._device_parameters.position_options[0]

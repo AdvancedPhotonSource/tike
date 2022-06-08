@@ -42,6 +42,9 @@ class ObjectOptions:
     m: np.array = dataclasses.field(init=False, default_factory=lambda: None)
     """The first moment for adaptive moment."""
 
+    clip_magnitude: bool = True
+    """Whether to force the object magnitude to remain <= 1."""
+
     def copy_to_device(self):
         """Copy to the current GPU memory."""
         if self.v is not None:
