@@ -83,7 +83,7 @@ class ProbeOptions:
     """Radius of finite probe support as fraction of probe grid. [0.0, 0.5]."""
 
     probe_support_degree: float = 5
-    """Degree of the supergaussian defining the probe support."""
+    """Degree of the supergaussian defining the probe support; zero or greater."""
 
     def copy_to_device(self):
         """Copy to the current GPU memory."""
