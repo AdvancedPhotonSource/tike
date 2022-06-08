@@ -123,7 +123,7 @@ class TestProbe(unittest.TestCase):
         try:
             import tifffile
             os.makedirs(resultdir, exist_ok=True)
-            tifffile.imsave(os.path.join(resultdir, 'penalty.tiff'),
+            tifffile.imwrite(os.path.join(resultdir, 'penalty.tiff'),
                             penalty.astype('float32').get())
         except ImportError:
             pass
