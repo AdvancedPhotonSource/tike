@@ -126,4 +126,8 @@ def get_padded_object(scan, probe):
     height = probe.shape[-1] + int(span[0]) + pad
     width = probe.shape[-1] + int(span[1]) + pad
 
-    return np.ones((height, width), dtype='complex64'), scan
+    return np.full(
+        shape=(height, width),
+        dtype='complex64',
+        fill_value=np.complex64(0.5 + 0j),
+    ), scan
