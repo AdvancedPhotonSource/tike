@@ -5,12 +5,16 @@ the complex refractive indices in the field of view.
 
 """
 
+from __future__ import absolute_import
 import dataclasses
 import logging
 
 import cupy as cp
 import cupyx.scipy.ndimage
 import numpy as np
+import scipy.interpolate
+
+import tike.linalg
 
 logger = logging.getLogger(__name__)
 
@@ -124,3 +128,51 @@ def get_padded_object(scan, probe):
     width = probe.shape[-1] + int(span[1]) + pad
 
     return np.ones((height, width), dtype='complex64'), scan
+
+
+def _int_min_max(x):
+    """Return the integer range containing all points in the set x."""
+    return np.floor(np.amin(x)), np.ceil(np.amax(x))
+
+
+def get_absorbtion_image(data, scan, *, rescale=1.0, method='cubic'):
+    """Approximate a scanning transmission image from diffraction patterns.
+
+    Interpolates the diffraction patterns to a grid with spacing of one unit.
+
+    Uses scipy.interpolate.griddata(), see docs for that function for more
+    details about interpolation method.
+
+    Parameters
+    ----------
+    data : (FRAME, WIDE, HIGH) float32
+        The intensity (square of the absolute value) of the propagated
+        wavefront; i.e. what the detector records. FFT-shifted so the
+        diffraction peak is at the corners.
+    scan : (POSI, 2) float32
+        Coordinates of the minimum corner of the probe grid for each
+        measurement in the coordinate system of psi.
+    rescale : float (0, 1.0]
+        Rescale the scanning positions by this value before interpolating.
+    method : str
+        The interpolation method: linear, nearest, or cubic
+    fill_value : float
+        Value used to fill in for requested points outside of the convex hull
+        of the input points. If not provided, then the default is nan. This
+        option has no effect for the ‘nearest’ method.
+    """
+    rescaled = scan * rescale
+    coord0, coord1 = np.meshgrid(
+        np.arange(*_int_min_max(rescaled[:, 0])),
+        np.arange(*_int_min_max(rescaled[:, 1])),
+        indexing='ij',
+    )
+    values = np.square(tike.linalg.norm(data, axis=(-2, -1), keepdims=False))
+    absorption_image = scipy.interpolate.griddata(
+        points=rescaled,
+        values=values,
+        xi=(coord0.flatten(), coord1.flatten()),
+        method=method,
+        fill_value=np.amax(values),
+    )
+    return np.reshape(absorption_image, coord0.shape)
