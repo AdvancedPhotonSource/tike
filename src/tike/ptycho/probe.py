@@ -79,10 +79,10 @@ class ProbeOptions:
     probe_support: float = 10.0
     """Weight of the finite probe support constraint; zero or greater."""
 
-    probe_support_radius: float = 0.5 * 0.6
+    probe_support_radius: float = 0.5 * 0.7
     """Radius of finite probe support as fraction of probe grid. [0.0, 0.5]."""
 
-    probe_support_degree: float = 5
+    probe_support_degree: float = 2.5
     """Degree of the supergaussian defining the probe support; zero or greater."""
 
     def copy_to_device(self):
