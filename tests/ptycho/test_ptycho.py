@@ -46,7 +46,6 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-from ast import Import
 import bz2
 import lzma
 import os

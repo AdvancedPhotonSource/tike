@@ -5,7 +5,6 @@ the complex refractive indices in the field of view.
 
 """
 
-from __future__ import absolute_import
 import dataclasses
 import logging
 
