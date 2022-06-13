@@ -218,6 +218,19 @@ class TestPtychoSimulate(unittest.TestCase):
 
 class TemplatePtychoRecon():
 
+    def setUp(self, filename='data/siemens-star-small.npz.bz2'):
+        """Load a dataset for reconstruction."""
+        dataset_file = os.path.join(testdir, filename)
+        with bz2.open(dataset_file, 'rb') as f:
+            archive = np.load(f)
+            self.scan = archive['scan'][0]
+            self.data = archive['data'][0]
+            self.probe = archive['probe'][0]
+        self.scan -= np.amin(self.scan, axis=-2) - 20
+        self.probe = tike.ptycho.probe.add_modes_random_phase(self.probe, 5)
+        self.probe *= np.random.rand(*self.probe.shape)
+        self.probe = tike.ptycho.probe.orthogonalize_eig(self.probe)
+
     def init_params(self):
         return tike.ptycho.PtychoParameters(
             psi=np.full(
@@ -262,23 +275,31 @@ class TemplatePtychoRecon():
         return params['parameters']
 
 
+class TestPtychoAbsorption(TemplatePtychoRecon, unittest.TestCase):
+    """Test various ptychography reconstruction methods for consistency."""
+
+    def test_absorption(self):
+        """Check ptycho.object.get_absorption_image for consistency."""
+        try:
+            import matplotlib.pyplot as plt
+            fname = os.path.join(testdir, 'result', 'ptycho', 'absorption')
+            os.makedirs(fname, exist_ok=True)
+            plt.imsave(
+                f'{fname}/{0}-ampli.png',
+                tike.ptycho.object.get_absorbtion_image(
+                    self.data,
+                    self.scan,
+                    rescale=1.0,
+                ),
+            )
+        except ImportError:
+            pass
+
+
 class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
     """Test various ptychography reconstruction methods for consistency."""
 
     post_name = ""
-
-    def setUp(self, filename='data/siemens-star-small.npz.bz2'):
-        """Load a dataset for reconstruction."""
-        dataset_file = os.path.join(testdir, filename)
-        with bz2.open(dataset_file, 'rb') as f:
-            archive = np.load(f)
-            self.scan = archive['scan'][0]
-            self.data = archive['data'][0]
-            self.probe = archive['probe'][0]
-        self.scan -= np.amin(self.scan, axis=-2) - 20
-        self.probe = tike.ptycho.probe.add_modes_random_phase(self.probe, 5)
-        self.probe *= np.random.rand(*self.probe.shape)
-        self.probe = tike.ptycho.probe.orthogonalize_eig(self.probe)
 
     def test_consistent_adam_grad(self):
         """Check ptycho.solver.adam_grad for consistency."""
