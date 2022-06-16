@@ -45,6 +45,9 @@ class ObjectOptions:
     m: np.array = dataclasses.field(init=False, default_factory=lambda: None)
     """The first moment for adaptive moment."""
 
+    clip_magnitude: bool = True
+    """Whether to force the object magnitude to remain <= 1."""
+
     def copy_to_device(self):
         """Copy to the current GPU memory."""
         if self.v is not None:
@@ -126,7 +129,11 @@ def get_padded_object(scan, probe):
     height = probe.shape[-1] + int(span[0]) + pad
     width = probe.shape[-1] + int(span[1]) + pad
 
-    return np.ones((height, width), dtype='complex64'), scan
+    return np.full(
+        shape=(height, width),
+        dtype='complex64',
+        fill_value=np.complex64(0.5 + 0j),
+    ), scan
 
 
 def _int_min_max(x):

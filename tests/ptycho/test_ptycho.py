@@ -233,7 +233,11 @@ class TemplatePtychoRecon():
 
     def init_params(self):
         return tike.ptycho.PtychoParameters(
-            psi=np.ones((600, 600), dtype=np.complex64),
+            psi=np.full(
+                (600, 600),
+                dtype=np.complex64,
+                fill_value=np.complex64(0.5 + 0j),
+            ),
             probe=self.probe,
             scan=self.scan,
         )
@@ -597,8 +601,9 @@ def _save_ptycho_result(result, algorithm):
             vmin=-np.pi,
             vmax=np.pi,
         )
-        plt.imsave(
-            f'{fname}/{0}-ampli.png',
+        import tifffile
+        tifffile.imwrite(
+            f'{fname}/{0}-ampli.tiff',
             np.abs(result.psi).astype('float32'),
         )
         _save_probe(fname, result.probe)
