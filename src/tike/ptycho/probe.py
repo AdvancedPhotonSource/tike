@@ -149,6 +149,8 @@ def constrain_variable_probe(variable_probe, weights):
         axis=(-3, -2, -1),
     )
 
+    assert np.all(np.diff(tike.linalg.norm(variable_probe, axis=(-2, -1), keepdims=False), axis=-2) <= 0), "Power of the variable probes should be monotonically decreasing!"
+
     logger.info('Remove outliars from variable probe weights')
     aevol = cp.abs(weights)
     weights = cp.minimum(
@@ -479,7 +481,9 @@ def orthogonalize_eig(x):
     # order, so we just reverse the order of modes to have them sorted in
     # descending order.
     vectors = vectors[..., ::-1].swapaxes(-1, -2)
-    return (vectors @ x.reshape(*x.shape[:-2], -1)).reshape(*x.shape)
+    result = (vectors @ x.reshape(*x.shape[:-2], -1)).reshape(*x.shape)
+    assert np.all(np.diff(tike.linalg.norm(result, axis=(-2, -1), keepdims=False), axis=-1) <= 0), "Power of the orthogonalized probes should be monotonically decreasing!"
+    return result
 
 
 def gaussian(size, rin=0.8, rout=1.0):
