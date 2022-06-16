@@ -116,14 +116,14 @@ class TestProbe(unittest.TestCase):
         """Finite probe support penalty function is within expected bounds."""
         penalty = tike.ptycho.probe.finite_probe_support(
             probe=cp.zeros((101, 101)),  # must be odd shaped for min to be 0
-            radius=0.5 * 0.4,
-            degree=1.0,  # must have degree >= 1 for upper bound to be p
+            radius=0.5 * 0.7,
+            degree=2.5,  # must have degree >= 1 for upper bound to be p
             p=2.345,
         )
         try:
             import tifffile
             os.makedirs(resultdir, exist_ok=True)
-            tifffile.imsave(os.path.join(resultdir, 'penalty.tiff'),
+            tifffile.imwrite(os.path.join(resultdir, 'penalty.tiff'),
                             penalty.astype('float32').get())
         except ImportError:
             pass

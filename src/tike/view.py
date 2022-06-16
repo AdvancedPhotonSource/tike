@@ -59,8 +59,34 @@ import matplotlib.transforms as transforms
 from matplotlib import collections
 import matplotlib.pyplot as plt
 import numpy as np
+import tike.linalg
 
 logger = logging.getLogger(__name__)
+
+
+def plot_probe_power(probe):
+    """Draw a bar chart of relative power of each probe to the current axes.
+
+    The power of the probe is computed as the sum of absolute squares over all
+    pixels in the probe.
+
+    Parameters
+    ----------
+    probe : (..., 1, 1, SHARED, WIDE, HIGH) complex64
+        The probes to be analyzed.
+    """
+    power = np.square(tike.linalg.norm(
+        probe,
+        axis=(-2, -1),
+        keepdims=False,
+    )).flatten()
+    axes = plt.gca()
+    axes.bar(
+        range(len(power)),
+        height=power / np.sum(power),
+    )
+    axes.set_xlabel('Probe index')
+    axes.set_ylabel('Relative probe power')
 
 
 def plot_position_error(true, *args, indices=None):
