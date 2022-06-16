@@ -146,10 +146,15 @@ def constrain_variable_probe(variable_probe, weights):
     logger.info('Orthogonalize variable probes')
     variable_probe = tike.linalg.orthogonalize_gs(
         variable_probe,
-        axis=(-3, -2, -1),
+        axis=(-2, -1),
+        N=-4,
     )
 
-    assert np.all(np.diff(tike.linalg.norm(variable_probe, axis=(-2, -1), keepdims=False), axis=-2) <= 0), "Power of the variable probes should be monotonically decreasing!"
+    if __debug__:
+        _power = tike.linalg.norm(variable_probe, axis=(-2, -1), keepdims=False)
+        assert np.all(
+            np.diff(_power, axis=-2) <= 0
+        ), f"Variable probes power should be monotonically decreasing! {_power}"
 
     logger.info('Remove outliars from variable probe weights')
     aevol = cp.abs(weights)
@@ -482,7 +487,10 @@ def orthogonalize_eig(x):
     # descending order.
     vectors = vectors[..., ::-1].swapaxes(-1, -2)
     result = (vectors @ x.reshape(*x.shape[:-2], -1)).reshape(*x.shape)
-    assert np.all(np.diff(tike.linalg.norm(result, axis=(-2, -1), keepdims=False), axis=-1) <= 0), "Power of the orthogonalized probes should be monotonically decreasing!"
+    assert np.all(
+        np.diff(tike.linalg.norm(result, axis=(-2, -1), keepdims=False),
+                axis=-1) <= 0
+    ), "Power of the orthogonalized probes should be monotonically decreasing!"
     return result
 
 
