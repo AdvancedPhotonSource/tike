@@ -183,7 +183,7 @@ def reconstruct(
 
     Parameters
     ----------
-    data : (FRAME, WIDE, HIGH) float32
+    data : (FRAME, WIDE, HIGH) uint16
         The intensity (square of the absolute value) of the propagated
         wavefront; i.e. what the detector records. FFT-shifted so the
         diffraction peak is at the corners.
@@ -313,6 +313,7 @@ class Reconstruction():
                 if odd_pool else self.comm.pool.num_workers // 2,
                 1 if odd_pool else 2,
             ),
+            ('float32', 'uint16', 'float32'),
             self._device_parameters.scan,
             self.data,
             self._device_parameters.eigen_weights,
@@ -527,9 +528,11 @@ class Reconstruction():
                 if odd_pool else self.comm.pool.num_workers // 2,
                 1 if odd_pool else 2,
             ),
+            ('float32', 'uint16'),
             new_scan,
             new_data,
         )
+        # TODO: Perform sqrt of data here if gaussian model.
         # FIXME: Append makes a copy of each array!
         self.data = self.comm.pool.map(
             cp.append,
@@ -639,11 +642,11 @@ def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
     return comm.pool.bcast([probe[0]])
 
 
-def _split(m, x):
-    return cp.asarray(x[m], dtype='float32')
+def _split(m, x, dtype):
+    return cp.asarray(x[m], dtype=dtype)
 
 
-def split_by_scan_grid(pool, shape, scan, *args, fly=1):
+def split_by_scan_grid(pool, shape, dtype, scan, *args, fly=1):
     """Split the field of view into a 2D grid.
 
     Mask divide the data into a 2D grid of spatially contiguous regions.
@@ -652,6 +655,8 @@ def split_by_scan_grid(pool, shape, scan, *args, fly=1):
     ----------
     shape : tuple of int
         The number of grid divisions along each dimension.
+    dtype : List[str]
+        The datatypes of the args after splitting.
     scan : (nscan, 2) float32
         The 2D coordinates of the scan positions.
     args : (nscan, ...) float32 or None
@@ -678,11 +683,11 @@ def split_by_scan_grid(pool, shape, scan, *args, fly=1):
     order = [order[m] for m in mask]
 
     split_args = []
-    for arg in [scan, *args]:
+    for arg, t in zip([scan, *args], dtype):
         if arg is None:
             split_args.append(None)
         else:
-            split_args.append(pool.map(_split, mask, x=arg))
+            split_args.append(pool.map(_split, mask, x=arg, dtype=t))
 
     return (order, *split_args)
 
