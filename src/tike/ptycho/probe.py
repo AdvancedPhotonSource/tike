@@ -143,6 +143,10 @@ def constrain_variable_probe(variable_probe, weights):
     2. Enforce orthogonality once per epoch
 
     """
+    # NOTE: No smoothing of variable probe weights because the weights are not
+    # stored consecutively in device memory. Smoothing would require sorting
+    # and synchronizing the weights with the host.
+
     logger.info('Orthogonalize variable probes')
     variable_probe = tike.linalg.orthogonalize_gs(
         variable_probe,
