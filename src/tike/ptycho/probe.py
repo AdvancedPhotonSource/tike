@@ -136,16 +136,13 @@ def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
         return shared_probe.copy()
 
 
-def constrain_variable_probe(variable_probe, weights):
-    """Add the following constraints to variable probe weights
+def _constrain_variable_probe1(variable_probe, weights):
 
-    1. Remove outliars from weights
-    2. Enforce orthogonality once per epoch
-
-    """
-    # NOTE: No smoothing of variable probe weights because the weights are not
-    # stored consecutively in device memory. Smoothing would require sorting
-    # and synchronizing the weights with the host.
+    logger.info("Normalize variable probes.")
+    vnorm = tike.linalg.mnorm(variable_probe, axis=(-2, -1), keepdims=True)
+    variable_probe /= vnorm
+    probes_with_modes = variable_probe.shape[-3]
+    weights[..., 1:, :probes_with_modes] *= vnorm[..., 0, 0]
 
     logger.info('Orthogonalize variable probes')
     variable_probe = tike.linalg.orthogonalize_gs(
@@ -154,8 +151,26 @@ def constrain_variable_probe(variable_probe, weights):
         N=-4,
     )
 
+    logger.info("Sort probes by energy")
+    power = tike.linalg.norm(
+        weights[..., 1:, :probes_with_modes],
+        keepdims=True,
+        axis=-3,
+    )**2
+
+    return variable_probe, weights, power
+
+
+def _constrain_variable_probe2(variable_probe, weights, power):
+    power = np.sqrt(power)
+    probes_with_modes = variable_probe.shape[-3]
+    for i in range(probes_with_modes):
+        sorted = np.argsort(-power[..., i].flatten())
+        weights[..., 1:, i] = weights[..., 1 + sorted, i]
+        variable_probe[..., :, i, :, :] = variable_probe[..., sorted, i, :, :]
+
     if __debug__:
-        _power = tike.linalg.norm(variable_probe, axis=(-2, -1), keepdims=False)
+        _power = tike.linalg.norm(weights[..., 1:, :], axis=-3, keepdims=False)
         assert np.all(
             np.diff(_power, axis=-2) <= 0
         ), f"Variable probes power should be monotonically decreasing! {_power}"
@@ -172,7 +187,36 @@ def constrain_variable_probe(variable_probe, weights):
         ).astype(weights.dtype),
     ) * cp.sign(weights)
 
-    # TODO: Smooth the weights as a function of the frame index.
+    return variable_probe, weights
+
+
+def constrain_variable_probe(comm, variable_probe, weights):
+    """Add the following constraints to variable probe weights
+
+    1. Remove outliars from weights
+    2. Enforce orthogonality once per epoch
+
+    """
+    # TODO: No smoothing of variable probe weights yet because the weights are
+    # not stored consecutively in device memory. Smoothing would require either
+    # sorting and synchronizing the weights with the host OR implementing
+    # smoothing of non-gridded data with splines using device-local data only.
+
+    variable_probe, weights, power = zip(*comm.pool.map(
+        _constrain_variable_probe1,
+        variable_probe,
+        weights,
+    ))
+
+    # reduce power by sum across all devices
+    power = comm.pool.allreduce(power)
+
+    variable_probe, weights = (list(a) for a in zip(*comm.pool.map(
+        _constrain_variable_probe2,
+        variable_probe,
+        weights,
+        power,
+    )))
 
     return variable_probe, weights
 
