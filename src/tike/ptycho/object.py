@@ -151,7 +151,7 @@ def get_absorbtion_image(data, scan, *, rescale=1.0, method='cubic'):
 
     Parameters
     ----------
-    data : (FRAME, WIDE, HIGH) float32
+    data : (FRAME, WIDE, HIGH)
         The intensity (square of the absolute value) of the propagated
         wavefront; i.e. what the detector records. FFT-shifted so the
         diffraction peak is at the corners.
