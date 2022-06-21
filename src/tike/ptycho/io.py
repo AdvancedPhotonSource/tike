@@ -112,7 +112,7 @@ def read_aps_velociprobe(
 
     Returns
     -------
-    data : (FRAME, WIDE, HIGH) float32
+    data : (FRAME, WIDE, HIGH)
         Diffraction patterns; cropped square and peak FFT shifted to corner.
     scan : (POSI, 2) float32
         Scan positions; rescaled to pixel coordinates but uncentered.
@@ -236,4 +236,4 @@ def read_aps_velociprobe(
         warnings.warn("Some values in the diffraction data are negative. "
                       "Photon counts must be >= 0 and finite.")
 
-    return data.astype('float32'), scan.astype('float32')
+    return data, scan.astype('float32')
