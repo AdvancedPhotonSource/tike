@@ -137,21 +137,22 @@ def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
 
 
 def _constrain_variable_probe1(variable_probe, weights):
+    """Help use the thread pool with constrain_variable_probe"""
 
-    logger.info("Normalize variable probes.")
+    # Normalize variable probes
     vnorm = tike.linalg.mnorm(variable_probe, axis=(-2, -1), keepdims=True)
     variable_probe /= vnorm
     probes_with_modes = variable_probe.shape[-3]
     weights[..., 1:, :probes_with_modes] *= vnorm[..., 0, 0]
 
-    logger.info('Orthogonalize variable probes')
+    # Orthogonalize variable probes
     variable_probe = tike.linalg.orthogonalize_gs(
         variable_probe,
         axis=(-2, -1),
         N=-4,
     )
 
-    logger.info("Sort probes by energy")
+    # Compute probe energy in order to sort probes by energy
     power = tike.linalg.norm(
         weights[..., 1:, :probes_with_modes],
         keepdims=True,
@@ -162,6 +163,9 @@ def _constrain_variable_probe1(variable_probe, weights):
 
 
 def _constrain_variable_probe2(variable_probe, weights, power):
+    """Help use the thread pool with constrain_variable_probe"""
+
+    # Sort the probes by energy
     power = np.sqrt(power)
     probes_with_modes = variable_probe.shape[-3]
     for i in range(probes_with_modes):
@@ -175,7 +179,7 @@ def _constrain_variable_probe2(variable_probe, weights, power):
             np.diff(_power, axis=-2) <= 0
         ), f"Variable probes power should be monotonically decreasing! {_power}"
 
-    logger.info('Remove outliars from variable probe weights')
+    # Remove outliars from variable probe weights
     aevol = cp.abs(weights)
     weights = cp.minimum(
         aevol,
@@ -195,6 +199,8 @@ def constrain_variable_probe(comm, variable_probe, weights):
 
     1. Remove outliars from weights
     2. Enforce orthogonality once per epoch
+    3. Sort the variable probes by their total energy
+    4. Normalize the variable probes so the energy is contained in the weight
 
     """
     # TODO: No smoothing of variable probe weights yet because the weights are
