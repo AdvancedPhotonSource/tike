@@ -260,9 +260,10 @@ class Reconstruction():
                 np.asarray(parameters.probe.shape[-2:]) > np.asarray(
                     data.shape[-2:])):
             raise ValueError(
-                f"probe shape {parameters.probe.shape} is incorrect."
+                f"probe shape {parameters.probe.shape} "
+                f"and data shape {data.shape} are incompatible. "
                 "The probe width/height must be "
-                f"<= the data width/height {data.shape}.")
+                f"<= the data width/height .")
         logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                     "iterations.".format(
                         parameters.algorithm_options.name,
