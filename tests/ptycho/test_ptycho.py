@@ -54,7 +54,6 @@ import unittest
 import warnings
 
 import numpy as np
-from mpi4py import MPI
 
 import tike.ptycho
 from tike.ptycho.probe import ProbeOptions
@@ -68,7 +67,12 @@ __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 testdir = os.path.dirname(os.path.dirname(__file__))
-_mpi_size = MPI.COMM_WORLD.Get_size()
+
+try:
+    from mpi4py import MPI
+    _mpi_size = MPI.COMM_WORLD.Get_size()
+except ModuleNotFoundError:
+    _mpi_size = 0
 
 
 class TestPtychoUtils(unittest.TestCase):

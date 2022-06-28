@@ -1,14 +1,12 @@
 import unittest
 
-import numpy as np
-
-from tike.communicators import Comm
+import tike.communicators
 
 
 class TestComm(unittest.TestCase):
 
     def setUp(self, workers=4):
-        self.comm = Comm(workers)
+        self.comm = tike.communicators.Comm(workers)
         self.xp = self.comm.pool.xp
 
     def test_reduce(self):
@@ -20,6 +18,7 @@ class TestComm(unittest.TestCase):
         result = self.comm.reduce(a_list, 'gpu')
         self.xp.testing.assert_array_equal(a, result[0])
 
+    @unittest.skipIf(tike.communicators.MPIComm == None, "MPI is unavailable.")
     def test_Allreduce_reduce(self):
         a = self.xp.ones((1,))
         a_list = self.comm.pool.bcast([a])

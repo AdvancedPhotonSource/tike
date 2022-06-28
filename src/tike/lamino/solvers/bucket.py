@@ -1,9 +1,7 @@
 import logging
 
-from mpi4py import MPI
 import tike.linalg
-from tike.opt import conjugate_gradient, line_search
-import numpy as np
+from tike.opt import conjugate_gradient
 
 logger = logging.getLogger(__name__)
 

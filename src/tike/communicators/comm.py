@@ -26,10 +26,13 @@ class Comm:
 
     """
 
-    def __init__(self, gpu_count,
-                 mpi=MPIComm,
-                 pool=ThreadPool,
-                 **kwargs):
+    def __init__(
+        self,
+        gpu_count,
+        mpi=MPIComm,
+        pool=ThreadPool,
+        **kwargs,
+    ):
         if mpi is not None:
             self.mpi = mpi()
             self.use_mpi = True
@@ -102,7 +105,8 @@ class Comm:
         buf = []
         for worker in self.pool.workers:
             with cp.cuda.Device(worker):
-                buf.append(cp.asarray(self.mpi.Allreduce(
-                    cp.asnumpy(src[self.pool.workers.index(worker)]),
-                )))
+                buf.append(
+                    cp.asarray(
+                        self.mpi.Allreduce(
+                            cp.asnumpy(src[self.pool.workers.index(worker)]),)))
         return buf

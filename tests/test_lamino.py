@@ -52,7 +52,6 @@ import pickle
 import unittest
 
 import numpy as np
-from mpi4py import MPI
 
 import tike.lamino
 import tike.lamino.bucket
@@ -63,8 +62,14 @@ __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 testdir = os.path.dirname(__file__)
-_mpi_size = MPI.COMM_WORLD.Get_size()
-_mpi_rank = MPI.COMM_WORLD.Get_rank()
+
+try:
+    from mpi4py import MPI
+    _mpi_size = MPI.COMM_WORLD.Get_size()
+    _mpi_rank = MPI.COMM_WORLD.Get_rank()
+except ModuleNotFoundError:
+    _mpi_rank = 0
+    _mpi_size = 0
 
 
 class TestLaminoRecon(unittest.TestCase):
@@ -264,9 +269,9 @@ class TestLaminoRadon(unittest.TestCase):
 
     def _radon_equal(self, module, eps):
         for tilt, axis, theta in zip(
-            [0, np.pi / 2,  np.pi / 2],
-            [0,         1,          2],
-            [0,         0, -np.pi / 2],
+            [0, np.pi / 2, np.pi / 2],
+            [0, 1, 2],
+            [0, 0, -np.pi / 2],
         ):
             projection = module.simulate(
                 obj=self.original,
@@ -287,9 +292,9 @@ class TestLaminoRadon(unittest.TestCase):
     def _radon_equal_reverse(self, module, eps):
         for tilt, axis, theta, flip in zip(
             [np.pi, -np.pi / 2, np.pi / 2],
-            [0,              1,         2],
-            [0,              0, np.pi / 2],
-            [0,              0,         1],
+            [0, 1, 2],
+            [0, 0, np.pi / 2],
+            [0, 0, 1],
         ):
             projection = module.simulate(
                 obj=self.original,
