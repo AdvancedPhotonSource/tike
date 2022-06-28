@@ -56,7 +56,7 @@ def lstsq(a, b, weights=None):
     return x
 
 
-def orthogonalize_gs(x, axis=-1):
+def orthogonalize_gs(x, axis=-1, N=None):
     """Gram-schmidt orthogonalization for complex arrays.
 
     Parameters
@@ -68,6 +68,8 @@ def orthogonalize_gs(x, axis=-1):
         is orthogonalized. If axis is a tuple, then the number of
         orthogonal vectors is the length of the last dimension not included in
         axis. The other dimensions are broadcast.
+    N : int
+        The axis along which to orthogonalize. Other dimensions are broadcast.
     """
     # Find N, the last dimension not included in axis; we iterate over N
     # vectors in the Gram-schmidt algorithm. Dimensions that are not N or
@@ -76,10 +78,12 @@ def orthogonalize_gs(x, axis=-1):
         axis = tuple(a % x.ndim for a in axis)
     except TypeError:
         axis = (axis % x.ndim,)
-    N = x.ndim - 1
-    while N in axis:
-        N -= 1
-    if N < 0:
+    if N is None:
+        N = x.ndim - 1
+        while N in axis:
+            N -= 1
+    N = N % x.ndim
+    if N in axis:
         raise ValueError("Cannot orthogonalize a single vector.")
     # Move axis N to the front for convenience
     x = np.moveaxis(x, N, 0)

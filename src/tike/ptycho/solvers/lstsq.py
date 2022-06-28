@@ -212,11 +212,11 @@ def lstsq_grad(
                             a=object_options.smoothness_constraint)
 
     if eigen_probe is not None:
-        eigen_probe, eigen_weights = (list(a) for a in zip(*comm.pool.map(
-            tike.ptycho.probe.constrain_variable_probe,
+        eigen_probe, eigen_weights = tike.ptycho.probe.constrain_variable_probe(
+            comm,
             beigen_probe,
             eigen_weights,
-        )))
+        )
 
     algorithm_options.costs.append(cost)
     parameters.probe = probe
