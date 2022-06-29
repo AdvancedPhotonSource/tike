@@ -50,6 +50,9 @@ def dm(
 
     References
     ----------
+    Thibault, Pierre, Martin Dierolf, Oliver Bunk, Andreas Menzel, and Franz
+    Pfeiffer. "Probe retrieval in ptychographic coherent diffractive imaging."
+    Ultramicroscopy 109, no. 4 (2009): 338-343.
 
     .. seealso:: :py:mod:`tike.ptycho`
 
