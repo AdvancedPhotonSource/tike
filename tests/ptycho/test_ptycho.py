@@ -474,7 +474,7 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
             fname = os.path.join(testdir, 'result', 'ptycho', f'{algorithm}')
             os.makedirs(fname, exist_ok=True)
 
-            plt.figure(dpi=600)
+            f = plt.figure(dpi=600)
             plt.title(algorithm)
             tike.view.plot_positions_convergence(
                 self.scan_truth,
@@ -482,7 +482,7 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
                 result.scan,
             )
             plt.savefig(os.path.join(fname, 'position-error.svg'))
-            plt.close()
+            plt.close(f)
         except ImportError:
             pass
 
@@ -595,13 +595,12 @@ def _save_probe(output_folder, probe, algorithm):
             f'{output_folder}/probe-ampli.png',
             np.abs(flattened),
         )
-    plt.figure()
+    f = plt.figure()
     tike.view.plot_probe_power(probe)
     plt.semilogy()
     plt.title(algorithm)
-    plt.savefig(f'{output_folder}/probe-power.png')
-    plt.close()
-
+    plt.savefig(f'{output_folder}/probe-power.svg')
+    plt.close(f)
 
 def _save_ptycho_result(result, algorithm):
     try:
