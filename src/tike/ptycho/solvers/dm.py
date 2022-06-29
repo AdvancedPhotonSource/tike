@@ -204,7 +204,7 @@ def _update_nearplane(
         op=op,
     )))
 
-    if psi_update_numerator is None:
+    if psi_update_numerator is None or not recover_psi:
         psi_update_numerator = _psi_update_numerator
     else:
         psi_update_numerator = comm.pool.map(
@@ -212,7 +212,7 @@ def _update_nearplane(
             psi_update_numerator,
             _psi_update_numerator,
         )
-    if psi_update_denominator is None:
+    if psi_update_denominator is None or not recover_psi:
         psi_update_denominator = _psi_update_denominator
     else:
         psi_update_denominator = comm.pool.map(
@@ -221,7 +221,7 @@ def _update_nearplane(
             _psi_update_denominator,
         )
 
-    if probe_update_numerator is None:
+    if probe_update_numerator is None or not recover_probe:
         probe_update_numerator = _probe_update_numerator
     else:
         probe_update_numerator = comm.pool.map(
@@ -229,7 +229,7 @@ def _update_nearplane(
             probe_update_numerator,
             _probe_update_numerator,
         )
-    if probe_update_denominator is None:
+    if probe_update_denominator is None or not recover_probe:
         probe_update_denominator = _probe_update_denominator
     else:
         probe_update_denominator = comm.pool.map(
