@@ -174,6 +174,7 @@ def _constrain_variable_probe2(variable_probe, weights, power):
 
     if __debug__:
         _power = tike.linalg.norm(weights[..., 1:, :], axis=-3, keepdims=False)
+        _power[_power < 1e-5] = 0  # power this small is effectively zero
         assert np.all(
             np.diff(_power, axis=-2) <= 0
         ), f"Variable probes power should be monotonically decreasing! {_power}"
