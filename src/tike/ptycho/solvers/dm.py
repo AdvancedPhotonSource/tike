@@ -54,6 +54,11 @@ def dm(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
+    psi_update_numerator = None
+    psi_update_denominator = None
+    probe_update_numerator = None
+    probe_update_denominator = None
+
     for n in tike.opt.randomizer.permutation(len(batches[0])):
 
         bdata = comm.pool.map(tike.opt.get_batch, data, batches, n=n)
@@ -88,12 +93,10 @@ def dm(
             cost = comm.reduce(cost, 'cpu')
 
         (
-            parameters.psi,
-            parameters.probe,
-            beigen_probe,
-            beigen_weights,
-            bscan,
-            bposition_options,
+            psi_update_numerator,
+            psi_update_denominator,
+            probe_update_numerator,
+            probe_update_denominator,
         ) = _update_nearplane(
             op,
             comm,
@@ -101,14 +104,13 @@ def dm(
             parameters.psi,
             bscan,
             parameters.probe,
-            unique_probe,
-            beigen_probe,
-            beigen_weights,
             parameters.object_options is not None,
             parameters.probe_options is not None,
             position_options=bposition_options,
-            algorithm_options=parameters.algorithm_options,
-            probe_options=parameters.probe_options,
+            psi_update_numerator=psi_update_numerator,
+            psi_update_denominator=psi_update_denominator,
+            probe_update_numerator=probe_update_numerator,
+            probe_update_denominator=probe_update_denominator,
         )
 
         if parameters.position_options is not None:
@@ -126,6 +128,18 @@ def dm(
             batches,
             n=n,
         )
+
+    parameters.psi, parameters.probe = _apply_update(
+        comm,
+        parameters.object_options is not None,
+        parameters.probe_options is not None,
+        psi_update_numerator,
+        psi_update_denominator,
+        probe_update_numerator,
+        probe_update_denominator,
+        parameters.psi,
+        parameters.probe,
+    )
 
     parameters.algorithm_options.costs.append(cost)
     return parameters
@@ -157,25 +171,24 @@ def _update_nearplane(
     psi,
     scan_,
     probe,
-    unique_probe,
-    eigen_probe,
-    eigen_weights,
     recover_psi,
     recover_probe,
     step_length=1.0,
-    algorithm_options=None,
     position_options=None,
     *,
-    probe_options=None,
+    psi_update_numerator=None,
+    psi_update_denominator=None,
+    probe_update_numerator=None,
+    probe_update_denominator=None,
 ):
 
     patches = comm.pool.map(_get_patches, nearplane_, psi, scan_, op=op)
 
     (
-        psi_update_numerator,
-        psi_update_denominator,
-        probe_update_numerator,
-        probe_update_denominator,
+        _psi_update_numerator,
+        _psi_update_denominator,
+        _probe_update_numerator,
+        _probe_update_denominator,
         # position_update_numerator,
         # position_update_denominator,
     ) = (list(a) for a in zip(*comm.pool.map(
@@ -190,6 +203,60 @@ def _update_nearplane(
         recover_positions=position_options is not None,
         op=op,
     )))
+
+    if psi_update_numerator is None:
+        psi_update_numerator = _psi_update_numerator
+    else:
+        psi_update_numerator = comm.pool.map(
+            cp.add,
+            psi_update_numerator,
+            _psi_update_numerator,
+        )
+    if psi_update_denominator is None:
+        psi_update_denominator = _psi_update_denominator
+    else:
+        psi_update_denominator = comm.pool.map(
+            cp.add,
+            psi_update_denominator,
+            _psi_update_denominator,
+        )
+
+    if probe_update_numerator is None:
+        probe_update_numerator = _probe_update_numerator
+    else:
+        probe_update_numerator = comm.pool.map(
+            cp.add,
+            probe_update_numerator,
+            _probe_update_numerator,
+        )
+    if probe_update_denominator is None:
+        probe_update_denominator = _probe_update_denominator
+    else:
+        probe_update_denominator = comm.pool.map(
+            cp.add,
+            probe_update_denominator,
+            _probe_update_denominator,
+        )
+
+    return (
+        psi_update_numerator,
+        psi_update_denominator,
+        probe_update_numerator,
+        probe_update_denominator,
+    )
+
+
+def _apply_update(
+    comm,
+    recover_psi,
+    recover_probe,
+    psi_update_numerator,
+    psi_update_denominator,
+    probe_update_numerator,
+    probe_update_denominator,
+    psi,
+    probe,
+):
 
     if recover_psi:
         if comm.use_mpi:
@@ -220,7 +287,7 @@ def _update_nearplane(
         probe[0] = probe_update_numerator / (probe_update_denominator + 1e-9)
         probe = comm.pool.bcast([probe[0]])
 
-    return psi, probe, eigen_probe, eigen_weights, scan_, position_options
+    return psi, probe
 
 
 def _get_patches(nearplane, psi, scan, op=None):
