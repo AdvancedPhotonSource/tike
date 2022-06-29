@@ -172,13 +172,6 @@ def _constrain_variable_probe2(variable_probe, weights, power):
         weights[..., 1:, i] = weights[..., 1 + sorted, i]
         variable_probe[..., :, i, :, :] = variable_probe[..., sorted, i, :, :]
 
-    if __debug__:
-        _power = tike.linalg.norm(weights[..., 1:, :], axis=-3, keepdims=False)
-        _power[_power < 1e-5] = 0  # power this small is effectively zero
-        assert np.all(
-            np.diff(_power, axis=-2) <= 0
-        ), f"Variable probes power should be monotonically decreasing! {_power}"
-
     # Remove outliars from variable probe weights
     aevol = cp.abs(weights)
     weights = cp.minimum(
