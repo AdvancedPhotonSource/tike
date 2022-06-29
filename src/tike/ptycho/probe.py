@@ -166,7 +166,6 @@ def _constrain_variable_probe2(variable_probe, weights, power):
     """Help use the thread pool with constrain_variable_probe"""
 
     # Sort the probes by energy
-    power = np.sqrt(power)
     probes_with_modes = variable_probe.shape[-3]
     for i in range(probes_with_modes):
         sorted = np.argsort(-power[..., i].flatten())
