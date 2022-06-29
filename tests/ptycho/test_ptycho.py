@@ -403,6 +403,7 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
         params = self.init_params()
         params.algorithm_options = tike.ptycho.DmOptions(
             num_iter=16,
+            num_batch=5,
         )
         params.probe_options = ProbeOptions()
         params.object_options = ObjectOptions()
@@ -574,7 +575,7 @@ def _save_eigen_probe(output_folder, eigen_probe):
         )
 
 
-def _save_probe(output_folder, probe):
+def _save_probe(output_folder, probe, algorithm):
     import matplotlib.pyplot as plt
     flattened = np.concatenate(
         probe.reshape((-1, *probe.shape[-2:])),
@@ -594,6 +595,12 @@ def _save_probe(output_folder, probe):
             f'{output_folder}/probe-ampli.png',
             np.abs(flattened),
         )
+    plt.figure()
+    tike.view.plot_probe_power(probe)
+    plt.semilogy()
+    plt.title(algorithm)
+    plt.savefig(f'{output_folder}/probe-power.png')
+    plt.close()
 
 
 def _save_ptycho_result(result, algorithm):
@@ -625,7 +632,7 @@ def _save_ptycho_result(result, algorithm):
             f'{fname}/{0}-ampli.tiff',
             np.abs(result.psi).astype('float32'),
         )
-        _save_probe(fname, result.probe)
+        _save_probe(fname, result.probe, algorithm)
         if result.eigen_weights is not None:
             _save_eigen_weights(fname, result.eigen_weights)
             if result.eigen_weights.shape[-2] > 1:
