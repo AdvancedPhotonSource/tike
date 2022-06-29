@@ -22,9 +22,6 @@ def dm(
 ):
     """Solve the ptychography problem using the difference map approach.
 
-    Object and probe are updated simultaneouly using optimal step sizes
-    computed using a least squares approach.
-
     Parameters
     ----------
     op : :py:class:`tike.operators.Ptycho`
