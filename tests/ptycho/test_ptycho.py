@@ -398,6 +398,21 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
                 'use_mpi': _mpi_size > 1,
             },), f"{'mpi-' if _mpi_size > 1 else ''}rpie{self.post_name}")
 
+    def test_consistent_dm(self):
+        """Check ptycho.solver.dm for consistency."""
+        params = self.init_params()
+        params.algorithm_options = tike.ptycho.DmOptions(
+            num_iter=16,
+        )
+        params.probe_options = ProbeOptions()
+        params.object_options = ObjectOptions()
+        _save_ptycho_result(
+            self.template_consistent_algorithm(params={
+                'parameters': params,
+                'num_gpu': 2,
+                'use_mpi': _mpi_size > 1,
+            },), f"{'mpi-' if _mpi_size > 1 else ''}dm{self.post_name}")
+
 
 class TestPtychoOnline(TestPtychoRecon, unittest.TestCase):
     """Test ptychography reconstruction when data is streaming."""

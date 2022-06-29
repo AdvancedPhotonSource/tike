@@ -66,6 +66,13 @@ class CgradOptions(IterativeOptions):
 
 
 @dataclasses.dataclass
+class DmOptions(IterativeOptions):
+    name: str = dataclasses.field(default='dm', init=False)
+
+    num_batch: int = dataclasses.field(default=1, init=False)
+
+
+@dataclasses.dataclass
 class RpieOptions(IterativeOptions):
     name: str = dataclasses.field(default='rpie', init=False)
 
