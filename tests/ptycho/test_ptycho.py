@@ -398,6 +398,22 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
                 'use_mpi': _mpi_size > 1,
             },), f"{'mpi-' if _mpi_size > 1 else ''}rpie{self.post_name}")
 
+    def test_consistent_dm(self):
+        """Check ptycho.solver.dm for consistency."""
+        params = self.init_params()
+        params.algorithm_options = tike.ptycho.DmOptions(
+            num_iter=16,
+            num_batch=5,
+        )
+        params.probe_options = ProbeOptions()
+        params.object_options = ObjectOptions()
+        _save_ptycho_result(
+            self.template_consistent_algorithm(params={
+                'parameters': params,
+                'num_gpu': 2,
+                'use_mpi': _mpi_size > 1,
+            },), f"{'mpi-' if _mpi_size > 1 else ''}dm{self.post_name}")
+
 
 class TestPtychoOnline(TestPtychoRecon, unittest.TestCase):
     """Test ptychography reconstruction when data is streaming."""
@@ -458,7 +474,7 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
             fname = os.path.join(testdir, 'result', 'ptycho', f'{algorithm}')
             os.makedirs(fname, exist_ok=True)
 
-            plt.figure(dpi=600)
+            f = plt.figure(dpi=600)
             plt.title(algorithm)
             tike.view.plot_positions_convergence(
                 self.scan_truth,
@@ -466,7 +482,7 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
                 result.scan,
             )
             plt.savefig(os.path.join(fname, 'position-error.svg'))
-            plt.close()
+            plt.close(f)
         except ImportError:
             pass
 
@@ -559,7 +575,7 @@ def _save_eigen_probe(output_folder, eigen_probe):
         )
 
 
-def _save_probe(output_folder, probe):
+def _save_probe(output_folder, probe, algorithm):
     import matplotlib.pyplot as plt
     flattened = np.concatenate(
         probe.reshape((-1, *probe.shape[-2:])),
@@ -579,7 +595,12 @@ def _save_probe(output_folder, probe):
             f'{output_folder}/probe-ampli.png',
             np.abs(flattened),
         )
-
+    f = plt.figure()
+    tike.view.plot_probe_power(probe)
+    plt.semilogy()
+    plt.title(algorithm)
+    plt.savefig(f'{output_folder}/probe-power.svg')
+    plt.close(f)
 
 def _save_ptycho_result(result, algorithm):
     try:
@@ -610,7 +631,7 @@ def _save_ptycho_result(result, algorithm):
             f'{fname}/{0}-ampli.tiff',
             np.abs(result.psi).astype('float32'),
         )
-        _save_probe(fname, result.probe)
+        _save_probe(fname, result.probe, algorithm)
         if result.eigen_weights is not None:
             _save_eigen_weights(fname, result.eigen_weights)
             if result.eigen_weights.shape[-2] > 1:

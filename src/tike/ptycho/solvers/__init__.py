@@ -2,6 +2,7 @@
 
 from .adam import adam_grad
 from .conjugate import cgrad
+from .dm import dm
 from .lstsq import lstsq_grad
 from .rpie import rpie
 from .options import *
@@ -11,6 +12,8 @@ __all__ = [
     'AdamOptions',
     'cgrad',
     'CgradOptions',
+    'dm',
+    'DmOptions',
     'lstsq_grad',
     'LstsqOptions',
     'PtychoParameters',

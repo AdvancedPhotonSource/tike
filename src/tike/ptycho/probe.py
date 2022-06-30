@@ -166,18 +166,11 @@ def _constrain_variable_probe2(variable_probe, weights, power):
     """Help use the thread pool with constrain_variable_probe"""
 
     # Sort the probes by energy
-    power = np.sqrt(power)
     probes_with_modes = variable_probe.shape[-3]
     for i in range(probes_with_modes):
         sorted = np.argsort(-power[..., i].flatten())
         weights[..., 1:, i] = weights[..., 1 + sorted, i]
         variable_probe[..., :, i, :, :] = variable_probe[..., sorted, i, :, :]
-
-    if __debug__:
-        _power = tike.linalg.norm(weights[..., 1:, :], axis=-3, keepdims=False)
-        assert np.all(
-            np.diff(_power, axis=-2) <= 0
-        ), f"Variable probes power should be monotonically decreasing! {_power}"
 
     # Remove outliars from variable probe weights
     aevol = cp.abs(weights)
