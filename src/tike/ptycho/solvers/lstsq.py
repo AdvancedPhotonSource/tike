@@ -23,7 +23,7 @@ def lstsq_grad(
 ):
     """Solve the ptychography problem using Odstrcil et al's approach.
 
-    Object and probe are updated simultaneouly using optimal step sizes
+    Object and probe are updated simultaneously using optimal step sizes
     computed using a least squares approach.
 
     Parameters
@@ -41,25 +41,8 @@ def lstsq_grad(
         A list of list of indices along the FRAME axis of `data` for
         each device which define the batches of `data` to process
         simultaneously.
-    probe : list((1, 1, SHARED, WIDE, HIGH) complex64, ...)
-        A list of duplicate CuPy arrays for each device containing
-        the shared complex illumination function amongst all positions.
-    scan : list((POSI, 2) float32, ...)
-        A list of unique CuPy arrays for each device containing
-        coordinates of the minimum corner of the probe grid for each
-        measurement in the coordinate system of psi. Coordinate order
-        consistent with WIDE, HIGH order.
-    psi : list((WIDE, HIGH) complex64, ...)
-        A list of duplicate CuPy arrays for each device containing
-        the wavefront modulation coefficients of the object.
-    algorithm_options : :py:class:`tike.ptycho.IterativeOptions`
-        The options class for this algorithm.
-    position_options : :py:class:`tike.ptycho.PositionOptions`
-        A class containing settings related to position correction.
-    probe_options : :py:class:`tike.ptycho.ProbeOptions`
-        A class containing settings related to probe updates.
-    object_options : :py:class:`tike.ptycho.ObjectOptions`
-        A class containing settings related to object updates.
+    parameters : :py:class:`tike.ptycho.solvers.PtychoParameters`
+        An object which contains reconstruction parameters.
 
     Returns
     -------

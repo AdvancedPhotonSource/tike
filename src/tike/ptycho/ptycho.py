@@ -60,6 +60,7 @@ from itertools import product
 import logging
 import time
 import typing
+import warnings
 
 import numpy as np
 import cupy as cp
@@ -259,10 +260,10 @@ class Reconstruction():
         if np.any(
                 np.asarray(parameters.probe.shape[-2:]) > np.asarray(
                     data.shape[-2:])):
-            raise ValueError(
-                f"probe shape {parameters.probe.shape} is incorrect."
-                "The probe width/height must be "
-                f"<= the data width/height {data.shape}.")
+            raise ValueError(f"probe shape {parameters.probe.shape} "
+                             f"and data shape {data.shape} are incompatible. "
+                             "The probe width/height must be "
+                             f"<= the data width/height .")
         logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
                     "iterations.".format(
                         parameters.algorithm_options.name,
@@ -300,6 +301,10 @@ class Reconstruction():
         self.comm.__enter__()
 
         # Divide the inputs into regions
+        if (not np.all(np.isfinite(self.data)) or np.any(self.data < 0)):
+            warnings.warn(
+                "Diffraction patterns contain invalid data. "
+                "All data should be non-negative and finite.", UserWarning)
         odd_pool = self.comm.pool.num_workers % 2
         (
             self.comm.order,
@@ -516,6 +521,10 @@ class Reconstruction():
     ) -> None:
         """"Append new diffraction patterns and positions to existing result."""
         # Assign positions and data to correct devices.
+        if (not np.all(np.isfinite(new_data)) or np.any(new_data < 0)):
+            warnings.warn(
+                "New diffraction patterns contain invalid data. "
+                "All data should be non-negative and finite.", UserWarning)
         odd_pool = self.comm.pool.num_workers % 2
         (
             order,

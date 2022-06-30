@@ -2,8 +2,8 @@
 Tike
 ####
 
-.. image:: https://dev.azure.com/tomopy/tike/_apis/build/status/tomography.tike?branchName=master
-   :target: https://dev.azure.com/tomopy/tike/_build/latest?definitionId=3&branchName=master
+.. image:: https://dev.azure.com/tomopy/tike/_apis/build/status/tomography.tike?branchName=main
+   :target: https://dev.azure.com/tomopy/tike/_build/latest?definitionId=3&branchName=main
    :alt: Build Status
 
 Tike is a toolbox for tomographic reconstruction of 3D objects from ptychography
