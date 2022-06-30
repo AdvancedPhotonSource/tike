@@ -394,7 +394,7 @@ def _update_nearplane(
             A4 = comm.pool.map(_A_diagonal_dominant, A4,
                                comm.pool.bcast([delta]))
 
-        if recover_probe or recover_psi:
+        if m == 0 and (recover_probe or recover_psi):
             (
                 weighted_step_psi,
                 weighted_step_probe,
@@ -408,6 +408,24 @@ def _update_nearplane(
                 recover_psi=recover_psi,
                 recover_probe=recover_probe,
             )))
+            if comm.use_mpi:
+                weighted_step_psi[0] = comm.Allreduce_mean(
+                    weighted_step_psi,
+                    axis=-5,
+                )[..., 0, 0, 0]
+                weighted_step_probe[0] = comm.Allreduce_mean(
+                    weighted_step_probe,
+                    axis=-5,
+                )
+            else:
+                weighted_step_psi[0] = comm.pool.reduce_mean(
+                    weighted_step_psi,
+                    axis=-5,
+                )[..., 0, 0, 0]
+                weighted_step_probe[0] = comm.pool.reduce_mean(
+                    weighted_step_probe,
+                    axis=-5,
+                )
 
         if m == 0 and recover_probe and eigen_weights[0] is not None:
             logger.info('Updating eigen probes')
@@ -470,17 +488,6 @@ def _update_nearplane(
 
         # Update each direction
         if recover_psi:
-            if comm.use_mpi:
-                weighted_step_psi[0] = comm.Allreduce_mean(
-                    weighted_step_psi,
-                    axis=-5,
-                )[..., 0, 0, 0]
-            else:
-                weighted_step_psi[0] = comm.pool.reduce_mean(
-                    weighted_step_psi,
-                    axis=-5,
-                )[..., 0, 0, 0]
-
             # (27b) Object update
             dpsi = (weighted_step_psi[0] /
                     probe[0].shape[-3]) * common_grad_psi[0]
@@ -504,17 +511,6 @@ def _update_nearplane(
                 object_options.combined_update += dpsi
 
         if recover_probe:
-            if comm.use_mpi:
-                weighted_step_probe[0] = comm.Allreduce_mean(
-                    weighted_step_probe,
-                    axis=-5,
-                )
-            else:
-                weighted_step_probe[0] = comm.pool.reduce_mean(
-                    weighted_step_probe,
-                    axis=-5,
-                )
-
             dprobe = weighted_step_probe[0] * common_grad_probe[0]
             if probe_options.use_adaptive_moment:
                 if probe_options.m is None:
