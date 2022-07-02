@@ -58,10 +58,45 @@ from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
 from matplotlib import collections
 import matplotlib.pyplot as plt
+import matplotlib.colors as mplcolors
+import cv2 as cv
 import numpy as np
 import tike.linalg
 
 logger = logging.getLogger(__name__)
+
+def complexHSV_to_RGB( img0 ):
+
+    sz      = img0.shape
+
+    hsv_img = np.zeros( ( *sz, 3 ), 'float32' )
+
+    hsv_img[ :, :, 2 ] = np.abs( img0 )
+    hsv_img[ :, :, 2 ] = hsv_img[ :, :, 2 ] - np.min( hsv_img[ :, :, 2 ] )
+    hsv_img[ :, :, 2 ] = hsv_img[ :, :, 2 ] / np.max( hsv_img[ :, :, 2 ] )
+
+    hsv_img[ :, :, 1 ] = np.ones( sz, 'float32' )
+
+    hsv_img[ :, :, 0 ] = np.angle( img0 ) 
+    hsv_img[ :, :, 0 ] = hsv_img[ :, :, 0 ] - np.min( hsv_img[ :, :, 0 ] )
+    hsv_img[ :, :, 0 ] = hsv_img[ :, :, 0 ] / np.max( hsv_img[ :, :, 0 ] )
+
+    rgb_img = mplcolors.hsv_to_rgb( hsv_img )
+
+    return rgb_img
+    
+
+def resize_complex_image( img0, scale_factor_r = 1, scale_factor_c = 1, interpolation = cv.INTER_LINEAR ):
+
+    dim  = ( int( img0.shape[1] * scale_factor_c ), 
+             int( img0.shape[0] * scale_factor_r ) )
+
+    imgRS_re = cv.resize( np.real( img0 ), dim, interpolation )
+    imgRS_im = cv.resize( np.imag( img0 ), dim, interpolation )
+
+    imgRS = imgRS_re + 1j * imgRS_im
+
+    return imgRS
 
 
 def plot_probe_power(probe):
