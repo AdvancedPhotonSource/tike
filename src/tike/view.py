@@ -66,7 +66,23 @@ import tike.linalg
 logger = logging.getLogger(__name__)
 
 def complexHSV_to_RGB( img0 ):
+    """Takes a M x N complex valued array, represents the phase as hue,
+    magnitude as value, and saturation as all ones in a new M x N x 3
+    array. This is then converted to a RGB colorspace for further plotting 
+    using e.g. imshow() or imsave() from matplotlib.
 
+    Parameters
+    ----------
+    img0 : :py:class:`numpy.array`
+        A M x N complex64 numpy array.
+
+    Returns
+    -------
+    rgb_img : :py:class:`numpy.array`
+        The M x N x 3 array which represents the input complex valued array 
+        in a RGB colorspace.
+    """
+    
     sz      = img0.shape
 
     hsv_img = np.zeros( ( *sz, 3 ), 'float32' )
@@ -87,7 +103,30 @@ def complexHSV_to_RGB( img0 ):
     
 
 def resize_complex_image( img0, scale_factor_r = 1, scale_factor_c = 1, interpolation = cv.INTER_LINEAR ):
+    """Takes a M0 x N0 complex valued array, splits it up into real and imaginary,
+    and resizes (interpolates) the horizontal and vertical dimensions, yielding 
+    a new array of size M1 x N1. The result can then be  used for further plotting using 
+    e.g. imshow() or imsave() from matplotlib.
 
+    Parameters
+    ----------
+    img0 : :py:class:`numpy.array`
+        A M0 x N0 complex64 numpy array.
+    scale_factor_r : positive valued float
+        Resize/scale factor vertically
+    scale_factor_c : positive valued float
+        Resize/scale factor horizontally
+    interpolation  : int 
+        cv.INTER_NEAREST  = 0, cv.INTER_LINEAR = 1
+        cv.INTER_CUBIC    = 2, cv.INTER_AREA   = 3
+        cv.INTER_LANCZOS4 = 4 
+
+    Returns
+    -------
+    imgRS : :py:class:`numpy.array`
+        The new M1 x N1 which has been resized according to the scale factors above.
+    """
+    
     dim  = ( int( img0.shape[1] * scale_factor_c ), 
              int( img0.shape[0] * scale_factor_r ) )
 
