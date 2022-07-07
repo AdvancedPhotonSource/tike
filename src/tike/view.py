@@ -102,7 +102,7 @@ def complexHSV_to_RGB( img0 ):
     return rgb_img
     
 
-def resize_complex_image( img0, scale_factor_r = 1, scale_factor_c = 1, interpolation = cv.INTER_LINEAR ):
+def resize_complex_image( img0, scale_factor, interpolation = cv.INTER_LINEAR ):
     """Takes a M0 x N0 complex valued array, splits it up into real and imaginary,
     and resizes (interpolates) the horizontal and vertical dimensions, yielding 
     a new array of size M1 x N1. The result can then be  used for further plotting using 
@@ -112,10 +112,8 @@ def resize_complex_image( img0, scale_factor_r = 1, scale_factor_c = 1, interpol
     ----------
     img0 : :py:class:`numpy.array`
         A M0 x N0 complex64 numpy array.
-    scale_factor_r : positive valued float
-        Resize/scale factor vertically
-    scale_factor_c : positive valued float
-        Resize/scale factor horizontally
+    scale_factor : 2 element positive valued float tuple, 
+        ( vertical resize/scale, horizontal resize/scale  )
     interpolation  : int 
         cv.INTER_NEAREST  = 0, cv.INTER_LINEAR = 1
         cv.INTER_CUBIC    = 2, cv.INTER_AREA   = 3
@@ -127,8 +125,8 @@ def resize_complex_image( img0, scale_factor_r = 1, scale_factor_c = 1, interpol
         The new M1 x N1 which has been resized according to the scale factors above.
     """
     
-    dim  = ( int( img0.shape[1] * scale_factor_c ), 
-             int( img0.shape[0] * scale_factor_r ) )
+    dim  = ( int( img0.shape[1] * scale_factor[1] ), 
+             int( img0.shape[0] * scale_factor[0] ) )
 
     imgRS_re = cv.resize( np.real( img0 ), dim, interpolation )
     imgRS_im = cv.resize( np.imag( img0 ), dim, interpolation )
