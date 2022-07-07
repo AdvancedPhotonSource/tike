@@ -66,20 +66,21 @@ import tike.linalg
 logger = logging.getLogger(__name__)
 
 def complexHSV_to_RGB( img0 ):
-    """Takes a M x N complex valued array, represents the phase as hue,
-    magnitude as value, and saturation as all ones in a new M x N x 3
-    array. This is then converted to a RGB colorspace for further plotting 
-    using e.g. imshow() or imsave() from matplotlib.
+    """Convert a complex valued array to RGB representation.
+    
+    Takes a complex valued array, represents the phase as hue,
+    magnitude as value, and saturation as all ones in a new (..., 3) shaped
+    array. This is then converted to the RGB colorspace.
 
     Parameters
     ----------
     img0 : :py:class:`numpy.array`
-        A M x N complex64 numpy array.
+        A (...) shaped complex64 numpy array.
 
     Returns
     -------
     rgb_img : :py:class:`numpy.array`
-        The M x N x 3 array which represents the input complex valued array 
+        The (..., 3) shaped array which represents the input complex valued array 
         in a RGB colorspace.
     """
     
