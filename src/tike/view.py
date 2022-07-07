@@ -85,17 +85,16 @@ def complexHSV_to_RGB( img0 ):
     
     sz      = img0.shape
 
-    hsv_img = np.zeros( ( *sz, 3 ), 'float32' )
+    hsv_img = np.ones( ( *sz, 3 ), 'float32' )
 
-    hsv_img[ :, :, 2 ] = np.abs( img0 )
-    hsv_img[ :, :, 2 ] = hsv_img[ :, :, 2 ] - np.min( hsv_img[ :, :, 2 ] )
-    hsv_img[ :, :, 2 ] = hsv_img[ :, :, 2 ] / np.max( hsv_img[ :, :, 2 ] )
+    # Rescale hue and value to the range [0, 1].
+    hsv_img[ ..., 0 ] = np.angle( img0 ) 
+    hsv_img[ ..., 0 ] -= np.min( hsv_img[ ..., 0 ] )
+    hsv_img[ ..., 0 ] /= np.max( hsv_img[ ..., 0 ] )
 
-    hsv_img[ :, :, 1 ] = np.ones( sz, 'float32' )
-
-    hsv_img[ :, :, 0 ] = np.angle( img0 ) 
-    hsv_img[ :, :, 0 ] = hsv_img[ :, :, 0 ] - np.min( hsv_img[ :, :, 0 ] )
-    hsv_img[ :, :, 0 ] = hsv_img[ :, :, 0 ] / np.max( hsv_img[ :, :, 0 ] )
+    hsv_img[ ..., 2 ] = np.abs( img0 )
+    hsv_img[ ..., 2 ] -= np.min( hsv_img[ ..., 2 ] )
+    hsv_img[ ..., 2 ] /= np.max( hsv_img[ ..., 2 ] )
 
     rgb_img = mplcolors.hsv_to_rgb( hsv_img )
 
