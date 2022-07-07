@@ -102,7 +102,7 @@ def complexHSV_to_RGB( img0 ):
     return rgb_img
     
 
-def resize_complex_image( img0, scale_factor, interpolation = cv.INTER_LINEAR ):
+def resize_complex_image( img0, scale_factor = ( 1, 1 ), interpolation = cv.INTER_LINEAR ):
     """Takes a M0 x N0 complex valued array, splits it up into real and imaginary,
     and resizes (interpolates) the horizontal and vertical dimensions, yielding 
     a new array of size M1 x N1. The result can then be  used for further plotting using 
