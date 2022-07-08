@@ -231,8 +231,9 @@ class TemplatePtychoRecon():
             self.data = archive['data'][0]
             self.probe = archive['probe'][0]
         self.scan -= np.amin(self.scan, axis=-2) - 20
-        self.probe = tike.ptycho.probe.add_modes_random_phase(self.probe, 5)
-        self.probe *= np.random.rand(*self.probe.shape)
+        self.probe = tike.ptycho.probe.add_modes_cartesian_hermite(
+            self.probe, 5)
+        self.probe = tike.ptycho.probe.adjust_probe_power(self.probe)
         self.probe = tike.ptycho.probe.orthogonalize_eig(self.probe)
 
     def init_params(self):
@@ -305,6 +306,17 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
 
     post_name = ""
 
+    def test_init(self):
+        params = self.init_params()
+        params.algorithm_options = tike.ptycho.AdamOptions(
+            num_batch=5,
+            num_iter=16,
+        )
+        params.probe_options = ProbeOptions()
+        params.object_options = ObjectOptions()
+        _save_ptycho_result(
+            params, f"{'mpi-' if _mpi_size > 1 else ''}init{self.post_name}")
+
     def test_consistent_adam_grad(self):
         """Check ptycho.solver.adam_grad for consistency."""
         params = self.init_params()
@@ -368,7 +380,9 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
                 'parameters': params,
                 'num_gpu': 2,
                 'use_mpi': _mpi_size > 1,
-            },), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-compact{self.post_name}")
+            },),
+            f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-compact{self.post_name}"
+        )
 
     def test_consistent_lstsq_grad_variable_probe(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
@@ -618,6 +632,7 @@ def _save_probe(output_folder, probe, algorithm):
     plt.title(algorithm)
     plt.savefig(f'{output_folder}/probe-power.svg')
     plt.close(f)
+
 
 def _save_ptycho_result(result, algorithm):
     try:
