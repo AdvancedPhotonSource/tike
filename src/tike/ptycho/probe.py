@@ -513,22 +513,18 @@ def orthogonalize_eig(x):
     xp = cp.get_array_module(x)
     nmodes = x.shape[-3]
     # 'A' holds the dot product of all possible mode pairs. This is equivalent
-    # to x^H @ x. We only fill the lower half of `A` because it is
+    # to x^H @ x. We only fill the upper half of `A` because it is
     # conjugate-symmetric.
     A = xp.empty((*x.shape[:-3], nmodes, nmodes), dtype='complex64')
     for i in range(nmodes):
-        for j in range(i + 1):
-            # According to ptychoshelves, the first x is not conjugated, but
-            # this would be incorrect for the complex values. If we don't
-            # conjugate the input, then we get negative eigenvalues of this
-            # matrix which breaks the mode ordering.
+        for j in range(i, nmodes):
             A[..., i, j] = xp.sum(
                 x[..., i, :, :].conj() * x[..., j, :, :],
                 axis=(-1, -2),
             )
     # We find the eigen vectors of x^H @ x in order to get v^H from SVD of x
     # without computing u, s.
-    _, vectors = xp.linalg.eigh(A, UPLO='L')
+    _, vectors = xp.linalg.eigh(A, UPLO='U')
     # np.linalg.eigh guarantees that the eigen values are returned in ascending
     # order, so we just reverse the order of modes to have them sorted in
     # descending order.
