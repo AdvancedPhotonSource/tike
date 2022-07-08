@@ -417,6 +417,119 @@ def add_modes_random_phase(probe, nmodes):
     return all_modes
 
 
+def add_modes_cartesian_hermite(probe, nmodes: int):
+    """Create more probes from a 2D Cartesian Hermite basis functions.
+
+    Starting with the given probe, new modes are computed by multiplying it
+    with a set of 2D Cartesian Hermite functions. The probes are then
+    orthonormalized.
+
+    Parameters
+    ----------
+    probe : (..., 1, WIDTH, HEIGHT)
+        A single probe basis.
+    nmodes : int > 0
+        The number of desired probes.
+
+    Returns
+    -------
+    probe : (..., nmodes, WIDTH, HEIGHT)
+        New probes basis.
+
+    References
+    ----------
+    Michal Odstrcil, Andreas Menzel, and Manuel Guizar-Sicaros. Iterative
+    least-squares solver for generalized maximum-likelihood ptychography.
+    Optics Express. 2018.
+    """
+    if nmodes < 1:
+        raise ValueError(f"nmodes cannot be less than 1. It was {nmodes}.")
+    if probe.ndim < 3:
+        raise ValueError(f"probe is incorrect shape is should be "
+                         " (..., 1, W, new_probes) not {probe.shape}.")
+
+    M = int(np.ceil(np.sqrt(nmodes)))
+    N = int(np.ceil(nmodes / M))
+
+    X, Y = np.meshgrid(
+        np.arange(probe.shape[-2]) - (probe.shape[-2] // 2 - 1),
+        np.arange(probe.shape[-1]) - (probe.shape[-2] // 2 - 1),
+        indexing='xy',
+    )
+
+    cenx = np.sum(
+        X * np.abs(probe)**2,
+        axis=(-2, -1),
+        keepdims=True,
+    ) / np.sum(
+        np.abs(probe)**2,
+        axis=(-2, -1),
+        keepdims=True,
+    )
+    ceny = np.sum(
+        Y * np.abs(probe)**2,
+        axis=(-2, -1),
+        keepdims=True,
+    ) / np.sum(
+        np.abs(probe)**2,
+        axis=(-2, -1),
+        keepdims=True,
+    )
+
+    varx = np.sum(
+        (X - cenx)**2 * np.abs(probe)**2,
+        axis=(-2, -1),
+        keepdims=True,
+    ) / np.sum(
+        np.abs(probe)**2,
+        axis=(-2, -1),
+        keepdims=True,
+    )
+    vary = np.sum(
+        (Y - ceny)**2 * np.abs(probe)**2,
+        axis=(-2, -1),
+        keepdims=True,
+    ) / np.sum(
+        np.abs(probe)**2,
+        axis=(-2, -1),
+        keepdims=True,
+    )
+
+    # Create basis
+    new_probes = list()
+    for nii in range(N):
+        for mii in range(M):
+
+            basis = ((X - cenx)**mii) * ((Y - ceny)**nii) * probe
+
+            if not (mii == 0 and nii == 0):
+                basis *= np.exp(
+                    -((X - cenx)**2 / (2 * varx))
+                    -((Y - ceny)**2 / (2 * vary))
+                )  # yapf: disable
+
+            basis /= tike.linalg.norm(basis, axis=(-2, -1), keepdims=True)
+
+            for H in new_probes:
+                basis -= H * tike.linalg.inner(
+                    H,
+                    basis,
+                    axis=(-2, -1),
+                    keepdims=True,
+                )
+
+            basis /= tike.linalg.norm(basis, axis=(-2, -1), keepdims=True)
+
+            new_probes.append(basis)
+
+            if len(new_probes) == nmodes:
+                return np.concatenate(new_probes, axis=-3)
+
+    raise RuntimeError(
+        "`add_modes_cartesian_hermite` never reached a return statement."
+        " This should never happen.")
+
+
 def simulate_varying_weights(scan, eigen_probe):
     """Generate weights for eigen probe that follow random sinusoid.
 
@@ -530,6 +643,11 @@ def orthogonalize_eig(x):
     # descending order.
     vectors = vectors[..., ::-1].swapaxes(-1, -2)
     result = (vectors @ x.reshape(*x.shape[:-2], -1)).reshape(*x.shape)
+    # result = xp.zeros_like(x)
+    # for i in range(nmodes):
+    #     for j in range(nmodes):
+    #         result[..., j, :, :] += x[..., i, : , :] * vectors[i, -j-1]
+    # cp.testing.assert_allclose(result0, result)
     assert np.all(
         np.diff(tike.linalg.norm(result, axis=(-2, -1), keepdims=False),
                 axis=-1) <= 0

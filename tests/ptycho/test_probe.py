@@ -154,5 +154,21 @@ def test_orthogonalize_eig():
     np.testing.assert_allclose(np.abs(final1), np.abs(final0), rtol=1e-4)
 
 
+def test_hermite_modes():
+    """Test the hermite basis probe generation is correct."""
+    thisdir = os.path.dirname(__file__)
+    inputs = scipy.io.loadmat(f'{thisdir}/hermite.mat')
+
+    result1 = tike.ptycho.probe.add_modes_cartesian_hermite(
+        np.rollaxis(inputs['probes'], -1, 0)[None, None, ...],
+        12,
+    )
+
+    np.testing.assert_allclose(
+        result1,
+        np.rollaxis(inputs['result'], -1, 0)[None, ...],
+    )
+
+
 if __name__ == '__main__':
     unittest.main()
