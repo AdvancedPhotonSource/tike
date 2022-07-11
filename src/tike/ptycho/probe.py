@@ -384,6 +384,17 @@ def update_eigen_probe(
 
     return eigen_probe, weights
 
+def adjust_probe_power(probe, power=None):
+    """Rescale the probes according to given power.
+
+    If no power is given, then probes rescaled as 1/N.
+    """
+    if power is None:
+        power = 1.0 / np.arange(1, probe.shape[-3] + 1)[..., None, None]
+
+    norm = tike.linalg.norm(probe, axis=(-2,-1), keepdims=True)
+    probe *= power * norm[..., 0:1, :, :] / norm
+    return probe
 
 def add_modes_random_phase(probe, nmodes):
     """Initialize additional probe modes by phase shifting the first mode.
@@ -637,7 +648,7 @@ def orthogonalize_eig(x):
             )
     # We find the eigen vectors of x^H @ x in order to get v^H from SVD of x
     # without computing u, s.
-    _, vectors = xp.linalg.eigh(A, UPLO='U')
+    val, vectors = xp.linalg.eigh(A, UPLO='U')
     # np.linalg.eigh guarantees that the eigen values are returned in ascending
     # order, so we just reverse the order of modes to have them sorted in
     # descending order.
@@ -651,7 +662,7 @@ def orthogonalize_eig(x):
     assert np.all(
         np.diff(tike.linalg.norm(result, axis=(-2, -1), keepdims=False),
                 axis=-1) <= 0
-    ), "Power of the orthogonalized probes should be monotonically decreasing!"
+    ), f"Power of the orthogonalized probes should be monotonically decreasing! {val}"
     return result
 
 
