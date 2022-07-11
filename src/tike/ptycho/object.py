@@ -56,12 +56,14 @@ class ObjectOptions:
     clip_magnitude: bool = True
     """Whether to force the object magnitude to remain <= 1."""
 
-    def copy_to_device(self):
+    def copy_to_device(self, comm):
         """Copy to the current GPU memory."""
         if self.v is not None:
             self.v = cp.asarray(self.v)
         if self.m is not None:
             self.m = cp.asarray(self.m)
+        if self.preconditioner is not None:
+            self.preconditioner = comm.pool.bcast([self.preconditioner])
         return self
 
     def copy_to_host(self):
@@ -70,6 +72,8 @@ class ObjectOptions:
             self.v = cp.asnumpy(self.v)
         if self.m is not None:
             self.m = cp.asnumpy(self.m)
+        if self.preconditioner is not None:
+            self.preconditioner = cp.asnumpy(self.preconditioner[0])
         return self
 
 

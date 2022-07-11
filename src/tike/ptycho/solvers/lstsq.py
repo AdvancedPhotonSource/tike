@@ -75,25 +75,36 @@ def lstsq_grad(
         beigen_probe = eigen_probe
 
     if object_options is not None:
-        if object_options.preconditioner is None:
-            object_options.preconditioner = [None] * comm.pool.num_workers
+        preconditioner = [None] * comm.pool.num_workers
         for n in range(len(batches[0])):
             bscan = comm.pool.map(tike.opt.get_batch, scan, batches, n=n)
-            object_options.preconditioner = comm.pool.map(
+            preconditioner = comm.pool.map(
                 _psi_preconditioner,
-                object_options.preconditioner,
+                preconditioner,
                 probe,
                 bscan,
                 psi,
                 op=op,
             )
+        if comm.use_mpi:
+            preconditioner = comm.pool.Allreduce(preconditioner)
+        else:
+            preconditioner = comm.pool.allreduce(preconditioner)
         # Use a rolling average of this preconditioner and the previous
         # preconditioner
-        object_options.preconditioner = comm.pool.map(
-            cp.divide,
-            object_options.preconditioner,
-            [2] * comm.pool.num_workers,
-        )
+        if object_options.preconditioner is None:
+            object_options.preconditioner = preconditioner
+        else:
+            object_options.preconditioner = comm.pool.map(
+                cp.add,
+                object_options.preconditioner,
+                preconditioner,
+            )
+            object_options.preconditioner = comm.pool.map(
+                cp.divide,
+                object_options.preconditioner,
+                [2] * comm.pool.num_workers,
+            )
 
         if algorithm_options.batch_method == 'cluster_compact':
             object_options.combined_update = cp.zeros_like(psi[0])
@@ -337,11 +348,8 @@ def _update_nearplane(
         if recover_psi:
             if comm.use_mpi:
                 common_grad_psi = comm.Allreduce(common_grad_psi)
-                psi_update_denominator = comm.Allreduce(psi_update_denominator)
             else:
                 common_grad_psi = comm.pool.allreduce(common_grad_psi)
-                psi_update_denominator = comm.pool.allreduce(
-                    psi_update_denominator)
 
         if recover_probe:
             if comm.use_mpi:
