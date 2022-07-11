@@ -74,17 +74,40 @@ def lstsq_grad(
     else:
         beigen_probe = eigen_probe
 
-    psi_update_denominator = [None] * comm.pool.num_workers
-    for n in tike.opt.randomizer.permutation(len(batches[0])):
-        bscan = comm.pool.map(tike.opt.get_batch, scan, batches, n=n)
-        psi_update_denominator = comm.pool.map(
-            _psi_preconditioner,
-            psi_update_denominator,
-            probe,
-            bscan,
-            psi,
-            op=op,
-        )
+    if object_options is not None:
+        preconditioner = [None] * comm.pool.num_workers
+        for n in range(len(batches[0])):
+            bscan = comm.pool.map(tike.opt.get_batch, scan, batches, n=n)
+            preconditioner = comm.pool.map(
+                _psi_preconditioner,
+                preconditioner,
+                probe,
+                bscan,
+                psi,
+                op=op,
+            )
+        if comm.use_mpi:
+            preconditioner = comm.pool.Allreduce(preconditioner)
+        else:
+            preconditioner = comm.pool.allreduce(preconditioner)
+        # Use a rolling average of this preconditioner and the previous
+        # preconditioner
+        if object_options.preconditioner is None:
+            object_options.preconditioner = preconditioner
+        else:
+            object_options.preconditioner = comm.pool.map(
+                cp.add,
+                object_options.preconditioner,
+                preconditioner,
+            )
+            object_options.preconditioner = comm.pool.map(
+                cp.divide,
+                object_options.preconditioner,
+                [2] * comm.pool.num_workers,
+            )
+
+        if algorithm_options.batch_method == 'cluster_compact':
+            object_options.combined_update = cp.zeros_like(psi[0])
 
     for n in tike.opt.randomizer.permutation(len(batches[0])):
 
@@ -152,9 +175,10 @@ def lstsq_grad(
             probe_options is not None,
             bposition_options,
             num_batch=algorithm_options.num_batch,
-            psi_update_denominator=psi_update_denominator,
+            psi_update_denominator=object_options.preconditioner,
             object_options=object_options,
             probe_options=probe_options,
+            algorithm_options=algorithm_options,
         )
 
         if position_options:
@@ -181,6 +205,24 @@ def lstsq_grad(
             batches,
             n=n,
         )
+
+    if object_options and algorithm_options.batch_method == 'cluster_compact':
+        # (27b) Object update
+        dpsi = object_options.combined_update
+        if object_options.use_adaptive_moment:
+            (
+                dpsi,
+                object_options.v,
+                object_options.m,
+            ) = tike.opt.momentum(
+                g=dpsi,
+                v=object_options.v,
+                m=object_options.m,
+                vdecay=object_options.vdecay,
+                mdecay=object_options.mdecay,
+            )
+        psi[0] = psi[0] + dpsi
+        psi = comm.pool.bcast([psi[0]])
 
     if probe_options and probe_options.orthogonality_constraint:
         probe = comm.pool.map(tike.ptycho.probe.orthogonalize_eig, probe)
@@ -276,6 +318,7 @@ def _update_nearplane(
     *,
     object_options,
     probe_options,
+    algorithm_options,
 ):
 
     patches = comm.pool.map(_get_patches, nearplane, psi, scan_, op=op)
@@ -305,11 +348,8 @@ def _update_nearplane(
         if recover_psi:
             if comm.use_mpi:
                 common_grad_psi = comm.Allreduce(common_grad_psi)
-                psi_update_denominator = comm.Allreduce(psi_update_denominator)
             else:
                 common_grad_psi = comm.pool.allreduce(common_grad_psi)
-                psi_update_denominator = comm.pool.allreduce(
-                    psi_update_denominator)
 
         if recover_probe:
             if comm.use_mpi:
@@ -362,7 +402,7 @@ def _update_nearplane(
             A4 = comm.pool.map(_A_diagonal_dominant, A4,
                                comm.pool.bcast([delta]))
 
-        if recover_probe or recover_psi:
+        if m == 0 and (recover_probe or recover_psi):
             (
                 weighted_step_psi,
                 weighted_step_probe,
@@ -376,6 +416,24 @@ def _update_nearplane(
                 recover_psi=recover_psi,
                 recover_probe=recover_probe,
             )))
+            if comm.use_mpi:
+                weighted_step_psi[0] = comm.Allreduce_mean(
+                    weighted_step_psi,
+                    axis=-5,
+                )[..., 0, 0, 0]
+                weighted_step_probe[0] = comm.Allreduce_mean(
+                    weighted_step_probe,
+                    axis=-5,
+                )
+            else:
+                weighted_step_psi[0] = comm.pool.reduce_mean(
+                    weighted_step_psi,
+                    axis=-5,
+                )[..., 0, 0, 0]
+                weighted_step_probe[0] = comm.pool.reduce_mean(
+                    weighted_step_probe,
+                    axis=-5,
+                )
 
         if m == 0 and recover_probe and eigen_weights[0] is not None:
             logger.info('Updating eigen probes')
@@ -438,47 +496,29 @@ def _update_nearplane(
 
         # Update each direction
         if recover_psi:
-            if comm.use_mpi:
-                weighted_step_psi[0] = comm.Allreduce_mean(
-                    weighted_step_psi,
-                    axis=-5,
-                )[..., 0, 0, 0]
-            else:
-                weighted_step_psi[0] = comm.pool.reduce_mean(
-                    weighted_step_psi,
-                    axis=-5,
-                )[..., 0, 0, 0]
-
             # (27b) Object update
             dpsi = (weighted_step_psi[0] /
                     probe[0].shape[-3]) * common_grad_psi[0]
-            if object_options.use_adaptive_moment:
-                (
-                    dpsi,
-                    object_options.v,
-                    object_options.m,
-                ) = tike.opt.momentum(
-                    g=dpsi,
-                    v=object_options.v,
-                    m=object_options.m,
-                    vdecay=object_options.vdecay,
-                    mdecay=object_options.mdecay,
-                )
-            psi[0] = psi[0] + dpsi
-            psi = comm.pool.bcast([psi[0]])
+
+            if algorithm_options.batch_method != 'cluster_compact':
+                if object_options.use_adaptive_moment:
+                    (
+                        dpsi,
+                        object_options.v,
+                        object_options.m,
+                    ) = tike.opt.momentum(
+                        g=dpsi,
+                        v=object_options.v,
+                        m=object_options.m,
+                        vdecay=object_options.vdecay,
+                        mdecay=object_options.mdecay,
+                    )
+                psi[0] = psi[0] + dpsi
+                psi = comm.pool.bcast([psi[0]])
+            else:
+                object_options.combined_update += dpsi
 
         if recover_probe:
-            if comm.use_mpi:
-                weighted_step_probe[0] = comm.Allreduce_mean(
-                    weighted_step_probe,
-                    axis=-5,
-                )
-            else:
-                weighted_step_probe[0] = comm.pool.reduce_mean(
-                    weighted_step_probe,
-                    axis=-5,
-                )
-
             dprobe = weighted_step_probe[0] * common_grad_probe[0]
             if probe_options.use_adaptive_moment:
                 if probe_options.m is None:

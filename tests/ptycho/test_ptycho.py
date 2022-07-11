@@ -353,6 +353,23 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
                 'use_mpi': _mpi_size > 1,
             },), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad{self.post_name}")
 
+    def test_consistent_lstsq_grad_compact(self):
+        """Check ptycho.solver.lstsq_grad for consistency."""
+        params = self.init_params()
+        params.algorithm_options = tike.ptycho.LstsqOptions(
+            num_batch=5,
+            num_iter=16,
+            batch_method='cluster_compact',
+        )
+        params.probe_options = ProbeOptions(use_adaptive_moment=True,)
+        params.object_options = ObjectOptions(use_adaptive_moment=True,)
+        _save_ptycho_result(
+            self.template_consistent_algorithm(params={
+                'parameters': params,
+                'num_gpu': 2,
+                'use_mpi': _mpi_size > 1,
+            },), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-compact{self.post_name}")
+
     def test_consistent_lstsq_grad_variable_probe(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
         params = self.init_params()
