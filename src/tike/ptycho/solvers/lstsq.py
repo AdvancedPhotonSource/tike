@@ -109,6 +109,7 @@ def lstsq_grad(
         if algorithm_options.batch_method == 'cluster_compact':
             object_options.combined_update = cp.zeros_like(psi[0])
 
+    batch_cost = []
     for n in tike.opt.randomizer.permutation(len(batches[0])):
 
         bdata = comm.pool.map(tike.opt.get_batch, data, batches, n=n)
@@ -150,9 +151,9 @@ def lstsq_grad(
         ))
 
         if comm.use_mpi:
-            cost = comm.Allreduce_reduce(cost, 'cpu')
+            batch_cost.append(comm.Allreduce_reduce(cost, 'cpu'))
         else:
-            cost = comm.reduce(cost, 'cpu')
+            batch_cost.append(comm.reduce(cost, 'cpu'))
 
         (
             psi,
@@ -243,7 +244,7 @@ def lstsq_grad(
             eigen_weights,
         )
 
-    algorithm_options.costs.append(cost)
+    algorithm_options.costs.append(batch_cost)
     parameters.probe = probe
     parameters.psi = psi
     parameters.scan = scan

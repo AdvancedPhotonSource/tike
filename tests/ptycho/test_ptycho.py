@@ -276,7 +276,7 @@ class TemplatePtychoRecon():
             )
         print()
         print('\n'.join(
-            f'{c:1.3e}' for c in params['parameters'].algorithm_options.costs))
+            f'{c[0]:1.3e}' for c in params['parameters'].algorithm_options.costs))
         return params['parameters']
 
 
@@ -475,7 +475,7 @@ class TestPtychoOnline(TestPtychoRecon, unittest.TestCase):
                 context.iterate(2)
         result = context.parameters
         print()
-        print('\n'.join(f'{c:1.3e}' for c in result.algorithm_options.costs))
+        print('\n'.join(f'{c[0]:1.3e}' for c in result.algorithm_options.costs))
         return result
 
 
@@ -641,15 +641,16 @@ def _save_ptycho_result(result, algorithm):
         fname = os.path.join(testdir, 'result', 'ptycho', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
 
-        fig, ax1, ax2, = tike.view.plot_cost_convergence(
+        fig = plt.figure()
+        ax1, ax2 = tike.view.plot_cost_convergence(
             result.algorithm_options.costs,
             result.algorithm_options.times,
         )
         ax2.set_xlim(0, 20)
         fig.suptitle(algorithm)
         fig.tight_layout()
-
         plt.savefig(os.path.join(fname, 'convergence.svg'))
+        plt.close(fig)
         plt.imsave(
             f'{fname}/{0}-phase.png',
             np.angle(result.psi).astype('float32'),

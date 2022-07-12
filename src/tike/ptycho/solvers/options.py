@@ -41,6 +41,9 @@ class IterativeOptions(abc.ABC):
     )
     """The per-iteration wall-time for each previous iteration."""
 
+    convergence_window: int = 0
+    """The number of epochs to consider for convergence monitoring. Set to
+    any value less than 2 to disable."""
 
 @dataclasses.dataclass
 class AdamOptions(IterativeOptions):
