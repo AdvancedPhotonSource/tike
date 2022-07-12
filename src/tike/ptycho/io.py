@@ -43,9 +43,12 @@ def position_units_to_pixels(
         The scanning positions in pixel coordinates.
 
     """
-    return positions * (
+    pixel_per_meter = (
         (detector_pixel_width * detector_pixel_count) /
         (detector_distance * wavelength(photon_energy / 1000) / 100))
+    logger.info("Based on detector distance and photon energy,"
+        f" reconstruction pixel size will be {1 / pixel_per_meter:.3e} m.")
+    return positions * pixel_per_meter
 
 
 def read_aps_velociprobe(
