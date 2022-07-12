@@ -507,11 +507,10 @@ def plot_cost_convergence(costs, times):
 
     Returns
     -------
-    fig : matplotlib.figure.Figure
     ax1 : matplotlib.axes._subplots.AxesSubplot
     ax2 : matplotlib.axes._subplots.AxesSubplot
     """
-    fig, ax1 = plt.subplots()
+    ax1 = plt.subplot()
 
     color = 'black'
     ax1.semilogy()
@@ -527,7 +526,7 @@ def plot_cost_convergence(costs, times):
     ax2.plot(np.cumsum(times), costs, color=color)
     ax2.tick_params(axis='x', labelcolor=color)
 
-    return fig, ax1, ax2
+    return ax1, ax2
 
 
 def plot_eigen_weights(weights):
