@@ -388,9 +388,17 @@ def adjust_probe_power(probe, power=None):
     """Rescale the probes according to given power.
 
     If no power is given, then probes rescaled as 1/N.
+
+    Parameters
+    ----------
+    probe : (..., M, :, :) array
+        A probe with M > 0 incoherent modes.
+    power : (..., M, ) array
+        The relative power of the probe modes.
     """
     if power is None:
-        power = 1.0 / np.arange(1, probe.shape[-3] + 1)[..., None, None]
+        power = 1.0 / np.arange(1, probe.shape[-3] + 1)
+    power = power[..., None, None]
 
     norm = tike.linalg.norm(probe, axis=(-2,-1), keepdims=True)
     probe *= power * norm[..., 0:1, :, :] / norm
