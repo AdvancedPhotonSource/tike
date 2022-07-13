@@ -384,6 +384,25 @@ def update_eigen_probe(
 
     return eigen_probe, weights
 
+def adjust_probe_power(probe, power=None):
+    """Rescale the probes according to given power.
+
+    If no power is given, then probes rescaled as 1/N.
+
+    Parameters
+    ----------
+    probe : (..., M, :, :) array
+        A probe with M > 0 incoherent modes.
+    power : (..., M, ) array
+        The relative power of the probe modes.
+    """
+    if power is None:
+        power = 1.0 / np.arange(1, probe.shape[-3] + 1)
+    power = power[..., None, None]
+
+    norm = tike.linalg.norm(probe, axis=(-2,-1), keepdims=True)
+    probe *= power * norm[..., 0:1, :, :] / norm
+    return probe
 
 def add_modes_random_phase(probe, nmodes):
     """Initialize additional probe modes by phase shifting the first mode.
@@ -415,6 +434,119 @@ def add_modes_random_phase(probe, nmodes):
             all_modes[..., m, :, :] = (probe[..., 0, :, :] * shift[0][None] *
                                        shift[1][:, None])
     return all_modes
+
+
+def add_modes_cartesian_hermite(probe, nmodes: int):
+    """Create more probes from a 2D Cartesian Hermite basis functions.
+
+    Starting with the given probe, new modes are computed by multiplying it
+    with a set of 2D Cartesian Hermite functions. The probes are then
+    orthonormalized.
+
+    Parameters
+    ----------
+    probe : (..., 1, WIDTH, HEIGHT)
+        A single probe basis.
+    nmodes : int > 0
+        The number of desired probes.
+
+    Returns
+    -------
+    probe : (..., nmodes, WIDTH, HEIGHT)
+        New probes basis.
+
+    References
+    ----------
+    Michal Odstrcil, Andreas Menzel, and Manuel Guizar-Sicaros. Iterative
+    least-squares solver for generalized maximum-likelihood ptychography.
+    Optics Express. 2018.
+    """
+    if nmodes < 1:
+        raise ValueError(f"nmodes cannot be less than 1. It was {nmodes}.")
+    if probe.ndim < 3:
+        raise ValueError(f"probe is incorrect shape is should be "
+                         " (..., 1, W, new_probes) not {probe.shape}.")
+
+    M = int(np.ceil(np.sqrt(nmodes)))
+    N = int(np.ceil(nmodes / M))
+
+    X, Y = np.meshgrid(
+        np.arange(probe.shape[-2]) - (probe.shape[-2] // 2 - 1),
+        np.arange(probe.shape[-1]) - (probe.shape[-2] // 2 - 1),
+        indexing='xy',
+    )
+
+    cenx = np.sum(
+        X * np.abs(probe)**2,
+        axis=(-2, -1),
+        keepdims=True,
+    ) / np.sum(
+        np.abs(probe)**2,
+        axis=(-2, -1),
+        keepdims=True,
+    )
+    ceny = np.sum(
+        Y * np.abs(probe)**2,
+        axis=(-2, -1),
+        keepdims=True,
+    ) / np.sum(
+        np.abs(probe)**2,
+        axis=(-2, -1),
+        keepdims=True,
+    )
+
+    varx = np.sum(
+        (X - cenx)**2 * np.abs(probe)**2,
+        axis=(-2, -1),
+        keepdims=True,
+    ) / np.sum(
+        np.abs(probe)**2,
+        axis=(-2, -1),
+        keepdims=True,
+    )
+    vary = np.sum(
+        (Y - ceny)**2 * np.abs(probe)**2,
+        axis=(-2, -1),
+        keepdims=True,
+    ) / np.sum(
+        np.abs(probe)**2,
+        axis=(-2, -1),
+        keepdims=True,
+    )
+
+    # Create basis
+    new_probes = list()
+    for nii in range(N):
+        for mii in range(M):
+
+            basis = ((X - cenx)**mii) * ((Y - ceny)**nii) * probe
+
+            if not (mii == 0 and nii == 0):
+                basis *= np.exp(
+                    -((X - cenx)**2 / (2 * varx))
+                    -((Y - ceny)**2 / (2 * vary))
+                )  # yapf: disable
+
+            basis /= tike.linalg.norm(basis, axis=(-2, -1), keepdims=True)
+
+            for H in new_probes:
+                basis -= H * tike.linalg.inner(
+                    H,
+                    basis,
+                    axis=(-2, -1),
+                    keepdims=True,
+                )
+
+            basis /= tike.linalg.norm(basis, axis=(-2, -1), keepdims=True)
+
+            new_probes.append(basis)
+
+            if len(new_probes) == nmodes:
+                return np.concatenate(new_probes, axis=-3)
+
+    raise RuntimeError(
+        "`add_modes_cartesian_hermite` never reached a return statement."
+        " This should never happen.")
 
 
 def simulate_varying_weights(scan, eigen_probe):
@@ -513,22 +645,18 @@ def orthogonalize_eig(x):
     xp = cp.get_array_module(x)
     nmodes = x.shape[-3]
     # 'A' holds the dot product of all possible mode pairs. This is equivalent
-    # to x^H @ x. We only fill the lower half of `A` because it is
+    # to x^H @ x. We only fill the upper half of `A` because it is
     # conjugate-symmetric.
     A = xp.empty((*x.shape[:-3], nmodes, nmodes), dtype='complex64')
     for i in range(nmodes):
-        for j in range(i + 1):
-            # According to ptychoshelves, the first x is not conjugated, but
-            # this would be incorrect for the complex values. If we don't
-            # conjugate the input, then we get negative eigenvalues of this
-            # matrix which breaks the mode ordering.
+        for j in range(i, nmodes):
             A[..., i, j] = xp.sum(
                 x[..., i, :, :].conj() * x[..., j, :, :],
                 axis=(-1, -2),
             )
     # We find the eigen vectors of x^H @ x in order to get v^H from SVD of x
     # without computing u, s.
-    _, vectors = xp.linalg.eigh(A, UPLO='L')
+    val, vectors = xp.linalg.eigh(A, UPLO='U')
     # np.linalg.eigh guarantees that the eigen values are returned in ascending
     # order, so we just reverse the order of modes to have them sorted in
     # descending order.
@@ -537,7 +665,7 @@ def orthogonalize_eig(x):
     assert np.all(
         np.diff(tike.linalg.norm(result, axis=(-2, -1), keepdims=False),
                 axis=-1) <= 0
-    ), "Power of the orthogonalized probes should be monotonically decreasing!"
+    ), f"Power of the orthogonalized probes should be monotonically decreasing! {val}"
     return result
 
 

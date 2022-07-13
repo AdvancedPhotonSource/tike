@@ -1,8 +1,9 @@
 import os
 import unittest
 
-import numpy as np
 import cupy as cp
+import numpy as np
+import scipy.io
 import tike.ptycho.probe
 from tike.communicators import Comm, MPIComm
 
@@ -124,11 +125,49 @@ class TestProbe(unittest.TestCase):
             import tifffile
             os.makedirs(resultdir, exist_ok=True)
             tifffile.imwrite(os.path.join(resultdir, 'penalty.tiff'),
-                            penalty.astype('float32').get())
+                             penalty.astype('float32').get())
         except ImportError:
             pass
         assert cp.around(cp.min(penalty), 3) == 0.000
         assert cp.around(cp.max(penalty), 3) == 2.345
+
+
+def test_orthogonalize_eig():
+    """Test the eigen orthogonalization method is correct."""
+    np.set_printoptions(
+        linewidth=400,
+        precision=4,
+        floatmode='fixed',
+        suppress=True,
+    )
+
+    thisdir = os.path.dirname(__file__)
+    input = scipy.io.loadmat(f'{thisdir}/ortho-in.mat')
+    output = scipy.io.loadmat(f'{thisdir}/ortho-out.mat')
+
+    probe = np.rollaxis(input['modes'], -1, 0)
+
+    final1 = cp.asnumpy(tike.ptycho.probe.orthogonalize_eig(cp.asarray(probe)))
+    final0 = np.rollaxis(output['pr'], -1, 0)
+
+    # The phases are not correct because some are out of sync by 180 degrees
+    np.testing.assert_allclose(np.abs(final1), np.abs(final0), rtol=1e-4)
+
+
+def test_hermite_modes():
+    """Test the hermite basis probe generation is correct."""
+    thisdir = os.path.dirname(__file__)
+    inputs = scipy.io.loadmat(f'{thisdir}/hermite.mat')
+
+    result1 = tike.ptycho.probe.add_modes_cartesian_hermite(
+        np.rollaxis(inputs['probes'], -1, 0)[None, None, ...],
+        12,
+    )
+
+    np.testing.assert_allclose(
+        result1,
+        np.rollaxis(inputs['result'], -1, 0)[None, ...],
+    )
 
 
 if __name__ == '__main__':
