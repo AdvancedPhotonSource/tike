@@ -20,7 +20,7 @@ def is_converged(algorithm_options):
     """Return True if cost slope is non-negative within the the window.
 
     Every half-window, look at the slope of the line that fits to the last
-    window cost values (average cost values if mini-batch). If this slfffope is
+    window cost values (average cost values if mini-batch). If this slope is
     non-negative, return True else return False.
     """
     window = algorithm_options.convergence_window
