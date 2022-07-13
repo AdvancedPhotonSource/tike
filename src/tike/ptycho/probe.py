@@ -662,11 +662,6 @@ def orthogonalize_eig(x):
     # descending order.
     vectors = vectors[..., ::-1].swapaxes(-1, -2)
     result = (vectors @ x.reshape(*x.shape[:-2], -1)).reshape(*x.shape)
-    # result = xp.zeros_like(x)
-    # for i in range(nmodes):
-    #     for j in range(nmodes):
-    #         result[..., j, :, :] += x[..., i, : , :] * vectors[i, -j-1]
-    # cp.testing.assert_allclose(result0, result)
     assert np.all(
         np.diff(tike.linalg.norm(result, axis=(-2, -1), keepdims=False),
                 axis=-1) <= 0
