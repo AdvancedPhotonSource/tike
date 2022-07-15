@@ -22,6 +22,10 @@ def is_converged(algorithm_options):
     Every half-window, look at the slope of the line that fits to the last
     window cost values (average cost values if mini-batch). If this slope is
     non-negative, return True else return False.
+
+    This is a smoothed absolute differences convergence criteria because we are
+    considering the difference between consecutive cost values (absolute
+    differences) per epoch.
     """
     window = algorithm_options.convergence_window
     if (window >= 2 and len(algorithm_options.costs) >= window
