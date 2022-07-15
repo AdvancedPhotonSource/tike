@@ -58,6 +58,7 @@ def dm(
     psi_update_denominator = None
     probe_update_numerator = None
     probe_update_denominator = None
+    batch_cost = []
 
     for n in tike.opt.randomizer.permutation(len(batches[0])):
 
@@ -88,9 +89,9 @@ def dm(
 
         if comm.use_mpi:
             # TODO: This reduction should be mean
-            cost = comm.Allreduce_reduce(cost, 'cpu')
+            batch_cost.append(comm.Allreduce_reduce(cost, 'cpu'))
         else:
-            cost = comm.reduce(cost, 'cpu')
+            batch_cost.append(comm.reduce(cost, 'cpu'))
 
         (
             psi_update_numerator,
@@ -141,7 +142,7 @@ def dm(
         parameters.probe,
     )
 
-    parameters.algorithm_options.costs.append(cost)
+    parameters.algorithm_options.costs.append(batch_cost)
     return parameters
 
 

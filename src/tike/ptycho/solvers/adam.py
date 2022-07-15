@@ -52,6 +52,7 @@ def adam_grad(
     probe_options = parameters.probe_options
     position_options = parameters.position_options
     object_options = parameters.object_options
+    batch_cost = []
 
     for n in randomizer.permutation(len(batches[0])):
 
@@ -69,6 +70,7 @@ def adam_grad(
             probe_options,
             algorithm_options,
         )
+        batch_cost.append(cost)
 
     if probe_options and probe_options.orthogonality_constraint:
         probe = comm.pool.map(orthogonalize_eig, probe)
@@ -82,7 +84,7 @@ def adam_grad(
                             psi,
                             a=object_options.smoothness_constraint)
 
-    algorithm_options.costs.append(cost)
+    algorithm_options.costs.append(batch_cost)
     parameters.probe = probe
     parameters.psi = psi
     parameters.scan = scan

@@ -16,6 +16,31 @@ logger = logging.getLogger(__name__)
 randomizer = np.random.default_rng()
 
 
+def is_converged(algorithm_options):
+    """Return True if cost slope is non-negative within the the window.
+
+    Every half-window, look at the slope of the line that fits to the last
+    window cost values (average cost values if mini-batch). If this slope is
+    non-negative, return True else return False.
+
+    This is a smoothed absolute differences convergence criteria because we are
+    considering the difference between consecutive cost values (absolute
+    differences) per epoch.
+    """
+    window = algorithm_options.convergence_window
+    if (window >= 2 and len(algorithm_options.costs) >= window
+            and len(algorithm_options.costs) % window // 2 == 0):
+        m = np.array(algorithm_options.costs[-window:])
+        m = np.reshape(m, (len(m), -1))
+        m = np.mean(m, axis=1)
+        p = np.polyfit(x=range(window), y=m, deg=1, full=False, cov=False)
+        if p[0] >= 0:
+            logger.info(f"Considering the last {window:d} epochs,"
+                        " the cost function seems converged.")
+            return True
+    return False
+
+
 def batch_indicies(n, m=1, use_random=True):
     """Return list of indices [0...n) as m groups.
 

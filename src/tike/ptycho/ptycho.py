@@ -67,7 +67,7 @@ import cupy as cp
 
 from tike.operators import Ptycho
 from tike.communicators import Comm, MPIComm
-from tike.opt import batch_indicies
+import tike.opt
 from tike.ptycho import solvers
 import tike.random
 
@@ -264,8 +264,8 @@ class Reconstruction():
                              f"and data shape {data.shape} are incompatible. "
                              "The probe width/height must be "
                              f"<= the data width/height .")
-        logger.info("{} for {:,d} - {:,d} by {:,d} frames for {:,d} "
-                    "iterations.".format(
+        logger.info("{} on {:,d} - {:,d} by {:,d} frames for at most {:,d} "
+                    "epochs.".format(
                         parameters.algorithm_options.name,
                         *data.shape[-3:],
                         parameters.algorithm_options.num_iter,
@@ -336,8 +336,7 @@ class Reconstruction():
 
         if self._device_parameters.object_options is not None:
             self._device_parameters.object_options = self._device_parameters.object_options.copy_to_device(
-                self.comm,
-            )
+                self.comm,)
 
         if self._device_parameters.eigen_probe is not None:
             self._device_parameters.eigen_probe = self.comm.pool.bcast(
@@ -430,6 +429,9 @@ class Reconstruction():
             self._device_parameters.algorithm_options.times.append(
                 time.perf_counter() - start)
             start = time.perf_counter()
+
+            if tike.opt.is_converged(self._device_parameters.algorithm_options):
+                break
 
     def _get_result(self):
         """Return the current parameter estimates."""
@@ -599,7 +601,9 @@ def _get_rescale(data, psi, scan, probe, num_batch, operator):
     n1 = 0.0
     n2 = 0.0
 
-    for b in batch_indicies(data.shape[-3], num_batch, use_random=False):
+    for b in tike.opt.batch_indicies(data.shape[-3],
+                                     num_batch,
+                                     use_random=False):
 
         intensity, _ = operator._compute_intensity(
             data[..., b, :, :],
