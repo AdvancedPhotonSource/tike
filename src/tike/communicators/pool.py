@@ -6,10 +6,12 @@ __docformat__ = 'restructuredtext en'
 
 from concurrent.futures import ThreadPoolExecutor
 import os
+import typing
 import warnings
 
 import cupy as cp
 import numpy as np
+import numpy.typing as npt
 
 
 class ThreadPool(ThreadPoolExecutor):
@@ -68,15 +70,16 @@ class ThreadPool(ThreadPoolExecutor):
     def num_workers(self):
         return len(self.workers)
 
-    def _copy_to(self, x, worker: int) -> cp.array:
+    def _copy_to(self, x: typing.Union[cp.array, np.array],
+                 worker: int) -> cp.array:
         with cp.cuda.Device(worker):
             return self.xp.asarray(x)
 
-    def _copy_host(self, x, worker: int) -> np.array:
+    def _copy_host(self, x: cp.array, worker: int) -> np.array:
         with cp.cuda.Device(worker):
             return self.xp.asnumpy(x)
 
-    def bcast(self, x: list, s=1) -> list:
+    def bcast(self, x: npt.ArrayLike, s: int = 1) -> typing.List[cp.array]:
         """Send each x to all device groups.
 
         Parameters
@@ -217,11 +220,10 @@ class ThreadPool(ThreadPoolExecutor):
         workers = self.workers[:s] if workers is None else workers
         return self.map(f, workers, workers=workers)
 
-    def reduce_cpu(self, x, buf=None):
+    def reduce_cpu(self, x: typing.List[cp.array]) -> npt.NDArray:
         """Reduce x by addition from all GPUs to a CPU buffer."""
-        buf = 0 if buf is None else buf
-        buf += sum(self.map(self.xp.asnumpy, x))
-        return buf
+        assert len(x) == self.num_workers
+        return np.sum(self.map(self._copy_host, x, self.workers), axis=0)
 
     def reduce_mean(self, x: list, axis, worker=None) -> cp.array:
         """Reduce x by addition to one GPU from all other GPUs."""
@@ -234,7 +236,7 @@ class ThreadPool(ThreadPoolExecutor):
             axis=axis,
         )
 
-    def allreduce(self, x: list, s=None):
+    def allreduce(self, x: list, s=None) -> list:
         """All-reduce x by addition within device groups.
 
         Parameters
