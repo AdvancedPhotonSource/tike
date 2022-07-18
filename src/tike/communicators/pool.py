@@ -250,8 +250,8 @@ class ThreadPool(ThreadPoolExecutor):
 
         """
 
-        def f(worker, buf, stride, s):
-            idx = worker // s * s + (worker + stride) % s
+        def f(worker, id, buf, stride, s):
+            idx = id // s * s + (id + stride) % s
             return cp.add(buf, self._copy_to(x[idx], worker))
 
         if self.num_workers == 1:
@@ -260,7 +260,14 @@ class ThreadPool(ThreadPoolExecutor):
         buff = list(x)
         s = len(x) if s is None else s
         for stride in range(1, s):
-            buff = self.map(f, self.workers, buff, stride=stride, s=s)
+            buff = self.map(
+                f,
+                self.workers,
+                range(self.num_workers),
+                buff,
+                stride=stride,
+                s=s,
+            )
 
         return buff
 

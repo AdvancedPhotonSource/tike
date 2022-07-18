@@ -87,7 +87,7 @@ def lstsq_grad(
                 op=op,
             )
         if comm.use_mpi:
-            preconditioner = comm.pool.Allreduce(preconditioner)
+            preconditioner = comm.Allreduce(preconditioner)
         else:
             preconditioner = comm.pool.allreduce(preconditioner)
         # Use a rolling average of this preconditioner and the previous
