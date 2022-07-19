@@ -279,12 +279,13 @@ class TemplatePtychoRecon():
                 params['parameters'] = tike.ptycho.reconstruct(
                     **params,
                     data=self.data,
-                    num_gpu=tuple(i + base_device for i in range(device_per_rank)),
+                    num_gpu=tuple(
+                        i + base_device for i in range(device_per_rank)),
                     use_mpi=_mpi_size > 1,
                 )
         print()
-        print('\n'.join(
-            f'{c[0]:1.3e}' for c in params['parameters'].algorithm_options.costs))
+        print('\n'.join(f'{c[0]:1.3e}'
+                        for c in params['parameters'].algorithm_options.costs))
         return params['parameters']
 
 

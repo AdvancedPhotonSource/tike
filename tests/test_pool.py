@@ -46,6 +46,7 @@ class TestThreadPool(unittest.TestCase):
     #     a = np.arange(10)
     #     result = self.pool.scatter(a)
 
+
 class TestSoloThreadPool(TestThreadPool):
 
     def setUp(self, workers=1):

@@ -15,11 +15,10 @@ except ModuleNotFoundError:
 
 class TestComm(unittest.TestCase):
 
-    def setUp(self, workers=cp.cuda.runtime.getDeviceCount()//2):
+    def setUp(self, workers=cp.cuda.runtime.getDeviceCount() // _mpi_size):
         cp.cuda.device.Device(workers * _mpi_rank).use()
         self.comm = tike.communicators.Comm(
-            tuple(i + workers * _mpi_rank for i in range(workers))
-        )
+            tuple(i + workers * _mpi_rank for i in range(workers)))
         self.xp = self.comm.pool.xp
 
     def test_reduce(self):
@@ -50,7 +49,8 @@ class TestComm(unittest.TestCase):
         def check_correct(result):
             self.xp.testing.assert_array_equal(
                 result,
-                self.xp.arange(10).reshape(2, 5) * self.comm.pool.num_workers * self.comm.mpi.size,
+                self.xp.arange(10).reshape(2, 5) * self.comm.pool.num_workers *
+                self.comm.mpi.size,
             )
             print(result)
 

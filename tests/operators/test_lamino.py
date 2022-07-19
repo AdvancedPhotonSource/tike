@@ -58,9 +58,11 @@ class TestLaminoBucket(unittest.TestCase, OperatorTests):
                                  dtype='complex64')
         self.d_name = 'data'
         self.kwargs = {
-            'theta': self.xp.linspace(0, 2 * np.pi, ntheta).astype('float32'),
-            'grid': self.xp.asarray(self.operator._make_grid().reshape(n**3, 3),
-                                    dtype='int16'),
+            'theta':
+                self.xp.linspace(0, 2 * np.pi, ntheta).astype('float32'),
+            'grid':
+                self.xp.asarray(self.operator._make_grid().reshape(n**3, 3),
+                                dtype='int16'),
         }
         print(self.operator)
 
