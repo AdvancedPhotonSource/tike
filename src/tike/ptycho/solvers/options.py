@@ -45,6 +45,7 @@ class IterativeOptions(abc.ABC):
     """The number of epochs to consider for convergence monitoring. Set to
     any value less than 2 to disable."""
 
+
 @dataclasses.dataclass
 class AdamOptions(IterativeOptions):
     name: str = dataclasses.field(default='adam_grad', init=False)
@@ -75,6 +76,7 @@ class DmOptions(IterativeOptions):
     num_batch: int = 1
     """The dataset is divided into this number of groups where each group is
     processed simultaneously."""
+
 
 @dataclasses.dataclass
 class RpieOptions(IterativeOptions):
