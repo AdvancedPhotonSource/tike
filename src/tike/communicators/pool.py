@@ -222,7 +222,7 @@ class ThreadPool(ThreadPoolExecutor):
 
     def reduce_cpu(self, x: typing.List[cp.array]) -> npt.NDArray:
         """Reduce x by addition from all GPUs to a CPU buffer."""
-        assert len(x) == self.num_workers
+        assert len(x) == self.num_workers, f"{len(x)} should equal {self.num_workers}"
         return np.sum(self.map(self._copy_host, x, self.workers), axis=0)
 
     def reduce_mean(self, x: list, axis, worker=None) -> cp.array:
