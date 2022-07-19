@@ -15,7 +15,7 @@ except ModuleNotFoundError:
 
 class TestComm(unittest.TestCase):
 
-    def setUp(self, workers=4):
+    def setUp(self, workers=cp.cuda.runtime.getDeviceCount()//2):
         cp.cuda.device.Device(workers * _mpi_rank).use()
         self.comm = tike.communicators.Comm(
             tuple(i + workers * _mpi_rank for i in range(workers))

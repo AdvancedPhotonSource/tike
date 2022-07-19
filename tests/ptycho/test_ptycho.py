@@ -54,6 +54,7 @@ import unittest
 import warnings
 
 import numpy as np
+import cupy as cp
 
 import tike.ptycho
 from tike.ptycho.probe import ProbeOptions
@@ -71,8 +72,10 @@ testdir = os.path.dirname(os.path.dirname(__file__))
 try:
     from mpi4py import MPI
     _mpi_size = MPI.COMM_WORLD.Get_size()
+    _mpi_rank = MPI.COMM_WORLD.Get_rank()
 except ModuleNotFoundError:
-    _mpi_size = 0
+    _mpi_size = 1
+    _mpi_rank = 0
 
 
 class TestPtychoUtils(unittest.TestCase):
@@ -250,7 +253,7 @@ class TemplatePtychoRecon():
     def template_consistent_algorithm(self, *, params={}):
         """Check ptycho.solver.algorithm for consistency."""
 
-        if params.get('use_mpi') is True:
+        if _mpi_size > 1:
             with MPIComm() as IO:
                 params['parameters'].probe = IO.Bcast(
                     params['parameters'].probe)
@@ -268,12 +271,17 @@ class TemplatePtychoRecon():
                     params['parameters'].scan, self.data = IO.MPIio_ptycho(
                         params['parameters'].scan, self.data)
 
-        # Call twice to check that reconstruction continuation is correct
-        for _ in range(2):
-            params['parameters'] = tike.ptycho.reconstruct(
-                **params,
-                data=self.data,
-            )
+        device_per_rank = cp.cuda.runtime.getDeviceCount() // _mpi_size
+        base_device = device_per_rank * _mpi_rank
+        with cp.cuda.Device(base_device):
+            # Call twice to check that reconstruction continuation is correct
+            for _ in range(2):
+                params['parameters'] = tike.ptycho.reconstruct(
+                    **params,
+                    data=self.data,
+                    num_gpu=tuple(i + base_device for i in range(device_per_rank)),
+                    use_mpi=_mpi_size > 1,
+                )
         print()
         print('\n'.join(
             f'{c[0]:1.3e}' for c in params['parameters'].algorithm_options.costs))
@@ -329,8 +337,6 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
         _save_ptycho_result(
             self.template_consistent_algorithm(params={
                 'parameters': params,
-                'num_gpu': 2,
-                'use_mpi': _mpi_size > 1,
             },), f"{'mpi-' if _mpi_size > 1 else ''}adam_grad{self.post_name}")
 
     def test_consistent_cgrad(self):
@@ -345,8 +351,6 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
         _save_ptycho_result(
             self.template_consistent_algorithm(params={
                 'parameters': params,
-                'num_gpu': 2,
-                'use_mpi': _mpi_size > 1,
             },), f"{'mpi-' if _mpi_size > 1 else ''}cgrad{self.post_name}")
 
     def test_consistent_lstsq_grad(self):
@@ -361,8 +365,6 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
         _save_ptycho_result(
             self.template_consistent_algorithm(params={
                 'parameters': params,
-                'num_gpu': 2,
-                'use_mpi': _mpi_size > 1,
             },), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad{self.post_name}")
 
     def test_consistent_lstsq_grad_compact(self):
@@ -378,8 +380,6 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
         _save_ptycho_result(
             self.template_consistent_algorithm(params={
                 'parameters': params,
-                'num_gpu': 2,
-                'use_mpi': _mpi_size > 1,
             },),
             f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-compact{self.post_name}"
         )
@@ -402,8 +402,6 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
         params.object_options = ObjectOptions(use_adaptive_moment=True,)
         result = self.template_consistent_algorithm(params={
             'parameters': params,
-            'num_gpu': 2,
-            'use_mpi': _mpi_size > 1,
         },)
         _save_ptycho_result(
             result,
@@ -425,8 +423,6 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
         _save_ptycho_result(
             self.template_consistent_algorithm(params={
                 'parameters': params,
-                'num_gpu': 2,
-                'use_mpi': _mpi_size > 1,
             },), f"{'mpi-' if _mpi_size > 1 else ''}rpie{self.post_name}")
 
     def test_consistent_dm(self):
@@ -441,8 +437,6 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
         _save_ptycho_result(
             self.template_consistent_algorithm(params={
                 'parameters': params,
-                'num_gpu': 2,
-                'use_mpi': _mpi_size > 1,
             },), f"{'mpi-' if _mpi_size > 1 else ''}dm{self.post_name}")
 
 
@@ -529,8 +523,6 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
         params.object_options = ObjectOptions()
         result = self.template_consistent_algorithm(params={
             'parameters': params,
-            'num_gpu': 2,
-            'use_mpi': _mpi_size > 1,
         },)
         _save_ptycho_result(result, algorithm)
 
@@ -550,8 +542,6 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
         params.object_options = ObjectOptions()
         result = self.template_consistent_algorithm(params={
             'parameters': params,
-            'num_gpu': 2,
-            'use_mpi': _mpi_size > 1,
         },)
         _save_ptycho_result(result, algorithm)
         self._save_position_error_variance(result, algorithm)
@@ -572,8 +562,6 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
         params.object_options = ObjectOptions()
         result = self.template_consistent_algorithm(params={
             'parameters': params,
-            'num_gpu': 2,
-            'use_mpi': _mpi_size > 1,
         },)
         _save_ptycho_result(result, algorithm)
         self._save_position_error_variance(result, algorithm)
@@ -658,6 +646,10 @@ def _save_ptycho_result(result, algorithm):
             cmap=plt.cm.twilight,
             vmin=-np.pi,
             vmax=np.pi,
+        )
+        plt.imsave(
+            f'{fname}/{0}-ampli.png',
+            np.abs(result.psi).astype('float32'),
         )
         import tifffile
         tifffile.imwrite(
