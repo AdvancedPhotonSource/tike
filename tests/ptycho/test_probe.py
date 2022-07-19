@@ -2,6 +2,7 @@ import os
 import unittest
 
 import cupy as cp
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.io
 import tike.ptycho.probe
@@ -163,6 +164,10 @@ def test_hermite_modes():
         np.rollaxis(inputs['probes'], -1, 0)[None, None, ...],
         12,
     )
+
+    os.makedirs(resultdir, exist_ok=True)
+    flattened = np.concatenate(result1[0], axis=1)
+    plt.imsave(os.path.join(resultdir, 'hermite.png'), np.abs(flattened))
 
     np.testing.assert_allclose(
         result1,

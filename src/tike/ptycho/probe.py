@@ -384,6 +384,7 @@ def update_eigen_probe(
 
     return eigen_probe, weights
 
+
 def adjust_probe_power(probe, power=None):
     """Rescale the probes according to given power.
 
@@ -400,9 +401,10 @@ def adjust_probe_power(probe, power=None):
         power = 1.0 / np.arange(1, probe.shape[-3] + 1)
     power = power[..., None, None]
 
-    norm = tike.linalg.norm(probe, axis=(-2,-1), keepdims=True)
+    norm = tike.linalg.norm(probe, axis=(-2, -1), keepdims=True)
     probe *= power * norm[..., 0:1, :, :] / norm
     return probe
+
 
 def add_modes_random_phase(probe, nmodes):
     """Initialize additional probe modes by phase shifting the first mode.

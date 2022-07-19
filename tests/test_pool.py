@@ -7,7 +7,7 @@ from tike.communicators import ThreadPool
 
 class TestThreadPool(unittest.TestCase):
 
-    def setUp(self, workers=7):
+    def setUp(self, workers=3):
         self.pool = ThreadPool(workers)
         self.xp = self.pool.xp
 
@@ -33,10 +33,25 @@ class TestThreadPool(unittest.TestCase):
         result = self.pool.gather(np.array_split(a, self.pool.num_workers))
         self.xp.testing.assert_array_equal(a, result)
 
+    def test_reduce_cpu(self):
+        ones = self.pool.map(self.xp.ones, shape=(11, 1, 3))
+        result = self.pool.reduce_cpu(ones)
+        np.testing.assert_array_equal(
+            result,
+            np.ones((11, 1, 3)) * self.pool.num_workers,
+        )
+
     # TODO: Determine what the correct behavior of scatter should be.
     # def test_scatter(self):
     #     a = np.arange(10)
     #     result = self.pool.scatter(a)
+
+
+class TestSoloThreadPool(TestThreadPool):
+
+    def setUp(self, workers=1):
+        self.pool = ThreadPool(workers)
+        self.xp = self.pool.xp
 
 
 if __name__ == "__main__":

@@ -50,7 +50,7 @@ class ObjectOptions:
     """The magnitude of the illumination used for conditioning the object updates."""
 
     combined_update: np.array = dataclasses.field(init=False,
-                                                 default_factory=lambda: None)
+                                                  default_factory=lambda: None)
     """Used for compact batch updates."""
 
     clip_magnitude: bool = True
