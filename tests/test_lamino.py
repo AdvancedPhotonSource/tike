@@ -69,7 +69,7 @@ try:
     _mpi_rank = MPI.COMM_WORLD.Get_rank()
 except ModuleNotFoundError:
     _mpi_rank = 0
-    _mpi_size = 0
+    _mpi_size = 1
 
 
 class TestLaminoRecon(unittest.TestCase):
