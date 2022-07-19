@@ -165,6 +165,7 @@ def test_hermite_modes():
         12,
     )
 
+    os.makedirs(resultdir, exist_ok=True)
     flattened = np.concatenate(result1[0], axis=1)
     plt.imsave(os.path.join(resultdir, 'hermite.png'), np.abs(flattened))
 
