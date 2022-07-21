@@ -54,6 +54,7 @@ import unittest
 import warnings
 
 import numpy as np
+import cupy as cp
 
 import tike.ptycho
 from tike.ptycho.probe import ProbeOptions
@@ -71,8 +72,10 @@ testdir = os.path.dirname(os.path.dirname(__file__))
 try:
     from mpi4py import MPI
     _mpi_size = MPI.COMM_WORLD.Get_size()
+    _mpi_rank = MPI.COMM_WORLD.Get_rank()
 except ModuleNotFoundError:
-    _mpi_size = 0
+    _mpi_size = 1
+    _mpi_rank = 0
 
 
 class TestPtychoUtils(unittest.TestCase):
@@ -231,8 +234,9 @@ class TemplatePtychoRecon():
             self.data = archive['data'][0]
             self.probe = archive['probe'][0]
         self.scan -= np.amin(self.scan, axis=-2) - 20
-        self.probe = tike.ptycho.probe.add_modes_random_phase(self.probe, 5)
-        self.probe *= np.random.rand(*self.probe.shape)
+        self.probe = tike.ptycho.probe.add_modes_cartesian_hermite(
+            self.probe, 5)
+        self.probe = tike.ptycho.probe.adjust_probe_power(self.probe)
         self.probe = tike.ptycho.probe.orthogonalize_eig(self.probe)
 
     def init_params(self):
@@ -249,7 +253,7 @@ class TemplatePtychoRecon():
     def template_consistent_algorithm(self, *, params={}):
         """Check ptycho.solver.algorithm for consistency."""
 
-        if params.get('use_mpi') is True:
+        if _mpi_size > 1:
             with MPIComm() as IO:
                 params['parameters'].probe = IO.Bcast(
                     params['parameters'].probe)
@@ -267,15 +271,21 @@ class TemplatePtychoRecon():
                     params['parameters'].scan, self.data = IO.MPIio_ptycho(
                         params['parameters'].scan, self.data)
 
-        # Call twice to check that reconstruction continuation is correct
-        for _ in range(2):
-            params['parameters'] = tike.ptycho.reconstruct(
-                **params,
-                data=self.data,
-            )
+        device_per_rank = cp.cuda.runtime.getDeviceCount() // _mpi_size
+        base_device = device_per_rank * _mpi_rank
+        with cp.cuda.Device(base_device):
+            # Call twice to check that reconstruction continuation is correct
+            for _ in range(2):
+                params['parameters'] = tike.ptycho.reconstruct(
+                    **params,
+                    data=self.data,
+                    num_gpu=tuple(
+                        i + base_device for i in range(device_per_rank)),
+                    use_mpi=_mpi_size > 1,
+                )
         print()
-        print('\n'.join(
-            f'{c:1.3e}' for c in params['parameters'].algorithm_options.costs))
+        print('\n'.join(f'{c[0]:1.3e}'
+                        for c in params['parameters'].algorithm_options.costs))
         return params['parameters']
 
 
@@ -305,6 +315,17 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
 
     post_name = ""
 
+    def test_init(self):
+        params = self.init_params()
+        params.algorithm_options = tike.ptycho.AdamOptions(
+            num_batch=5,
+            num_iter=16,
+        )
+        params.probe_options = ProbeOptions()
+        params.object_options = ObjectOptions()
+        _save_ptycho_result(
+            params, f"{'mpi-' if _mpi_size > 1 else ''}init{self.post_name}")
+
     def test_consistent_adam_grad(self):
         """Check ptycho.solver.adam_grad for consistency."""
         params = self.init_params()
@@ -317,8 +338,6 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
         _save_ptycho_result(
             self.template_consistent_algorithm(params={
                 'parameters': params,
-                'num_gpu': 2,
-                'use_mpi': _mpi_size > 1,
             },), f"{'mpi-' if _mpi_size > 1 else ''}adam_grad{self.post_name}")
 
     def test_consistent_cgrad(self):
@@ -333,8 +352,6 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
         _save_ptycho_result(
             self.template_consistent_algorithm(params={
                 'parameters': params,
-                'num_gpu': 2,
-                'use_mpi': _mpi_size > 1,
             },), f"{'mpi-' if _mpi_size > 1 else ''}cgrad{self.post_name}")
 
     def test_consistent_lstsq_grad(self):
@@ -349,9 +366,24 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
         _save_ptycho_result(
             self.template_consistent_algorithm(params={
                 'parameters': params,
-                'num_gpu': 2,
-                'use_mpi': _mpi_size > 1,
             },), f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad{self.post_name}")
+
+    def test_consistent_lstsq_grad_compact(self):
+        """Check ptycho.solver.lstsq_grad for consistency."""
+        params = self.init_params()
+        params.algorithm_options = tike.ptycho.LstsqOptions(
+            num_batch=5,
+            num_iter=16,
+            batch_method='cluster_compact',
+        )
+        params.probe_options = ProbeOptions(use_adaptive_moment=True,)
+        params.object_options = ObjectOptions(use_adaptive_moment=True,)
+        _save_ptycho_result(
+            self.template_consistent_algorithm(params={
+                'parameters': params,
+            },),
+            f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-compact{self.post_name}"
+        )
 
     def test_consistent_lstsq_grad_variable_probe(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
@@ -371,8 +403,6 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
         params.object_options = ObjectOptions(use_adaptive_moment=True,)
         result = self.template_consistent_algorithm(params={
             'parameters': params,
-            'num_gpu': 2,
-            'use_mpi': _mpi_size > 1,
         },)
         _save_ptycho_result(
             result,
@@ -394,8 +424,6 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
         _save_ptycho_result(
             self.template_consistent_algorithm(params={
                 'parameters': params,
-                'num_gpu': 2,
-                'use_mpi': _mpi_size > 1,
             },), f"{'mpi-' if _mpi_size > 1 else ''}rpie{self.post_name}")
 
     def test_consistent_dm(self):
@@ -410,8 +438,6 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
         _save_ptycho_result(
             self.template_consistent_algorithm(params={
                 'parameters': params,
-                'num_gpu': 2,
-                'use_mpi': _mpi_size > 1,
             },), f"{'mpi-' if _mpi_size > 1 else ''}dm{self.post_name}")
 
 
@@ -444,7 +470,7 @@ class TestPtychoOnline(TestPtychoRecon, unittest.TestCase):
                 context.iterate(2)
         result = context.parameters
         print()
-        print('\n'.join(f'{c:1.3e}' for c in result.algorithm_options.costs))
+        print('\n'.join(f'{c[0]:1.3e}' for c in result.algorithm_options.costs))
         return result
 
 
@@ -498,8 +524,6 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
         params.object_options = ObjectOptions()
         result = self.template_consistent_algorithm(params={
             'parameters': params,
-            'num_gpu': 2,
-            'use_mpi': _mpi_size > 1,
         },)
         _save_ptycho_result(result, algorithm)
 
@@ -519,8 +543,6 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
         params.object_options = ObjectOptions()
         result = self.template_consistent_algorithm(params={
             'parameters': params,
-            'num_gpu': 2,
-            'use_mpi': _mpi_size > 1,
         },)
         _save_ptycho_result(result, algorithm)
         self._save_position_error_variance(result, algorithm)
@@ -541,8 +563,6 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
         params.object_options = ObjectOptions()
         result = self.template_consistent_algorithm(params={
             'parameters': params,
-            'num_gpu': 2,
-            'use_mpi': _mpi_size > 1,
         },)
         _save_ptycho_result(result, algorithm)
         self._save_position_error_variance(result, algorithm)
@@ -602,6 +622,7 @@ def _save_probe(output_folder, probe, algorithm):
     plt.savefig(f'{output_folder}/probe-power.svg')
     plt.close(f)
 
+
 def _save_ptycho_result(result, algorithm):
     try:
         import matplotlib.pyplot as plt
@@ -609,15 +630,16 @@ def _save_ptycho_result(result, algorithm):
         fname = os.path.join(testdir, 'result', 'ptycho', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
 
-        fig, ax1, ax2, = tike.view.plot_cost_convergence(
+        fig = plt.figure()
+        ax1, ax2 = tike.view.plot_cost_convergence(
             result.algorithm_options.costs,
             result.algorithm_options.times,
         )
         ax2.set_xlim(0, 20)
         fig.suptitle(algorithm)
         fig.tight_layout()
-
         plt.savefig(os.path.join(fname, 'convergence.svg'))
+        plt.close(fig)
         plt.imsave(
             f'{fname}/{0}-phase.png',
             np.angle(result.psi).astype('float32'),
@@ -625,6 +647,10 @@ def _save_ptycho_result(result, algorithm):
             cmap=plt.cm.twilight,
             vmin=-np.pi,
             vmax=np.pi,
+        )
+        plt.imsave(
+            f'{fname}/{0}-ampli.png',
+            np.abs(result.psi).astype('float32'),
         )
         import tifffile
         tifffile.imwrite(

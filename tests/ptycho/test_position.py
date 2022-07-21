@@ -14,7 +14,10 @@ def test_position_join(N=245, num_batch=11):
     np.random.shuffle(indices)
     batches = np.array_split(indices, num_batch)
 
-    opts = tike.ptycho.PositionOptions(scan, use_adaptive_moment=True,)
+    opts = tike.ptycho.PositionOptions(
+        scan,
+        use_adaptive_moment=True,
+    )
 
     optsb = [opts.split(b) for b in batches]
 

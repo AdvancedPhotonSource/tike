@@ -41,6 +41,10 @@ class IterativeOptions(abc.ABC):
     )
     """The per-iteration wall-time for each previous iteration."""
 
+    convergence_window: int = 0
+    """The number of epochs to consider for convergence monitoring. Set to
+    any value less than 2 to disable."""
+
 
 @dataclasses.dataclass
 class AdamOptions(IterativeOptions):
@@ -72,6 +76,7 @@ class DmOptions(IterativeOptions):
     num_batch: int = 1
     """The dataset is divided into this number of groups where each group is
     processed simultaneously."""
+
 
 @dataclasses.dataclass
 class RpieOptions(IterativeOptions):

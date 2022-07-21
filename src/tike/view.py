@@ -579,27 +579,29 @@ def plot_cost_convergence(costs, times):
 
     Returns
     -------
-    fig : matplotlib.figure.Figure
     ax1 : matplotlib.axes._subplots.AxesSubplot
     ax2 : matplotlib.axes._subplots.AxesSubplot
     """
-    fig, ax1 = plt.subplots()
+    ax1 = plt.subplot()
+
+    costs = np.asarray(costs)
+    alpha = 1.0 / costs.shape[1] if costs.ndim > 1 else 1.0
 
     color = 'black'
     ax1.semilogy()
     ax1.set_xlabel('iteration', color=color)
     ax1.set_ylabel('objective')
-    ax1.plot(costs, linestyle='--', color=color)
+    ax1.plot(costs, linestyle='--', color=color, alpha=alpha)
     ax1.tick_params(axis='x', labelcolor=color)
 
     ax2 = ax1.twiny()
 
     color = 'red'
     ax2.set_xlabel('wall-time [s]', color=color)
-    ax2.plot(np.cumsum(times), costs, color=color)
+    ax2.plot(np.cumsum(times), costs, color=color, alpha=alpha)
     ax2.tick_params(axis='x', labelcolor=color)
 
-    return fig, ax1, ax2
+    return ax1, ax2
 
 
 def plot_eigen_weights(weights):

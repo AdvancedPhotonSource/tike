@@ -52,6 +52,8 @@ def cgrad(
     probe_options = parameters.probe_options
     position_options = parameters.position_options
     object_options = parameters.object_options
+    batch_cost = []
+
     for n in randomizer.permutation(len(batches[0])):
 
         bdata = comm.pool.map(get_batch, data, batches, n=n)
@@ -108,7 +110,9 @@ def cgrad(
             bscan = comm.pool.bcast([bscan])
             # TODO: Assign bscan into scan when positions are updated
 
-    algorithm_options.costs.append(cost)
+        batch_cost.append(cost)
+
+    algorithm_options.costs.append(batch_cost)
     parameters.probe = probe
     parameters.psi = psi
     parameters.scan = scan

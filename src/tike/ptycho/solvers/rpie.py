@@ -63,6 +63,7 @@ def rpie(
     probe_options = parameters.probe_options
     position_options = parameters.position_options
     object_options = parameters.object_options
+    batch_cost = []
 
     for n in tike.opt.randomizer.permutation(len(batches[0])):
 
@@ -92,10 +93,9 @@ def rpie(
         ))
 
         if comm.use_mpi:
-            # TODO: This reduction should be mean
-            cost = comm.Allreduce_reduce(cost, 'cpu')
+            batch_cost.append(comm.Allreduce_reduce(cost, 'cpu'))
         else:
-            cost = comm.reduce(cost, 'cpu')
+            batch_cost.append(comm.reduce(cost, 'cpu'))
 
         (
             psi,
@@ -149,7 +149,7 @@ def rpie(
                             psi,
                             a=object_options.smoothness_constraint)
 
-    algorithm_options.costs.append(cost)
+    algorithm_options.costs.append(batch_cost)
     parameters.probe = probe
     parameters.psi = psi
     parameters.scan = scan
