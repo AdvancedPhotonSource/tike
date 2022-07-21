@@ -41,6 +41,7 @@ import logging
 import cupy as cp
 import cupyx.scipy.ndimage
 import numpy as np
+import scipy.signal
 
 import tike.linalg
 import tike.random
@@ -187,6 +188,10 @@ def _constrain_variable_probe2(variable_probe, weights, power):
     return variable_probe, weights
 
 
+def _split(m, x, dtype):
+    return cp.asarray(x[m], dtype=dtype)
+
+
 def constrain_variable_probe(comm, variable_probe, weights):
     """Add the following constraints to variable probe weights
 
@@ -200,6 +205,21 @@ def constrain_variable_probe(comm, variable_probe, weights):
     # not stored consecutively in device memory. Smoothing would require either
     # sorting and synchronizing the weights with the host OR implementing
     # smoothing of non-gridded data with splines using device-local data only.
+
+    reorder = np.argsort(np.concatenate(comm.order))
+    hweights = comm.pool.gather(
+        weights,
+        axis=-3,
+    )[reorder].get()
+
+    # hweights = 0.5 * hweights + 0.5 * scipy.signal.wiener(
+    #     hweights,
+    #     mysize=[51, 1, 1],
+    # )
+
+    new_weights = comm.pool.map(_split, comm.order, x=hweights, dtype='float32')
+
+    # comm.pool.map(cp.testing.assert_array_equal, new_weights, weights)
 
     variable_probe, weights, power = zip(*comm.pool.map(
         _constrain_variable_probe1,
