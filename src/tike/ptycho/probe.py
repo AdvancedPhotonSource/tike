@@ -76,7 +76,7 @@ class ProbeOptions:
     m: np.array = dataclasses.field(init=False, default_factory=lambda: None)
     """The first moment for adaptive moment."""
 
-    probe_support: float = 10.0
+    probe_support: float = 0.0
     """Weight of the finite probe support constraint; zero or greater."""
 
     probe_support_radius: float = 0.5 * 0.7
