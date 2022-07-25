@@ -69,6 +69,26 @@ def lstsq_grad(
     eigen_probe = parameters.eigen_probe
     eigen_weights = parameters.eigen_weights
 
+    if probe_options and probe_options.orthogonality_constraint:
+        probe = comm.pool.map(tike.ptycho.probe.orthogonalize_eig, probe)
+
+    if object_options:
+        psi = comm.pool.map(positivity_constraint,
+                            psi,
+                            r=object_options.positivity_constraint)
+
+        psi = comm.pool.map(smoothness_constraint,
+                            psi,
+                            a=object_options.smoothness_constraint)
+
+    if eigen_probe is not None:
+        eigen_probe, eigen_weights = tike.ptycho.probe.constrain_variable_probe(
+            comm,
+            probe,
+            eigen_probe,
+            eigen_weights,
+        )
+
     if eigen_probe is None:
         beigen_probe = [None] * comm.pool.num_workers
     else:
@@ -224,25 +244,6 @@ def lstsq_grad(
             )
         psi[0] = psi[0] + dpsi
         psi = comm.pool.bcast([psi[0]])
-
-    if probe_options and probe_options.orthogonality_constraint:
-        probe = comm.pool.map(tike.ptycho.probe.orthogonalize_eig, probe)
-
-    if object_options:
-        psi = comm.pool.map(positivity_constraint,
-                            psi,
-                            r=object_options.positivity_constraint)
-
-        psi = comm.pool.map(smoothness_constraint,
-                            psi,
-                            a=object_options.smoothness_constraint)
-
-    if eigen_probe is not None:
-        eigen_probe, eigen_weights = tike.ptycho.probe.constrain_variable_probe(
-            comm,
-            beigen_probe,
-            eigen_weights,
-        )
 
     algorithm_options.costs.append(batch_cost)
     parameters.probe = probe
