@@ -137,7 +137,7 @@ def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
         return shared_probe.copy()
 
 
-def _constrain_variable_probe1(variable_probe, weights):
+def _constrain_variable_probe1(probe, variable_probe, weights):
     """Help use the thread pool with constrain_variable_probe"""
 
     # Normalize variable probes
@@ -147,11 +147,18 @@ def _constrain_variable_probe1(variable_probe, weights):
     weights[..., 1:, :probes_with_modes] *= vnorm[..., 0, 0]
 
     # Orthogonalize variable probes
+
+    # Make variable probes orthogonal to main probe too
+    all_probes = cp.concatenate(
+        [probe[..., :variable_probe.shape[-3], :, :], variable_probe],
+        axis=-4,
+    )
+
     variable_probe = tike.linalg.orthogonalize_gs(
-        variable_probe,
+        all_probes,
         axis=(-2, -1),
         N=-4,
-    )
+    )[..., 1:, :, :, :]
 
     # Compute probe energy in order to sort probes by energy
     power = tike.linalg.norm(
@@ -192,7 +199,7 @@ def _split(m, x, dtype):
     return cp.asarray(x[m], dtype=dtype)
 
 
-def constrain_variable_probe(comm, variable_probe, weights):
+def constrain_variable_probe(comm, probe, variable_probe, weights):
     """Add the following constraints to variable probe weights
 
     1. Remove outliars from weights
@@ -223,6 +230,7 @@ def constrain_variable_probe(comm, variable_probe, weights):
 
     variable_probe, weights, power = zip(*comm.pool.map(
         _constrain_variable_probe1,
+        probe,
         variable_probe,
         weights,
     ))
