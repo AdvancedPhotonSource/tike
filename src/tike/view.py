@@ -125,8 +125,8 @@ def resize_complex_image( img0, scale_factor = ( 1, 1 ), interpolation = cv.INTE
         The new M1 x N1 which has been resized according to the scale factors above.
     """
     
-    dim  = ( int( img0.shape[1] * scale_factor[1] ), 
-             int( img0.shape[0] * scale_factor[0] ) )
+    dim  = ( int( img0.shape[0] * scale_factor[0] ), 
+             int( img0.shape[1] * scale_factor[1] ) )
 
     imgRS_re = cv.resize( np.real( img0 ), dim, interpolation )
     imgRS_im = cv.resize( np.imag( img0 ), dim, interpolation )
