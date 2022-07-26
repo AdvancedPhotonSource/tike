@@ -86,6 +86,12 @@ class ProbeOptions:
     probe_support_degree: float = 2.5
     """Degree of the supergaussian defining the probe support; zero or greater."""
 
+    weights_smooth: float = 0.5
+    """Relative weight of the polynomial term in variable probe smoothing. [0.0, 1.0]"""
+
+    weights_smooth_order: int = 0
+    """Highest degree of variable probe smoothing polynomial."""
+
     def copy_to_device(self):
         """Copy to the current GPU memory."""
         if self.v is not None:
@@ -199,7 +205,8 @@ def _split(m, x, dtype):
     return cp.asarray(x[m], dtype=dtype)
 
 
-def constrain_variable_probe(comm, probe, variable_probe, weights):
+def constrain_variable_probe(comm, probe, variable_probe, weights,
+                             probe_options):
     """Add the following constraints to variable probe weights
 
     1. Remove outliars from weights
@@ -208,25 +215,26 @@ def constrain_variable_probe(comm, probe, variable_probe, weights):
     4. Normalize the variable probes so the energy is contained in the weight
 
     """
-    # TODO: No smoothing of variable probe weights yet because the weights are
-    # not stored consecutively in device memory. Smoothing would require either
-    # sorting and synchronizing the weights with the host OR implementing
-    # smoothing of non-gridded data with splines using device-local data only.
+    if probe_options.weights_smooth_order > 0:
+        reorder = np.argsort(np.concatenate(comm.order))
+        hweights = comm.pool.gather(
+            weights,
+            axis=-3,
+        )[reorder].get()
 
-    reorder = np.argsort(np.concatenate(comm.order))
-    hweights = comm.pool.gather(
-        weights,
-        axis=-3,
-    )[reorder].get()
+        # Fit the 1st order and higher variable probe weights to a polynomial
+        modelx = np.arange(len(hweights))
+        for i in range(1, hweights.shape[-2]):
+            fitted_weights = np.polynomial.Polynomial.fit(
+                x=modelx,
+                y=hweights[..., i, 0],
+                deg=probe_options.weights_smooth_order,
+            )(modelx)
+            hweights[
+                ..., i, 0] = (1.0 - probe_options.weights_smooth) * hweights[
+                    ..., i, 0] + probe_options.weights_smooth * fitted_weights
 
-    # hweights = 0.5 * hweights + 0.5 * scipy.signal.wiener(
-    #     hweights,
-    #     mysize=[51, 1, 1],
-    # )
-
-    new_weights = comm.pool.map(_split, comm.order, x=hweights, dtype='float32')
-
-    # comm.pool.map(cp.testing.assert_array_equal, new_weights, weights)
+        weights = comm.pool.map(_split, comm.order, x=hweights, dtype='float32')
 
     variable_probe, weights, power = zip(*comm.pool.map(
         _constrain_variable_probe1,

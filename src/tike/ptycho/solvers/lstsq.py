@@ -87,6 +87,7 @@ def lstsq_grad(
             probe,
             eigen_probe,
             eigen_weights,
+            probe_options,
         )
 
     if eigen_probe is None:
