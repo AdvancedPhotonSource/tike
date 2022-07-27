@@ -216,6 +216,8 @@ def constrain_variable_probe(comm, probe, variable_probe, weights,
 
     """
     if probe_options.weights_smooth_order > 0:
+        logger.info("Smoothing variable probe weights with "
+                    f"{probe_options.weights_smooth_order} order polynomials.")
         reorder = np.argsort(np.concatenate(comm.order))
         hweights = comm.pool.gather(
             weights,
