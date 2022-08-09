@@ -476,6 +476,14 @@ def add_modes_random_phase(probe, nmodes):
     return all_modes
 
 
+def _pyramid():
+    rank = 0
+    while True:
+        for i in zip(range(rank+1), range(rank, -1, -1)):
+            yield i
+        rank = rank + 1
+
+
 def add_modes_cartesian_hermite(probe, nmodes: int):
     """Create more probes from a 2D Cartesian Hermite basis functions.
 
@@ -506,9 +514,6 @@ def add_modes_cartesian_hermite(probe, nmodes: int):
     if probe.ndim < 3:
         raise ValueError(f"probe is incorrect shape is should be "
                          " (..., 1, W, new_probes) not {probe.shape}.")
-
-    M = int(np.ceil(np.sqrt(nmodes)))
-    N = int(np.ceil(nmodes / M))
 
     X, Y = np.meshgrid(
         np.arange(probe.shape[-2]) - (probe.shape[-2] // 2 - 1),
@@ -556,8 +561,7 @@ def add_modes_cartesian_hermite(probe, nmodes: int):
 
     # Create basis
     new_probes = list()
-    for nii in range(N):
-        for mii in range(M):
+    for nii, mii in _pyramid():
 
             basis = ((X - cenx)**mii) * ((Y - ceny)**nii) * probe
 
