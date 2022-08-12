@@ -93,6 +93,24 @@ def test_complexHSV_to_RGB():
     return rgb_imgRS
 
 
+def test_complexHSV_simple_inputs():
+
+    # FIXME: Function fails when all inputs are zero
+    result = tike.view.complexHSV_to_RGB(np.array([
+        0 + 0j,
+        # FIXME: Add more input output pairs to this test
+    ]))
+    np.assert_equal(result, np.array([
+        [0, 0, 0],
+        # For example, it should be trivial to figure out which inputs generate
+        # these outputs (or similar):
+        # [1, 1, 1],
+        # [1, 0, 0],
+        # [0, 1, 0],
+        # [0, 0, 1],
+    ]))
+
+
 if __name__ == '__main__':
 
     imgRS = test_resize_complex_image()
