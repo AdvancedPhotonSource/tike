@@ -95,8 +95,8 @@ def lstsq_grad(
     else:
         beigen_probe = eigen_probe
 
+    preconditioner = [None] * comm.pool.num_workers
     if object_options is not None:
-        preconditioner = [None] * comm.pool.num_workers
         for n in range(len(batches[0])):
             bscan = comm.pool.map(tike.opt.get_batch, scan, batches, n=n)
             preconditioner = comm.pool.map(
@@ -113,19 +113,18 @@ def lstsq_grad(
             preconditioner = comm.pool.allreduce(preconditioner)
         # Use a rolling average of this preconditioner and the previous
         # preconditioner
-        if object_options.preconditioner is None:
-            object_options.preconditioner = preconditioner
-        else:
-            object_options.preconditioner = comm.pool.map(
+        if object_options.preconditioner is not None:
+            preconditioner = comm.pool.map(
                 cp.add,
                 object_options.preconditioner,
                 preconditioner,
             )
-            object_options.preconditioner = comm.pool.map(
+            preconditioner = comm.pool.map(
                 cp.divide,
-                object_options.preconditioner,
+                preconditioner,
                 [2] * comm.pool.num_workers,
             )
+        object_options.preconditioner = preconditioner
 
         if algorithm_options.batch_method == 'cluster_compact':
             object_options.combined_update = cp.zeros_like(psi[0])
@@ -197,7 +196,7 @@ def lstsq_grad(
             probe_options is not None,
             bposition_options,
             num_batch=algorithm_options.num_batch,
-            psi_update_denominator=object_options.preconditioner,
+            psi_update_denominator=preconditioner,
             object_options=object_options,
             probe_options=probe_options,
             algorithm_options=algorithm_options,
@@ -420,23 +419,27 @@ def _update_nearplane(
                 recover_probe=recover_probe,
             )))
             if comm.use_mpi:
-                weighted_step_psi[0] = comm.Allreduce_mean(
-                    weighted_step_psi,
-                    axis=-5,
-                )[..., 0, 0, 0]
-                weighted_step_probe[0] = comm.Allreduce_mean(
-                    weighted_step_probe,
-                    axis=-5,
-                )
+                if recover_psi:
+                    weighted_step_psi[0] = comm.Allreduce_mean(
+                        weighted_step_psi,
+                        axis=-5,
+                    )[..., 0, 0, 0]
+                if recover_probe:
+                    weighted_step_probe[0] = comm.Allreduce_mean(
+                        weighted_step_probe,
+                        axis=-5,
+                    )
             else:
-                weighted_step_psi[0] = comm.pool.reduce_mean(
-                    weighted_step_psi,
-                    axis=-5,
-                )[..., 0, 0, 0]
-                weighted_step_probe[0] = comm.pool.reduce_mean(
-                    weighted_step_probe,
-                    axis=-5,
-                )
+                if recover_psi:
+                    weighted_step_psi[0] = comm.pool.reduce_mean(
+                        weighted_step_psi,
+                        axis=-5,
+                    )[..., 0, 0, 0]
+                if recover_probe:
+                    weighted_step_probe[0] = comm.pool.reduce_mean(
+                        weighted_step_probe,
+                        axis=-5,
+                    )
 
         if m == 0 and recover_probe and eigen_weights[0] is not None:
             logger.info('Updating eigen probes')
@@ -734,6 +737,8 @@ def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe):
 
         # (27b) Object update
         weighted_step_psi = cp.mean(step, keepdims=True, axis=-5)
+    else:
+        weighted_step_psi = None
 
     if recover_probe:
         step = 0.9 * cp.maximum(0, x2[..., None, None].real)

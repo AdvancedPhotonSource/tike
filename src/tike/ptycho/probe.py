@@ -215,15 +215,15 @@ def constrain_variable_probe(comm, probe, variable_probe, weights,
     4. Normalize the variable probes so the energy is contained in the weight
 
     """
+    reorder = np.argsort(np.concatenate(comm.order))
+    hweights = comm.pool.gather(
+        weights,
+        axis=-3,
+    )[reorder].get()
+
     if probe_options.weights_smooth_order > 0:
         logger.info("Smoothing variable probe weights with "
                     f"{probe_options.weights_smooth_order} order polynomials.")
-        reorder = np.argsort(np.concatenate(comm.order))
-        hweights = comm.pool.gather(
-            weights,
-            axis=-3,
-        )[reorder].get()
-
         # Fit the 1st order and higher variable probe weights to a polynomial
         modelx = np.arange(len(hweights))
         for i in range(1, hweights.shape[-2]):
@@ -236,7 +236,10 @@ def constrain_variable_probe(comm, probe, variable_probe, weights,
                 ..., i, 0] = (1.0 - probe_options.weights_smooth) * hweights[
                     ..., i, 0] + probe_options.weights_smooth * fitted_weights
 
-        weights = comm.pool.map(_split, comm.order, x=hweights, dtype='float32')
+    # Force weights to have zero mean
+    # hweights[..., 1:, :] -= np.mean(hweights[..., 1:, :], axis=-3, keepdims=True)
+
+    weights = comm.pool.map(_split, comm.order, x=hweights, dtype='float32')
 
     variable_probe, weights, power = zip(*comm.pool.map(
         _constrain_variable_probe1,
@@ -276,7 +279,7 @@ def _get_update(R, eigen_probe, weights, *, c, m):
     )
 
 
-def _get_d(patches, diff, eigen_probe, update, *, β, c, m):
+def _get_d(patches, diff, eigen_probe, update, weights, *, β, c, m):
     eigen_probe[..., c - 1:c, m:m + 1, :, :] += β * update / tike.linalg.mnorm(
         update,
         axis=(-2, -1),
@@ -392,6 +395,7 @@ def update_eigen_probe(
         diff,
         eigen_probe,
         update,
+        weights,
         β=β,
         c=c,
         m=m,
@@ -706,10 +710,10 @@ def orthogonalize_eig(x):
     # descending order.
     vectors = vectors[..., ::-1].swapaxes(-1, -2)
     result = (vectors @ x.reshape(*x.shape[:-2], -1)).reshape(*x.shape)
-    assert np.all(
-        np.diff(tike.linalg.norm(result, axis=(-2, -1), keepdims=False),
-                axis=-1) <= 0
-    ), f"Power of the orthogonalized probes should be monotonically decreasing! {val}"
+    # assert np.all(
+    #     np.diff(tike.linalg.norm(result, axis=(-2, -1), keepdims=False),
+    #             axis=-1) <= 0
+    # ), f"Power of the orthogonalized probes should be monotonically decreasing! {val}"
     return result
 
 

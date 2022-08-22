@@ -404,7 +404,7 @@ class Reconstruction():
                 parameters=self._device_parameters,
             )
 
-            if self._device_parameters.object_options.clip_magnitude:
+            if self._device_parameters.object_options and self._device_parameters.object_options.clip_magnitude:
                 self._device_parameters.psi = self.comm.pool.map(
                     _clip_magnitude,
                     self._device_parameters.psi,
