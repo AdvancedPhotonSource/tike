@@ -352,7 +352,7 @@ def read_aps_lynx(
         dtype=np.float32,
         skip_header=2,
     )
-    scan = raw_position[:, :2] * 1e-9
+    scan = raw_position[:, :2] * 1e-6
 
     logging.info(f'Loaded {len(scan)} scan positions.')
 
