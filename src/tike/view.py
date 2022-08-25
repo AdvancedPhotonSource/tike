@@ -84,7 +84,7 @@ def complexHSV_to_RGB( img0 ):
         in a RGB colorspace.
     """
     
-    sz      = img0.shape
+    sz = img0.shape
 
     hsv_img = np.ones( ( *sz, 3 ), 'float32' )
 
@@ -113,7 +113,7 @@ def resize_complex_image( img0, scale_factor = ( 1, 1 ), interpolation = cv.INTE
     img0 : :py:class:`numpy.array`
         A M0 x N0 complex64 numpy array.
     scale_factor : 2 element positive valued float tuple, 
-        ( vertical resize/scale, horizontal resize/scale  )
+        ( horizontal resize/scale, vertical resize/scale  )
     interpolation  : int 
         cv.INTER_NEAREST  = 0, cv.INTER_LINEAR = 1
         cv.INTER_CUBIC    = 2, cv.INTER_AREA   = 3
@@ -125,8 +125,8 @@ def resize_complex_image( img0, scale_factor = ( 1, 1 ), interpolation = cv.INTE
         The new M1 x N1 which has been resized according to the scale factors above.
     """
     
-    dim  = ( int( img0.shape[0] * scale_factor[0] ), 
-             int( img0.shape[1] * scale_factor[1] ) )
+    dim  = ( int( img0.shape[1] * scale_factor[0] ), 
+             int( img0.shape[0] * scale_factor[1] ) )
 
     imgRS_re = cv.resize( np.real( img0 ), dim, interpolation )
     imgRS_im = cv.resize( np.imag( img0 ), dim, interpolation )
