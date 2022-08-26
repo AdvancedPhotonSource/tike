@@ -72,6 +72,8 @@ def complexHSV_to_RGB( img0 ):
     magnitude as value, and saturation as all ones in a new (..., 3) shaped
     array. This is then converted to the RGB colorspace.
 
+    Assumes real valued inputs have a zero imaginary component.
+
     Parameters
     ----------
     img0 : :py:class:`numpy.array`
