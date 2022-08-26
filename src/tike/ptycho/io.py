@@ -343,8 +343,6 @@ def read_aps_lynx(
     # Set between panel values to zero
     data[data == gap_value] = 0
 
-
-
     raw_position = np.genfromtxt(
         position_path,
         usecols=(*xy_columns, trigger_column),
