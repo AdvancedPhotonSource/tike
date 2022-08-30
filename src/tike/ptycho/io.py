@@ -249,7 +249,7 @@ def read_aps_lynx(
     beam_center_x,
     beam_center_y,
     detector_dist,
-    xy_columns=(3, 6),
+    xy_columns=(6, 3),
     trigger_column: int = 0,
     max_crop: int = 2048,
     gap_value: int = 2**12 - 1,
@@ -350,7 +350,7 @@ def read_aps_lynx(
         dtype=np.float32,
         skip_header=2,
     )
-    scan = raw_position[:, :2] * 1e-6
+    scan = raw_position[:, :2] * -1e-6
 
     logging.info(f'Loaded {len(scan)} scan positions.')
 
