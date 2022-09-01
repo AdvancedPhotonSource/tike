@@ -404,7 +404,7 @@ class Reconstruction():
                 parameters=self._device_parameters,
             )
 
-            if self._device_parameters.object_options.clip_magnitude:
+            if self._device_parameters.object_options and self._device_parameters.object_options.clip_magnitude:
                 self._device_parameters.psi = self.comm.pool.map(
                     _clip_magnitude,
                     self._device_parameters.psi,
@@ -558,11 +558,13 @@ class Reconstruction():
             new_scan,
             axis=0,
         )
+        assert len(self._device_parameters.scan[0]) == len(self.data[0])
         self.comm.order = self.comm.pool.map(
             _order_join,
             self.comm.order,
             order,
         )
+        assert len(self.comm.order[0]) == len(self.data[0])
 
         # Rebatch on each device
         self.batches = self.comm.pool.map(
@@ -574,15 +576,12 @@ class Reconstruction():
 
         if self._device_parameters.eigen_weights is not None:
             self._device_parameters.eigen_weights = self.comm.pool.map(
-                cp.pad,
+                _pad_weights,
                 self._device_parameters.eigen_weights,
-                pad_width=(
-                    (0, len(new_scan)),  # position
-                    (0, 0),  # eigen
-                    (0, 0),  # shared
-                ),
-                mode='mean',
+                new_scan,
             )
+            assert len(self._device_parameters.eigen_weights[0]) == len(
+                self.data[0])
 
         if self._device_parameters.position_options is not None:
             self._device_parameters.position_options = self.comm.pool.map(
@@ -590,6 +589,20 @@ class Reconstruction():
                 self._device_parameters.position_options,
                 new_scan,
             )
+            assert len(self._device_parameters.position_options[0].initial_scan
+                       == len(self.data[0]))
+
+
+def _pad_weights(weights, new_scan):
+    return cp.pad(
+        weights,
+        pad_width=(
+            (0, len(new_scan)),  # position
+            (0, 0),  # eigen
+            (0, 0),  # shared
+        ),
+        mode='mean',
+    )
 
 
 def _order_join(a, b):

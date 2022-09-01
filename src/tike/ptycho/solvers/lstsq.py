@@ -69,13 +69,34 @@ def lstsq_grad(
     eigen_probe = parameters.eigen_probe
     eigen_weights = parameters.eigen_weights
 
+    if probe_options and probe_options.orthogonality_constraint:
+        probe = comm.pool.map(tike.ptycho.probe.orthogonalize_eig, probe)
+
+    if object_options:
+        psi = comm.pool.map(positivity_constraint,
+                            psi,
+                            r=object_options.positivity_constraint)
+
+        psi = comm.pool.map(smoothness_constraint,
+                            psi,
+                            a=object_options.smoothness_constraint)
+
+    if eigen_probe is not None:
+        eigen_probe, eigen_weights = tike.ptycho.probe.constrain_variable_probe(
+            comm,
+            probe,
+            eigen_probe,
+            eigen_weights,
+            probe_options,
+        )
+
     if eigen_probe is None:
         beigen_probe = [None] * comm.pool.num_workers
     else:
         beigen_probe = eigen_probe
 
+    preconditioner = [None] * comm.pool.num_workers
     if object_options is not None:
-        preconditioner = [None] * comm.pool.num_workers
         for n in range(len(batches[0])):
             bscan = comm.pool.map(tike.opt.get_batch, scan, batches, n=n)
             preconditioner = comm.pool.map(
@@ -92,19 +113,18 @@ def lstsq_grad(
             preconditioner = comm.pool.allreduce(preconditioner)
         # Use a rolling average of this preconditioner and the previous
         # preconditioner
-        if object_options.preconditioner is None:
-            object_options.preconditioner = preconditioner
-        else:
-            object_options.preconditioner = comm.pool.map(
+        if object_options.preconditioner is not None:
+            preconditioner = comm.pool.map(
                 cp.add,
                 object_options.preconditioner,
                 preconditioner,
             )
-            object_options.preconditioner = comm.pool.map(
+            preconditioner = comm.pool.map(
                 cp.divide,
-                object_options.preconditioner,
+                preconditioner,
                 [2] * comm.pool.num_workers,
             )
+        object_options.preconditioner = preconditioner
 
         if algorithm_options.batch_method == 'cluster_compact':
             object_options.combined_update = cp.zeros_like(psi[0])
@@ -176,7 +196,7 @@ def lstsq_grad(
             probe_options is not None,
             bposition_options,
             num_batch=algorithm_options.num_batch,
-            psi_update_denominator=object_options.preconditioner,
+            psi_update_denominator=preconditioner,
             object_options=object_options,
             probe_options=probe_options,
             algorithm_options=algorithm_options,
@@ -224,25 +244,6 @@ def lstsq_grad(
             )
         psi[0] = psi[0] + dpsi
         psi = comm.pool.bcast([psi[0]])
-
-    if probe_options and probe_options.orthogonality_constraint:
-        probe = comm.pool.map(tike.ptycho.probe.orthogonalize_eig, probe)
-
-    if object_options:
-        psi = comm.pool.map(positivity_constraint,
-                            psi,
-                            r=object_options.positivity_constraint)
-
-        psi = comm.pool.map(smoothness_constraint,
-                            psi,
-                            a=object_options.smoothness_constraint)
-
-    if eigen_probe is not None:
-        eigen_probe, eigen_weights = tike.ptycho.probe.constrain_variable_probe(
-            comm,
-            beigen_probe,
-            eigen_weights,
-        )
 
     algorithm_options.costs.append(batch_cost)
     parameters.probe = probe
@@ -418,23 +419,27 @@ def _update_nearplane(
                 recover_probe=recover_probe,
             )))
             if comm.use_mpi:
-                weighted_step_psi[0] = comm.Allreduce_mean(
-                    weighted_step_psi,
-                    axis=-5,
-                )[..., 0, 0, 0]
-                weighted_step_probe[0] = comm.Allreduce_mean(
-                    weighted_step_probe,
-                    axis=-5,
-                )
+                if recover_psi:
+                    weighted_step_psi[0] = comm.Allreduce_mean(
+                        weighted_step_psi,
+                        axis=-5,
+                    )[..., 0, 0, 0]
+                if recover_probe:
+                    weighted_step_probe[0] = comm.Allreduce_mean(
+                        weighted_step_probe,
+                        axis=-5,
+                    )
             else:
-                weighted_step_psi[0] = comm.pool.reduce_mean(
-                    weighted_step_psi,
-                    axis=-5,
-                )[..., 0, 0, 0]
-                weighted_step_probe[0] = comm.pool.reduce_mean(
-                    weighted_step_probe,
-                    axis=-5,
-                )
+                if recover_psi:
+                    weighted_step_psi[0] = comm.pool.reduce_mean(
+                        weighted_step_psi,
+                        axis=-5,
+                    )[..., 0, 0, 0]
+                if recover_probe:
+                    weighted_step_probe[0] = comm.pool.reduce_mean(
+                        weighted_step_probe,
+                        axis=-5,
+                    )
 
         if m == 0 and recover_probe and eigen_weights[0] is not None:
             logger.info('Updating eigen probes')
@@ -732,6 +737,8 @@ def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe):
 
         # (27b) Object update
         weighted_step_psi = cp.mean(step, keepdims=True, axis=-5)
+    else:
+        weighted_step_psi = None
 
     if recover_probe:
         step = 0.9 * cp.maximum(0, x2[..., None, None].real)

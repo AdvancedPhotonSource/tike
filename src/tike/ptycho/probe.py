@@ -41,6 +41,7 @@ import logging
 import cupy as cp
 import cupyx.scipy.ndimage
 import numpy as np
+import scipy.signal
 
 import tike.linalg
 import tike.random
@@ -84,6 +85,12 @@ class ProbeOptions:
 
     probe_support_degree: float = 2.5
     """Degree of the supergaussian defining the probe support; zero or greater."""
+
+    weights_smooth: float = 0.5
+    """Relative weight of the polynomial term in variable probe smoothing. [0.0, 1.0]"""
+
+    weights_smooth_order: int = 0
+    """Highest degree of variable probe smoothing polynomial."""
 
     def copy_to_device(self):
         """Copy to the current GPU memory."""
@@ -136,7 +143,7 @@ def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
         return shared_probe.copy()
 
 
-def _constrain_variable_probe1(variable_probe, weights):
+def _constrain_variable_probe1(probe, variable_probe, weights):
     """Help use the thread pool with constrain_variable_probe"""
 
     # Normalize variable probes
@@ -146,11 +153,18 @@ def _constrain_variable_probe1(variable_probe, weights):
     weights[..., 1:, :probes_with_modes] *= vnorm[..., 0, 0]
 
     # Orthogonalize variable probes
+
+    # Make variable probes orthogonal to main probe too
+    all_probes = cp.concatenate(
+        [probe[..., :variable_probe.shape[-3], :, :], variable_probe],
+        axis=-4,
+    )
+
     variable_probe = tike.linalg.orthogonalize_gs(
-        variable_probe,
+        all_probes,
         axis=(-2, -1),
         N=-4,
-    )
+    )[..., 1:, :, :, :]
 
     # Compute probe energy in order to sort probes by energy
     power = tike.linalg.norm(
@@ -187,7 +201,12 @@ def _constrain_variable_probe2(variable_probe, weights, power):
     return variable_probe, weights
 
 
-def constrain_variable_probe(comm, variable_probe, weights):
+def _split(m, x, dtype):
+    return cp.asarray(x[m], dtype=dtype)
+
+
+def constrain_variable_probe(comm, probe, variable_probe, weights,
+                             probe_options):
     """Add the following constraints to variable probe weights
 
     1. Remove outliars from weights
@@ -196,13 +215,35 @@ def constrain_variable_probe(comm, variable_probe, weights):
     4. Normalize the variable probes so the energy is contained in the weight
 
     """
-    # TODO: No smoothing of variable probe weights yet because the weights are
-    # not stored consecutively in device memory. Smoothing would require either
-    # sorting and synchronizing the weights with the host OR implementing
-    # smoothing of non-gridded data with splines using device-local data only.
+    reorder = np.argsort(np.concatenate(comm.order))
+    hweights = comm.pool.gather(
+        weights,
+        axis=-3,
+    )[reorder].get()
+
+    if probe_options.weights_smooth_order > 0:
+        logger.info("Smoothing variable probe weights with "
+                    f"{probe_options.weights_smooth_order} order polynomials.")
+        # Fit the 1st order and higher variable probe weights to a polynomial
+        modelx = np.arange(len(hweights))
+        for i in range(1, hweights.shape[-2]):
+            fitted_weights = np.polynomial.Polynomial.fit(
+                x=modelx,
+                y=hweights[..., i, 0],
+                deg=probe_options.weights_smooth_order,
+            )(modelx)
+            hweights[
+                ..., i, 0] = (1.0 - probe_options.weights_smooth) * hweights[
+                    ..., i, 0] + probe_options.weights_smooth * fitted_weights
+
+    # Force weights to have zero mean
+    # hweights[..., 1:, :] -= np.mean(hweights[..., 1:, :], axis=-3, keepdims=True)
+
+    weights = comm.pool.map(_split, comm.order, x=hweights, dtype='float32')
 
     variable_probe, weights, power = zip(*comm.pool.map(
         _constrain_variable_probe1,
+        probe,
         variable_probe,
         weights,
     ))
@@ -238,7 +279,7 @@ def _get_update(R, eigen_probe, weights, *, c, m):
     )
 
 
-def _get_d(patches, diff, eigen_probe, update, *, β, c, m):
+def _get_d(patches, diff, eigen_probe, update, weights, *, β, c, m):
     eigen_probe[..., c - 1:c, m:m + 1, :, :] += β * update / tike.linalg.mnorm(
         update,
         axis=(-2, -1),
@@ -354,6 +395,7 @@ def update_eigen_probe(
         diff,
         eigen_probe,
         update,
+        weights,
         β=β,
         c=c,
         m=m,
@@ -438,6 +480,14 @@ def add_modes_random_phase(probe, nmodes):
     return all_modes
 
 
+def _pyramid():
+    rank = 0
+    while True:
+        for i in zip(range(rank+1), range(rank, -1, -1)):
+            yield i
+        rank = rank + 1
+
+
 def add_modes_cartesian_hermite(probe, nmodes: int):
     """Create more probes from a 2D Cartesian Hermite basis functions.
 
@@ -468,9 +518,6 @@ def add_modes_cartesian_hermite(probe, nmodes: int):
     if probe.ndim < 3:
         raise ValueError(f"probe is incorrect shape is should be "
                          " (..., 1, W, new_probes) not {probe.shape}.")
-
-    M = int(np.ceil(np.sqrt(nmodes)))
-    N = int(np.ceil(nmodes / M))
 
     X, Y = np.meshgrid(
         np.arange(probe.shape[-2]) - (probe.shape[-2] // 2 - 1),
@@ -518,8 +565,7 @@ def add_modes_cartesian_hermite(probe, nmodes: int):
 
     # Create basis
     new_probes = list()
-    for nii in range(N):
-        for mii in range(M):
+    for nii, mii in _pyramid():
 
             basis = ((X - cenx)**mii) * ((Y - ceny)**nii) * probe
 
@@ -664,10 +710,10 @@ def orthogonalize_eig(x):
     # descending order.
     vectors = vectors[..., ::-1].swapaxes(-1, -2)
     result = (vectors @ x.reshape(*x.shape[:-2], -1)).reshape(*x.shape)
-    assert np.all(
-        np.diff(tike.linalg.norm(result, axis=(-2, -1), keepdims=False),
-                axis=-1) <= 0
-    ), f"Power of the orthogonalized probes should be monotonically decreasing! {val}"
+    # assert np.all(
+    #     np.diff(tike.linalg.norm(result, axis=(-2, -1), keepdims=False),
+    #             axis=-1) <= 0
+    # ), f"Power of the orthogonalized probes should be monotonically decreasing! {val}"
     return result
 
 

@@ -525,9 +525,18 @@ def plot_cost_convergence(costs, times):
     ax2 = ax1.twiny()
 
     color = 'red'
-    ax2.set_xlabel('wall-time [s]', color=color)
+    ax2.loglog()
     ax2.plot(np.cumsum(times), costs, color=color, alpha=alpha)
     ax2.tick_params(axis='x', labelcolor=color)
+
+    try:
+        import humanize
+        def humanize_time(tick_val, tick_pos):
+            return humanize.naturaldelta(tick_val)
+        ax2.xaxis.set_major_formatter(humanize_time)
+        ax2.set_xlabel('wall-time', color=color)
+    except ImportError:
+        ax2.set_xlabel('wall-time [s]', color=color)
 
     return ax1, ax2
 

@@ -635,7 +635,6 @@ def _save_ptycho_result(result, algorithm):
             result.algorithm_options.costs,
             result.algorithm_options.times,
         )
-        ax2.set_xlim(0, 20)
         fig.suptitle(algorithm)
         fig.tight_layout()
         plt.savefig(os.path.join(fname, 'convergence.svg'))
