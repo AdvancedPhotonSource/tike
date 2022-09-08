@@ -241,3 +241,141 @@ def read_aps_velociprobe(
                       "Photon counts must be >= 0 and finite.")
 
     return data, scan.astype('float32')
+
+def read_aps_lynx(
+    diffraction_path,
+    position_path,
+    photon_energy,
+    beam_center_x,
+    beam_center_y,
+    detector_dist,
+    xy_columns=(6, 3),
+    trigger_column: int = 0,
+    max_crop: int = 2048,
+    gap_value: int = 2**12 - 1,
+):
+    """Load ptychography data from Advanced Photon Source LYNX.
+
+    Expects one h5 file and one dat file with the following organization::
+
+        diffraction_path:
+            entry:NXentry
+            @NX_class = NXentry
+                data:NXdata
+                @NX_class = NXdata
+                eiger_4:NX_UINT16[12320,1030,1614] =
+                    @Count_cutoff = 199998
+                    @Exposure_period = 0.052000000000000005
+                    @Exposure_time = 0.005
+                    @Pixel_size = [7.5e-05]
+
+    DAT is a space-separated text file with two rows of headers with positions
+    in nanometers.
+
+    Parameters
+    ----------
+    diffraction_path : string
+        The absolute path to the HDF5 file containing diffraction patterns.
+    position_path : string
+        The absolute path to the CSV file containing position information.
+    xy_columns : 2-tuple of int
+        The columns in the 8 column raw position file to use for x,y positions
+    trigger_column : int
+        The column in the 8 column raw position file to use for grouping
+        positions together.
+    max_crop : int
+        Crop the diffraction pattern to at most this width.
+    gap_value : int
+        The value used to encode detector gaps
+
+    Returns
+    -------
+    data : (FRAME, WIDE, HIGH)
+        Diffraction patterns; cropped square and peak FFT shifted to corner.
+    scan : (POSI, 2) float32
+        Scan positions; rescaled to pixel coordinates but uncentered.
+
+
+    """
+    with h5py.File(diffraction_path, 'r') as f:
+        det_pix_width = f['/entry/data/eiger_4'].attrs['Pixel_size'].item()  # meter
+        _, detect_height, detect_width = f['/entry/data/eiger_4'].shape
+        logger.info('Loading 28-ID-C ptychography data:\n'
+                    f'\tphoton energy {photon_energy} eV\n'
+                    f'\twidth: {detect_width}, center: {beam_center_x}\n'
+                    f'\theight: {detect_height}, center: {beam_center_y}\n'
+                    f'\tdetector pixel width: {det_pix_width} m\n')
+
+
+        # Autodetect the diffraction pattern size by doubling until it
+        # doesn't fit on the detector anymore.
+        max_radius = max_crop // 2
+        radius = 2
+        while (
+            radius <= max_radius
+            and beam_center_x + radius < detect_width
+            and beam_center_y + radius < detect_height
+            and beam_center_x - radius >= 0 and beam_center_y - radius >= 0
+        ):  # yapf:disable
+            radius *= 2
+        radius = radius // 2
+        logger.info(f'Autodetected diffraction size is {2 * radius}.')
+
+        data = []
+
+        def crop_and_shift(x):
+            data.append(
+                np.fft.ifftshift(
+                    x[..., beam_center_y - radius:beam_center_y + radius,
+                      beam_center_x - radius:beam_center_x + radius],
+                    axes=(-2, -1),
+                ))
+
+        try:
+            crop_and_shift(f['/entry/data/eiger_4'])
+        except OSError as error:
+            warnings.warn(
+                "The HDF5 compression plugin is probably missing. "
+                "See the conda-forge hdf5-external-filter-plugins package.")
+            raise error
+
+    data = np.concatenate(data, axis=0)
+    # Set between panel values to zero
+    data[data == gap_value] = 0
+
+    raw_position = np.genfromtxt(
+        position_path,
+        usecols=(*xy_columns, trigger_column),
+        delimiter=' ',
+        dtype=np.float32,
+        skip_header=2,
+    )
+    scan = raw_position[:, :2] * -1e-6
+
+    logging.info(f'Loaded {len(scan)} scan positions.')
+
+    if len(data) != len(scan):
+        warnings.warn(
+            f"The number of positions {scan.shape} and frames {data.shape}"
+            " is not equal. One of the two will be truncated.")
+        num_frame = min(len(data), len(scan))
+        scan = scan[:num_frame, ...]
+        data = data[:num_frame, ...]
+
+    scan = position_units_to_pixels(
+        scan,
+        detector_dist,
+        data.shape[-1],
+        det_pix_width,
+        photon_energy,
+    )
+
+    if np.any(np.logical_not(np.isfinite(data))):
+        warnings.warn("Some values in the diffraction data are not finite. "
+                      "Photon counts must be >= 0 and finite.")
+
+    if np.any(data < 0):
+        warnings.warn("Some values in the diffraction data are negative. "
+                      "Photon counts must be >= 0 and finite.")
+
+    return data, scan.astype('float32')
