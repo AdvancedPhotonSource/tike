@@ -17,8 +17,8 @@ def create_testing_complex_wavefield(nxny):
 
     nx, ny = nxny
 
-    x = np.linspace(-nx*0.5, nx*0.5, nx)
-    y = np.linspace(-ny*0.5, ny*0.5, ny)
+    x = np.linspace(-nx * 0.5, nx * 0.5, nx)
+    y = np.linspace(-ny * 0.5, ny * 0.5, ny)
 
     xv, yv = np.meshgrid(x, y)
 
@@ -52,38 +52,37 @@ def test_resize_complex_image():
     #=================================================================
     # resize phi using different built in openCV interpolation methods
 
-    final_size_xy = ( int( nxny[0] * resize_factor_xy[0] ), 
-                      int( nxny[1] * resize_factor_xy[1] ) )
+    final_size_xy = (int(nxny[0] * resize_factor_xy[0]),
+                     int(nxny[1] * resize_factor_xy[1]))
 
     for x in cv_interp:
         imgRSx = tike.view.resize_complex_image(phi, resize_factor_xy, x)
-        assert( imgRSx.shape[0] == final_size_xy[1])
-        assert( imgRSx.shape[1] == final_size_xy[0])
-        assert( imgRSx.dtype == np.complex128)
+        assert (imgRSx.shape[0] == final_size_xy[1])
+        assert (imgRSx.shape[1] == final_size_xy[0])
+        assert (imgRSx.dtype == np.complex128)
         imgRS.append(imgRSx)
 
     #===============================================
     # resize phi using function default combinations
 
     imgRSx = tike.view.resize_complex_image(phi)
-    assert( imgRSx.shape[0] == nxny[1])
-    assert( imgRSx.shape[1] == nxny[0])
-    assert( imgRSx.dtype == np.complex128)
+    assert (imgRSx.shape[0] == nxny[1])
+    assert (imgRSx.shape[1] == nxny[0])
+    assert (imgRSx.dtype == np.complex128)
     imgRS.append(imgRSx)
 
     imgRSx = tike.view.resize_complex_image(phi, interpolation=cv.INTER_CUBIC)
-    assert( imgRSx.shape[0] == nxny[1])
-    assert( imgRSx.shape[1] == nxny[0])
-    assert( imgRSx.dtype == np.complex128)
+    assert (imgRSx.shape[0] == nxny[1])
+    assert (imgRSx.shape[1] == nxny[0])
+    assert (imgRSx.dtype == np.complex128)
     imgRS.append(imgRSx)
 
-    final_size_xy = ( int( nxny[0] * 3 ), 
-                      int( nxny[1] * 2 ) )
+    final_size_xy = (int(nxny[0] * 3), int(nxny[1] * 2))
 
     imgRSx = tike.view.resize_complex_image(phi, scale_factor=(3, 2))
-    assert( imgRSx.shape[0] == final_size_xy[1])
-    assert( imgRSx.shape[1] == final_size_xy[0])
-    assert( imgRSx.dtype == np.complex128)
+    assert (imgRSx.shape[0] == final_size_xy[1])
+    assert (imgRSx.shape[1] == final_size_xy[0])
+    assert (imgRSx.dtype == np.complex128)
     imgRS.append(imgRSx)
 
     return imgRS
@@ -112,7 +111,7 @@ def test_complexHSV_to_RGB():
     )
 
     # assert(np.isreal(rgb_img))
-    # np.testing.assert_equal 
+    # np.testing.assert_equal
 
     return rgb_imgRS
 
@@ -122,22 +121,24 @@ def test_complexHSV_simple_inputs():
     #====================================
     # test if giving single complex zero:
 
-    result = tike.view.complexHSV_to_RGB(np.array([ 0 + 0j,]))
+    result = tike.view.complexHSV_to_RGB(np.array([
+        0 + 0j,
+    ]))
 
     the_answer = np.array([[0., 0., 0.]], dtype='float32')
 
-    np.testing.assert_array_equal( result, the_answer )
+    np.testing.assert_array_equal(result, the_answer)
 
     #==================================
     # test if giving array of all zeros:
-    
-    A = np.zeros( ( 10, 11 ), 'float32' )
+
+    A = np.zeros((10, 11), 'float32')
 
     result = tike.view.complexHSV_to_RGB(A)
 
-    the_answer = np.zeros( ( 10, 11, 3 ), 'float32' )
+    the_answer = np.zeros((10, 11, 3), 'float32')
 
-    np.testing.assert_array_equal( result, the_answer )
+    np.testing.assert_array_equal(result, the_answer)
 
     #================================================================
     # test with respect to a simple constant array of ones and zeros:
@@ -146,7 +147,7 @@ def test_complexHSV_simple_inputs():
                    [1, 1, 1],
                    [1, 0, 0],
                    [0, 1, 0],
-                   [0, 0, 1], ])
+                   [0, 0, 1], ]) # yapf:disable
 
     the_answer = np.array([[[0.       , 0.       , 0.       ],
                             [0.       , 0.       , 0.       ],
@@ -162,16 +163,16 @@ def test_complexHSV_simple_inputs():
                             [0.       , 0.       , 0.       ]],
                            [[0.       , 0.       , 0.       ],
                             [0.       , 0.       , 0.       ],
-                            [0.9999999, 0.       , 0.       ]]], dtype='float32')
+                            [0.9999999, 0.       , 0.       ]]], dtype='float32') # yapf:disable
 
     result = tike.view.complexHSV_to_RGB(A)
 
-    np.testing.assert_array_almost_equal(result, the_answer, decimal=7 )
+    np.testing.assert_array_almost_equal(result, the_answer, decimal=7)
 
 
 if __name__ == '__main__':
 
     test_complexHSV_simple_inputs()
 
-    imgRS     = test_resize_complex_image()
+    imgRS = test_resize_complex_image()
     rgb_imgRS = test_complexHSV_to_RGB()

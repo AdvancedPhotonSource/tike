@@ -47,7 +47,7 @@
 # #########################################################################
 """Define functions for plotting and viewing data of various types."""
 
-__author__ = "Doga Gursoy"
+__author__ = "Doga Gursoy, Ash Tripathi, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
@@ -65,9 +65,10 @@ import tike.linalg
 
 logger = logging.getLogger(__name__)
 
-def complexHSV_to_RGB( img0 ):
+
+def complexHSV_to_RGB(img0):
     """Convert a complex valued array to RGB representation.
-    
+
     Takes a complex valued array, represents the phase as hue,
     magnitude as value, and saturation as all ones in a new (..., 3) shaped
     array. This is then converted to the RGB colorspace.
@@ -82,56 +83,63 @@ def complexHSV_to_RGB( img0 ):
     Returns
     -------
     rgb_img : :py:class:`numpy.array`
-        The (..., 3) shaped array which represents the input complex valued array 
+        The (..., 3) shaped array which represents the input complex valued array
         in a RGB colorspace.
     """
-    
+
     sz = img0.shape
 
-    hsv_img = np.ones( ( *sz, 3 ), 'float32' )
+    hsv_img = np.ones((*sz, 3), 'float32')
 
     # Rescale hue and value to the range [0, 1].
-    hsv_img[ ..., 0 ] = np.angle( img0 ) 
-    hsv_img[ ..., 0 ] -= np.min( hsv_img[ ..., 0 ] )
-    hsv_img[ ..., 0 ] = hsv_img[ ..., 0 ] / ( np.finfo(np.float32).eps + np.max( hsv_img[ ..., 0 ] ))
+    hsv_img[..., 0] = np.angle(img0)
+    hsv_img[..., 0] -= np.min(hsv_img[..., 0])
+    hsv_img[..., 0] = hsv_img[..., 0] / (np.finfo(np.float32).eps +
+                                         np.max(hsv_img[..., 0]))
 
-    hsv_img[ ..., 2 ] = np.abs( img0 )
-    hsv_img[ ..., 2 ] -= np.min( hsv_img[ ..., 2 ] )
-    hsv_img[ ..., 2 ] = hsv_img[ ..., 2 ] / ( np.finfo(np.float32).eps + np.max( hsv_img[ ..., 2 ] ))
+    hsv_img[..., 2] = np.abs(img0)
+    hsv_img[..., 2] -= np.min(hsv_img[..., 2])
+    hsv_img[..., 2] = hsv_img[..., 2] / (np.finfo(np.float32).eps +
+                                         np.max(hsv_img[..., 2]))
 
-    rgb_img = mplcolors.hsv_to_rgb( hsv_img )
+    rgb_img = mplcolors.hsv_to_rgb(hsv_img)
 
     return rgb_img
-    
 
-def resize_complex_image( img0, scale_factor = ( 1, 1 ), interpolation = cv.INTER_LINEAR ):
-    """Takes a M0 x N0 complex valued array, splits it up into real and imaginary,
-    and resizes (interpolates) the horizontal and vertical dimensions, yielding 
-    a new array of size M1 x N1. The result can then be  used for further plotting using 
-    e.g. imshow() or imsave() from matplotlib.
+
+def resize_complex_image(img0,
+                         scale_factor=(1, 1),
+                         interpolation=cv.INTER_LINEAR):
+    """Resize a complex image via interpolation.
+
+    Takes a M0 x N0 complex valued array, splits it up into real and imaginary,
+    and resizes (interpolates) the horizontal and vertical dimensions, yielding
+    a new array of size M1 x N1. The result can then be  used for further
+    plotting using e.g. imshow() or imsave() from matplotlib.
 
     Parameters
     ----------
     img0 : :py:class:`numpy.array`
         A M0 x N0 complex64 numpy array.
-    scale_factor : 2 element positive valued float tuple, 
+    scale_factor : 2 element positive valued float tuple,
         ( horizontal resize/scale, vertical resize/scale  )
-    interpolation  : int 
+    interpolation  : int
         cv.INTER_NEAREST  = 0, cv.INTER_LINEAR = 1
         cv.INTER_CUBIC    = 2, cv.INTER_AREA   = 3
-        cv.INTER_LANCZOS4 = 4 
+        cv.INTER_LANCZOS4 = 4
 
     Returns
     -------
     imgRS : :py:class:`numpy.array`
-        The new M1 x N1 which has been resized according to the scale factors above.
+        The new M1 x N1 which has been resized according to the scale factors
+        above.
     """
-    
-    dim  = ( int( img0.shape[1] * scale_factor[0] ), 
-             int( img0.shape[0] * scale_factor[1] ) )
 
-    imgRS_re = cv.resize( np.real( img0 ), dim, interpolation )
-    imgRS_im = cv.resize( np.imag( img0 ), dim, interpolation )
+    dim = (int(img0.shape[1] * scale_factor[0]),
+           int(img0.shape[0] * scale_factor[1]))
+
+    imgRS_re = cv.resize(np.real(img0), dim, interpolation)
+    imgRS_im = cv.resize(np.imag(img0), dim, interpolation)
 
     imgRS = imgRS_re + 1j * imgRS_im
 
