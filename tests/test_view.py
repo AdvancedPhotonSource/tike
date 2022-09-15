@@ -100,8 +100,8 @@ def test_resize_complex_image():
     #=================================================================
     # resize phi using different built in openCV interpolation methods
 
-    final_size_xy = ( int( nxny[0] * resize_factor_xy[0] ), 
-                      int( nxny[1] * resize_factor_xy[1] ) )
+    final_size_xy = (int(nxny[0] * resize_factor_xy[0]),
+                     int(nxny[1] * resize_factor_xy[1]))
 
     for x in cv_interp:
         imgRSx = tike.view.resize_complex_image(phi, resize_factor_xy, x)
