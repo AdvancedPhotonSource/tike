@@ -68,7 +68,7 @@ logger = logging.getLogger(__name__)
 def complexHSV_to_RGB( img0 ):
     """Convert a complex valued array to RGB representation.
     
-    Takes a complex valued array, represents the phase as hue,
+    Takes a complex valued 2D array, represents the phase as hue,
     magnitude as value, and saturation as all ones in a new (..., 3) shaped
     array. This is then converted to the RGB colorspace.
 
@@ -90,14 +90,30 @@ def complexHSV_to_RGB( img0 ):
 
     hsv_img = np.ones( ( *sz, 3 ), 'float32' )
 
-    # Rescale hue and value to the range [0, 1].
-    hsv_img[ ..., 0 ] = np.angle( img0 ) 
-    hsv_img[ ..., 0 ] -= np.min( hsv_img[ ..., 0 ] )
-    hsv_img[ ..., 0 ] = hsv_img[ ..., 0 ] / ( np.finfo(np.float32).eps + np.max( hsv_img[ ..., 0 ] ))
-
+    hsv_img[ ..., 0 ] = np.angle( img0 )     
     hsv_img[ ..., 2 ] = np.abs( img0 )
-    hsv_img[ ..., 2 ] -= np.min( hsv_img[ ..., 2 ] )
-    hsv_img[ ..., 2 ] = hsv_img[ ..., 2 ] / ( np.finfo(np.float32).eps + np.max( hsv_img[ ..., 2 ] ))
+
+    #================================
+    # Rescale hue to the range [0, 1]
+
+    eps = np.finfo( np.float32 ).eps
+
+    hsv_img[ ..., 0 ] -= np.min( hsv_img[ ..., 0 ] )
+    hsv_img[ ..., 0 ] = hsv_img[ ..., 0 ] / ( eps + np.max( hsv_img[ ..., 0 ] ))
+    
+    #=================================================================
+    # NOTE: WHAT HAPPENS IF WE GIVE AN IMAGE WITH ONLY PHASE CONTRAST?
+    # THIS WILL SET MAGNITUDE TO ZERO EVERYWHERE...NOT WHAT WE WANT!!!
+    #
+    # I WILL ASSUME THAT THE USER WILL RESCALE THEIR ARRAY TO [ 0, 1 ]
+    # PRIOR TO CALLING THIS FUNCTION
+    #=================================================================
+    
+    # hsv_img[ ..., 2 ] -= np.min( hsv_img[ ..., 2 ] )
+    # hsv_img[ ..., 2 ] = hsv_img[ ..., 2 ] / ( eps + np.max( hsv_img[ ..., 2 ] ))
+
+    #==================================
+    # convert HSV representation to RGB
 
     rgb_img = mplcolors.hsv_to_rgb( hsv_img )
 
@@ -113,7 +129,7 @@ def resize_complex_image( img0, scale_factor = ( 1, 1 ), interpolation = cv.INTE
     Parameters
     ----------
     img0 : :py:class:`numpy.array`
-        A M0 x N0 complex64 numpy array.
+        A M0 x N0 complex64 or complex128 numpy array.
     scale_factor : 2 element positive valued float tuple, 
         ( horizontal resize/scale, vertical resize/scale  )
     interpolation  : int 
