@@ -69,7 +69,7 @@ logger = logging.getLogger(__name__)
 def complexHSV_to_RGB(img0):
     """Convert a complex valued array to RGB representation.
     
-    Takes a complex valued 2D array, represents the phase as hue,
+    Takes a complex valued ND array, represents the phase as hue,
     magnitude as value, and saturation as all ones in a new (..., 3) shaped
     array. This is then converted to the RGB colorspace.
 
