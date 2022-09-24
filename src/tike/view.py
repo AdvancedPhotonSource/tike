@@ -91,27 +91,13 @@ def complexHSV_to_RGB(img0):
 
     hsv_img = np.ones((*sz, 3), 'float32')
 
-    hsv_img[ ..., 0 ] = np.angle( img0 )     
-    hsv_img[ ..., 2 ] = np.abs( img0 )
+    hsv_img[ ..., 0 ] = np.angle( img0 )    # always scaled between +/- pi   
+    hsv_img[ ..., 2 ] = np.abs( img0 )      # always scaled between 0 and +inf
 
     #================================
     # Rescale hue to the range [0, 1]
 
-    eps = np.finfo( np.float32 ).eps
-
-    hsv_img[ ..., 0 ] -= np.min( hsv_img[ ..., 0 ] )
-    hsv_img[ ..., 0 ] = hsv_img[ ..., 0 ] / ( eps + np.max( hsv_img[ ..., 0 ] ))
-    
-    #=================================================================
-    # NOTE: WHAT HAPPENS IF WE GIVE AN IMAGE WITH ONLY PHASE CONTRAST?
-    # THIS WILL SET MAGNITUDE TO ZERO EVERYWHERE...NOT WHAT WE WANT!!!
-    #
-    # I WILL ASSUME THAT THE USER WILL RESCALE THEIR ARRAY TO [ 0, 1 ]
-    # PRIOR TO CALLING THIS FUNCTION
-    #=================================================================
-    
-    # hsv_img[ ..., 2 ] -= np.min( hsv_img[ ..., 2 ] )
-    # hsv_img[ ..., 2 ] = hsv_img[ ..., 2 ] / ( eps + np.max( hsv_img[ ..., 2 ] ))
+    hsv_img[ ..., 0 ] = ( hsv_img[ ..., 0 ] + np.pi ) / ( 2 * np.pi )
 
     #==================================
     # convert HSV representation to RGB
