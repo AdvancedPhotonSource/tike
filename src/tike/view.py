@@ -47,7 +47,7 @@
 # #########################################################################
 """Define functions for plotting and viewing data of various types."""
 
-__author__ = "Doga Gursoy"
+__author__ = "Doga Gursoy, Ash Tripathi, Daniel Ching"
 __copyright__ = "Copyright (c) 2018, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
@@ -58,10 +58,92 @@ from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
 from matplotlib import collections
 import matplotlib.pyplot as plt
+import matplotlib.colors as mplcolors
+import cv2 as cv
 import numpy as np
 import tike.linalg
 
 logger = logging.getLogger(__name__)
+
+
+def complexHSV_to_RGB(img0):
+    """Convert a complex valued array to RGB representation.
+    
+    Takes a complex valued ND array, represents the phase as hue,
+    magnitude as value, and saturation as all ones in a new (..., 3) shaped
+    array. This is then converted to the RGB colorspace.
+
+    Assumes real valued inputs have a zero imaginary component.
+
+    Parameters
+    ----------
+    img0 : :py:class:`numpy.array`
+        A (...) shaped complex64 numpy array.
+
+    Returns
+    -------
+    rgb_img : :py:class:`numpy.array`
+        The (..., 3) shaped array which represents the input complex valued array
+        in a RGB colorspace.
+    """
+
+    sz = img0.shape
+
+    hsv_img = np.ones((*sz, 3), 'float32')
+
+    hsv_img[ ..., 0 ] = np.angle( img0 )    # always scaled between +/- pi   
+    hsv_img[ ..., 2 ] = np.abs( img0 )      # always scaled between 0 and +inf
+
+    #================================
+    # Rescale hue to the range [0, 1]
+
+    hsv_img[ ..., 0 ] = ( hsv_img[ ..., 0 ] + np.pi ) / ( 2 * np.pi )
+
+    #==================================
+    # convert HSV representation to RGB
+
+    rgb_img = mplcolors.hsv_to_rgb(hsv_img)
+
+    return rgb_img
+
+
+def resize_complex_image(img0,
+                         scale_factor=(1, 1),
+                         interpolation=cv.INTER_LINEAR):
+    """Resize a complex image via interpolation.
+
+    Takes a M0 x N0 complex valued array, splits it up into real and imaginary,
+    and resizes (interpolates) the horizontal and vertical dimensions, yielding
+    a new array of size M1 x N1. The result can then be  used for further
+    plotting using e.g. imshow() or imsave() from matplotlib.
+
+    Parameters
+    ----------
+    img0 : :py:class:`numpy.array`
+        A M0 x N0 complex64 or complex128 numpy array.
+    scale_factor : 2 element positive valued float tuple, 
+        ( horizontal resize/scale, vertical resize/scale  )
+    interpolation  : int
+        cv.INTER_NEAREST  = 0, cv.INTER_LINEAR = 1
+        cv.INTER_CUBIC    = 2, cv.INTER_AREA   = 3
+        cv.INTER_LANCZOS4 = 4
+
+    Returns
+    -------
+    imgRS : :py:class:`numpy.array`
+        The new M1 x N1 which has been resized according to the scale factors
+        above.
+    """
+
+    dim = (int(img0.shape[1] * scale_factor[0]),
+           int(img0.shape[0] * scale_factor[1]))
+
+    imgRS_re = cv.resize(np.real(img0), dim, interpolation)
+    imgRS_im = cv.resize(np.imag(img0), dim, interpolation)
+
+    imgRS = imgRS_re + 1j * imgRS_im
+
+    return imgRS
 
 
 def plot_probe_power(probe):
