@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import time
 import unittest
 
+import cupy as cp
 import numpy as np
 from tike.operators import Patch
 
@@ -57,6 +57,69 @@ class TestPatch(unittest.TestCase, OperatorTests):
     @unittest.skip('FIXME: This operator is not scaled.')
     def test_scaled(self):
         pass
+
+
+def test_patch_correctness(size=256, win=8):
+
+    try:
+        import libimage
+        fov = (libimage.load('coins', size) +
+               1j * libimage.load('earring', size)).astype('complex64')
+    except ModuleNotFoundError:
+        import tike.random
+        fov = tike.random.numpy_complex(size, size)
+
+    positions = np.array([
+        [0, 0],
+        [0, size - win],
+        [size - win, 0],
+        [size - win, size - win],
+        [size // 2 - win // 2, size // 2 - win // 2],
+        [0.123, 3],
+    ])
+    truth = np.stack(
+        (
+            fov[:win, :win],
+            fov[:win, -win:],
+            fov[-win:, :win],
+            fov[-win:, -win:],
+            fov[size // 2 - win // 2:size // 2 - win // 2 + win,
+                size // 2 - win // 2:size // 2 - win // 2 + win],
+            (1 - 0.123) * fov[0:win, 3:3 + win] +
+            0.123 * fov[1:1 + win, 3:3 + win],
+        ),
+        axis=0,
+    )
+    with Patch() as op:
+        patches = op.fwd(
+            images=cp.array(fov, dtype='complex64', order='C'),
+            positions=cp.array(positions, dtype='float32', order='C'),
+            patch_width=win,
+        ).get()
+
+    try:
+        import matplotlib.pyplot as plt
+        plt.figure()
+        plt.imshow(fov.real)
+        plt.savefig('fov.png')
+        plt.figure()
+        for i in range(len(positions)):
+            plt.subplot(len(positions), 3, 3 * i + 1)
+            plt.imshow(truth[i].real)
+            plt.subplot(len(positions), 3, 3 * i + 2)
+            plt.imshow(patches[i].real)
+            plt.subplot(len(positions), 3, 3 * i + 3)
+            plt.imshow(patches[i].real - truth[i].real, cmap=plt.cm.inferno)
+            plt.colorbar()
+        plt.savefig('patches.png')
+    except ModuleNotFoundError:
+        pass
+
+    np.testing.assert_allclose(
+        patches,
+        truth,
+        atol=1e-6,
+    )
 
 
 if __name__ == '__main__':
