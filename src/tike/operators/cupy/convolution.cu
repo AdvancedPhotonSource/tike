@@ -10,18 +10,28 @@
 typedef void
 forwardOrAdjoint(float2 *, float2 *, int, int, int, float, float);
 
+// Consider the point 0.0 in 1 dimension. The weight distribution should be
+// 0 [[ w = 1.0 ]] 1 [ w = 0.0 ] 2
+// Consider the point 1.2 in 1 dimension. The weight distribution should be
+// 0 [ ] 1 [ [w = 1 - 0.2] ] 2 [ [w = 0.2] ] 3
 __device__ void
 _forward(float2 *patches, float2 *images, int nimagex, int pi, int ii,
          float sxf, float syf) {
   // clang-format off
-  patches[pi].x = images[ii              ].x * (1.0f - sxf) * (1.0f - syf)
-                + images[ii + 1          ].x * (       sxf) * (1.0f - syf)
-                + images[ii     + nimagex].x * (1.0f - sxf) * (       syf)
-                + images[ii + 1 + nimagex].x * (       sxf) * (       syf);
-  patches[pi].y = images[ii              ].y * (1.0f - sxf) * (1.0f - syf)
-                + images[ii + 1          ].y * (       sxf) * (1.0f - syf)
-                + images[ii     + nimagex].y * (1.0f - sxf) * (       syf)
-                + images[ii + 1 + nimagex].y * (       sxf) * (       syf);
+  const float w[4] = {
+    (1.0f - sxf) * (1.0f - syf),
+    (       sxf) * (1.0f - syf),
+    (1.0f - sxf) * (       syf),
+    (       sxf) * (       syf),
+  };
+  patches[pi].x = images[ii              ].x * w[0]
+                + images[ii + 1          ].x * w[1]
+                + images[ii     + nimagex].x * w[2]
+                + images[ii + 1 + nimagex].x * w[3];
+  patches[pi].y = images[ii              ].y * w[0]
+                + images[ii + 1          ].y * w[1]
+                + images[ii     + nimagex].y * w[2]
+                + images[ii + 1 + nimagex].y * w[3];
   // clang-format on
 }
 
@@ -30,14 +40,20 @@ _adjoint(float2 *patches, float2 *images, int nimagex, int pi, int ii,
          float sxf, float syf) {
   const float2 tmp = patches[pi];
   // clang-format off
-  atomicAdd(&images[ii              ].x, tmp.x * (1.0f - sxf) * (1.0f - syf));
-  atomicAdd(&images[ii              ].y, tmp.y * (1.0f - sxf) * (1.0f - syf));
-  atomicAdd(&images[ii + 1          ].y, tmp.y * (       sxf) * (1.0f - syf));
-  atomicAdd(&images[ii + 1          ].x, tmp.x * (       sxf) * (1.0f - syf));
-  atomicAdd(&images[ii     + nimagex].x, tmp.x * (1.0f - sxf) * (       syf));
-  atomicAdd(&images[ii     + nimagex].y, tmp.y * (1.0f - sxf) * (       syf));
-  atomicAdd(&images[ii + 1 + nimagex].x, tmp.x * (       sxf) * (       syf));
-  atomicAdd(&images[ii + 1 + nimagex].y, tmp.y * (       sxf) * (       syf));
+  const float w[4] = {
+    (1.0f - sxf) * (1.0f - syf),
+    (       sxf) * (1.0f - syf),
+    (1.0f - sxf) * (       syf),
+    (       sxf) * (       syf),
+  };
+  atomicAdd(&images[ii              ].x, tmp.x * w[0]);
+  atomicAdd(&images[ii              ].y, tmp.y * w[0]);
+  atomicAdd(&images[ii + 1          ].y, tmp.y * w[1]);
+  atomicAdd(&images[ii + 1          ].x, tmp.x * w[1]);
+  atomicAdd(&images[ii     + nimagex].x, tmp.x * w[2]);
+  atomicAdd(&images[ii     + nimagex].y, tmp.y * w[2]);
+  atomicAdd(&images[ii + 1 + nimagex].x, tmp.x * w[3]);
+  atomicAdd(&images[ii + 1 + nimagex].y, tmp.y * w[3]);
   // clang-format on
 }
 
@@ -71,9 +87,9 @@ _loop_over_patches(
       for (int r = 0; r < nrepeat; ++r) {
         // for x,y coords in patch
         for (int py = blockIdx.z; py < patch_shape; py += gridDim.z) {
-          if (sy + py < 0 || nimagey <= sy + py + 1) continue;
+          if (sy + py < 0 || nimagey <= sy + py) continue;
           for (int px = threadIdx.x; px < patch_shape; px += blockDim.x) {
-            if (sx + px < 0 || nimagex <= sx + px + 1) continue;
+            if (sx + px < 0 || nimagex <= sx + px) continue;
             // linear patch index (pi)
             // clang-format off
             const int pi = (
@@ -85,8 +101,11 @@ _loop_over_patches(
             // image index (ii)
             const int ii = sx + px + nimagex * (sy + py + nimagey * ti);
 
-            // Linear interpolation
-            operation(patches, images, nimagex, pi, ii, sxf, syf);
+            // Linear interpolation. Ternary sets trailing pixel weights to
+            // zero when leading pixel is at the edge of the grid.
+            operation(patches, images, nimagex, pi, ii,
+                      ((nimagex > sx + px) ? sxf : 0.0f),
+                      ((nimagey > sy + py) ? syf : 0.0f));
           }
         }
       }
