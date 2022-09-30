@@ -8,7 +8,7 @@ import tike.random
 import tike.view
 
 _dir = os.path.dirname(__file__)
-
+_test = os.path.join(os.path.dirname(_dir), 'result', 'matlab')
 
 def test_consistent_fft():
 
@@ -23,12 +23,12 @@ def test_consistent_fft():
 
     plt.figure()
     tike.view.plot_complex(np.fft.ifftshift(y1[0]))
-    plt.savefig('fft-00.png')
+    plt.savefig(os.path.join(_test, 'fft-00.png'))
 
     plt.figure()
     tike.view.plot_complex(np.fft.ifftshift(y1[0] - y[0]))
     plt.suptitle('FFT Error between MATLAB and CUPY for Double Precision.')
-    plt.savefig('fft-01.svg')
+    plt.savefig(os.path.join(_test, 'fft-01.svg'))
 
     np.testing.assert_array_equal(y1, y)
 
@@ -50,12 +50,12 @@ def test_consistent_fft():
 
     plt.figure()
     tike.view.plot_complex(np.fft.ifftshift(y1[0]))
-    plt.savefig('fft-02.png')
+    plt.savefig(os.path.join(_test, 'fft-02.png'))
 
     plt.figure()
     plt.suptitle('FFT Error between MATLAB and CUPY for Single Precision.')
     tike.view.plot_complex(np.fft.ifftshift(y1[0] - y[0]))
-    plt.savefig('fft-03.svg')
+    plt.savefig(os.path.join(_test, 'fft-03.svg'))
 
     np.testing.assert_array_equal(y1, y)
     np.testing.assert_array_equal(x1, x)
@@ -80,7 +80,7 @@ def test_repeated_fft():
     plt.title('Mean Absolute Relative Error for Double Precision on GPU')
     plt.xlabel('Calls to FFT/iFFT')
     plt.tight_layout()
-    plt.savefig('fft-04.svg')
+    plt.savefig(os.path.join(_test, 'fft-04.svg'))
 
     x = cp.asarray(x, order='C').astype('complex64')
     x0 = x.copy()
@@ -96,8 +96,8 @@ def test_repeated_fft():
     plt.title('Mean Absolute Relative Error for Single Precision on GPU')
     plt.xlabel('Calls to FFT/iFFT')
     plt.tight_layout()
-    plt.savefig('fft-05.svg')
+    plt.savefig(os.path.join(_test, 'fft-05.svg'))
 
     plt.figure()
     tike.view.plot_complex(x[0].get() - x0[0].get())
-    plt.savefig('fft-06.png')
+    plt.savefig(os.path.join(_test, 'fft-06.png'))
