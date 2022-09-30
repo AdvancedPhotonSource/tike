@@ -10,6 +10,8 @@ import tike.view
 _dir = os.path.dirname(__file__)
 _test = os.path.join(os.path.dirname(_dir), 'result', 'matlab')
 
+os.makedirs(_test, exist_ok=True)
+
 def test_consistent_fft():
 
     with h5py.File(os.path.join(_dir, 'fft.mat'), 'r') as inputs:
@@ -101,3 +103,4 @@ def test_repeated_fft():
     plt.figure()
     tike.view.plot_complex(x[0].get() - x0[0].get())
     plt.savefig(os.path.join(_test, 'fft-06.png'))
+    plt.close('all')

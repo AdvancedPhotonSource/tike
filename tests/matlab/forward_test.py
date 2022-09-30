@@ -9,6 +9,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 _dir = os.path.dirname(__file__)
+_test = os.path.join(os.path.dirname(_dir), 'result', 'matlab')
+
+os.makedirs(_test, exist_ok=True)
 
 
 def test_wavefronts():
@@ -70,19 +73,19 @@ def test_wavefronts():
 
     plt.figure()
     tike.view.plot_complex(probe0[5, 0, 0])
-    plt.savefig('forward-02.png')
+    plt.savefig(os.path.join(_test, 'forward-02.png'))
 
     plt.figure()
     tike.view.plot_complex((varying_probe[5, 0, 0]))
-    plt.savefig('forward-03.png')
+    plt.savefig(os.path.join(_test, 'forward-03.png'))
 
     plt.figure()
     tike.view.plot_complex(probe1[0, 0, 0])
-    plt.savefig('forward-04.png')
+    plt.savefig(os.path.join(_test, 'forward-04.png'))
 
     plt.figure()
     tike.view.plot_complex((varying_probe[0, 0, 1]))
-    plt.savefig('forward-05.png')
+    plt.savefig(os.path.join(_test, 'forward-05.png'))
 
     np.testing.assert_allclose(
         probe0,
@@ -132,7 +135,7 @@ def test_wavefronts():
 
     plt.figure()
     plt.imshow(cp.asarray(psi, dtype='complex64').real.get())
-    plt.savefig('forward-00.png')
+    plt.savefig(os.path.join(_test, 'forward-00.png'))
 
     plt.figure()
     for i in range(5):
@@ -143,7 +146,7 @@ def test_wavefronts():
         plt.subplot(5, 3, 3 * i + 3)
         plt.imshow(new_patches[i].real - patches[i].real)
         plt.colorbar()
-    plt.savefig('forward-01.png')
+    plt.savefig(os.path.join(_test, 'forward-01.png'))
 
     np.testing.assert_allclose(
         new_patches,
@@ -152,14 +155,15 @@ def test_wavefronts():
     )
 
     plt.figure()
-    tike.view.plot_complex(wavefronts[0,0])
-    plt.savefig('forward-08.png')
+    tike.view.plot_complex(wavefronts[0, 0])
+    plt.savefig(os.path.join(_test, 'forward-08.png'))
     plt.figure()
-    tike.view.plot_complex(psi1[0,0,0])
-    plt.savefig('forward-09.png')
+    tike.view.plot_complex(psi1[0, 0, 0])
+    plt.savefig(os.path.join(_test, 'forward-09.png'))
     plt.figure()
-    tike.view.plot_complex(wavefronts[0,0] - psi1[0,0,0])
-    plt.savefig('forward-10.png')
+    tike.view.plot_complex(wavefronts[0, 0] - psi1[0, 0, 0])
+    plt.savefig(os.path.join(_test, 'forward-10.png'))
+    plt.close('all')
 
     # NOTE: MATLAB uses naive complex multiplication, but standard CUDA library
     # uses optimized (but still correct) complex multiplication. This accounts
