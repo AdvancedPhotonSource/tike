@@ -1,9 +1,47 @@
-pd = makedist('Normal', 0, 1);
+pd = makedist('Uniform', -1, 1);
 
-x = cast(1 + random(pd, [64, 64, 10]) + 1i * random(pd, [64, 64, 10]), 'single');
+x0 = gpuArray(cast(1 + random(pd, [64, 64, 10]) + 1i * random(pd, [64, 64, 10]), 'double'));
+x = x0;
+error = zeros(100);
 
-y = fft2(x);
+for i = 1:100
+    x = fft2(x);
+    x = ifft2(x);
+    if i == 1
+        y_double = gather(x);
+    end
+    error(i) = mean(reshape(abs((x-x0)./x0), 1, []));
+end
 
-yi = ifft2(x);
+figure();
+plot(1:100, error);
+title({['Mean Absolute Relative Error'], ['for Double Precision on GPU']});
+xlabel('Calls to FFT/iFFT');
 
-save('fft.mat', 'x', 'y', 'yi', '-v7.3');
+x0_double = gather(x0);
+
+x0 = cast(x0, 'single');
+x = x0;
+error = zeros(100);
+
+for i = 1:100
+    if i == 1
+        x0_single = gather(x);
+    end
+    x = fft2(x);
+    if i == 1
+        y_single = gather(x);
+    end
+    x = ifft2(x);
+    if i == 1
+        x_single = gather(x);
+    end
+    error(i) = mean(reshape(abs((x-x0)./x0), 1, []));
+end
+
+figure();
+plot(1:100, error);
+title({['Mean Absolute Relative Error'], ['for Single Precision on GPU']});
+xlabel('Calls to FFT/iFFT');
+
+save('fft.mat', 'x0_double', 'y_double', 'x_single', 'x0_single', 'y_single', '-v7.3');
