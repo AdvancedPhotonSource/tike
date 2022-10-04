@@ -7,15 +7,14 @@ import numpy as np
 import tike.ptycho.probe
 import tike.view
 
-
 _dir = os.path.dirname(__file__)
+
 
 def test_ortho():
 
-    with (
-        h5py.File(os.path.join(_dir, 'ortho-in.mat'), 'r') as input,
-        h5py.File(os.path.join(_dir, 'ortho-out.mat'), 'r') as output,
-    ):
+    with h5py.File(os.path.join(_dir, 'ortho-in.mat'),
+                   'r') as input, h5py.File(os.path.join(_dir, 'ortho-out.mat'),
+                                            'r') as output:
         print(input.keys())
         print(output.keys())
         x0 = input['x0'][...].view('complex64')
@@ -46,9 +45,7 @@ def test_ortho():
 
         # Each mode is either the same or opposite magnitude (which is
         # equivalent orthogonalization)
-        assert (
-            np.allclose(final0[i],  final1[i], atol=1e-4)
-         or np.allclose(final0[i], -final1[i], atol=1e-4)
-        )
+        assert (np.allclose(final0[i], final1[i], atol=1e-4)
+                or np.allclose(final0[i], -final1[i], atol=1e-4))
 
     # plt.show()
