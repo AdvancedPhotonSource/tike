@@ -4,7 +4,6 @@ import dataclasses
 import logging
 
 import cupy as cp
-import cupyx.scipy.fft
 import numpy as np
 
 import tike.linalg
@@ -122,6 +121,17 @@ class PositionOptions:
         if self.use_adaptive_moment:
             self._momentum = cp.asnumpy(self._momentum)
         return self
+
+    def resample(self, factor):
+        """Return a new PositionOptions with the parameters scaled."""
+        new = PositionOptions(
+            initial_scan=self.initial_scan * factor,
+            use_adaptive_moment=self.use_adaptive_moment,
+            vdecay=self.vdecay,
+            mdecay=self.mdecay,
+            use_position_regularization=self.use_position_regularization,
+        )
+        # Momentum reset to zero when grid scale changes
 
     @property
     def vx(self):

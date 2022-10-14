@@ -76,6 +76,17 @@ class ObjectOptions:
             self.preconditioner = cp.asnumpy(self.preconditioner[0])
         return self
 
+    def resample(self, factor):
+        return ObjectOptions(
+            positivity_constraint=self.positivity_constraint,
+            smoothness_constraint=self.smoothness_constraint,
+            use_adaptive_moment=self.use_adaptive_moment,
+            vdecay=self.vdecay,
+            mdecay=self.mdecay,
+            clip_magnitude=self.clip_magnitude,
+        )
+        # Momentum reset to zero when grid scale changes
+
 
 def positivity_constraint(x, r):
     """Constrains the amplitude of x to be positive with sum of abs(x) and x.

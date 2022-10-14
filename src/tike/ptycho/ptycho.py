@@ -53,6 +53,7 @@ __all__ = [
     "reconstruct",
     "simulate",
     "Reconstruction",
+    "reconstruct_multigrid",
 ]
 
 import copy
@@ -70,6 +71,7 @@ from tike.communicators import Comm, MPIComm
 import tike.opt
 from tike.ptycho import solvers
 import tike.random
+import tike.view
 
 from .position import (
     PositionOptions,
@@ -175,11 +177,11 @@ def simulate(
 
 def reconstruct(
     data,
-    parameters,
-    model='gaussian',
+    parameters: solvers.PtychoParameters,
+    model: str = 'gaussian',
     num_gpu=1,
     use_mpi=False,
-):
+) -> solvers.PtychoParameters:
     """Solve the ptychography problem using the given `algorithm`.
 
     Parameters
@@ -206,9 +208,8 @@ def reconstruct(
 
     Returns
     -------
-    result : dict
-        A dictionary of the above parameters that may be passed to this
-        function to resume reconstruction from the previous state.
+    result : :py:class:`tike.ptycho.solvers.PtychoParameters`
+        A class containing reconstruction parameters.
 
     """
     with tike.ptycho.Reconstruction(
@@ -768,3 +769,95 @@ def split_by_scan_stripes(scan, n, fly=1, axis=0):
             scan[:, 0, axis] <= edges[i + 1],
         ).repeat(fly) for i in range(n)
     ]
+
+
+def crop_shifted_fft(x, w: int):
+    half1 = w // 2
+    half0 = w - half1
+    return x[
+        ...,
+        np.r_[0:half0, (x.shape[-1]-half1):x.shape[-1]],
+    ][
+        ...,
+        np.r_[0:half0, (x.shape[-2]-half1):x.shape[-2]],
+        :,
+    ]  # yapf: disable
+
+def resize_probe(x, f):
+    shape = x.shape
+    x = x.reshape(-1, *shape[-2:])
+    x1 = list()
+    for i in range(len(x)):
+        x1.append(tike.view.resize_complex_image(x[i], scale_factor=(f, f)))
+    x1 = np.array(x1)
+    x1 = x1.reshape(*shape[:-2], *x1.shape[-2:])
+    return x1
+
+
+def reconstruct_multigrid(
+    data,
+    parameters: solvers.PtychoParameters,
+    model: str = 'gaussian',
+    num_gpu=1,
+    use_mpi=False,
+    num_levels=3,
+) -> solvers.PtychoParameters:
+    """Solve the ptychography problem using the given `algorithm`.
+
+    Parameters
+    ----------
+    data : (FRAME, WIDE, HIGH) uint16
+        The intensity (square of the absolute value) of the propagated
+        wavefront; i.e. what the detector records. FFT-shifted so the
+        diffraction peak is at the corners.
+    parameters: :py:class:`tike.ptycho.solvers.PtychoParameters`
+        A class containing reconstruction parameters.
+    model : "gaussian", "poisson"
+        The noise model to use for the cost function.
+    num_gpu : int, tuple(int)
+        The number of GPUs to use or a tuple of the device numbers of the GPUs
+        to use. If the number of GPUs is less than the requested number, only
+        workers for the available GPUs are allocated.
+    use_mpi : bool
+        Whether to use MPI or not.
+
+    Raises
+    ------
+        ValueError
+            When shapes are incorrect for various input parameters.
+
+    Returns
+    -------
+    result : :py:class:`tike.ptycho.solvers.PtychoParameters`
+        A class containing reconstruction parameters.
+
+    """
+    if (data.shape[-1] * 0.5**(num_levels - 1)) < 32:
+        warnings.warn('Resampling diffraction patterns to less than 32 pixels '
+                      'wide is not recommended.')
+
+    # Downsample PtychoParameters to smallest size
+    resampled_parameters = parameters.resample(0.5**(num_levels - 1))
+
+    for level in range((num_levels - 1), -1, -1):
+
+        # Create a new reconstruction context for each level
+        with tike.ptycho.Reconstruction(
+                data=data if level == 0 else crop_shifted_fft(
+                    data,
+                    data.shape[-1] // (2**level),
+                ),
+                parameters=resampled_parameters,
+                num_gpu=num_gpu,
+                model=model,
+                use_mpi=use_mpi,
+        ) as context:
+            context.iterate(resampled_parameters.algorithm_options.num_iter)
+
+        if level == 0:
+            return context.parameters
+
+        # Upsample result to next grid
+        resampled_parameters = context.parameters.resample(2.0)
+
+    raise RuntimeError('This should not happen.')

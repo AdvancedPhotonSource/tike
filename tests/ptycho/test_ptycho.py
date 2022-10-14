@@ -675,5 +675,31 @@ def _save_eigen_weights(fname, weights):
     plt.savefig(f'{fname}/weights.svg')
 
 
+class TestPtychoReconMultiGrid(TestPtychoRecon, unittest.TestCase):
+
+    post_name = '-multigrid'
+
+    def template_consistent_algorithm(self, *, params={}):
+        """Check ptycho.solver.algorithm for consistency."""
+
+        if _mpi_size > 1:
+            return 1
+
+        device_per_rank = cp.cuda.runtime.getDeviceCount() // _mpi_size
+        base_device = device_per_rank * _mpi_rank
+        with cp.cuda.Device(base_device):
+            parameters = tike.ptycho.reconstruct_multigrid(
+                **params,
+                data=self.data,
+                num_gpu=tuple(i + base_device for i in range(device_per_rank)),
+                use_mpi=_mpi_size > 1,
+            )
+
+        print()
+        print('\n'.join(
+            f'{c[0]:1.3e}' for c in parameters.algorithm_options.costs))
+        return parameters
+
+
 if __name__ == '__main__':
     unittest.main()
