@@ -693,6 +693,7 @@ class TestPtychoReconMultiGrid(TestPtychoRecon, unittest.TestCase):
                 data=self.data,
                 num_gpu=tuple(i + base_device for i in range(device_per_rank)),
                 use_mpi=_mpi_size > 1,
+                num_levels=2,
             )
 
         print()

@@ -783,16 +783,6 @@ def crop_shifted_fft(x, w: int):
         :,
     ]  # yapf: disable
 
-def resize_probe(x, f):
-    shape = x.shape
-    x = x.reshape(-1, *shape[-2:])
-    x1 = list()
-    for i in range(len(x)):
-        x1.append(tike.view.resize_complex_image(x[i], scale_factor=(f, f)))
-    x1 = np.array(x1)
-    x1 = x1.reshape(*shape[:-2], *x1.shape[-2:])
-    return x1
-
 
 def reconstruct_multigrid(
     data,

@@ -3,11 +3,11 @@ import dataclasses
 import typing
 
 import numpy as np
+import scipy.ndimage
 
 from tike.ptycho.object import ObjectOptions
 from tike.ptycho.position import PositionOptions, check_allowed_positions
 from tike.ptycho.probe import ProbeOptions
-import tike.view
 
 
 @dataclasses.dataclass
@@ -165,11 +165,10 @@ class PtychoParameters():
         """Return a new PtychoParameter with the parameters scaled."""
 
         return PtychoParameters(
-            probe=resize_probe(self.probe, factor),
-            psi=tike.view.resize_complex_image(self.psi,
-                                               scale_factor=(factor, factor)),
+            probe=_resize_probe(self.probe, factor),
+            psi=_resize_probe(self.psi, factor),
             scan=self.scan * factor,
-            eigen_probe=resize_probe(self.eigen_probe, factor)
+            eigen_probe=_resize_probe(self.eigen_probe, factor)
             if self.eigen_probe is not None else None,
             eigen_weights=self.eigen_weights,
             algorithm_options=self.algorithm_options,
@@ -182,12 +181,10 @@ class PtychoParameters():
         )
 
 
-def resize_probe(x, f):
-    shape = x.shape
-    x = x.reshape(-1, *shape[-2:])
-    x1 = list()
-    for i in range(len(x)):
-        x1.append(tike.view.resize_complex_image(x[i], scale_factor=(f, f)))
-    x1 = np.array(x1)
-    x1 = x1.reshape(*shape[:-2], *x1.shape[-2:])
-    return x1
+def _resize_probe(x, f):
+    return scipy.ndimage.zoom(
+        x,
+        zoom=[1] * (x.ndim - 2) + [f, f],
+        grid_mode=True,
+        prefilter=False,
+    )
