@@ -71,7 +71,6 @@ from tike.communicators import Comm, MPIComm
 import tike.opt
 from tike.ptycho import solvers
 import tike.random
-import tike.view
 
 from .position import (
     PositionOptions,
