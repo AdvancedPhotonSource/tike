@@ -239,6 +239,8 @@ def _clip_magnitude(x, a_max):
 class Reconstruction():
     """Context manager for online ptychography reconstruction.
 
+    .. versionadded:: 0.22.0
+
     Uses same parameters as the functional reconstruct API. Using a context
     manager allows for getting the current result or adding additional data
     without deallocating memory on the GPU.
@@ -830,6 +832,8 @@ def reconstruct_multigrid(
     num_levels: int = 3,
 ) -> solvers.PtychoParameters:
     """Solve the ptychography problem using a multi-grid method.
+
+    .. versionadded:: 0.23.2
 
     Uses the same parameters as the functional reconstruct API. This function
     applies a multi-grid approach to the problem by downsampling the real-space
