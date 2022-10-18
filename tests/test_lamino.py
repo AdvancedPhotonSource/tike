@@ -332,7 +332,9 @@ def _save_lamino_result(result, algorithm):
     try:
         if _mpi_rank != 0:
             return
-        import matplotlib.pyplot as plt
+        import matplotlib
+        matplotlib.use('Agg')
+        from matplotlib import pyplot as plt
         fname = os.path.join(testdir, 'result', 'lamino', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
         slice_id = int(35 / 128 * result['obj'].shape[0])

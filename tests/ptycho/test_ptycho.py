@@ -295,7 +295,9 @@ class TestPtychoAbsorption(TemplatePtychoRecon, unittest.TestCase):
     def test_absorption(self):
         """Check ptycho.object.get_absorption_image for consistency."""
         try:
-            import matplotlib.pyplot as plt
+            import matplotlib
+            matplotlib.use('Agg')
+            from matplotlib import pyplot as plt
             fname = os.path.join(testdir, 'result', 'ptycho', 'absorption')
             os.makedirs(fname, exist_ok=True)
             plt.imsave(
@@ -495,7 +497,9 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
 
     def _save_position_error_variance(self, result, algorithm):
         try:
-            import matplotlib.pyplot as plt
+            import matplotlib
+            matplotlib.use('Agg')
+            from matplotlib import pyplot as plt
             import tike.view
             fname = os.path.join(testdir, 'result', 'ptycho', f'{algorithm}')
             os.makedirs(fname, exist_ok=True)
@@ -569,7 +573,9 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
 
 
 def _save_eigen_probe(output_folder, eigen_probe):
-    import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use('Agg')
+    from matplotlib import pyplot as plt
     flattened = []
     for i in range(eigen_probe.shape[-4]):
         probe = eigen_probe[..., i, :, :, :]
@@ -596,7 +602,9 @@ def _save_eigen_probe(output_folder, eigen_probe):
 
 
 def _save_probe(output_folder, probe, algorithm):
-    import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use('Agg')
+    from matplotlib import pyplot as plt
     flattened = np.concatenate(
         probe.reshape((-1, *probe.shape[-2:])),
         axis=1,
@@ -625,7 +633,9 @@ def _save_probe(output_folder, probe, algorithm):
 
 def _save_ptycho_result(result, algorithm):
     try:
-        import matplotlib.pyplot as plt
+        import matplotlib
+        matplotlib.use('Agg')
+        from matplotlib import pyplot as plt
         import tike.view
         fname = os.path.join(testdir, 'result', 'ptycho', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
@@ -667,7 +677,9 @@ def _save_ptycho_result(result, algorithm):
 
 
 def _save_eigen_weights(fname, weights):
-    import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use('Agg')
+    from matplotlib import pyplot as plt
     plt.figure()
     tike.view.plot_eigen_weights(weights)
     plt.suptitle('weights')

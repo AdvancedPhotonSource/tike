@@ -2,7 +2,9 @@ import os
 import unittest
 
 import cupy as cp
-import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
+from matplotlib import pyplot as plt
 import numpy as np
 import scipy.io
 import tike.ptycho.probe

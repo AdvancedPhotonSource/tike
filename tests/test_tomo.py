@@ -69,7 +69,9 @@ class TestTomoRecon(unittest.TestCase):
 
         Only called with setUp detects that `dataset_file` has been deleted.
         """
-        import matplotlib.pyplot as plt
+        import matplotlib
+        matplotlib.use('Agg')
+        from matplotlib import pyplot as plt
         # Create object
         delta = plt.imread(
             os.path.join(testdir, "data/Cryptomeria_japonica-0128.tif"))
