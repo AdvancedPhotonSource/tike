@@ -215,8 +215,7 @@ def reconstruct(
         A class containing reconstruction parameters.
 
 
-    .. seealso:: :py:func:`tike.ptycho.reconstruct_multigrid`
-    .. seealso:: :py:func:`tike.ptycho.Reconstruction`
+    .. seealso:: :py:func:`tike.ptycho.ptycho.reconstruct_multigrid`, :py:func:`tike.ptycho.ptycho.Reconstruction`
     """
     with tike.ptycho.Reconstruction(
             data,
@@ -238,7 +237,7 @@ def _clip_magnitude(x, a_max):
 
 
 class Reconstruction():
-    """Context manager for streaming ptychography reconstruction.
+    """Context manager for online ptychography reconstruction.
 
     Uses same parameters as the functional reconstruct API. Using a context
     manager allows for getting the current result or adding additional data
@@ -267,7 +266,7 @@ class Reconstruction():
         # All datastructures are transferred off the GPU at context close
         final_result = context.parameters
 
-    .. seealso:: :py:func:`tike.ptycho.reconstruct`
+    .. seealso:: :py:func:`tike.ptycho.ptycho.reconstruct`
     """
 
     def __init__(
@@ -561,7 +560,7 @@ class Reconstruction():
         new_data: np.typing.NDArray,
         new_scan: np.typing.NDArray,
     ) -> None:
-        """"Append new diffraction patterns and positions to existing result."""
+        """Append new diffraction patterns and positions to existing result."""
         # Assign positions and data to correct devices.
         if (not np.all(np.isfinite(new_data)) or np.any(new_data < 0)):
             warnings.warn(
@@ -842,7 +841,8 @@ def reconstruct_multigrid(
     num_levels : int > 0
         The number of times to reduce the problem by a factor of two.
 
-    .. seealso:: :py:func:`tike.ptycho.reconstruct`
+
+    .. seealso:: :py:func:`tike.ptycho.ptycho.reconstruct`
     """
     if (data.shape[-1] * 0.5**(num_levels - 1)) < 32:
         warnings.warn('Resampling diffraction patterns to less than 32 pixels '

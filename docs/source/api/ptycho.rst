@@ -16,6 +16,8 @@ ptycho
       :nosignatures:
 
       reconstruct
+      reconstruct_multigrid
+      Reconstruction
       simulate
 
 .. toctree::
