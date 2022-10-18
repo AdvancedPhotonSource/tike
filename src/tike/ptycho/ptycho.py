@@ -175,13 +175,17 @@ def simulate(
 
 
 def reconstruct(
-    data,
+    data: np.typing.NDArray,
     parameters: solvers.PtychoParameters,
     model: str = 'gaussian',
-    num_gpu=1,
-    use_mpi=False,
+    num_gpu: typing.Union[int, typing.Tuple[int, ...]] = 1,
+    use_mpi: bool = False,
 ) -> solvers.PtychoParameters:
-    """Solve the ptychography problem using the given `algorithm`.
+    """Solve the ptychography problem.
+
+    This functional interface is the simplest to use, but deallocates GPU
+    memory when it returns. Use the context manager API for the ability to get
+    live results without ending the reconsturction.
 
     Parameters
     ----------
@@ -210,6 +214,9 @@ def reconstruct(
     result : :py:class:`tike.ptycho.solvers.PtychoParameters`
         A class containing reconstruction parameters.
 
+
+    .. seealso:: :py:func:`tike.ptycho.reconstruct_multigrid`
+    .. seealso:: :py:func:`tike.ptycho.Reconstruction`
     """
     with tike.ptycho.Reconstruction(
             data,
@@ -233,18 +240,43 @@ def _clip_magnitude(x, a_max):
 class Reconstruction():
     """Context manager for streaming ptychography reconstruction.
 
-    Uses same parameters as the functional reconstruct API.
+    Uses same parameters as the functional reconstruct API. Using a context
+    manager allows for getting the current result or adding additional data
+    without deallocating memory on the GPU.
+
+    Example
+    -------
+    Data structure remain allocated on the GPU as long as the context is
+    active. This allows quickly resuming a reconstruction.
+
+    .. code-block:: python
+
+        with tike.ptycho.Reconstruction(
+            data,
+            parameters,
+            model,
+            num_gpu,
+            use_mpi,
+        ) as context:
+            # Start reconstructing
+            context.iterate(num_iter)
+            # Check the current solution for the object
+            early_result = context.get_psi()
+            # Continue reconstructing
+            context.iterate()
+        # All datastructures are transferred off the GPU at context close
+        final_result = context.parameters
 
     .. seealso:: :py:func:`tike.ptycho.reconstruct`
     """
 
     def __init__(
         self,
-        data,
-        parameters,
-        model='gaussian',
-        num_gpu=1,
-        use_mpi=False,
+        data: np.typing.NDArray,
+        parameters: solvers.PtychoParameters,
+        model: str = 'gaussian',
+        num_gpu: typing.Union[int, typing.Tuple[int, ...]] = 1,
+        use_mpi: bool = False,
     ):
         if (np.any(np.asarray(data.shape) < 1) or data.ndim != 3
                 or data.shape[-2] != data.shape[-1]):
@@ -484,7 +516,10 @@ class Reconstruction():
         self.operator.__exit__(type, value, traceback)
         self.device.__exit__(type, value, traceback)
 
-    def get_convergence(self):
+    def get_convergence(
+        self
+    ) -> typing.Tuple[typing.List[typing.List[float]], typing.List[float]]:
+        """Return the cost function values and times as a tuple."""
         return (
             self._device_parameters.algorithm_options.costs,
             self._device_parameters.algorithm_options.times,
@@ -512,15 +547,19 @@ class Reconstruction():
         return probe, eigen_probe, eigen_weights
 
     def peek(self) -> typing.Tuple[np.array, np.array, np.array, np.array]:
-        """Return the curent values of object and probe as numpy arrays."""
+        """Return the curent values of object and probe as numpy arrays.
+
+        Parameters returned in a tuple of object, probe, eigen_probe,
+        eigen_weights.
+        """
         psi = self.get_psi()
         probe, eigen_probe, eigen_weights = self.get_probe()
         return psi, probe, eigen_probe, eigen_weights
 
     def append_new_data(
         self,
-        new_data: np.array,
-        new_scan: np.array,
+        new_data: np.typing.NDArray,
+        new_scan: np.typing.NDArray,
     ) -> None:
         """"Append new diffraction patterns and positions to existing result."""
         # Assign positions and data to correct devices.
@@ -784,42 +823,26 @@ def crop_shifted_fft(x, w: int):
 
 
 def reconstruct_multigrid(
-    data,
+    data: np.typing.NDArray,
     parameters: solvers.PtychoParameters,
     model: str = 'gaussian',
-    num_gpu=1,
-    use_mpi=False,
-    num_levels=3,
+    num_gpu: typing.Union[int, typing.Tuple[int, ...]] = 1,
+    use_mpi: bool = False,
+    num_levels: int = 3,
 ) -> solvers.PtychoParameters:
-    """Solve the ptychography problem using the given `algorithm`.
+    """Solve the ptychography problem using a multi-grid method.
+
+    Uses the same parameters as the functional reconstruct API. This function
+    applies a multi-grid approach to the problem by downsampling the real-space
+    input parameters and cropping the diffraction patterns to reduce the
+    computational cost of early iterations.
 
     Parameters
     ----------
-    data : (FRAME, WIDE, HIGH) uint16
-        The intensity (square of the absolute value) of the propagated
-        wavefront; i.e. what the detector records. FFT-shifted so the
-        diffraction peak is at the corners.
-    parameters: :py:class:`tike.ptycho.solvers.PtychoParameters`
-        A class containing reconstruction parameters.
-    model : "gaussian", "poisson"
-        The noise model to use for the cost function.
-    num_gpu : int, tuple(int)
-        The number of GPUs to use or a tuple of the device numbers of the GPUs
-        to use. If the number of GPUs is less than the requested number, only
-        workers for the available GPUs are allocated.
-    use_mpi : bool
-        Whether to use MPI or not.
+    num_levels : int > 0
+        The number of times to reduce the problem by a factor of two.
 
-    Raises
-    ------
-        ValueError
-            When shapes are incorrect for various input parameters.
-
-    Returns
-    -------
-    result : :py:class:`tike.ptycho.solvers.PtychoParameters`
-        A class containing reconstruction parameters.
-
+    .. seealso:: :py:func:`tike.ptycho.reconstruct`
     """
     if (data.shape[-1] * 0.5**(num_levels - 1)) < 32:
         warnings.warn('Resampling diffraction patterns to less than 32 pixels '

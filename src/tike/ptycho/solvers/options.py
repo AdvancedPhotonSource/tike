@@ -27,11 +27,12 @@ class IterativeOptions(abc.ABC):
     """The name of the batch selection method. Choose from the cluster methods
     in the tike.random module."""
 
-    costs: typing.List[float] = dataclasses.field(
+    costs: typing.List[typing.List[float]] = dataclasses.field(
         init=False,
         default_factory=list,
     )
-    """The objective function value at previous iterations."""
+    """The objective function value at previous iterations. One list is
+    returned for each mini-batch."""
 
     num_iter: int = 1
     """The number of epochs to process before returning."""
