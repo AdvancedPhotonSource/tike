@@ -68,7 +68,7 @@ logger = logging.getLogger(__name__)
 
 def complexHSV_to_RGB(img0):
     """Convert a complex valued array to RGB representation.
-    
+
     Takes a complex valued ND array, represents the phase as hue,
     magnitude as value, and saturation as all ones in a new (..., 3) shaped
     array. This is then converted to the RGB colorspace.
@@ -91,7 +91,7 @@ def complexHSV_to_RGB(img0):
 
     hsv_img = np.ones((*sz, 3), 'float32')
 
-    hsv_img[ ..., 0 ] = np.angle( img0 )    # always scaled between +/- pi   
+    hsv_img[ ..., 0 ] = np.angle( img0 )    # always scaled between +/- pi
     hsv_img[ ..., 2 ] = np.abs( img0 )      # always scaled between 0 and +inf
 
     #================================
@@ -121,7 +121,7 @@ def resize_complex_image(img0,
     ----------
     img0 : :py:class:`numpy.array`
         A M0 x N0 complex64 or complex128 numpy array.
-    scale_factor : 2 element positive valued float tuple, 
+    scale_factor : 2 element positive valued float tuple,
         ( horizontal resize/scale, vertical resize/scale  )
     interpolation  : int
         cv.INTER_NEAREST  = 0, cv.INTER_LINEAR = 1
