@@ -836,9 +836,10 @@ def reconstruct_multigrid(
 
     .. seealso:: :py:func:`tike.ptycho.ptycho.reconstruct`
     """
-    if (data.shape[-1] * 0.5**(num_levels - 1)) < 32:
-        warnings.warn('Resampling diffraction patterns to less than 32 pixels '
-                      'wide is not recommended.')
+    if (data.shape[-1] * 0.5**(num_levels - 1)) < 64:
+        warnings.warn('Cropping diffraction patterns to less than 64 pixels '
+                      'wide is not recommended because the full doughnut'
+                      ' may be visible.')
 
     # Downsample PtychoParameters to smallest size
     resampled_parameters = parameters.resample(0.5**(num_levels - 1), interp)
