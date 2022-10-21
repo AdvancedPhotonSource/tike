@@ -61,6 +61,13 @@ from tike.ptycho.probe import ProbeOptions
 from tike.ptycho.position import PositionOptions
 from tike.ptycho.object import ObjectOptions
 from tike.communicators import MPIComm
+from tike.ptycho.solvers.options import (
+    _resize_fft,
+    _resize_spline,
+    _resize_cubic,
+    _resize_lanczos,
+    _resize_linear,
+)
 import tike.random
 
 __author__ = "Daniel Ching, Xiaodong Yu"
@@ -646,6 +653,7 @@ def _save_ptycho_result(result, algorithm):
             result.algorithm_options.times,
         )
         ax2.set_xlim(0, 20)
+        ax1.set_ylim(10**(-1), 10**2)
         fig.suptitle(algorithm)
         fig.tight_layout()
         plt.savefig(os.path.join(fname, 'convergence.svg'))
@@ -687,9 +695,11 @@ def _save_eigen_weights(fname, weights):
     plt.savefig(f'{fname}/weights.svg')
 
 
-class TestPtychoReconMultiGrid(TestPtychoRecon, unittest.TestCase):
+class PtychoReconMultiGrid():
+    """Test ptychography multi-grid reconstruction method."""
 
-    post_name = '-multigrid'
+    def interp(self, x, f):
+        pass
 
     def template_consistent_algorithm(self, *, params={}):
         """Check ptycho.solver.algorithm for consistency."""
@@ -706,12 +716,58 @@ class TestPtychoReconMultiGrid(TestPtychoRecon, unittest.TestCase):
                 num_gpu=tuple(i + base_device for i in range(device_per_rank)),
                 use_mpi=_mpi_size > 1,
                 num_levels=2,
+                interp=self.interp,
             )
 
         print()
         print('\n'.join(
             f'{c[0]:1.3e}' for c in parameters.algorithm_options.costs))
         return parameters
+
+
+class TestPtychoReconMultiGridFFT(PtychoReconMultiGrid, TestPtychoRecon,
+                                  unittest.TestCase):
+
+    post_name = '-multigrid-fft'
+
+    def interp(self, x, f):
+        return _resize_fft(x, f)
+
+
+if False:
+    # Don't need to run these tests on CI every time.
+
+    class TestPtychoReconMultiGridLinear(PtychoReconMultiGrid, TestPtychoRecon,
+                                         unittest.TestCase):
+
+        post_name = '-multigrid-linear'
+
+        def interp(self, x, f):
+            return _resize_linear(x, f)
+
+    class TestPtychoReconMultiGridCubic(PtychoReconMultiGrid, TestPtychoRecon,
+                                        unittest.TestCase):
+
+        post_name = '-multigrid-cubic'
+
+        def interp(self, x, f):
+            return _resize_cubic(x, f)
+
+    class TestPtychoReconMultiGridLanczos(PtychoReconMultiGrid, TestPtychoRecon,
+                                          unittest.TestCase):
+
+        post_name = '-multigrid-lanczos'
+
+        def interp(self, x, f):
+            return _resize_lanczos(x, f)
+
+    class TestPtychoReconMultiGridSpline(PtychoReconMultiGrid, TestPtychoRecon,
+                                         unittest.TestCase):
+
+        post_name = '-multigrid-spline'
+
+        def interp(self, x, f):
+            return _resize_spline(x, f)
 
 
 if __name__ == '__main__':
