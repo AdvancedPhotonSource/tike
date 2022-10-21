@@ -19,4 +19,5 @@ __all__ = [
     'PtychoParameters',
     'rpie',
     'RpieOptions',
+    'crop_fourier_space',
 ]

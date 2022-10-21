@@ -810,19 +810,6 @@ def split_by_scan_stripes(scan, n, fly=1, axis=0):
     ]
 
 
-def crop_shifted_fft(x, w: int):
-    half1 = w // 2
-    half0 = w - half1
-    return x[
-        ...,
-        np.r_[0:half0, (x.shape[-1]-half1):x.shape[-1]],
-    ][
-        ...,
-        np.r_[0:half0, (x.shape[-2]-half1):x.shape[-2]],
-        :,
-    ]  # yapf: disable
-
-
 def reconstruct_multigrid(
     data: np.typing.NDArray,
     parameters: solvers.PtychoParameters,
@@ -830,6 +817,7 @@ def reconstruct_multigrid(
     num_gpu: typing.Union[int, typing.Tuple[int, ...]] = 1,
     use_mpi: bool = False,
     num_levels: int = 3,
+    interp = None,
 ) -> solvers.PtychoParameters:
     """Solve the ptychography problem using a multi-grid method.
 
@@ -853,13 +841,13 @@ def reconstruct_multigrid(
                       'wide is not recommended.')
 
     # Downsample PtychoParameters to smallest size
-    resampled_parameters = parameters.resample(0.5**(num_levels - 1))
+    resampled_parameters = parameters.resample(0.5**(num_levels - 1), interp)
 
     for level in range((num_levels - 1), -1, -1):
 
         # Create a new reconstruction context for each level
         with tike.ptycho.Reconstruction(
-                data=data if level == 0 else crop_shifted_fft(
+                data=data if level == 0 else solvers.crop_fourier_space(
                     data,
                     data.shape[-1] // (2**level),
                 ),
@@ -874,6 +862,6 @@ def reconstruct_multigrid(
             return context.parameters
 
         # Upsample result to next grid
-        resampled_parameters = context.parameters.resample(2.0)
+        resampled_parameters = context.parameters.resample(2.0, interp)
 
     raise RuntimeError('This should not happen.')

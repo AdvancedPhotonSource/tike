@@ -162,14 +162,14 @@ class PtychoParameters():
             self.probe.shape,
         )
 
-    def resample(self, factor: float):
+    def resample(self, factor: float, interp):
         """Return a new PtychoParameter with the parameters scaled."""
-
+        interp = _resize_fft if interp is None else interp
         return PtychoParameters(
-            probe=_resize_probe(self.probe, factor),
-            psi=_resize_probe(self.psi, factor),
+            probe=interp(self.probe, factor),
+            psi=_resize_spline(self.psi, factor),
             scan=self.scan * factor,
-            eigen_probe=_resize_probe(self.eigen_probe, factor)
+            eigen_probe=interp(self.eigen_probe, factor)
             if self.eigen_probe is not None else None,
             eigen_weights=self.eigen_weights,
             algorithm_options=self.algorithm_options,
@@ -182,10 +182,90 @@ class PtychoParameters():
         )
 
 
-def _resize_probe(x, f):
+def _resize_spline(x, f):
     return scipy.ndimage.zoom(
         x,
         zoom=[1] * (x.ndim - 2) + [f, f],
         grid_mode=True,
         prefilter=False,
     )
+
+
+def _resize_cv(x, f, interpolation):
+    import tike.view
+    x_shape = x.shape
+    x = x.reshape(-1, *x_shape[-2:])
+    x1 = [
+        tike.view.resize_complex_image(
+            i,
+            scale_factor=(f, f),
+            interpolation=interpolation,
+        ) for i in x
+    ]
+    return np.asarray(x1).reshape(*x_shape[:-2], *x1[0].shape[-2:])
+
+
+def _resize_linear(x, f):
+    return _resize_cv(x, f, 1)
+
+
+def _resize_cubic(x, f):
+    return _resize_cv(x, f, 2)
+
+
+def _resize_lanczos(x, f):
+    return _resize_cv(x, f, 4)
+
+
+def crop_fourier_space(x, w: int):
+    """Crop x assuming a 2D frequency space image with zero frequency in corner."""
+    half1 = w // 2
+    half0 = w - half1
+    return x[
+        ...,
+        np.r_[0:half0, (x.shape[-1] - half1):x.shape[-1]],
+    ][
+        ...,
+        np.r_[0:half0, (x.shape[-2] - half1):x.shape[-2]],
+        :,
+    ]  # yapf: disable
+
+def pad_fourier_space(x, w: int):
+    """Pad x assuming a 2D frequency space image with zero frequency in corner."""
+    half1 = x.shape[-1] // 2
+    half0 = x.shape[-1] - half1
+    new_x = np.zeros_like(x, shape=(*x.shape[:-2], w, w))
+    new_x[..., 0:half0, np.r_[0:half0, (w - half1):w]] = x[..., 0:half0, :]
+    new_x[..., -half1:w, np.r_[0:half0, (w - half1):w]] = x[..., -half1:, :]
+    return new_x
+
+
+def _resize_fft(x, f):
+    """Use Fourier interpolation to resize/resample the last 2 dimensions of x"""
+    if f < 1:
+        return np.fft.ifft2(
+            crop_fourier_space(
+                np.fft.fft2(
+                    x,
+                    norm='ortho',
+                    axes=(-2, -1),
+                ),
+                w=int(x.shape[-1] * f),
+            ),
+            norm='ortho',
+            axes=(-2, -1),
+        )
+    if f > 1:
+        return np.fft.ifft2(
+            pad_fourier_space(
+                np.fft.fft2(
+                    x,
+                    norm='ortho',
+                    axes=(-2, -1),
+                ),
+                w=int(x.shape[-1] * f),
+            ),
+            norm='ortho',
+            axes=(-2, -1),
+        )
+    return x
