@@ -219,16 +219,21 @@ def _resize_lanczos(x, f):
 
 def crop_fourier_space(x, w: int):
     """Crop x assuming a 2D frequency space image with zero frequency in corner."""
+    assert x.shape[-2] == x.shape[-1], "Only works on square arrays right now."
     half1 = w // 2
     half0 = w - half1
+    # yapf: disable
     return x[
         ..., np.r_[0:half0, (x.shape[-1] - half1):x.shape[-1]],
     ][
         ..., np.r_[0:half0, (x.shape[-2] - half1):x.shape[-2]], :,
-    ]  # yapf: disable
+    ]
+    # yapf: enable
+
 
 def pad_fourier_space(x, w: int):
     """Pad x assuming a 2D frequency space image with zero frequency in corner."""
+    assert x.shape[-2] == x.shape[-1], "Only works on square arrays right now."
     half1 = x.shape[-1] // 2
     half0 = x.shape[-1] - half1
     new_x = np.zeros_like(x, shape=(*x.shape[:-2], w, w))
@@ -239,30 +244,18 @@ def pad_fourier_space(x, w: int):
 
 def _resize_fft(x, f):
     """Use Fourier interpolation to resize/resample the last 2 dimensions of x"""
-    if f < 1:
-        return np.fft.ifft2(
-            crop_fourier_space(
-                np.fft.fft2(
-                    x,
-                    norm='ortho',
-                    axes=(-2, -1),
-                ),
-                w=int(x.shape[-1] * f),
+    if f == 1:
+        return x
+    crop_or_pad = crop_fourier_space if f < 1 else pad_fourier_space
+    return np.fft.ifft2(
+        crop_or_pad(
+            np.fft.fft2(
+                x,
+                norm='ortho',
+                axes=(-2, -1),
             ),
-            norm='ortho',
-            axes=(-2, -1),
-        )
-    if f > 1:
-        return np.fft.ifft2(
-            pad_fourier_space(
-                np.fft.fft2(
-                    x,
-                    norm='ortho',
-                    axes=(-2, -1),
-                ),
-                w=int(x.shape[-1] * f),
-            ),
-            norm='ortho',
-            axes=(-2, -1),
-        )
-    return x
+            w=int(x.shape[-1] * f),
+        ),
+        norm='ortho',
+        axes=(-2, -1),
+    )
