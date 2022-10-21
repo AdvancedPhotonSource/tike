@@ -222,12 +222,9 @@ def crop_fourier_space(x, w: int):
     half1 = w // 2
     half0 = w - half1
     return x[
-        ...,
-        np.r_[0:half0, (x.shape[-1] - half1):x.shape[-1]],
+        ..., np.r_[0:half0, (x.shape[-1] - half1):x.shape[-1]],
     ][
-        ...,
-        np.r_[0:half0, (x.shape[-2] - half1):x.shape[-2]],
-        :,
+        ..., np.r_[0:half0, (x.shape[-2] - half1):x.shape[-2]], :,
     ]  # yapf: disable
 
 def pad_fourier_space(x, w: int):
