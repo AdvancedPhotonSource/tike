@@ -98,7 +98,9 @@ def test_patch_correctness(size=256, win=8):
         ).get()
 
     try:
-        import matplotlib.pyplot as plt
+        import matplotlib
+        matplotlib.use('Agg')
+        from matplotlib import pyplot as plt
         plt.figure()
         plt.imshow(fov.real)
         plt.savefig('fov.png')

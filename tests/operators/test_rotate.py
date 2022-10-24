@@ -35,7 +35,9 @@ class TestRotate(unittest.TestCase, OperatorTests):
 
     def debug_show(self):
         import libimage
-        import matplotlib.pyplot as plt
+        import matplotlib
+        matplotlib.use('Agg')
+        from matplotlib import pyplot as plt
         x = self.xp.asarray(libimage.load('coins', 256), dtype='complex64')
         y = self.operator.fwd(x[None], 4 * np.pi)
 

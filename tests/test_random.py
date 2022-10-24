@@ -141,7 +141,9 @@ class TestClusterCompact(unittest.TestCase, ClusterTests):
         assert np.all(p0 < p1)
 
     def test_plot_clusters(self):
-        import matplotlib.pyplot as plt
+        import matplotlib
+        matplotlib.use('Agg')
+        from matplotlib import pyplot as plt
         samples = cluster_compact(self.population, self.num_cluster)
         plt.figure()
         for s in samples:

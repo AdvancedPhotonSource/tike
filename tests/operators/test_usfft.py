@@ -95,7 +95,9 @@ class TestUSFFT(unittest.TestCase, OperatorTests):
     @unittest.skip('For debugging only.')
     def test_image(self, s=32, ntheta=16 * 16 * 16):
         import libimage
-        import matplotlib.pyplot as plt
+        import matplotlib
+        matplotlib.use('Agg')
+        from matplotlib import pyplot as plt
 
         f = libimage.load('satyre', s)
         f = np.tile(f, (s, 1, 1))

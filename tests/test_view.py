@@ -4,7 +4,9 @@
 
 from signal import Handlers
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
+from matplotlib import pyplot as plt
 import matplotlib.colors as mplcolors
 import cv2 as cv
 import tike.view

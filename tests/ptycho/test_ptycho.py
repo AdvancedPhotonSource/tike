@@ -61,6 +61,13 @@ from tike.ptycho.probe import ProbeOptions
 from tike.ptycho.position import PositionOptions
 from tike.ptycho.object import ObjectOptions
 from tike.communicators import MPIComm
+from tike.ptycho.solvers.options import (
+    _resize_fft,
+    _resize_spline,
+    _resize_cubic,
+    _resize_lanczos,
+    _resize_linear,
+)
 import tike.random
 
 __author__ = "Daniel Ching, Xiaodong Yu"
@@ -295,7 +302,9 @@ class TestPtychoAbsorption(TemplatePtychoRecon, unittest.TestCase):
     def test_absorption(self):
         """Check ptycho.object.get_absorption_image for consistency."""
         try:
-            import matplotlib.pyplot as plt
+            import matplotlib
+            matplotlib.use('Agg')
+            from matplotlib import pyplot as plt
             fname = os.path.join(testdir, 'result', 'ptycho', 'absorption')
             os.makedirs(fname, exist_ok=True)
             plt.imsave(
@@ -495,7 +504,9 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
 
     def _save_position_error_variance(self, result, algorithm):
         try:
-            import matplotlib.pyplot as plt
+            import matplotlib
+            matplotlib.use('Agg')
+            from matplotlib import pyplot as plt
             import tike.view
             fname = os.path.join(testdir, 'result', 'ptycho', f'{algorithm}')
             os.makedirs(fname, exist_ok=True)
@@ -569,7 +580,9 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
 
 
 def _save_eigen_probe(output_folder, eigen_probe):
-    import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use('Agg')
+    from matplotlib import pyplot as plt
     flattened = []
     for i in range(eigen_probe.shape[-4]):
         probe = eigen_probe[..., i, :, :, :]
@@ -596,7 +609,9 @@ def _save_eigen_probe(output_folder, eigen_probe):
 
 
 def _save_probe(output_folder, probe, algorithm):
-    import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use('Agg')
+    from matplotlib import pyplot as plt
     flattened = np.concatenate(
         probe.reshape((-1, *probe.shape[-2:])),
         axis=1,
@@ -625,7 +640,9 @@ def _save_probe(output_folder, probe, algorithm):
 
 def _save_ptycho_result(result, algorithm):
     try:
-        import matplotlib.pyplot as plt
+        import matplotlib
+        matplotlib.use('Agg')
+        from matplotlib import pyplot as plt
         import tike.view
         fname = os.path.join(testdir, 'result', 'ptycho', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
@@ -636,6 +653,7 @@ def _save_ptycho_result(result, algorithm):
             result.algorithm_options.times,
         )
         ax2.set_xlim(0, 20)
+        ax1.set_ylim(10**(-1), 10**2)
         fig.suptitle(algorithm)
         fig.tight_layout()
         plt.savefig(os.path.join(fname, 'convergence.svg'))
@@ -667,12 +685,89 @@ def _save_ptycho_result(result, algorithm):
 
 
 def _save_eigen_weights(fname, weights):
-    import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use('Agg')
+    from matplotlib import pyplot as plt
     plt.figure()
     tike.view.plot_eigen_weights(weights)
     plt.suptitle('weights')
     plt.tight_layout()
     plt.savefig(f'{fname}/weights.svg')
+
+
+class PtychoReconMultiGrid():
+    """Test ptychography multi-grid reconstruction method."""
+
+    def interp(self, x, f):
+        pass
+
+    def template_consistent_algorithm(self, *, params={}):
+        """Check ptycho.solver.algorithm for consistency."""
+
+        if _mpi_size > 1:
+            return 1
+
+        device_per_rank = cp.cuda.runtime.getDeviceCount() // _mpi_size
+        base_device = device_per_rank * _mpi_rank
+        with cp.cuda.Device(base_device):
+            parameters = tike.ptycho.reconstruct_multigrid(
+                **params,
+                data=self.data,
+                num_gpu=tuple(i + base_device for i in range(device_per_rank)),
+                use_mpi=_mpi_size > 1,
+                num_levels=2,
+                interp=self.interp,
+            )
+
+        print()
+        print('\n'.join(
+            f'{c[0]:1.3e}' for c in parameters.algorithm_options.costs))
+        return parameters
+
+
+class TestPtychoReconMultiGridFFT(PtychoReconMultiGrid, TestPtychoRecon,
+                                  unittest.TestCase):
+
+    post_name = '-multigrid-fft'
+
+    def interp(self, x, f):
+        return _resize_fft(x, f)
+
+
+if False:
+    # Don't need to run these tests on CI every time.
+
+    class TestPtychoReconMultiGridLinear(PtychoReconMultiGrid, TestPtychoRecon,
+                                         unittest.TestCase):
+
+        post_name = '-multigrid-linear'
+
+        def interp(self, x, f):
+            return _resize_linear(x, f)
+
+    class TestPtychoReconMultiGridCubic(PtychoReconMultiGrid, TestPtychoRecon,
+                                        unittest.TestCase):
+
+        post_name = '-multigrid-cubic'
+
+        def interp(self, x, f):
+            return _resize_cubic(x, f)
+
+    class TestPtychoReconMultiGridLanczos(PtychoReconMultiGrid, TestPtychoRecon,
+                                          unittest.TestCase):
+
+        post_name = '-multigrid-lanczos'
+
+        def interp(self, x, f):
+            return _resize_lanczos(x, f)
+
+    class TestPtychoReconMultiGridSpline(PtychoReconMultiGrid, TestPtychoRecon,
+                                         unittest.TestCase):
+
+        post_name = '-multigrid-spline'
+
+        def interp(self, x, f):
+            return _resize_spline(x, f)
 
 
 if __name__ == '__main__':

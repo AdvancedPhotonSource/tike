@@ -53,6 +53,7 @@ __all__ = [
     "reconstruct",
     "simulate",
     "Reconstruction",
+    "reconstruct_multigrid",
 ]
 
 import copy
@@ -174,13 +175,17 @@ def simulate(
 
 
 def reconstruct(
-    data,
-    parameters,
-    model='gaussian',
-    num_gpu=1,
-    use_mpi=False,
-):
-    """Solve the ptychography problem using the given `algorithm`.
+    data: np.typing.NDArray,
+    parameters: solvers.PtychoParameters,
+    model: str = 'gaussian',
+    num_gpu: typing.Union[int, typing.Tuple[int, ...]] = 1,
+    use_mpi: bool = False,
+) -> solvers.PtychoParameters:
+    """Solve the ptychography problem.
+
+    This functional interface is the simplest to use, but deallocates GPU
+    memory when it returns. Use the context manager API for the ability to get
+    live results without ending the reconsturction.
 
     Parameters
     ----------
@@ -206,10 +211,11 @@ def reconstruct(
 
     Returns
     -------
-    result : dict
-        A dictionary of the above parameters that may be passed to this
-        function to resume reconstruction from the previous state.
+    result : :py:class:`tike.ptycho.solvers.PtychoParameters`
+        A class containing reconstruction parameters.
 
+
+    .. seealso:: :py:func:`tike.ptycho.ptycho.reconstruct_multigrid`, :py:func:`tike.ptycho.ptycho.Reconstruction`
     """
     with tike.ptycho.Reconstruction(
             data,
@@ -231,20 +237,47 @@ def _clip_magnitude(x, a_max):
 
 
 class Reconstruction():
-    """Context manager for streaming ptychography reconstruction.
+    """Context manager for online ptychography reconstruction.
 
-    Uses same parameters as the functional reconstruct API.
+    .. versionadded:: 0.22.0
 
-    .. seealso:: :py:func:`tike.ptycho.reconstruct`
+    Uses same parameters as the functional reconstruct API. Using a context
+    manager allows for getting the current result or adding additional data
+    without deallocating memory on the GPU.
+
+    Example
+    -------
+    Data structure remain allocated on the GPU as long as the context is
+    active. This allows quickly resuming a reconstruction.
+
+    .. code-block:: python
+
+        with tike.ptycho.Reconstruction(
+            data,
+            parameters,
+            model,
+            num_gpu,
+            use_mpi,
+        ) as context:
+            # Start reconstructing
+            context.iterate(num_iter)
+            # Check the current solution for the object
+            early_result = context.get_psi()
+            # Continue reconstructing
+            context.iterate()
+        # All datastructures are transferred off the GPU at context close
+        final_result = context.parameters
+
+    .. seealso:: :py:func:`tike.ptycho.ptycho.reconstruct`
     """
 
     def __init__(
         self,
-        data,
-        parameters,
-        model='gaussian',
-        num_gpu=1,
-        use_mpi=False,
+        data: np.typing.NDArray,
+        parameters: solvers.PtychoParameters,
+        model: str = 'gaussian',
+        num_gpu: typing.Union[int, typing.Tuple[int, ...]] = 1,
+        use_mpi: bool = False,
     ):
         if (np.any(np.asarray(data.shape) < 1) or data.ndim != 3
                 or data.shape[-2] != data.shape[-1]):
@@ -484,7 +517,10 @@ class Reconstruction():
         self.operator.__exit__(type, value, traceback)
         self.device.__exit__(type, value, traceback)
 
-    def get_convergence(self):
+    def get_convergence(
+        self
+    ) -> typing.Tuple[typing.List[typing.List[float]], typing.List[float]]:
+        """Return the cost function values and times as a tuple."""
         return (
             self._device_parameters.algorithm_options.costs,
             self._device_parameters.algorithm_options.times,
@@ -512,17 +548,21 @@ class Reconstruction():
         return probe, eigen_probe, eigen_weights
 
     def peek(self) -> typing.Tuple[np.array, np.array, np.array, np.array]:
-        """Return the curent values of object and probe as numpy arrays."""
+        """Return the curent values of object and probe as numpy arrays.
+
+        Parameters returned in a tuple of object, probe, eigen_probe,
+        eigen_weights.
+        """
         psi = self.get_psi()
         probe, eigen_probe, eigen_weights = self.get_probe()
         return psi, probe, eigen_probe, eigen_weights
 
     def append_new_data(
         self,
-        new_data: np.array,
-        new_scan: np.array,
+        new_data: np.typing.NDArray,
+        new_scan: np.typing.NDArray,
     ) -> None:
-        """"Append new diffraction patterns and positions to existing result."""
+        """Append new diffraction patterns and positions to existing result."""
         # Assign positions and data to correct devices.
         if (not np.all(np.isfinite(new_data)) or np.any(new_data < 0)):
             warnings.warn(
@@ -768,3 +808,61 @@ def split_by_scan_stripes(scan, n, fly=1, axis=0):
             scan[:, 0, axis] <= edges[i + 1],
         ).repeat(fly) for i in range(n)
     ]
+
+
+def reconstruct_multigrid(
+    data: np.typing.NDArray,
+    parameters: solvers.PtychoParameters,
+    model: str = 'gaussian',
+    num_gpu: typing.Union[int, typing.Tuple[int, ...]] = 1,
+    use_mpi: bool = False,
+    num_levels: int = 3,
+    interp = None,
+) -> solvers.PtychoParameters:
+    """Solve the ptychography problem using a multi-grid method.
+
+    .. versionadded:: 0.23.2
+
+    Uses the same parameters as the functional reconstruct API. This function
+    applies a multi-grid approach to the problem by downsampling the real-space
+    input parameters and cropping the diffraction patterns to reduce the
+    computational cost of early iterations.
+
+    Parameters
+    ----------
+    num_levels : int > 0
+        The number of times to reduce the problem by a factor of two.
+
+
+    .. seealso:: :py:func:`tike.ptycho.ptycho.reconstruct`
+    """
+    if (data.shape[-1] * 0.5**(num_levels - 1)) < 64:
+        warnings.warn('Cropping diffraction patterns to less than 64 pixels '
+                      'wide is not recommended because the full doughnut'
+                      ' may be visible.')
+
+    # Downsample PtychoParameters to smallest size
+    resampled_parameters = parameters.resample(0.5**(num_levels - 1), interp)
+
+    for level in range((num_levels - 1), -1, -1):
+
+        # Create a new reconstruction context for each level
+        with tike.ptycho.Reconstruction(
+                data=data if level == 0 else solvers.crop_fourier_space(
+                    data,
+                    data.shape[-1] // (2**level),
+                ),
+                parameters=resampled_parameters,
+                num_gpu=num_gpu,
+                model=model,
+                use_mpi=use_mpi,
+        ) as context:
+            context.iterate(resampled_parameters.algorithm_options.num_iter)
+
+        if level == 0:
+            return context.parameters
+
+        # Upsample result to next grid
+        resampled_parameters = context.parameters.resample(2.0, interp)
+
+    raise RuntimeError('This should not happen.')

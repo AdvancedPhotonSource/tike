@@ -101,6 +101,20 @@ class ProbeOptions:
             self.m = cp.asnumpy(self.m)
         return self
 
+    def resample(self, factor):
+        return ProbeOptions(
+            orthogonality_constraint=self.orthogonality_constraint,
+            centered_intensity_constraint=self.centered_intensity_constraint,
+            sparsity_constraint=self.sparsity_constraint,
+            use_adaptive_moment=self.use_adaptive_moment,
+            vdecay=self.vdecay,
+            mdecay=self.mdecay,
+            probe_support=self.probe_support,
+            probe_support_degree=self.probe_support_degree,
+            probe_support_radius=self.probe_support_radius,
+        )
+        # Momentum reset to zero when grid scale changes
+
 
 def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
     """Construct the varying probes.
