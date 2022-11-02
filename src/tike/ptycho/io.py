@@ -104,8 +104,8 @@ def read_aps_velociprobe(
     diffraction_path : string
         The absolute path to the HDF5 file containing diffraction patterns and
         other metadata.
-    position_path : string
-        The absolute path to the CSV file containing position information.
+    position_path : string OR List[string]
+        The absolute path to the CSV file(s) containing position information.
     xy_columns : 2-tuple of int
         The columns in the 8 column raw position file to use for x,y positions
     trigger_column : int
