@@ -214,7 +214,7 @@ def read_aps_velociprobe(
     scan -= np.mean(scan, axis=0, keepdims=True)
     scan[:, 1] *= 1e-9 * np.cos(chi / 180 * np.pi)
 
-    logging.info(f'Loaded {len(scan)} scan positions.')
+    logger.info(f'Loaded {len(scan)} scan positions.')
 
     if len(data) != len(scan):
         warnings.warn(
@@ -352,7 +352,7 @@ def read_aps_lynx(
     )
     scan = raw_position[:, :2] * -1e-6
 
-    logging.info(f'Loaded {len(scan)} scan positions.')
+    logger.info(f'Loaded {len(scan)} scan positions.')
 
     if len(data) != len(scan):
         warnings.warn(
