@@ -183,12 +183,22 @@ def read_aps_velociprobe(
         data = np.concatenate(data, axis=0)
 
     # Load data from six column file
-    raw_position = np.genfromtxt(
-        position_path,
-        usecols=(*xy_columns, trigger_column),
-        delimiter=',',
-        dtype='int',
-    )
+    if isinstance(position_path, list):
+        raw_position = [np.genfromtxt(
+            p,
+            usecols=(*xy_columns, trigger_column),
+            delimiter=',',
+            dtype='int',
+        ) for p in position_path]
+        raw_position = np.concatenate(raw_position, axis=0)
+    else:
+        raw_position = np.genfromtxt(
+            position_path,
+            usecols=(*xy_columns, trigger_column),
+            delimiter=',',
+            dtype='int',
+        )
+
 
     # Split positions where trigger number increases by 1. Assumes that
     # positions are ordered by trigger number in file. Shift indices by 1
