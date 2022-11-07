@@ -172,7 +172,7 @@ def test_hermite_modes():
     plt.imsave(os.path.join(resultdir, 'hermite.png'), np.abs(flattened))
 
     np.testing.assert_allclose(
-        result1,
+        result1.swapaxes(-2, -1),
         np.rollaxis(inputs['result'], -1, 0)[None, ...],
     )
 

@@ -489,7 +489,7 @@ def add_modes_cartesian_hermite(probe, nmodes: int):
     X, Y = np.meshgrid(
         np.arange(probe.shape[-2]) - (probe.shape[-2] // 2 - 1),
         np.arange(probe.shape[-1]) - (probe.shape[-2] // 2 - 1),
-        indexing='xy',
+        indexing='ij',
     )
 
     cenx = np.sum(
