@@ -140,6 +140,8 @@ def dm(
         probe_update_denominator,
         parameters.psi,
         parameters.probe,
+        parameters.object_options,
+        parameters.probe_options,
     )
 
     parameters.algorithm_options.costs.append(batch_cost)
@@ -257,6 +259,8 @@ def _apply_update(
     probe_update_denominator,
     psi,
     probe,
+    object_options,
+    probe_options,
 ):
 
     if recover_psi:
@@ -270,8 +274,21 @@ def _apply_update(
             psi_update_denominator = comm.reduce(psi_update_denominator,
                                                  'gpu')[0]
 
-        psi[0] = psi_update_numerator / (psi_update_denominator + 1e-9)
-        psi = comm.pool.bcast([psi[0]])
+        new_psi = psi_update_numerator / (psi_update_denominator + 1e-9)
+        if object_options.use_adaptive_moment:
+            (
+                dpsi,
+                object_options.v,
+                object_options.m,
+            ) = tike.opt.adam(
+                g=(new_psi - psi[0]),
+                v=object_options.v,
+                m=object_options.m,
+                vdecay=object_options.vdecay,
+                mdecay=object_options.mdecay,
+            )
+            new_psi = dpsi + psi[0]
+        psi = comm.pool.bcast([new_psi])
 
     if recover_probe:
         if comm.use_mpi:
@@ -285,8 +302,21 @@ def _apply_update(
             probe_update_denominator = comm.reduce(probe_update_denominator,
                                                    'gpu')[0]
 
-        probe[0] = probe_update_numerator / (probe_update_denominator + 1e-9)
-        probe = comm.pool.bcast([probe[0]])
+        new_probe = probe_update_numerator / (probe_update_denominator + 1e-9)
+        if probe_options.use_adaptive_moment:
+            (
+                dprobe,
+                probe_options.v,
+                probe_options.m,
+            ) = tike.opt.adam(
+                g=(new_probe - probe[0]),
+                v=probe_options.v,
+                m=probe_options.m,
+                vdecay=probe_options.vdecay,
+                mdecay=probe_options.mdecay,
+            )
+            new_probe = dprobe + probe[0]
+        probe = comm.pool.bcast([new_probe])
 
     return psi, probe
 

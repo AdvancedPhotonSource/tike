@@ -74,6 +74,7 @@ def momentum(g, v, m, vdecay=None, mdecay=0.9):
     eps : float
         A tiny constant to prevent zero division.
     """
+    logger.info("Momentum decay m=%+.3e", mdecay)
     m = 0 if m is None else m
     m = mdecay * m + (1 - mdecay) * g
     return m, None, m

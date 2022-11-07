@@ -104,8 +104,8 @@ def read_aps_velociprobe(
     diffraction_path : string
         The absolute path to the HDF5 file containing diffraction patterns and
         other metadata.
-    position_path : string
-        The absolute path to the CSV file containing position information.
+    position_path : string OR List[string]
+        The absolute path to the CSV file(s) containing position information.
     xy_columns : 2-tuple of int
         The columns in the 8 column raw position file to use for x,y positions
     trigger_column : int
@@ -183,12 +183,22 @@ def read_aps_velociprobe(
         data = np.concatenate(data, axis=0)
 
     # Load data from six column file
-    raw_position = np.genfromtxt(
-        position_path,
-        usecols=(*xy_columns, trigger_column),
-        delimiter=',',
-        dtype='int',
-    )
+    if isinstance(position_path, list):
+        raw_position = [np.genfromtxt(
+            p,
+            usecols=(*xy_columns, trigger_column),
+            delimiter=',',
+            dtype='int',
+        ) for p in position_path]
+        raw_position = np.concatenate(raw_position, axis=0)
+    else:
+        raw_position = np.genfromtxt(
+            position_path,
+            usecols=(*xy_columns, trigger_column),
+            delimiter=',',
+            dtype='int',
+        )
+
 
     # Split positions where trigger number increases by 1. Assumes that
     # positions are ordered by trigger number in file. Shift indices by 1
@@ -214,7 +224,7 @@ def read_aps_velociprobe(
     scan -= np.mean(scan, axis=0, keepdims=True)
     scan[:, 1] *= 1e-9 * np.cos(chi / 180 * np.pi)
 
-    logging.info(f'Loaded {len(scan)} scan positions.')
+    logger.info(f'Loaded {len(scan)} scan positions.')
 
     if len(data) != len(scan):
         warnings.warn(
@@ -352,7 +362,7 @@ def read_aps_lynx(
     )
     scan = raw_position[:, :2] * -1e-6
 
-    logging.info(f'Loaded {len(scan)} scan positions.')
+    logger.info(f'Loaded {len(scan)} scan positions.')
 
     if len(data) != len(scan):
         warnings.warn(

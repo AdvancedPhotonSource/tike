@@ -63,6 +63,7 @@ jobs:
 
   - script: |
       source activate tike
+      export TIKE_TEST_CI
       pytest -vs
     displayName: Run tests
 
@@ -118,12 +119,14 @@ jobs:
 
   - script: |
       source activate tike
+      export TIKE_TEST_CI
       pytest -vs
     displayName: Run tests
 
   - script: |
       source activate tike
       export OMPI_MCA_opal_cuda_support=true
+      export TIKE_TEST_CI
       mpirun -n 2 pytest tests/test_comm.py -v
       mpirun -n 2 pytest tests/test_ptycho.py -k PtychoRecon -v
       mpirun -n 2 pytest tests/test_lamino.py -k bucket -v

@@ -483,6 +483,30 @@ class TestPtychoOnline(TestPtychoRecon, unittest.TestCase):
         return result
 
 
+@unittest.skipIf('TIKE_TEST_CI' in os.environ,
+                 reason="Just for user reference; not needed on CI.")
+class TestPtychoPositionReference(TestPtychoRecon, unittest.TestCase):
+    """Test various ptychography reconstruction methods position correction."""
+
+    post_name = '-position-ref'
+
+    def setUp(self, filename='data/position-error-247.pickle.bz2'):
+        """Load a dataset for reconstruction.
+
+        This position correction test dataset was collected by Tao Zhou at the
+        Center for Nanoscale Materials Hard X-ray Nanoprobe
+        (https://www.anl.gov/cnm).
+        """
+        dataset_file = os.path.join(testdir, filename)
+        with bz2.open(dataset_file, 'rb') as f:
+            [
+                self.data,
+                _,
+                self.scan,
+                self.probe,
+            ] = pickle.load(f)
+
+
 class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
     """Test various ptychography reconstruction methods position correction."""
 
@@ -523,9 +547,9 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
         except ImportError:
             pass
 
-    def test_consistent_rpie_ref(self):
+    def test_consistent_rpie_off(self):
         """Check ptycho.solver.rpie position correction."""
-        algorithm = f"{'mpi-' if _mpi_size > 1 else ''}rpie-position-ref"
+        algorithm = f"{'mpi-' if _mpi_size > 1 else ''}rpie-position-off"
         params = self.init_params()
         params.algorithm_options = tike.ptycho.RpieOptions(
             num_batch=5,

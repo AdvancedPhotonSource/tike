@@ -57,14 +57,17 @@ class ThreadPool(ThreadPoolExecutor):
         for w in workers:
             if w < 0 or w >= self.device_count:
                 raise ValueError(f'{w} is not a valid GPU device number.')
-        if workers[0] != cp.cuda.Device().id:
-            raise ValueError(
-                "The primary worker must be the current device. "
-                f"Use `with cupy.cuda.Device({workers[0]}):` to set the "
-                "current device.")
         self.workers = workers
         self.xp = cp
         super().__init__(self.num_workers)
+
+    def __enter__(self):
+        if self.workers[0] != cp.cuda.Device().id:
+            raise ValueError(
+                "The primary worker must be the current device. "
+                f"Use `with cupy.cuda.Device({self.workers[0]}):` to set the "
+                "current device.")
+        return self
 
     @property
     def num_workers(self):
