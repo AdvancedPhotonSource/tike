@@ -166,7 +166,7 @@ class PtychoParameters():
     def resample(
         self,
         factor: float,
-        interp: typing.Callable[[np.ndarray, float], np.array],
+        interp: None | typing.Callable[[np.ndarray, float], np.array],
     ) -> PtychoParameters:
         """Return a new `PtychoParameter` with the parameters rescaled."""
         interp = _resize_fft if interp is None else interp
