@@ -119,6 +119,7 @@ def rpie(
             position_options=bposition_options,
             algorithm_options=algorithm_options,
             probe_options=probe_options,
+            object_options=object_options,
         )
 
         if position_options is not None:
@@ -196,6 +197,7 @@ def _update_nearplane(
     position_options=None,
     *,
     probe_options=None,
+    object_options=None,
 ):
 
     patches = comm.pool.map(_get_patches, nearplane_, psi, scan_, op=op)
@@ -233,13 +235,25 @@ def _update_nearplane(
             psi_update_denominator = comm.reduce(psi_update_denominator,
                                                  'gpu')[0]
 
-        psi[0] += step_length * psi_update_numerator / (
+        dpsi = psi_update_numerator / (
             (1 - alpha) * psi_update_denominator +
             alpha * psi_update_denominator.max(
                 axis=(-2, -1),
                 keepdims=True,
             ))
-
+        if object_options.use_adaptive_moment:
+            (
+                dpsi,
+                object_options.v,
+                object_options.m,
+            ) = tike.opt.momentum(
+                g=dpsi,
+                v=object_options.v,
+                m=object_options.m,
+                vdecay=object_options.vdecay,
+                mdecay=object_options.mdecay,
+            )
+        psi[0] = psi[0] + step_length * dpsi
         psi = comm.pool.bcast([psi[0]])
 
     if recover_probe:
