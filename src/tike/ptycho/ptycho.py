@@ -638,8 +638,7 @@ def _order_join(a, b):
 
 def _get_rescale(data, psi, scan, probe, num_batch, operator):
 
-    n1 = 0.0
-    n2 = 0.0
+    n = cp.zeros(2, dtype='float64')
 
     for b in tike.opt.batch_indicies(data.shape[-3],
                                      num_batch,
@@ -652,10 +651,10 @@ def _get_rescale(data, psi, scan, probe, num_batch, operator):
             probe,
         )
 
-        n1 += np.sum(data[..., b, :, :])
-        n2 += np.sum(intensity)
+        n[0] += np.sum(data[..., b, :, :])
+        n[1] += np.sum(intensity)
 
-    return n1, n2
+    return n
 
 
 def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
@@ -665,7 +664,7 @@ def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
     approximately equal to the measure intensity at the detector.
     """
     try:
-        n1, n2 = zip(*comm.pool.map(
+        n = comm.pool.map(
             _get_rescale,
             data,
             psi,
@@ -673,7 +672,7 @@ def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
             probe,
             num_batch=num_batch,
             operator=operator,
-        ))
+        )
     except cp.cuda.memory.OutOfMemoryError:
         raise ValueError(
             "tike.ptycho.reconstruct ran out of memory! "
@@ -681,13 +680,11 @@ def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
             "or use CuPy to switch to the Unified Memory Pool.")
 
     if comm.use_mpi:
-        n1 = np.sqrt(comm.Allreduce_reduce(n1, 'cpu'))
-        n2 = np.sqrt(comm.Allreduce_reduce(n2, 'cpu'))
+        n = np.sqrt(comm.Allreduce_reduce(n, 'cpu'))
     else:
-        n1 = np.sqrt(comm.reduce(n1, 'cpu'))
-        n2 = np.sqrt(comm.reduce(n2, 'cpu'))
+        n = np.sqrt(comm.reduce(n, 'cpu'))
 
-    rescale = n1 / n2
+    rescale = cp.asarray(n[0] / n[1])
 
     logger.info("Probe rescaled by %f", rescale)
 
