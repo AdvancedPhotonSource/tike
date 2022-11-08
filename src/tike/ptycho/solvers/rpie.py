@@ -254,19 +254,23 @@ def _update_nearplane(
             probe_update_denominator = comm.reduce(probe_update_denominator,
                                                    'gpu')[0]
 
-        b = tike.ptycho.probe.finite_probe_support(
+        b0 = tike.ptycho.probe.finite_probe_support(
             probe[0],
             p=probe_options.probe_support,
             radius=probe_options.probe_support_radius,
             degree=probe_options.probe_support_degree,
         )
 
-        probe[0] += step_length * (probe_update_numerator - b * probe[0]) / (
-            (1 - alpha) * probe_update_denominator +
-            alpha * probe_update_denominator.max(
-                axis=(-2, -1),
-                keepdims=True,
-            ) + b)
+        b1 = probe_options.additional_probe_penalty * cp.linspace(
+            0, 1, probe[0].shape[-3], dtype='float32')[..., None, None]
+
+        probe[0] += step_length * (probe_update_numerator -
+                                   (b1 + b0) * probe[0]) / (
+                                       (1 - alpha) * probe_update_denominator +
+                                       alpha * probe_update_denominator.max(
+                                           axis=(-2, -1),
+                                           keepdims=True,
+                                       ) + b0 + b1)
 
         probe = comm.pool.bcast([probe[0]])
 
