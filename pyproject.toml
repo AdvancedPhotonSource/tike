@@ -1,10 +1,52 @@
 [build-system]
+build-backend = "setuptools.build_meta"
 requires = [
-    "setuptools_scm>=7",
-    "setuptools>=45",
-    "toml",
-    "wheel",
+  "setuptools_scm>=7",
+  "setuptools>=61",
+  "toml",
+  "wheel",
 ]
-build-backend = 'setuptools.build_meta'
+
+[project]
+urls = { docs = 'http://tike.readthedocs.org', source = 'http://github.com/tomography/tike.git'}
+authors = [
+  {name = "Doga Gursoy", email = "dgursoy@anl.gov"},
+  {name = "Daniel Ching", email = "dching@anl.gov"},
+  {name = "Xiaodong Yu"},
+  {name = "Viktor Nikitin"},
+  {name = "Ash Tripathi"},
+]
+classifiers = [
+  'Intended Audience :: Developers',
+  'Intended Audience :: Science/Research',
+  'License :: OSI Approved :: BSD License',
+  'Natural Language :: English',
+  'Operating System :: OS Independent',
+  'Programming Language :: Python :: 3 :: Only',
+  'Topic :: Scientific/Engineering',
+]
+dependencies = [
+  "cupy >=8.0, !=10.3.0",
+  'importlib_resources; python_version<"3.9"',
+  'importlib_metadata; python_version<"3.8"',
+  "matplotlib ==3.*",
+  "numpy ~=1.17",
+  "opencv-python >=3.4, <5.0",
+  "scipy >=1.6.0",
+]
+license = {text = "BSD 3-Clause License"}
+name = "tike"
+requires-python = "~=3.6"
+dynamic = ["version", "readme"]
+optional-dependencies = {mpi = [
+      "mpi4py ==3.*"
+]}
+
+[tool.setuptools.dynamic]
+readme = {file = ["README.rst", "LICENSE"]}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["tike*"]
 
 [tool.setuptools_scm]
