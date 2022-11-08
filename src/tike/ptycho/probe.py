@@ -35,6 +35,7 @@ allowed to vary.
 
 """
 
+from __future__ import annotations
 import dataclasses
 import logging
 
@@ -90,10 +91,10 @@ class ProbeOptions:
     """Degree of the supergaussian defining the probe support; zero or greater.
 
     Controls how hard the penalty transition is outside of the radius.
-        Degree = 0 is a flat penalty.
-        Degree > 0, < 1 is flatter than a gaussian.
-        Degree 1 is a gaussian.
-        Degree > 1 is more like a top-hat than a gaussian.
+    Degree = 0 is a flat penalty.
+    Degree > 0, < 1 is flatter than a gaussian.
+    Degree 1 is a gaussian.
+    Degree > 1 is more like a top-hat than a gaussian.
     """
 
     additional_probe_penalty: float = 1.0
@@ -124,7 +125,8 @@ class ProbeOptions:
             self.m = cp.asnumpy(self.m)
         return self
 
-    def resample(self, factor):
+    def resample(self, factor: float) -> ProbeOptions:
+        """Return a new `ProbeOptions` with the parameters rescaled."""
         return ProbeOptions(
             orthogonality_constraint=self.orthogonality_constraint,
             centered_intensity_constraint=self.centered_intensity_constraint,

@@ -1,5 +1,6 @@
 """Functions for manipulating and updating scanning positions."""
 
+from __future__ import annotations
 import dataclasses
 import logging
 
@@ -122,8 +123,8 @@ class PositionOptions:
             self._momentum = cp.asnumpy(self._momentum)
         return self
 
-    def resample(self, factor):
-        """Return a new PositionOptions with the parameters scaled."""
+    def resample(self, factor: float) -> PositionOptions:
+        """Return a new `PositionOptions` with the parameters scaled."""
         new = PositionOptions(
             initial_scan=self.initial_scan * factor,
             use_adaptive_moment=self.use_adaptive_moment,
