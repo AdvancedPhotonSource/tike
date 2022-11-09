@@ -35,6 +35,7 @@ allowed to vary.
 
 """
 
+from __future__ import annotations
 import dataclasses
 import logging
 
@@ -76,14 +77,37 @@ class ProbeOptions:
     m: np.array = dataclasses.field(init=False, default_factory=lambda: None)
     """The first moment for adaptive moment."""
 
-    probe_support: float = 10.0
-    """Weight of the finite probe support constraint; zero or greater."""
+    probe_support: float = 0.0
+    """Weight of the finite probe support constraint; zero or greater.
+
+    This support constraint encourages round probes energy concentrated at the
+    center of the probe grid. Higher support increases the effect.
+    """
 
     probe_support_radius: float = 0.5 * 0.7
     """Radius of finite probe support as fraction of probe grid. [0.0, 0.5]."""
 
     probe_support_degree: float = 2.5
-    """Degree of the supergaussian defining the probe support; zero or greater."""
+    """Degree of the supergaussian defining the probe support; zero or greater.
+
+    Controls how hard the penalty transition is outside of the radius.
+    Degree = 0 is a flat penalty.
+    Degree > 0, < 1 is flatter than a gaussian.
+    Degree 1 is a gaussian.
+    Degree > 1 is more like a top-hat than a gaussian.
+    """
+
+    additional_probe_penalty: float = 1.0
+    """Penalty applied to the last probe for existing.
+
+    This penalty encourages the probe energy to concentrate in the lower order
+    modes. The penalty starts at zero for the first probe and increases
+    linearly to this value. For example, for three probes, the penalties aplied
+    are [0.0, 0.5, 1.0].
+
+    This is a soft constraint as opposed to `sparsity_constraint` which is a
+    hard constraint.
+    """
 
     def copy_to_device(self):
         """Copy to the current GPU memory."""
@@ -101,7 +125,8 @@ class ProbeOptions:
             self.m = cp.asnumpy(self.m)
         return self
 
-    def resample(self, factor):
+    def resample(self, factor: float) -> ProbeOptions:
+        """Return a new `ProbeOptions` with the parameters rescaled."""
         return ProbeOptions(
             orthogonality_constraint=self.orthogonality_constraint,
             centered_intensity_constraint=self.centered_intensity_constraint,
