@@ -145,7 +145,7 @@ class PositionOptions:
     def vy(self):
         return self._momentum[..., 1]
 
-    @vx.setter
+    @vy.setter
     def vy(self, x):
         self._momentum[..., 1] = x
 
@@ -153,7 +153,7 @@ class PositionOptions:
     def mx(self):
         return self._momentum[..., 2]
 
-    @vx.setter
+    @mx.setter
     def mx(self, x):
         self._momentum[..., 2] = x
 
@@ -161,7 +161,7 @@ class PositionOptions:
     def my(self):
         return self._momentum[..., 3]
 
-    @vx.setter
+    @my.setter
     def my(self, x):
         self._momentum[..., 3] = x
 
