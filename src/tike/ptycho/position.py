@@ -5,10 +5,76 @@ import logging
 
 import cupy as cp
 import numpy as np
+import scipy.optimize
 
 import tike.linalg
 
 logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass(frozen=True)
+class AffineTransform:
+    """Represents a transformation combination of shear, rotation, and scale."""
+
+    scale0: float = 1.0
+    scale1: float = 1.0
+    angle: float = 0.0
+    shear: float = 0.0
+
+    def asarray(self) -> np.ndarray:
+        """Return an 2x2 transformation matrix from shear, rotation, and scale.
+
+        This matrix is shear @ rotation @ scale from left to right.
+        """
+        return np.array(
+            [
+                [1.0, 0.0],
+                [self.shear, 1.0],
+            ],
+            dtype='float32',
+        ) @ np.array(
+            [
+                [np.cos(self.angle), np.sin(self.angle)],
+                [-np.sin(self.angle), np.cos(self.angle)],
+            ],
+            dtype='float32',
+        ) @ np.array(
+            [
+                [self.scale0, 0.0],
+                [0.0, self.scale1],
+            ],
+            dtype='float32',
+        )
+
+    def astuple(self) -> tuple:
+        """Return the constructor parameters in a tuple."""
+        return (self.scale0, self.scale1, self.angle, self.shear)
+
+    def ascupy(self) -> cp.ndarray:
+        return cp.asarray(self.asarray())
+
+
+def estimate_global_transformation(
+        positions0: np.ndarray,
+        positions1: np.ndarray,
+        weights: np.ndarray,
+        transform: AffineTransform = AffineTransform(),
+) -> AffineTransform:
+    """Return an estimated global affine transformation."""
+
+    def weighted_position_residuals(args):
+        """Return weighted distance from predicted to observed positions."""
+        # Take the sqrt of the weights because these residuals will be squared
+        # and summed by scipy
+        return ((positions0 @ AffineTransform(*args).asarray() - positions1) *
+                np.sqrt(weights)).flatten()
+
+    result = scipy.optimize.least_squares(
+        weighted_position_residuals,
+        x0=transform.astuple(),
+    )
+
+    return AffineTransform(*result.x)
 
 
 @dataclasses.dataclass
@@ -37,6 +103,9 @@ class PositionOptions:
 
     penalty_variance: float = 1.0
     """Variance of the Gaussian penalty term."""
+
+    transform: AffineTransform = AffineTransform()
+    """Global transform of positions."""
 
     def __post_init__(self):
         if self.use_adaptive_moment:

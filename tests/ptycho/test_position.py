@@ -1,7 +1,6 @@
-import optparse
 import numpy as np
 import tike.ptycho
-from tike.ptycho.position import PositionOptions
+import tike.linalg
 
 
 def test_position_join(N=245, num_batch=11):
@@ -35,4 +34,26 @@ def test_position_join(N=245, num_batch=11):
     np.testing.assert_array_equal(
         new_opts._momentum,
         opts._momentum,
+    )
+
+
+def test_fit_affine(N=213):
+
+    truth = np.random.rand(4).tolist()
+    T = tike.ptycho.AffineTransform(*truth)
+    error = np.random.normal(size=(N, 2))
+    positions0 = (np.random.rand(*(N, 2)) - 0.5) * 1000
+    positions1 = positions0 @ T.asarray() + error
+    weights = 1 / (1 + np.square(error).sum(axis=-1))
+
+    result = tike.ptycho.estimate_global_transformation(
+        positions0,
+        positions1,
+        weights,
+    )
+
+    np.testing.assert_allclose(
+        result.astuple(),
+        truth,
+        rtol=5e-2,
     )
