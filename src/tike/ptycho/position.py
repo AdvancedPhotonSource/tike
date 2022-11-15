@@ -107,7 +107,19 @@ class PositionOptions:
     transform: AffineTransform = AffineTransform()
     """Global transform of positions."""
 
+    confidence: np.ndarray = dataclasses.field(
+        init=True,
+        default_factory=lambda: None,
+    )
+    """A rating of the confidence of position information around each position."""
+
     def __post_init__(self):
+        self.initial_scan = self.initial_scan.astype('float32')
+        if self.confidence is None:
+            self.confidence = np.ones(
+                shape=self.initial_scan.shape,
+                dtype='float32',
+            )
         if self.use_adaptive_moment:
             self._momentum = np.zeros(
                 (*self.initial_scan.shape[:-1], 4),
@@ -120,6 +132,16 @@ class PositionOptions:
             values=new_scan,
             axis=-2,
         )
+        if self.confidence is not None:
+            self.confidence = np.pad(
+                self.confidence,
+                pad_width=(
+                    (0, len(new_scan)),
+                    (0, 0),
+                ),
+                mode='constant',
+                constant_values=1.0,
+            )
         if self.use_adaptive_moment:
             self._momentum = np.pad(
                 self._momentum,
@@ -137,6 +159,7 @@ class PositionOptions:
             vdecay=self.vdecay,
             mdecay=self.mdecay,
             use_position_regularization=self.use_position_regularization,
+            transform=self.transform,
         )
         if self.use_adaptive_moment:
             new._momentum = np.empty((0, 4))
@@ -150,7 +173,10 @@ class PositionOptions:
             vdecay=self.vdecay,
             mdecay=self.mdecay,
             use_position_regularization=self.use_position_regularization,
+            transform=self.transform,
         )
+        if self.confidence is not None:
+            new.confidence = self.confidence[..., indices, :]
         if self.use_adaptive_moment:
             new._momentum = self._momentum[..., indices, :]
         return new
@@ -158,6 +184,8 @@ class PositionOptions:
     def insert(self, other, indices):
         """Replace the PositionOption meta-data with other data."""
         self.initial_scan[..., indices, :] = other.initial_scan
+        if self.confidence is not None:
+            self.confidence[..., indices, :] = other.confidence
         if self.use_adaptive_moment:
             self._momentum[..., indices, :] = other._momentum
         return self
@@ -173,6 +201,14 @@ class PositionOptions:
         new_initial_scan[..., :len_scan, :] = self.initial_scan
         new_initial_scan[..., indices, :] = other.initial_scan
         self.initial_scan = new_initial_scan
+        if self.confidence is not None:
+            new_confidence = np.empty(
+                (*self.initial_scan.shape[:-2], max_index, 2),
+                dtype=self.initial_scan.dtype,
+            )
+            new_confidence[..., :len_scan, :] = self.confidence
+            new_confidence[..., indices, :] = other.confidence
+            self.confidence = new_confidence
         if self.use_adaptive_moment:
             new_momentum = np.empty(
                 (*self.initial_scan.shape[:-2], max_index, 4),
@@ -186,6 +222,8 @@ class PositionOptions:
     def copy_to_device(self):
         """Copy to the current GPU memory."""
         self.initial_scan = cp.asarray(self.initial_scan)
+        if self.confidence is not None:
+            self.confidence = cp.asarray(self.confidence)
         if self.use_adaptive_moment:
             self._momentum = cp.asarray(self._momentum)
         return self
@@ -193,6 +231,8 @@ class PositionOptions:
     def copy_to_host(self):
         """Copy to the host CPU memory."""
         self.initial_scan = cp.asnumpy(self.initial_scan)
+        if self.confidence is not None:
+            self.confidence = cp.asnumpy(self.confidence)
         if self.use_adaptive_moment:
             self._momentum = cp.asnumpy(self._momentum)
         return self
@@ -205,6 +245,8 @@ class PositionOptions:
             vdecay=self.vdecay,
             mdecay=self.mdecay,
             use_position_regularization=self.use_position_regularization,
+            transform=self.transform,
+            confidence=self.confidence,
         )
         # Momentum reset to zero when grid scale changes
 
