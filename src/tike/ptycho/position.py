@@ -165,6 +165,22 @@ class PositionOptions:
     def my(self, x):
         self._momentum[..., 3] = x
 
+    @property
+    def v(self):
+        return self._momentum[..., 0:2]
+
+    @v.setter
+    def v(self, x):
+        self._momentum[..., 0:2] = x
+
+    @property
+    def m(self):
+        return self._momentum[..., 2:4]
+
+    @m.setter
+    def m(self, x):
+        self._momentum[..., 2:4] = x
+
 
 def check_allowed_positions(scan: np.array, psi: np.array, probe_shape: tuple):
     """Check that all positions are within the field of view.
