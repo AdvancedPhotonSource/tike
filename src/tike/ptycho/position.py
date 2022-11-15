@@ -262,7 +262,7 @@ class PositionOptions:
     def vy(self):
         return self._momentum[..., 1]
 
-    @vx.setter
+    @vy.setter
     def vy(self, x):
         self._momentum[..., 1] = x
 
@@ -270,7 +270,7 @@ class PositionOptions:
     def mx(self):
         return self._momentum[..., 2]
 
-    @vx.setter
+    @mx.setter
     def mx(self, x):
         self._momentum[..., 2] = x
 
@@ -278,9 +278,25 @@ class PositionOptions:
     def my(self):
         return self._momentum[..., 3]
 
-    @vx.setter
+    @my.setter
     def my(self, x):
         self._momentum[..., 3] = x
+
+    @property
+    def v(self):
+        return self._momentum[..., 0:2]
+
+    @v.setter
+    def v(self, x):
+        self._momentum[..., 0:2] = x
+
+    @property
+    def m(self):
+        return self._momentum[..., 2:4]
+
+    @m.setter
+    def m(self, x):
+        self._momentum[..., 2:4] = x
 
 
 def check_allowed_positions(scan: np.array, psi: np.array, probe_shape: tuple):
