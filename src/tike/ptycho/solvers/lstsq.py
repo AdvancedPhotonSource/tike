@@ -674,19 +674,23 @@ def _precondition_nearplane_gradients(
 
     if recover_probe:
 
-        b = tike.ptycho.probe.finite_probe_support(
+        b0 = tike.ptycho.probe.finite_probe_support(
             unique_probe[..., [m], :, :],
             p=probe_options.probe_support,
             radius=probe_options.probe_support_radius,
             degree=probe_options.probe_support_degree,
         )
 
-        common_grad_probe = (common_grad_probe - b * probe[..., [m], :, :]) / (
-            (1 - alpha) * probe_update_denominator +
-            alpha * probe_update_denominator.max(
-                axis=(-2, -1),
-                keepdims=True,
-            ) + b)
+        b1 = probe_options.additional_probe_penalty * cp.linspace(
+            0, 1, probe[0].shape[-3], dtype='float32')[..., [m], None, None]
+
+        common_grad_probe = (common_grad_probe -
+                             (b0 + b1) * probe[..., [m], :, :]) / (
+                                 (1 - alpha) * probe_update_denominator +
+                                 alpha * probe_update_denominator.max(
+                                     axis=(-2, -1),
+                                     keepdims=True,
+                                 ) + b0 + b1)
 
         dPO = common_grad_probe * patches
         A4 = cp.sum((dPO * dPO.conj()).real + eps, axis=(-2, -1))

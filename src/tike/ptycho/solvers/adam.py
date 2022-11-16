@@ -118,7 +118,6 @@ def _grad_all(data, psi, scan, probe, mode=None, op=None):
             data,
             farplane[..., mode, :, :],
             intensity,
-            overwrite=True,
         ),
         probe=probe[..., mode, :, :],
         scan=scan,

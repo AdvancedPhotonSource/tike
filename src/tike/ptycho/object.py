@@ -4,7 +4,7 @@ Ptychographic objects are stored as a single complex array which represent
 the complex refractive indices in the field of view.
 
 """
-
+from __future__ import annotations
 import dataclasses
 import logging
 
@@ -76,7 +76,8 @@ class ObjectOptions:
             self.preconditioner = cp.asnumpy(self.preconditioner[0])
         return self
 
-    def resample(self, factor):
+    def resample(self, factor: float) -> ObjectOptions:
+        """Return a new `ObjectOptions` with the parameters rescaled."""
         return ObjectOptions(
             positivity_constraint=self.positivity_constraint,
             smoothness_constraint=self.smoothness_constraint,

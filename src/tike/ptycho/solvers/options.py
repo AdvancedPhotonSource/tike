@@ -1,3 +1,4 @@
+from __future__ import annotations
 import abc
 import dataclasses
 import typing
@@ -162,8 +163,12 @@ class PtychoParameters():
             self.probe.shape,
         )
 
-    def resample(self, factor: float, interp):
-        """Return a new PtychoParameter with the parameters scaled."""
+    def resample(
+        self,
+        factor: float,
+        interp: None | typing.Callable[[np.ndarray, float], np.array],
+    ) -> PtychoParameters:
+        """Return a new `PtychoParameter` with the parameters rescaled."""
         interp = _resize_fft if interp is None else interp
         return PtychoParameters(
             probe=interp(self.probe, factor),
@@ -182,7 +187,7 @@ class PtychoParameters():
         )
 
 
-def _resize_spline(x, f):
+def _resize_spline(x: np.ndarray, f: float) -> np.ndarray:
     return scipy.ndimage.zoom(
         x,
         zoom=[1] * (x.ndim - 2) + [f, f],
@@ -191,7 +196,7 @@ def _resize_spline(x, f):
     )
 
 
-def _resize_cv(x, f, interpolation):
+def _resize_cv(x: np.ndarray, f: float, interpolation: int) -> np.ndarray:
     import tike.view
     x_shape = x.shape
     x = x.reshape(-1, *x_shape[-2:])
@@ -205,19 +210,19 @@ def _resize_cv(x, f, interpolation):
     return np.asarray(x1).reshape(*x_shape[:-2], *x1[0].shape[-2:])
 
 
-def _resize_linear(x, f):
+def _resize_linear(x: np.ndarray, f: float) -> np.ndarray:
     return _resize_cv(x, f, 1)
 
 
-def _resize_cubic(x, f):
+def _resize_cubic(x: np.ndarray, f: float) -> np.ndarray:
     return _resize_cv(x, f, 2)
 
 
-def _resize_lanczos(x, f):
+def _resize_lanczos(x: np.ndarray, f: float) -> np.ndarray:
     return _resize_cv(x, f, 4)
 
 
-def crop_fourier_space(x, w: int):
+def crop_fourier_space(x: np.ndarray, w: int) -> np.ndarray:
     """Crop x assuming a 2D frequency space image with zero frequency in corner."""
     assert x.shape[-2] == x.shape[-1], "Only works on square arrays right now."
     half1 = w // 2
@@ -231,7 +236,7 @@ def crop_fourier_space(x, w: int):
     # yapf: enable
 
 
-def pad_fourier_space(x, w: int):
+def pad_fourier_space(x: np.ndarray, w: int) -> np.ndarray:
     """Pad x assuming a 2D frequency space image with zero frequency in corner."""
     assert x.shape[-2] == x.shape[-1], "Only works on square arrays right now."
     half1 = x.shape[-1] // 2
@@ -242,7 +247,7 @@ def pad_fourier_space(x, w: int):
     return new_x
 
 
-def _resize_fft(x, f):
+def _resize_fft(x: np.ndarray, f: float) -> np.ndarray:
     """Use Fourier interpolation to resize/resample the last 2 dimensions of x"""
     if f == 1:
         return x
