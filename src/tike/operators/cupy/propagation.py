@@ -3,7 +3,7 @@
 __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
-import numpy as np
+import tike.ptycho.objective
 
 from .cache import CachedFFT
 from .operator import Operator
@@ -42,8 +42,8 @@ class Propagation(CachedFFT, Operator):
 
     def __init__(self, detector_shape, model='gaussian', **kwargs):
         self.detector_shape = detector_shape
-        self.cost = getattr(self, f'_{model}_cost')
-        self.grad = getattr(self, f'_{model}_grad')
+        self.cost = getattr(tike.ptycho.objective, f'{model}')
+        self.grad = getattr(tike.ptycho.objective, f'{model}_grad')
 
     def fwd(self, nearplane, overwrite=False, **kwargs):
         """Forward Fourier-based free-space propagation operator."""
@@ -72,26 +72,3 @@ class Propagation(CachedFFT, Operator):
         shape = (-1, self.detector_shape, self.detector_shape)
         if (__debug__ and x.shape[-2:] != shape[-2:]):
             raise ValueError(f'waves must have shape {shape} not {x.shape}.')
-
-    # COST FUNCTIONS AND GRADIENTS --------------------------------------------
-
-    # NOTE: We use mean instead of sum so that cost functions may be compared
-    # when mini-batches of different sizes are used.
-
-    def _gaussian_cost(self, data, intensity):
-        diff = np.sqrt(intensity) - np.sqrt(data)
-        diff *= diff.conj()
-        return np.mean(diff)
-
-    def _gaussian_grad(self, data, farplane, intensity, overwrite=False):
-        return farplane * (
-            1 - np.sqrt(data) / (np.sqrt(intensity) + 1e-9)
-        )[..., np.newaxis, np.newaxis, :, :]  # yapf:disable
-
-    def _poisson_cost(self, data, intensity):
-        return np.mean(intensity - data * np.log(intensity + 1e-9))
-
-    def _poisson_grad(self, data, farplane, intensity, overwrite=False):
-        return farplane * (
-            1 - data / (intensity + 1e-9)
-        )[..., np.newaxis, np.newaxis, :, :]  # yapf: disable
