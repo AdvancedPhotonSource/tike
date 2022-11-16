@@ -28,7 +28,8 @@ def gaussian(data, intensity) -> float:
     return cp.mean(_gaussian_fuse(data, intensity))
 
 
-def gaussian_grad(data, farplane, intensity, overwrite=False) -> cp.ndarray:
+cp.fuse()
+def gaussian_grad(data, farplane, intensity) -> cp.ndarray:
     """The gradient of the Gaussian model objective function
 
     Parameters
@@ -87,7 +88,8 @@ def poisson(data, intensity) -> float:
     return cp.mean(_poisson_fuse(data, intensity))
 
 
-def poisson_grad(data, farplane, intensity, overwrite=False) -> cp.ndarray:
+cp.fuse()
+def poisson_grad(data, farplane, intensity) -> cp.ndarray:
     """The gradient of the Poisson model objective function.
 
     Parameters
