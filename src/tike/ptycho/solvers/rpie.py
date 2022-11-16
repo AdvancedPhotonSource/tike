@@ -418,24 +418,19 @@ def _update_position(
         (1 - alpha) * position_update_denominator +
         alpha * max(position_update_denominator.max(), 1e-6))
 
-    step_x = step[..., 0]
-    step_y = step[..., 1]
-
     if position_options.use_adaptive_moment:
         logger.info(
             "position correction with ADAptive Momemtum acceleration enabled.")
-        step_x, position_options.vx, position_options.mx = tike.opt.adam(
-            step_x,
-            position_options.vx,
-            position_options.mx,
+        step, position_options.v, position_options.m = tike.opt.adam(
+            step,
+            position_options.v,
+            position_options.m,
             vdecay=position_options.vdecay,
-            mdecay=position_options.mdecay)
-        step_y, position_options.vy, position_options.my = tike.opt.adam(
-            step_y,
-            position_options.vy,
-            position_options.my,
-            vdecay=position_options.vdecay,
-            mdecay=position_options.mdecay)
+            mdecay=position_options.mdecay,
+        )
+
+    step_x = step[..., 0]
+    step_y = step[..., 1]
 
     # Step limit for stability
     _max_shift = cp.minimum(
