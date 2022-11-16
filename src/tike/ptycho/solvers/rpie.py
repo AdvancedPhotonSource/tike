@@ -421,47 +421,41 @@ def _update_position(
     alpha=0.05,
     max_shift=1,
 ):
-    step = position_update_numerator / (
-        (1 - alpha) * position_update_denominator +
-        alpha * max(position_update_denominator.max(), 1e-6))
+    # Regularize the positions based on the position reliability and distance
+    # from the original positions.
+    # relax = 1.0
+    # position_reliability = position_options.confidence
+    # Constrain more the probes in flat regions
+    # W = relax * (1 - (position_reliability / (1 + position_reliability)))
+    # W = position_reliability
+    W = 1.0
 
-    step_x = step[..., 0]
-    step_y = step[..., 1]
+    # reg_update = (position_options.initial_scan - scan)
+    # reg_update_denominator = cp.sum(reg_update**2, axis=-1, keepdims=True)
+
+    step = W * (
+            position_update_numerator
+        ) / (
+            (1 - alpha) * position_update_denominator +
+            alpha * max(position_update_denominator.max(), 1e-6)
+        )
+        # + (
+        #     (1 - W) * reg_update
+        # ) / (
+        #     (1 - alpha) * reg_update_denominator +
+        #     alpha * max(reg_update_denominator.max(), 1e-6)
+        # )
 
     if position_options.use_adaptive_moment:
         logger.info(
             "position correction with ADAptive Momemtum acceleration enabled.")
-        step_x, position_options.vx, position_options.mx = tike.opt.adam(
-            step_x,
-            position_options.vx,
-            position_options.mx,
-            vdecay=position_options.vdecay,
-            mdecay=position_options.mdecay)
-        step_y, position_options.vy, position_options.my = tike.opt.adam(
-            step_y,
-            position_options.vy,
-            position_options.my,
+        step, position_options.v, position_options.m = tike.opt.adam(
+            step,
+            position_options.v,
+            position_options.m,
             vdecay=position_options.vdecay,
             mdecay=position_options.mdecay)
 
-    # Step limit for stability
-    _max_shift = cp.minimum(
-        max_shift,
-        _mad(
-            cp.concatenate((step_x, step_y), axis=-1),
-            axis=-1,
-            keepdims=True,
-        ),
-    )
-    step_x = cp.maximum(-_max_shift, cp.minimum(step_x, _max_shift))
-    step_y = cp.maximum(-_max_shift, cp.minimum(step_y, _max_shift))
-
-    # Ensure net movement is zero
-    step_x -= cp.mean(step_x, axis=-1, keepdims=True)
-    step_y -= cp.mean(step_y, axis=-1, keepdims=True)
-    logger.info('position update norm is %+.3e', tike.linalg.norm(step_x))
-
-    scan[..., 0] -= step_x
-    scan[..., 1] -= step_y
+    scan -= step
 
     return scan, position_options
