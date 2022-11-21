@@ -188,7 +188,7 @@ class PositionOptions:
         self.initial_scan = self.initial_scan.astype('float32')
         if self.confidence is None:
             self.confidence = np.ones(
-                shape=self.initial_scan.shape,
+                shape=(*self.initial_scan.shape[:-1], 1),
                 dtype='float32',
             )
         if self.use_adaptive_moment:
@@ -274,7 +274,7 @@ class PositionOptions:
         self.initial_scan = new_initial_scan
         if self.confidence is not None:
             new_confidence = np.empty(
-                (*self.initial_scan.shape[:-2], max_index, 2),
+                (*self.initial_scan.shape[:-2], max_index, 1),
                 dtype=self.initial_scan.dtype,
             )
             new_confidence[..., :len_scan, :] = self.confidence

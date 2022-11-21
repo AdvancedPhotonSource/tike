@@ -44,6 +44,7 @@ class Propagation(CachedFFT, Operator):
         self.detector_shape = detector_shape
         self.cost = getattr(tike.ptycho.objective, f'{model}')
         self.grad = getattr(tike.ptycho.objective, f'{model}_grad')
+        self.model = model
 
     def fwd(self, nearplane, overwrite=False, **kwargs):
         """Forward Fourier-based free-space propagation operator."""
