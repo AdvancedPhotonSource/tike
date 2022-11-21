@@ -9,14 +9,17 @@ import numpy as np
 import scipy.optimize
 
 import tike.linalg
+import tike.opt
 
 logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass(frozen=True)
 class AffineTransform:
-    """Represents a transformation combination of shear, rotation, and scale."""
+    """Represents a 2D affine transformation."""
 
+    t0: float = 0.0
+    t1: float = 0.0
     scale0: float = 1.0
     scale1: float = 1.0
     angle: float = 0.0
@@ -25,12 +28,12 @@ class AffineTransform:
     def asarray(self) -> np.ndarray:
         """Return an 2x2 transformation matrix from shear, rotation, and scale.
 
-        This matrix is shear @ rotation @ scale from left to right.
+        This matrix is scale @ rotation @ shear from left to right.
         """
         return np.array(
             [
-                [1.0, 0.0],
-                [self.shear, 1.0],
+                [self.scale0, 0.0],
+                [0.0, self.scale1],
             ],
             dtype='float32',
         ) @ np.array(
@@ -41,18 +44,28 @@ class AffineTransform:
             dtype='float32',
         ) @ np.array(
             [
-                [self.scale0, 0.0],
-                [0.0, self.scale1],
+                [1.0, 0.0],
+                [self.shear, 1.0],
             ],
             dtype='float32',
         )
 
     def astuple(self) -> tuple:
         """Return the constructor parameters in a tuple."""
-        return (self.scale0, self.scale1, self.angle, self.shear)
+        return (
+            self.t0,
+            self.t1,
+            self.scale0,
+            self.scale1,
+            self.angle,
+            self.shear,
+        )
 
     def ascupy(self) -> cp.ndarray:
         return cp.asarray(self.asarray())
+
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        return (x + np.array((self.t0, self.t1))) @ self.asarray()
 
 
 def estimate_global_transformation(
@@ -60,22 +73,79 @@ def estimate_global_transformation(
         positions1: np.ndarray,
         weights: np.ndarray,
         transform: AffineTransform = AffineTransform(),
-) -> AffineTransform:
-    """Return an estimated global affine transformation."""
+) -> tuple[AffineTransform, float]:
+    """Use weighted least squares to estimate the global affine transformation."""
+    weights0 = weights / np.sum(weights)
 
     def weighted_position_residuals(args):
         """Return weighted distance from predicted to observed positions."""
         # Take the sqrt of the weights because these residuals will be squared
         # and summed by scipy
-        return ((positions0 @ AffineTransform(*args).asarray() - positions1) *
-                np.sqrt(weights)).flatten()
+        return (np.sqrt(weights0) *
+                (AffineTransform(*args)(positions0) - positions1)).flatten()
 
     result = scipy.optimize.least_squares(
         weighted_position_residuals,
         x0=transform.astuple(),
     )
+    return AffineTransform(*result.x), result.cost
 
-    return AffineTransform(*result.x)
+
+def estimate_global_transformation_ransac(
+    positions0: np.ndarray,
+    positions1: np.ndarray,
+    weights = None,
+    transform: AffineTransform = AffineTransform(),
+    min_sample: int = 3,
+    max_error: float = 32,
+    min_consensus: float = 0.75,
+    max_iter: int = 20,
+) -> tuple[AffineTransform, float]:
+    """Use RANSAC to estimate the global affine transformation.
+
+    Parameters
+    ----------
+    min_sample
+        The number of positions to use to initialize each candidate model
+    max_error
+        The distance from the model which determines inliar/outliar status
+    min_consensus
+        The proportion of points needed to accept model as consensus.
+    """
+    best_fitness = np.inf  # small fitness is good
+    # Choose a subset
+    for subset in tike.opt.randomizer.choice(
+            a=len(positions0),
+            size=(max_iter, min_sample),
+            replace=True,
+    ):
+        # Fit to subset
+        candidate_model, _ = estimate_global_transformation(
+            positions0=positions0[subset],
+            positions1=positions1[subset],
+            weights=1.0,
+            transform=transform,
+        )
+        # Determine inliars and outliars
+        position_error = np.linalg.norm(
+            candidate_model(positions0) - positions1,
+            axis=-1,
+        )
+        inliars = (position_error <= max_error)
+        # Check if consensus reached
+        if np.sum(inliars) / len(inliars) >= min_consensus:
+            # Refit with consensus inliars
+            candidate_model, fitness = estimate_global_transformation(
+                positions0=positions0[inliars],
+                positions1=positions1[inliars],
+                weights=1.0,
+                transform=candidate_model,
+            )
+            if fitness < best_fitness:
+                print(fitness)
+                best_fitness = fitness
+                transform = candidate_model
+    return transform, best_fitness
 
 
 @dataclasses.dataclass
