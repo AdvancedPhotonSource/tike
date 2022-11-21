@@ -483,32 +483,10 @@ class TestPtychoOnline(TestPtychoRecon, unittest.TestCase):
         return result
 
 
-@unittest.skipIf('TIKE_TEST_CI' in os.environ,
-                 reason="Just for user reference; not needed on CI.")
-class TestPtychoPositionReference(TestPtychoRecon, unittest.TestCase):
-    """Test various ptychography reconstruction methods position correction."""
-
-    post_name = '-position-ref'
-
-    def setUp(self, filename='data/position-error-247.pickle.bz2'):
-        """Load a dataset for reconstruction.
-
-        This position correction test dataset was collected by Tao Zhou at the
-        Center for Nanoscale Materials Hard X-ray Nanoprobe
-        (https://www.anl.gov/cnm).
-        """
-        dataset_file = os.path.join(testdir, filename)
-        with bz2.open(dataset_file, 'rb') as f:
-            [
-                self.data,
-                _,
-                self.scan,
-                self.probe,
-            ] = pickle.load(f)
-
-
 class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
     """Test various ptychography reconstruction methods position correction."""
+
+    post_name = "-position"
 
     def setUp(self, filename='data/position-error-247.pickle.bz2'):
         """Load a dataset for reconstruction.
@@ -544,12 +522,24 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
             )
             plt.savefig(os.path.join(fname, 'position-error.svg'))
             plt.close(f)
+
+            f = plt.figure(dpi=600)
+            plt.title(algorithm)
+            plt.scatter(
+                np.linalg.norm(self.scan_truth - result.scan, axis=-1),
+                result.position_options.confidence[..., 0],
+            )
+            plt.xlabel('position error')
+            plt.ylabel('position confidence')
+            plt.savefig(os.path.join(fname, 'position-confidence.svg'))
+            plt.close(f)
+
         except ImportError:
             pass
 
     def test_consistent_rpie_off(self):
         """Check ptycho.solver.rpie position correction."""
-        algorithm = f"{'mpi-' if _mpi_size > 1 else ''}rpie-position-off"
+        algorithm = f"{'mpi-' if _mpi_size > 1 else ''}rpie{self.post_name}"
         params = self.init_params()
         params.algorithm_options = tike.ptycho.RpieOptions(
             num_batch=5,
@@ -564,7 +554,7 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
 
     def test_consistent_rpie(self):
         """Check ptycho.solver.rpie position correction."""
-        algorithm = f"{'mpi-' if _mpi_size > 1 else ''}rpie-position"
+        algorithm = f"{'mpi-' if _mpi_size > 1 else ''}rpie{self.post_name}"
         params = self.init_params()
         params.algorithm_options = tike.ptycho.RpieOptions(
             num_batch=5,
@@ -573,6 +563,7 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
         params.position_options = PositionOptions(
             self.scan,
             use_adaptive_moment=True,
+            use_position_regularization=True,
         )
         params.probe_options = ProbeOptions()
         params.object_options = ObjectOptions()
@@ -584,7 +575,7 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
 
     def test_consistent_lstsq_grad(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
-        algorithm = f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad-position"
+        algorithm = f"{'mpi-' if _mpi_size > 1 else ''}lstsq_grad{self.post_name}"
         params = self.init_params()
         params.algorithm_options = tike.ptycho.LstsqOptions(
             num_batch=5,
@@ -593,6 +584,7 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
         params.position_options = PositionOptions(
             self.scan,
             use_adaptive_moment=True,
+            use_position_regularization=True,
         )
         params.probe_options = ProbeOptions()
         params.object_options = ObjectOptions()
@@ -601,6 +593,31 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
         },)
         _save_ptycho_result(result, algorithm)
         self._save_position_error_variance(result, algorithm)
+
+
+@unittest.skipIf('TIKE_TEST_CI' in os.environ,
+                 reason="Just for user reference; not needed on CI.")
+class TestPtychoPositionReference(TestPtychoPosition, unittest.TestCase):
+    """Test various ptychography reconstruction methods position correction."""
+
+    post_name = '-position-ref'
+
+    def setUp(self, filename='data/position-error-247.pickle.bz2'):
+        """Load a dataset for reconstruction.
+
+        This position correction test dataset was collected by Tao Zhou at the
+        Center for Nanoscale Materials Hard X-ray Nanoprobe
+        (https://www.anl.gov/cnm).
+        """
+        dataset_file = os.path.join(testdir, filename)
+        with bz2.open(dataset_file, 'rb') as f:
+            [
+                self.data,
+                _,
+                self.scan,
+                self.probe,
+            ] = pickle.load(f)
+        self.scan_truth = self.scan
 
 
 def _save_eigen_probe(output_folder, eigen_probe):
