@@ -18,18 +18,42 @@ logger = logging.getLogger(__name__)
 class AffineTransform:
     """Represents a 2D affine transformation."""
 
-    t0: float = 0.0
-    t1: float = 0.0
     scale0: float = 1.0
     scale1: float = 1.0
+    shear1: float = 0.0
     angle: float = 0.0
-    shear: float = 0.0
+    t0: float = 0.0
+    t1: float = 0.0
+
+    @classmethod
+    def fromarray(self, T: np.ndarray) -> AffineTransform:
+        """Return an Affine Transfrom from a 2x2 matrix.
+
+        Use decomposition method from Graphics Gems 2 Section 7.1
+        """
+        R = T.copy()
+        scale0 = np.linalg.norm(R[0])
+        R[0] /= scale0
+        shear1 = R[0] @ R[1]
+        R[1] -= shear1 * R[0]
+        scale1 = np.linalg.norm(R[1])
+        R[1] /= scale1
+        shear1 /= scale1
+        angle = np.arccos(R[0,0])
+        return AffineTransform(
+            scale0=scale0,
+            scale1=scale1,
+            shear1=shear1,
+            angle=angle,
+        )
 
     def asarray(self) -> np.ndarray:
-        """Return an 2x2 transformation matrix from shear, rotation, and scale.
+        """Return an 2x2 transformation matrix of scale, shear, rotation.
 
-        This matrix is scale @ rotation @ shear from left to right.
+        This matrix is scale @ shear @ rotate from left to right.
         """
+        cosx = np.cos(self.angle)
+        sinx = np.sin(self.angle)
         return np.array(
             [
                 [self.scale0, 0.0],
@@ -38,14 +62,14 @@ class AffineTransform:
             dtype='float32',
         ) @ np.array(
             [
-                [np.cos(self.angle), np.sin(self.angle)],
-                [-np.sin(self.angle), np.cos(self.angle)],
+                [1.0, 0.0],
+                [self.shear1, 1.0],
             ],
             dtype='float32',
         ) @ np.array(
             [
-                [1.0, 0.0],
-                [self.shear, 1.0],
+                [+cosx, -sinx],
+                [+sinx, +cosx],
             ],
             dtype='float32',
         )
@@ -53,19 +77,22 @@ class AffineTransform:
     def astuple(self) -> tuple:
         """Return the constructor parameters in a tuple."""
         return (
-            self.t0,
-            self.t1,
             self.scale0,
             self.scale1,
+            self.shear1,
             self.angle,
-            self.shear,
+            self.t0,
+            self.t1,
         )
 
     def ascupy(self) -> cp.ndarray:
         return cp.asarray(self.asarray())
 
-    def __call__(self, x: np.ndarray) -> np.ndarray:
-        return (x + np.array((self.t0, self.t1))) @ self.asarray()
+    def __call__(self, x: np.ndarray, gpu=False) -> np.ndarray:
+        if gpu:
+            return x @ self.ascupy()
+        return x @ self.asarray()
+
 
 
 def estimate_global_transformation(
