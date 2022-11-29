@@ -42,6 +42,25 @@ def test_position_join(N=245, num_batch=11):
     )
 
 
+def test_affine_translate():
+    T = tike.ptycho.AffineTransform(t0=11, t1=-5)
+    positions1 = np.array([
+        [0, 0],
+        [0, 1],
+        [1, 0],
+        [-1, -1],
+    ])
+    np.testing.assert_equal(
+        T(positions1),
+        [
+            [11, -5],
+            [11, -4],
+            [12, -5],
+            [10, -6],
+        ],
+    )
+
+
 def test_affine_scale():
     T = tike.ptycho.AffineTransform(scale0=11, scale1=0.5)
     positions1 = np.array([
@@ -64,7 +83,7 @@ def test_affine_scale():
 class TestAffineEstimation(unittest.TestCase):
 
     def setUp(self, N=213) -> None:
-        truth = [3.4567, 5.4321, 0.9876, 1.2345, 0, 0]
+        truth = [3.4567, 5.4321, 0.9876, 1.2345, 2.3456, -4.5678]
         T = tike.ptycho.AffineTransform(*truth)
         error = np.random.normal(size=(N, 2), scale=0.1)
         positions0 = (np.random.rand(*(N, 2)) - 0.5)
@@ -81,14 +100,15 @@ class TestAffineEstimation(unittest.TestCase):
         """Fit a linear operator instead of a composed affine matrix."""
 
         T = tike.linalg.lstsq(
-            a=self.positions0,
+            a=np.pad(self.positions0, ((0, 0), (0, 1)), constant_values=1),
             b=self.positions1,
-            weights=self.weights,
         )
 
         result = tike.ptycho.AffineTransform.fromarray(T)
 
-        print(result.asarray(), T)
+        print()
+        print(T)
+        print(result.asarray3())
 
         f = plt.figure(dpi=600)
         plt.title('weighted')

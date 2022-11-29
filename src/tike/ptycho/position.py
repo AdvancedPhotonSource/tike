@@ -31,7 +31,7 @@ class AffineTransform:
 
         Use decomposition method from Graphics Gems 2 Section 7.1
         """
-        R = T.copy()
+        R = T[:2, :2].copy()
         scale0 = np.linalg.norm(R[0])
         R[0] /= scale0
         shear1 = R[0] @ R[1]
@@ -45,10 +45,12 @@ class AffineTransform:
             scale1=scale1,
             shear1=shear1,
             angle=angle,
+            t0=T[2, 0],
+            t1=T[2, 1],
         )
 
     def asarray(self) -> np.ndarray:
-        """Return an 2x2 transformation matrix of scale, shear, rotation.
+        """Return an 2x2 matrix of scale, shear, rotation.
 
         This matrix is scale @ shear @ rotate from left to right.
         """
@@ -74,6 +76,17 @@ class AffineTransform:
             dtype='float32',
         )
 
+    def asarray3(self) -> np.ndarray:
+        """Return an 3x2 matrix of scale, shear, rotation, translation.
+
+        This matrix is scale @ shear @ rotate from left to right. Expects a
+        homogenous (z) coordinate of 1.
+        """
+        T = np.empty((3, 2), dtype='float32')
+        T[2] = (self.t0, self.t1)
+        T[:2, :2] = self.asarray()
+        return T
+
     def astuple(self) -> tuple:
         """Return the constructor parameters in a tuple."""
         return (
@@ -90,9 +103,8 @@ class AffineTransform:
 
     def __call__(self, x: np.ndarray, gpu=False) -> np.ndarray:
         if gpu:
-            return x @ self.ascupy()
-        return x @ self.asarray()
-
+            return x @ self.ascupy() + cp.array((self.t0, self.t1))
+        return (x @ self.asarray()) + np.array((self.t0, self.t1))
 
 
 def estimate_global_transformation(
