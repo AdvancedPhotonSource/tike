@@ -3,7 +3,7 @@
 __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
-import tike.ptycho.objective
+import tike.operators.cupy.objective as objective
 
 from .cache import CachedFFT
 from .operator import Operator
@@ -42,8 +42,9 @@ class Propagation(CachedFFT, Operator):
 
     def __init__(self, detector_shape, model='gaussian', **kwargs):
         self.detector_shape = detector_shape
-        self.cost = getattr(tike.ptycho.objective, f'{model}')
-        self.grad = getattr(tike.ptycho.objective, f'{model}_grad')
+        self.cost = getattr(objective, f'{model}')
+        self.grad = getattr(objective, f'{model}_grad')
+        self.model = model
 
     def fwd(self, nearplane, overwrite=False, **kwargs):
         """Forward Fourier-based free-space propagation operator."""
