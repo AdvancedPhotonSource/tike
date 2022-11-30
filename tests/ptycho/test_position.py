@@ -102,13 +102,10 @@ class TestAffineEstimation(unittest.TestCase):
         T = tike.linalg.lstsq(
             a=np.pad(self.positions0, ((0, 0), (0, 1)), constant_values=1),
             b=self.positions1,
+            weights=self.weights,
         )
 
         result = tike.ptycho.AffineTransform.fromarray(T)
-
-        print()
-        print(T)
-        print(result.asarray3())
 
         f = plt.figure(dpi=600)
         plt.title('weighted')
@@ -134,5 +131,4 @@ class TestAffineEstimation(unittest.TestCase):
         plt.savefig(os.path.join(fname, 'fit-weighted-linear.svg'))
         plt.close(f)
 
-        print(self.truth)
-        print(result.astuple())
+        np.testing.assert_almost_equal(result.asarray3(), T, decimal=3)
