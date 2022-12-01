@@ -785,7 +785,10 @@ def _update_position(
     # According to the manuscript, we can either shift the probe or the object
     # and they are equivalent (in theory). Here we shift the object because
     # that is what ptychoshelves does.
-    grad_y, grad_x = tike.ptycho.position._image_grad(op, patches)
+    grad_y, grad_x = cp.gradient(
+        -patches,
+        axis=(-2, -1),
+    )
 
     numerator = cp.sum(cp.real(diff * cp.conj(grad_x * main_probe)),
                        axis=(-2, -1))
