@@ -350,8 +350,6 @@ def _get_nearplane_gradients(
     # position_update_numerator = cp.zeros(scan.shape, dtype='float32')
     # position_update_denominator = cp.zeros(scan.shape, dtype='float32')
 
-    # grad_x, grad_y = tike.ptycho.position._image_grad(op, patches)
-
     for m in range(probe.shape[-3]):
 
         diff = nearplane[..., [m], :, :]
