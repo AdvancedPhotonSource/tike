@@ -6,6 +6,7 @@ import tike.linalg
 import tike.opt
 import tike.ptycho.position
 import tike.ptycho.probe
+import tike.operators.cupy.objective as objective
 
 from ..object import positivity_constraint, smoothness_constraint
 
@@ -168,7 +169,8 @@ def _update_wavefront(data, varying_probe, scan, psi, op=None):
         cp.square(cp.abs(farplane)),
         axis=list(range(1, farplane.ndim - 2)),
     )
-    cost = op.propagation.cost(data, intensity)
+    cost = getattr(objective, f'{op.propagation.model}_each_pattern')(data, intensity)
+    cost = cp.mean(cost)
     logger.info('%10s cost is %+12.5e', 'farplane', cost)
 
     farplane *= (cp.sqrt(data) / (cp.sqrt(intensity) + 1e-9))[..., None,
