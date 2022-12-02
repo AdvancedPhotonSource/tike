@@ -28,7 +28,6 @@ def gaussian(data, intensity) -> float:
     return cp.mean(_gaussian_fuse(data, intensity))
 
 
-cp.fuse()
 def gaussian_grad(data, farplane, intensity) -> cp.ndarray:
     """The gradient of the Gaussian model objective function
 
@@ -88,7 +87,6 @@ def poisson(data, intensity) -> float:
     return cp.mean(_poisson_fuse(data, intensity))
 
 
-cp.fuse()
 def poisson_grad(data, farplane, intensity) -> cp.ndarray:
     """The gradient of the Poisson model objective function.
 
@@ -124,3 +122,19 @@ def poisson_each_pattern(data, intensity) -> cp.ndarray:
         axis=(-2, -1),
         keepdims=False,
     )
+
+
+def _mad(x, **kwargs):
+    """Return the mean absolute deviation around the median."""
+    return cp.mean(cp.abs(x - cp.median(x, **kwargs)), **kwargs)
+
+
+def _gaussian_penalty_grad(x, x0, variance=1.0):
+    delta = x - x0
+    k = -2.0 / variance
+    return k * delta * cp.exp(0.5 * k * delta * delta)
+
+
+def _l2_penalty_grad(x, x0, variance=1.0):
+    delta = x - x0
+    return 2 * delta / variance

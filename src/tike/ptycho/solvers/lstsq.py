@@ -785,7 +785,7 @@ def _update_position(
     # According to the manuscript, we can either shift the probe or the object
     # and they are equivalent (in theory). Here we shift the object because
     # that is what ptychoshelves does.
-    grad_y, grad_x = cp.gradient(
+    grad_x, grad_y = cp.gradient(
         -patches,
         axis=(-2, -1),
     )
@@ -805,51 +805,20 @@ def _update_position(
     step_x = step_x[..., 0, 0]
     step_y = step_y[..., 0, 0]
 
+    step = cp.stack((step_x, step_y), axis=-1)
+
     # Momentum
     if position_options.use_adaptive_moment:
         logger.info(
             "position correction with ADAptive Momemtum acceleration enabled.")
-        step_x, position_options.vx, position_options.mx = tike.opt.adam(
-            step_x,
-            position_options.vx,
-            position_options.mx,
+        step, position_options.v, position_options.m = tike.opt.adam(
+            step,
+            position_options.v,
+            position_options.m,
             vdecay=position_options.vdecay,
-            mdecay=position_options.mdecay)
-        step_y, position_options.vy, position_options.my = tike.opt.adam(
-            step_y,
-            position_options.vy,
-            position_options.my,
-            vdecay=position_options.vdecay,
-            mdecay=position_options.mdecay)
+            mdecay=position_options.mdecay,
+        )
 
-    # Step limit for stability
-    _max_shift = cp.minimum(
-        max_shift,
-        _mad(
-            cp.concatenate((step_x, step_y), axis=-1),
-            axis=-1,
-            keepdims=True,
-        ),
-    )
-    step_x = cp.maximum(-_max_shift, cp.minimum(step_x, _max_shift))
-    step_y = cp.maximum(-_max_shift, cp.minimum(step_y, _max_shift))
-
-    # SYNCHRONIZE ME?
-    # step -= comm.Allreduce_mean(step)
-    # Ensure net movement is zero
-    step_x -= cp.mean(step_x, axis=-1, keepdims=True)
-    step_y -= cp.mean(step_y, axis=-1, keepdims=True)
-    logger.info('position update norm is %+.3e', tike.linalg.norm(step_x))
-
-    # print(cp.abs(step_x) > 0.5)
-    # print(cp.abs(step_y) > 0.5)
-
-    scan[..., 0] -= step_y
-    scan[..., 1] -= step_x
+    scan -= step
 
     return scan, position_options
-
-
-def _mad(x, **kwargs):
-    """Return the mean absolute deviation around the median."""
-    return cp.mean(cp.abs(x - cp.median(x, **kwargs)), **kwargs)

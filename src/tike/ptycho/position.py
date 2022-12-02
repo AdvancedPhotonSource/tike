@@ -43,7 +43,7 @@ class AffineTransform:
             return AffineTransform()
         R[1] /= scale1
         shear1 /= scale1
-        angle = xp.arccos(R[0,0])
+        angle = xp.arccos(R[0, 0])
         return AffineTransform(
             scale0=float(scale0),
             scale1=float(scale1),
@@ -108,10 +108,10 @@ class AffineTransform:
 
 
 def estimate_global_transformation(
-        positions0: np.ndarray,
-        positions1: np.ndarray,
-        weights: np.ndarray,
-        transform = None,
+    positions0: np.ndarray,
+    positions1: np.ndarray,
+    weights: np.ndarray,
+    transform=None,
 ) -> tuple[AffineTransform, float]:
     """Use weighted least squares to estimate the global affine transformation."""
     xp = cp.get_array_module(positions0)
@@ -120,8 +120,7 @@ def estimate_global_transformation(
             a=xp.pad(positions0, ((0, 0), (0, 1)), constant_values=1),
             b=positions1,
             weights=weights,
-        )
-    )
+        ))
     return result, np.linalg.norm(result(positions0) - positions1)
 
 
@@ -201,12 +200,6 @@ class PositionOptions:
     use_position_regularization: bool = False
     """Whether the positions are constrained to fit a random error plus affine
     error model."""
-
-    penalty_weight: float = 0
-    """Weight of the Gaussian penalty term."""
-
-    penalty_variance: float = 1.0
-    """Variance of the Gaussian penalty term."""
 
     transform: AffineTransform = AffineTransform()
     """Global transform of positions."""

@@ -84,7 +84,11 @@ def rpie(
         beigen_probe = None
         beigen_weights = None
 
-        (nearplane, cost, bposition_options,) = zip(*comm.pool.map(
+        (
+            nearplane,
+            cost,
+            bposition_options,
+        ) = zip(*comm.pool.map(
             _update_wavefront,
             bdata,
             unique_probe,
@@ -163,14 +167,24 @@ def rpie(
     return parameters
 
 
-def _update_wavefront(data, varying_probe, scan, psi, position_options, op=None,):
+def _update_wavefront(
+    data,
+    varying_probe,
+    scan,
+    psi,
+    position_options,
+    op=None,
+):
 
     farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
     intensity = cp.sum(
         cp.square(cp.abs(farplane)),
         axis=list(range(1, farplane.ndim - 2)),
     )
-    cost = getattr(objective, f'{op.propagation.model}_each_pattern')(data, intensity)
+    cost = getattr(objective, f'{op.propagation.model}_each_pattern')(
+        data,
+        intensity,
+    )
     if position_options is not None:
         position_options.confidence[..., 0] = cost
     cost = cp.mean(cost)
@@ -240,12 +254,11 @@ def _update_nearplane(
             psi_update_denominator = comm.reduce(psi_update_denominator,
                                                  'gpu')[0]
 
-        dpsi = psi_update_numerator / (
-            (1 - alpha) * psi_update_denominator +
-            alpha * psi_update_denominator.max(
-                axis=(-2, -1),
-                keepdims=True,
-            ))
+        dpsi = psi_update_numerator / ((1 - alpha) * psi_update_denominator +
+                                       alpha * psi_update_denominator.max(
+                                           axis=(-2, -1),
+                                           keepdims=True,
+                                       ))
         if object_options.use_adaptive_moment:
             (
                 dpsi,
@@ -409,22 +422,6 @@ def _get_nearplane_gradients(
     )
 
 
-def _mad(x, **kwargs):
-    """Return the mean absolute deviation around the median."""
-    return cp.mean(cp.abs(x - cp.median(x, **kwargs)), **kwargs)
-
-
-def _gaussian_penalty_grad(x, x0, variance=1.0):
-    delta = x - x0
-    k = -2.0 / variance
-    return k * delta * cp.exp(0.5 * k * delta * delta)
-
-
-def _l2_penalty_grad(x, x0, variance=1.0):
-    delta = x - x0
-    return 2 * delta / variance
-
-
 def _update_position(
     scan,
     position_options,
@@ -433,30 +430,9 @@ def _update_position(
     alpha=0.05,
     max_shift=1,
 ):
-    # Regularize the positions based on the position reliability and distance
-    # from the original positions.
-    # relax = 1.0
-    # position_reliability = position_options.confidence
-    # Constrain more the probes in flat regions
-    # W = relax * (1 - (position_reliability / (1 + position_reliability)))
-    # W = position_reliability
-    W = 1.0
-
-    # reg_update = (position_options.initial_scan - scan)
-    # reg_update_denominator = cp.sum(reg_update**2, axis=-1, keepdims=True)
-
-    step = W * (
-            position_update_numerator
-        ) / (
-            (1 - alpha) * position_update_denominator +
-            alpha * max(position_update_denominator.max(), 1e-6)
-        )
-        # + (
-        #     (1 - W) * reg_update
-        # ) / (
-        #     (1 - alpha) * reg_update_denominator +
-        #     alpha * max(reg_update_denominator.max(), 1e-6)
-        # )
+    step = (position_update_numerator) / (
+        (1 - alpha) * position_update_denominator +
+        alpha * max(position_update_denominator.max(), 1e-6))
 
     if position_options.use_adaptive_moment:
         logger.info(
@@ -466,7 +442,8 @@ def _update_position(
             position_options.v,
             position_options.m,
             vdecay=position_options.vdecay,
-            mdecay=position_options.mdecay)
+            mdecay=position_options.mdecay,
+        )
 
     scan -= step
 
