@@ -450,6 +450,7 @@ class Reconstruction():
 
                 # TODO: Regularize on all GPUs
                 (
+                    self._device_parameters.scan[0],
                     self._device_parameters.position_options[0]
                 ) = affine_position_regularization(
                     op=self.operator,

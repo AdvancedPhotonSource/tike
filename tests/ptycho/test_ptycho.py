@@ -539,7 +539,7 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
 
     def test_consistent_rpie_off(self):
         """Check ptycho.solver.rpie position correction."""
-        algorithm = f"{'mpi-' if _mpi_size > 1 else ''}rpie{self.post_name}"
+        algorithm = f"{'mpi-' if _mpi_size > 1 else ''}rpie-off{self.post_name}"
         params = self.init_params()
         params.algorithm_options = tike.ptycho.RpieOptions(
             num_batch=5,

@@ -524,7 +524,7 @@ def affine_position_regularization(
     original,
     updated,
     position_options,
-    max_error=10,
+    max_error=32,
 ):
     """Regularize position updates with an affine deformation constraint.
 
@@ -561,20 +561,15 @@ def affine_position_regularization(
         max_error=max_error,
     )
     position_options.transform = X
-    print(X)
-
-    return position_options
-
     # # Regularize the positions based on the position reliability and distance
     # # from the original positions.
     # relax = 0.1
     # # Constrain more the probes in flat regions
     # W = relax * (1 - (position_reliability / (1 + position_reliability)))
-    # # Penalize positions with a large random error
+    # Penalize positions with a large random error
     # if max_error is not None:
-    #     random_error = abs(updated - original @ X.ascupy())
-    #     W = cp.minimum(
-    #         10 * relax,
-    #         W + cp.maximum(0, random_error - max_error)**2 / max_error**2,
-    #     )
-    # return (1 - W) * updated + W * original @ X.ascupy(), position_options
+    #     random_error = cp.linalg.norm(X(original, gpu=True) - updated)
+    #     outliars = (random_error > max_error)
+    #     updated[outliars] = (1 - relax) * updated[outliars] + relax * X(original[outliars], gpu=True)
+    #     position_options._momentum[outliars] = 0
+    return updated, position_options
