@@ -30,48 +30,49 @@ class AffineTransform:
 
         Use decomposition method from Graphics Gems 2 Section 7.1
         """
+        xp = cp.get_array_module(T)
         R = T[:2, :2].copy()
-        scale0 = np.linalg.norm(R[0])
+        scale0 = xp.linalg.norm(R[0])
         if scale0 <= 0:
             return AffineTransform()
         R[0] /= scale0
         shear1 = R[0] @ R[1]
         R[1] -= shear1 * R[0]
-        scale1 = np.linalg.norm(R[1])
+        scale1 = xp.linalg.norm(R[1])
         if scale1 <= 0:
             return AffineTransform()
         R[1] /= scale1
         shear1 /= scale1
-        angle = np.arccos(R[0,0])
+        angle = xp.arccos(R[0,0])
         return AffineTransform(
-            scale0=scale0,
-            scale1=scale1,
-            shear1=shear1,
-            angle=angle,
+            scale0=float(scale0),
+            scale1=float(scale1),
+            shear1=float(shear1),
+            angle=float(angle),
             t0=T[2, 0],
             t1=T[2, 1],
         )
 
-    def asarray(self) -> np.ndarray:
+    def asarray(self, xp=np) -> np.ndarray:
         """Return an 2x2 matrix of scale, shear, rotation.
 
         This matrix is scale @ shear @ rotate from left to right.
         """
-        cosx = np.cos(self.angle)
-        sinx = np.sin(self.angle)
-        return np.array(
+        cosx = xp.cos(self.angle)
+        sinx = xp.sin(self.angle)
+        return xp.array(
             [
                 [self.scale0, 0.0],
                 [0.0, self.scale1],
             ],
             dtype='float32',
-        ) @ np.array(
+        ) @ xp.array(
             [
                 [1.0, 0.0],
                 [self.shear1, 1.0],
             ],
             dtype='float32',
-        ) @ np.array(
+        ) @ xp.array(
             [
                 [+cosx, -sinx],
                 [+sinx, +cosx],
@@ -79,15 +80,15 @@ class AffineTransform:
             dtype='float32',
         )
 
-    def asarray3(self) -> np.ndarray:
+    def asarray3(self, xp=np) -> np.ndarray:
         """Return an 3x2 matrix of scale, shear, rotation, translation.
 
         This matrix is scale @ shear @ rotate from left to right. Expects a
         homogenous (z) coordinate of 1.
         """
-        T = np.empty((3, 2), dtype='float32')
+        T = xp.empty((3, 2), dtype='float32')
         T[2] = (self.t0, self.t1)
-        T[:2, :2] = self.asarray()
+        T[:2, :2] = self.asarray(xp)
         return T
 
     def astuple(self) -> tuple:
@@ -101,13 +102,9 @@ class AffineTransform:
             self.t1,
         )
 
-    def ascupy(self) -> cp.ndarray:
-        return cp.asarray(self.asarray())
-
     def __call__(self, x: np.ndarray, gpu=False) -> np.ndarray:
-        if gpu:
-            return (x @ self.ascupy()) + cp.array((self.t0, self.t1))
-        return (x @ self.asarray()) + np.array((self.t0, self.t1))
+        xp = cp.get_array_module(x)
+        return (x @ self.asarray(xp)) + xp.array((self.t0, self.t1))
 
 
 def estimate_global_transformation(
@@ -117,9 +114,10 @@ def estimate_global_transformation(
         transform = None,
 ) -> tuple[AffineTransform, float]:
     """Use weighted least squares to estimate the global affine transformation."""
+    xp = cp.get_array_module(positions0)
     result = AffineTransform.fromarray(
         tike.linalg.lstsq(
-            a=np.pad(positions0, ((0, 0), (0, 1)), constant_values=1),
+            a=xp.pad(positions0, ((0, 0), (0, 1)), constant_values=1),
             b=positions1,
             weights=weights,
         )
