@@ -550,26 +550,11 @@ def affine_position_regularization(
     This algorithm copied from ptychoshelves.
 
     """
-    # Use weighted least squares to find the global affine transformation, X.
-    # The two columns of X are independent; we solve separtely so we can use
-    # different weights in each direction.
     X, _ = estimate_global_transformation_ransac(
         positions0=original.get(),
         positions1=updated.get(),
-        weights=position_options.confidence.get(),
         transform=position_options.transform,
         max_error=max_error,
     )
     position_options.transform = X
-    # # Regularize the positions based on the position reliability and distance
-    # # from the original positions.
-    # relax = 0.1
-    # # Constrain more the probes in flat regions
-    # W = relax * (1 - (position_reliability / (1 + position_reliability)))
-    # Penalize positions with a large random error
-    # if max_error is not None:
-    #     random_error = cp.linalg.norm(X(original, gpu=True) - updated)
-    #     outliars = (random_error > max_error)
-    #     updated[outliars] = (1 - relax) * updated[outliars] + relax * X(original[outliars], gpu=True)
-    #     position_options._momentum[outliars] = 0
     return updated, position_options
