@@ -6,7 +6,6 @@ import logging
 
 import cupy as cp
 import numpy as np
-import scipy.optimize
 
 import tike.linalg
 import tike.opt
@@ -33,10 +32,14 @@ class AffineTransform:
         """
         R = T[:2, :2].copy()
         scale0 = np.linalg.norm(R[0])
+        if scale0 <= 0:
+            return AffineTransform()
         R[0] /= scale0
         shear1 = R[0] @ R[1]
         R[1] -= shear1 * R[0]
         scale1 = np.linalg.norm(R[1])
+        if scale1 <= 0:
+            return AffineTransform()
         R[1] /= scale1
         shear1 /= scale1
         angle = np.arccos(R[0,0])
@@ -103,7 +106,7 @@ class AffineTransform:
 
     def __call__(self, x: np.ndarray, gpu=False) -> np.ndarray:
         if gpu:
-            return x @ self.ascupy() + cp.array((self.t0, self.t1))
+            return (x @ self.ascupy()) + cp.array((self.t0, self.t1))
         return (x @ self.asarray()) + np.array((self.t0, self.t1))
 
 
@@ -111,29 +114,23 @@ def estimate_global_transformation(
         positions0: np.ndarray,
         positions1: np.ndarray,
         weights: np.ndarray,
-        transform: AffineTransform = AffineTransform(),
+        transform = None,
 ) -> tuple[AffineTransform, float]:
     """Use weighted least squares to estimate the global affine transformation."""
-    weights0 = weights / np.sum(weights)
-
-    def weighted_position_residuals(args):
-        """Return weighted distance from predicted to observed positions."""
-        # Take the sqrt of the weights because these residuals will be squared
-        # and summed by scipy
-        return (np.sqrt(weights0) *
-                (AffineTransform(*args)(positions0) - positions1)).flatten()
-
-    result = scipy.optimize.least_squares(
-        weighted_position_residuals,
-        x0=transform.astuple(),
+    result = AffineTransform.fromarray(
+        tike.linalg.lstsq(
+            a=np.pad(positions0, ((0, 0), (0, 1)), constant_values=1),
+            b=positions1,
+            weights=weights,
+        )
     )
-    return AffineTransform(*result.x), result.cost
+    return result, np.linalg.norm(result(positions0) - positions1)
 
 
 def estimate_global_transformation_ransac(
     positions0: np.ndarray,
     positions1: np.ndarray,
-    weights = None,
+    weights: np.ndarray = None,
     transform: AffineTransform = AffineTransform(),
     min_sample: int = 3,
     max_error: float = 32,
@@ -162,7 +159,7 @@ def estimate_global_transformation_ransac(
         candidate_model, _ = estimate_global_transformation(
             positions0=positions0[subset],
             positions1=positions1[subset],
-            weights=1.0,
+            weights=weights,
             transform=transform,
         )
         # Determine inliars and outliars
@@ -177,11 +174,10 @@ def estimate_global_transformation_ransac(
             candidate_model, fitness = estimate_global_transformation(
                 positions0=positions0[inliars],
                 positions1=positions1[inliars],
-                weights=1.0,
+                weights=weights,
                 transform=candidate_model,
             )
             if fitness < best_fitness:
-                print(fitness)
                 best_fitness = fitness
                 transform = candidate_model
     return transform, best_fitness
