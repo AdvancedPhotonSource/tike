@@ -534,6 +534,29 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
             plt.savefig(os.path.join(fname, 'position-confidence.svg'))
             plt.close(f)
 
+            f = plt.figure(dpi=600)
+            plt.title(algorithm)
+            plt.scatter(
+                result.position_options.initial_scan[..., 0],
+                result.position_options.initial_scan[..., 1],
+                marker='o'
+            )
+            plt.scatter(
+                result.scan[..., 0],
+                result.scan[..., 1],
+                marker='o',
+                color='red',
+                facecolor='None',
+            )
+            plt.scatter(
+                result.position_options.transform(result.position_options.initial_scan)[..., 0],
+                result.position_options.transform(result.position_options.initial_scan)[..., 1],
+                marker='x'
+            )
+            plt.legend(['initial', 'result', 'global'])
+            plt.savefig(os.path.join(fname, 'position-models.svg'))
+            plt.close(f)
+
         except ImportError:
             pass
 
