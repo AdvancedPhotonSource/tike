@@ -97,7 +97,7 @@ class ProbeOptions:
     Degree > 1 is more like a top-hat than a gaussian.
     """
 
-    additional_probe_penalty: float = 1.0
+    additional_probe_penalty: float = 0.0
     """Penalty applied to the last probe for existing.
 
     This penalty encourages the probe energy to concentrate in the lower order
