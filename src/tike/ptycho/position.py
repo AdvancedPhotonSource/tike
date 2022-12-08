@@ -115,12 +115,16 @@ def estimate_global_transformation(
 ) -> tuple[AffineTransform, float]:
     """Use weighted least squares to estimate the global affine transformation."""
     xp = cp.get_array_module(positions0)
-    result = AffineTransform.fromarray(
-        tike.linalg.lstsq(
-            a=xp.pad(positions0, ((0, 0), (0, 1)), constant_values=1),
-            b=positions1,
-            weights=weights,
-        ))
+    try:
+        result = AffineTransform.fromarray(
+            tike.linalg.lstsq(
+                a=xp.pad(positions0, ((0, 0), (0, 1)), constant_values=1),
+                b=positions1,
+                weights=weights,
+            ))
+    except np.linalg.LinAlgError:
+        # Catch singular matrix when the positions are colinear
+        result = AffineTransform()
     return result, np.linalg.norm(result(positions0) - positions1)
 
 
@@ -129,7 +133,7 @@ def estimate_global_transformation_ransac(
     positions1: np.ndarray,
     weights: np.ndarray = None,
     transform: AffineTransform = AffineTransform(),
-    min_sample: int = 3,
+    min_sample: int = 4,
     max_error: float = 32,
     min_consensus: float = 0.75,
     max_iter: int = 20,
