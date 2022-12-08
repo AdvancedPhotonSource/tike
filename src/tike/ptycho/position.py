@@ -408,20 +408,24 @@ def check_allowed_positions(scan: np.array, psi: np.array, probe_shape: tuple):
         interpolation near the edges of the field of view.
     """
     int_scan = scan // 1
-    less_than_one = int_scan < 1
-    greater_than_psi = np.stack(
-        (int_scan[..., -2] >= psi.shape[-2] - probe_shape[-2],
-         int_scan[..., -1] >= psi.shape[-1] - probe_shape[-1]),
-        -1,
+    min_corner = np.min(int_scan, axis=-2)
+    max_corner = np.max(int_scan, axis=-2)
+    valid_min_corner = (1, 1)
+    valid_max_corner = (
+        psi.shape[-2] - probe_shape[-2] - 1,
+        psi.shape[-1] - probe_shape[-1] - 1
     )
-    if np.any(less_than_one) or np.any(greater_than_psi):
-        x = np.logical_or(less_than_one, greater_than_psi)
+    if (
+        np.any(min_corner < valid_min_corner)
+        or np.any(max_corner > valid_max_corner)
+    ):
         raise ValueError(
-            "Scan positions must be >= 2 and "
-            "scan positions + 2 + probe.shape must be < object.shape. "
+            "Scan positions must be >= 1 and "
+            "scan positions + 1 + probe.shape must be <= psi.shape. "
             "psi may be too small or the scan positions may be scaled wrong. "
-            "These scan positions exist outside field of view:\n"
-            f"{scan[np.logical_or(x[..., 0], x[..., 1])]}")
+            f"The span of scan is {min_corner} to {max_corner}, and "
+            f"the shape of psi is {psi.shape}."
+        )
 
 
 def update_positions_pd(operator, data, psi, probe, scan,
