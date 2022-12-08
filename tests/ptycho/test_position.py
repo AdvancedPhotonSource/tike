@@ -6,6 +6,7 @@ import os.path
 import unittest
 
 fname = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'result')
+os.makedirs(fname, exist_ok=True)
 
 
 def test_position_join(N=245, num_batch=11):
