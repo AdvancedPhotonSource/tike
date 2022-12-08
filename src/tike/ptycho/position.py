@@ -204,6 +204,10 @@ class PositionOptions:
     transform: AffineTransform = AffineTransform()
     """Global transform of positions."""
 
+    origin: tuple[float, float] = (0, 0)
+    """The rotation center of the transformation. This shift is applied to the
+    scan positions before computing the global transformation."""
+
     confidence: np.ndarray = dataclasses.field(
         init=True,
         default_factory=lambda: None,
@@ -545,11 +549,10 @@ def affine_position_regularization(
     This algorithm copied from ptychoshelves.
 
     """
-    X, _ = estimate_global_transformation_ransac(
-        positions0=original.get(),
-        positions1=updated.get(),
+    position_options.transform, _ = estimate_global_transformation_ransac(
+        positions0=original.get() - position_options.origin,
+        positions1=updated.get() - position_options.origin,
         transform=position_options.transform,
         max_error=max_error,
     )
-    position_options.transform = X
     return updated, position_options
