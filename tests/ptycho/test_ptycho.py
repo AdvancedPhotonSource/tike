@@ -46,6 +46,9 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
+import matplotlib
+matplotlib.use('Agg')
+
 import bz2
 import lzma
 import os
@@ -109,6 +112,12 @@ class TestPtychoUtils(unittest.TestCase):
         for scan in np.array([[1, 7], [1, 0.9], [0.9, 1], [1, 0]]):
             with self.assertRaises(ValueError):
                 tike.ptycho.check_allowed_positions(scan, psi, probe.shape)
+
+    def test_get_padded_object(self):
+        probe = np.empty((8, 3, 4))
+        scan = (np.random.rand(15, 2) * 100) - 50
+        psi, scan = tike.ptycho.object.get_padded_object(scan, probe)
+        tike.ptycho.check_allowed_positions(scan, psi, probe_shape=probe.shape)
 
     def test_split_by_scan(self):
         scan = np.mgrid[0:3, 0:3].reshape(2, -1)
