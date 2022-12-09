@@ -419,21 +419,16 @@ def check_allowed_positions(scan: np.array, psi: np.array, probe_shape: tuple):
     min_corner = np.min(int_scan, axis=-2)
     max_corner = np.max(int_scan, axis=-2)
     valid_min_corner = (1, 1)
-    valid_max_corner = (
-        psi.shape[-2] - probe_shape[-2] - 1,
-        psi.shape[-1] - probe_shape[-1] - 1
-    )
-    if (
-        np.any(min_corner < valid_min_corner)
-        or np.any(max_corner > valid_max_corner)
-    ):
+    valid_max_corner = (psi.shape[-2] - probe_shape[-2] - 1,
+                        psi.shape[-1] - probe_shape[-1] - 1)
+    if (np.any(min_corner < valid_min_corner)
+            or np.any(max_corner > valid_max_corner)):
         raise ValueError(
             "Scan positions must be >= 1 and "
             "scan positions + 1 + probe.shape must be <= psi.shape. "
             "psi may be too small or the scan positions may be scaled wrong. "
             f"The span of scan is {min_corner} to {max_corner}, and "
-            f"the shape of psi is {psi.shape}."
-        )
+            f"the shape of psi is {psi.shape}.")
 
 
 def update_positions_pd(operator, data, psi, probe, scan,
