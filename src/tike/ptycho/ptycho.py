@@ -449,15 +449,18 @@ class Reconstruction():
                     .use_position_regularization):
 
                 # TODO: Regularize on all GPUs
-                self._device_parameters.scan[
-                    0], _ = affine_position_regularization(
-                        self.operator,
-                        self._device_parameters.psi[0],
-                        self._device_parameters.probe[0],
-                        self._device_parameters.position_options
-                        .initial_scan[0],
-                        self._device_parameters.scan[0],
-                    )
+                (self._device_parameters.scan[0],
+                 self._device_parameters.position_options[0]
+                ) = affine_position_regularization(
+                    op=self.operator,
+                    psi=self._device_parameters.psi[0],
+                    probe=self._device_parameters.probe[0],
+                    original=self._device_parameters.position_options[0]
+                    .initial_scan,
+                    updated=self._device_parameters.scan[0],
+                    position_options=self._device_parameters
+                    .position_options[0],
+                )
 
             self._device_parameters.algorithm_options.times.append(
                 time.perf_counter() - start)
@@ -814,7 +817,7 @@ def reconstruct_multigrid(
     num_gpu: typing.Union[int, typing.Tuple[int, ...]] = 1,
     use_mpi: bool = False,
     num_levels: int = 3,
-    interp = None,
+    interp=None,
 ) -> solvers.PtychoParameters:
     """Solve the ptychography problem using a multi-grid method.
 

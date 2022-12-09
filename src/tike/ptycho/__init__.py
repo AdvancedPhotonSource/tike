@@ -1,7 +1,7 @@
 """Functions for ptychography."""
 from .fresnel import *
 from .object import ObjectOptions
-from .position import check_allowed_positions, PositionOptions
+from .position import *
 from .probe import ProbeOptions
 from .ptycho import *
 from .solvers import *

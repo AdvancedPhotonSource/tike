@@ -72,7 +72,7 @@ def rpie(
         bscan = comm.pool.map(tike.opt.get_batch, scan, batches, n=n)
 
         if position_options is None:
-            bposition_options = None
+            bposition_options = [None for b in batches]
         else:
             bposition_options = comm.pool.map(
                 tike.ptycho.position.PositionOptions.split,
@@ -84,12 +84,17 @@ def rpie(
         beigen_probe = None
         beigen_weights = None
 
-        nearplane, cost = zip(*comm.pool.map(
+        (
+            nearplane,
+            cost,
+            bposition_options,
+        ) = zip(*comm.pool.map(
             _update_wavefront,
             bdata,
             unique_probe,
             bscan,
             psi,
+            bposition_options,
             op=op,
         ))
 
@@ -162,14 +167,26 @@ def rpie(
     return parameters
 
 
-def _update_wavefront(data, varying_probe, scan, psi, op=None):
+def _update_wavefront(
+    data,
+    varying_probe,
+    scan,
+    psi,
+    position_options,
+    op=None,
+):
 
     farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
     intensity = cp.sum(
         cp.square(cp.abs(farplane)),
         axis=list(range(1, farplane.ndim - 2)),
     )
-    cost = getattr(objective, f'{op.propagation.model}_each_pattern')(data, intensity)
+    cost = getattr(objective, f'{op.propagation.model}_each_pattern')(
+        data,
+        intensity,
+    )
+    if position_options is not None:
+        position_options.confidence[..., 0] = cost
     cost = cp.mean(cost)
     logger.info('%10s cost is %+12.5e', 'farplane', cost)
 
@@ -179,7 +196,7 @@ def _update_wavefront(data, varying_probe, scan, psi, op=None):
     farplane = op.propagation.adj(farplane, overwrite=True)
 
     pad, end = op.diffraction.pad, op.diffraction.end
-    return farplane[..., pad:end, pad:end], cost
+    return farplane[..., pad:end, pad:end], cost, position_options
 
 
 def _update_nearplane(
@@ -196,7 +213,7 @@ def _update_nearplane(
     recover_probe,
     step_length=1.0,
     algorithm_options=None,
-    position_options=None,
+    position_options=[None],
     *,
     probe_options=None,
     object_options=None,
@@ -220,7 +237,7 @@ def _update_nearplane(
         probe,
         recover_psi=recover_psi,
         recover_probe=recover_probe,
-        recover_positions=position_options is not None,
+        recover_positions=position_options[0] is not None,
         op=op,
     )))
 
@@ -237,12 +254,11 @@ def _update_nearplane(
             psi_update_denominator = comm.reduce(psi_update_denominator,
                                                  'gpu')[0]
 
-        dpsi = psi_update_numerator / (
-            (1 - alpha) * psi_update_denominator +
-            alpha * psi_update_denominator.max(
-                axis=(-2, -1),
-                keepdims=True,
-            ))
+        dpsi = psi_update_numerator / ((1 - alpha) * psi_update_denominator +
+                                       alpha * psi_update_denominator.max(
+                                           axis=(-2, -1),
+                                           keepdims=True,
+                                       ))
         if object_options.use_adaptive_moment:
             (
                 dpsi,
@@ -290,7 +306,7 @@ def _update_nearplane(
 
         probe = comm.pool.bcast([probe[0]])
 
-    if position_options:
+    if position_options[0] is not None:
         (
             scan_,
             position_options,
@@ -406,11 +422,6 @@ def _get_nearplane_gradients(
     )
 
 
-def _mad(x, **kwargs):
-    """Return the mean absolute deviation around the median."""
-    return cp.mean(cp.abs(x - cp.median(x, **kwargs)), **kwargs)
-
-
 def _update_position(
     scan,
     position_options,
@@ -419,7 +430,7 @@ def _update_position(
     alpha=0.05,
     max_shift=1,
 ):
-    step = position_update_numerator / (
+    step = (position_update_numerator) / (
         (1 - alpha) * position_update_denominator +
         alpha * max(position_update_denominator.max(), 1e-6))
 
@@ -434,27 +445,6 @@ def _update_position(
             mdecay=position_options.mdecay,
         )
 
-    step_x = step[..., 0]
-    step_y = step[..., 1]
-
-    # Step limit for stability
-    _max_shift = cp.minimum(
-        max_shift,
-        _mad(
-            cp.concatenate((step_x, step_y), axis=-1),
-            axis=-1,
-            keepdims=True,
-        ),
-    )
-    step_x = cp.maximum(-_max_shift, cp.minimum(step_x, _max_shift))
-    step_y = cp.maximum(-_max_shift, cp.minimum(step_y, _max_shift))
-
-    # Ensure net movement is zero
-    step_x -= cp.mean(step_x, axis=-1, keepdims=True)
-    step_y -= cp.mean(step_y, axis=-1, keepdims=True)
-    logger.info('position update norm is %+.3e', tike.linalg.norm(step_x))
-
-    scan[..., 0] -= step_x
-    scan[..., 1] -= step_y
+    scan -= step
 
     return scan, position_options
