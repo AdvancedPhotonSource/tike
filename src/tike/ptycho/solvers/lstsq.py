@@ -767,7 +767,6 @@ def _update_residuals(R, eigen_probe, axis, c, m):
     )
     return R
 
-
 def _update_position(
     position_options,
     diff,
@@ -785,10 +784,7 @@ def _update_position(
     # According to the manuscript, we can either shift the probe or the object
     # and they are equivalent (in theory). Here we shift the object because
     # that is what ptychoshelves does.
-    grad_x, grad_y = cp.gradient(
-        -patches,
-        axis=(-2, -1),
-    )
+    grad_x, grad_y = tike.ptycho.position.gaussian_gradient(patches)
 
     numerator = cp.sum(cp.real(diff * cp.conj(grad_x * main_probe)),
                        axis=(-2, -1))

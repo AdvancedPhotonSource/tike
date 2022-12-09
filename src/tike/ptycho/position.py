@@ -5,6 +5,7 @@ import dataclasses
 import logging
 
 import cupy as cp
+import cupyx.scipy.ndimage
 import numpy as np
 
 import tike.linalg
@@ -555,3 +556,35 @@ def affine_position_regularization(
         max_error=max_error,
     )
     return updated, position_options
+
+
+def gaussian_gradient(
+    x: cp.ndarray,
+    sigma: float = 0.333,
+) -> tuple[cp.ndarray, cp.ndarray]:
+    """Return 1st order Gaussian derivatives of the last two dimensions of x.
+
+    Don't use scipy.ndimage.gaussian_filter because we only want derivatives
+    along last two, not all dimensions.
+
+    References
+    ----------
+    https://www.crisluengo.net/archives/22/
+
+    """
+    return (
+        cupyx.scipy.ndimage.gaussian_filter1d(
+            -x,
+            sigma=sigma,
+            order=1,
+            axis=-2,
+            mode='nearest',
+        ),
+        cupyx.scipy.ndimage.gaussian_filter1d(
+            -x,
+            sigma=sigma,
+            order=1,
+            axis=-1,
+            mode='nearest',
+        ),
+    )
