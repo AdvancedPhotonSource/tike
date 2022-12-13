@@ -352,10 +352,7 @@ def _get_nearplane_gradients(
     position_update_numerator = cp.zeros(scan.shape, dtype='float32')
     position_update_denominator = cp.zeros(scan.shape, dtype='float32')
 
-    grad_x, grad_y = cp.gradient(
-        -patches,
-        axis=(-2, -1),
-    )
+    grad_x, grad_y = tike.ptycho.position.gaussian_gradient(patches)
 
     for m in range(probe.shape[-3]):
 

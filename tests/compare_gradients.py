@@ -6,6 +6,7 @@ import libimage
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 def _image_grad(x):
     """Return the gradient of the x for each of the last two dimesions."""
     # FIXME: Use different gradient approximation that does not use FFT. Because
@@ -27,23 +28,48 @@ def _image_grad(x):
     )
     return grad_x, grad_y
 
+
 def _image_grad_sobel(x):
     return (
         -cupyx.scipy.ndimage.sobel(x, axis=-2, mode='nearest'),
         -cupyx.scipy.ndimage.sobel(x, axis=-1, mode='nearest'),
     )
 
+
 def _image_grad_gradient(x):
     return cp.gradient(
-        -x, axis=(-2, -1),
+        -x,
+        axis=(-2, -1),
     )
 
 
-def test_image_grads():
-    x = libimage.load('earring', 512) + 1j * libimage.load('satyre', 512)
+def _image_grad_gaussian(x, s=1.0):
+    """Return the gradient of the x for each of the last two dimesions."""
+    return (
+        -cupyx.scipy.ndimage.gaussian_filter1d(
+            x, s, order=1, axis=-2, mode='nearest'),
+        -cupyx.scipy.ndimage.gaussian_filter1d(
+            x, s, order=1, axis=-1, mode='nearest'),
+    )
+
+
+def _diff(x):
+    return (
+        a - b for a, b in zip(_image_grad_gradient(x), _image_grad_gaussian(x)))
+
+
+def test_image_grads(w=512):
+    x = (libimage.load('earring', w) + np.random.normal(size=(w, w)) + 1j *
+         (libimage.load('satyre', w) + np.random.normal(size=(w, w))))
     x = cp.asarray(x)
 
-    for grad in [_image_grad, _image_grad_gradient, _image_grad_sobel]:
+    for grad in [
+            _image_grad,
+            _image_grad_gradient,
+            _image_grad_sobel,
+            _image_grad_gaussian,
+            _diff,
+    ]:
 
         dx, dy = grad(x)
         dx = dx.get()
@@ -63,4 +89,3 @@ def test_image_grads():
         plt.imshow(dy.real)
         plt.colorbar()
         plt.savefig(f'{grad.__name__}.png')
-        f.close()
