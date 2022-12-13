@@ -78,7 +78,7 @@ class ProbeOptions:
     """The first moment for adaptive moment."""
 
     probe_support: float = 0.0
-    """Weight of the finite probe support constraint; zero or greater."""
+    """Weight of the finite probe support constraint; zero or greater.
 
     This support constraint encourages round probes energy concentrated at the
     center of the probe grid. Higher support increases the effect.
