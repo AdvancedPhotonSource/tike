@@ -1,14 +1,188 @@
 """Functions for manipulating and updating scanning positions."""
 
+from __future__ import annotations
 import dataclasses
 import logging
 
 import cupy as cp
+import cupyx.scipy.ndimage
 import numpy as np
 
 import tike.linalg
+import tike.opt
 
 logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass(frozen=True)
+class AffineTransform:
+    """Represents a 2D affine transformation."""
+
+    scale0: float = 1.0
+    scale1: float = 1.0
+    shear1: float = 0.0
+    angle: float = 0.0
+    t0: float = 0.0
+    t1: float = 0.0
+
+    @classmethod
+    def fromarray(self, T: np.ndarray) -> AffineTransform:
+        """Return an Affine Transfrom from a 2x2 matrix.
+
+        Use decomposition method from Graphics Gems 2 Section 7.1
+        """
+        xp = cp.get_array_module(T)
+        R = T[:2, :2].copy()
+        scale0 = xp.linalg.norm(R[0])
+        if scale0 <= 0:
+            return AffineTransform()
+        R[0] /= scale0
+        shear1 = R[0] @ R[1]
+        R[1] -= shear1 * R[0]
+        scale1 = xp.linalg.norm(R[1])
+        if scale1 <= 0:
+            return AffineTransform()
+        R[1] /= scale1
+        shear1 /= scale1
+        angle = xp.arccos(R[0, 0])
+        return AffineTransform(
+            scale0=float(scale0),
+            scale1=float(scale1),
+            shear1=float(shear1),
+            angle=float(angle),
+            t0=T[2, 0],
+            t1=T[2, 1],
+        )
+
+    def asarray(self, xp=np) -> np.ndarray:
+        """Return an 2x2 matrix of scale, shear, rotation.
+
+        This matrix is scale @ shear @ rotate from left to right.
+        """
+        cosx = xp.cos(self.angle)
+        sinx = xp.sin(self.angle)
+        return xp.array(
+            [
+                [self.scale0, 0.0],
+                [0.0, self.scale1],
+            ],
+            dtype='float32',
+        ) @ xp.array(
+            [
+                [1.0, 0.0],
+                [self.shear1, 1.0],
+            ],
+            dtype='float32',
+        ) @ xp.array(
+            [
+                [+cosx, -sinx],
+                [+sinx, +cosx],
+            ],
+            dtype='float32',
+        )
+
+    def asarray3(self, xp=np) -> np.ndarray:
+        """Return an 3x2 matrix of scale, shear, rotation, translation.
+
+        This matrix is scale @ shear @ rotate from left to right. Expects a
+        homogenous (z) coordinate of 1.
+        """
+        T = xp.empty((3, 2), dtype='float32')
+        T[2] = (self.t0, self.t1)
+        T[:2, :2] = self.asarray(xp)
+        return T
+
+    def astuple(self) -> tuple:
+        """Return the constructor parameters in a tuple."""
+        return (
+            self.scale0,
+            self.scale1,
+            self.shear1,
+            self.angle,
+            self.t0,
+            self.t1,
+        )
+
+    def __call__(self, x: np.ndarray, gpu=False) -> np.ndarray:
+        xp = cp.get_array_module(x)
+        return (x @ self.asarray(xp)) + xp.array((self.t0, self.t1))
+
+
+def estimate_global_transformation(
+    positions0: np.ndarray,
+    positions1: np.ndarray,
+    weights: np.ndarray,
+    transform=None,
+) -> tuple[AffineTransform, float]:
+    """Use weighted least squares to estimate the global affine transformation."""
+    xp = cp.get_array_module(positions0)
+    try:
+        result = AffineTransform.fromarray(
+            tike.linalg.lstsq(
+                a=xp.pad(positions0, ((0, 0), (0, 1)), constant_values=1),
+                b=positions1,
+                weights=weights,
+            ))
+    except np.linalg.LinAlgError:
+        # Catch singular matrix when the positions are colinear
+        result = AffineTransform()
+    return result, np.linalg.norm(result(positions0) - positions1)
+
+
+def estimate_global_transformation_ransac(
+    positions0: np.ndarray,
+    positions1: np.ndarray,
+    weights: np.ndarray = None,
+    transform: AffineTransform = AffineTransform(),
+    min_sample: int = 4,
+    max_error: float = 32,
+    min_consensus: float = 0.75,
+    max_iter: int = 20,
+) -> tuple[AffineTransform, float]:
+    """Use RANSAC to estimate the global affine transformation.
+
+    Parameters
+    ----------
+    min_sample
+        The number of positions to use to initialize each candidate model
+    max_error
+        The distance from the model which determines inliar/outliar status
+    min_consensus
+        The proportion of points needed to accept model as consensus.
+    """
+    best_fitness = np.inf  # small fitness is good
+    # Choose a subset
+    for subset in tike.opt.randomizer.choice(
+            a=len(positions0),
+            size=(max_iter, min_sample),
+            replace=True,
+    ):
+        # Fit to subset
+        candidate_model, _ = estimate_global_transformation(
+            positions0=positions0[subset],
+            positions1=positions1[subset],
+            weights=weights,
+            transform=transform,
+        )
+        # Determine inliars and outliars
+        position_error = np.linalg.norm(
+            candidate_model(positions0) - positions1,
+            axis=-1,
+        )
+        inliars = (position_error <= max_error)
+        # Check if consensus reached
+        if np.sum(inliars) / len(inliars) >= min_consensus:
+            # Refit with consensus inliars
+            candidate_model, fitness = estimate_global_transformation(
+                positions0=positions0[inliars],
+                positions1=positions1[inliars],
+                weights=weights,
+                transform=candidate_model,
+            )
+            if fitness < best_fitness:
+                best_fitness = fitness
+                transform = candidate_model
+    return transform, best_fitness
 
 
 @dataclasses.dataclass
@@ -32,7 +206,26 @@ class PositionOptions:
     """Whether the positions are constrained to fit a random error plus affine
     error model."""
 
+    transform: AffineTransform = AffineTransform()
+    """Global transform of positions."""
+
+    origin: tuple[float, float] = (0, 0)
+    """The rotation center of the transformation. This shift is applied to the
+    scan positions before computing the global transformation."""
+
+    confidence: np.ndarray = dataclasses.field(
+        init=True,
+        default_factory=lambda: None,
+    )
+    """A rating of the confidence of position information around each position."""
+
     def __post_init__(self):
+        self.initial_scan = self.initial_scan.astype('float32')
+        if self.confidence is None:
+            self.confidence = np.ones(
+                shape=(*self.initial_scan.shape[:-1], 1),
+                dtype='float32',
+            )
         if self.use_adaptive_moment:
             self._momentum = np.zeros(
                 (*self.initial_scan.shape[:-1], 4),
@@ -45,6 +238,16 @@ class PositionOptions:
             values=new_scan,
             axis=-2,
         )
+        if self.confidence is not None:
+            self.confidence = np.pad(
+                self.confidence,
+                pad_width=(
+                    (0, len(new_scan)),
+                    (0, 0),
+                ),
+                mode='constant',
+                constant_values=1.0,
+            )
         if self.use_adaptive_moment:
             self._momentum = np.pad(
                 self._momentum,
@@ -62,6 +265,7 @@ class PositionOptions:
             vdecay=self.vdecay,
             mdecay=self.mdecay,
             use_position_regularization=self.use_position_regularization,
+            transform=self.transform,
         )
         if self.use_adaptive_moment:
             new._momentum = np.empty((0, 4))
@@ -75,7 +279,10 @@ class PositionOptions:
             vdecay=self.vdecay,
             mdecay=self.mdecay,
             use_position_regularization=self.use_position_regularization,
+            transform=self.transform,
         )
+        if self.confidence is not None:
+            new.confidence = self.confidence[..., indices, :]
         if self.use_adaptive_moment:
             new._momentum = self._momentum[..., indices, :]
         return new
@@ -83,6 +290,8 @@ class PositionOptions:
     def insert(self, other, indices):
         """Replace the PositionOption meta-data with other data."""
         self.initial_scan[..., indices, :] = other.initial_scan
+        if self.confidence is not None:
+            self.confidence[..., indices, :] = other.confidence
         if self.use_adaptive_moment:
             self._momentum[..., indices, :] = other._momentum
         return self
@@ -98,6 +307,14 @@ class PositionOptions:
         new_initial_scan[..., :len_scan, :] = self.initial_scan
         new_initial_scan[..., indices, :] = other.initial_scan
         self.initial_scan = new_initial_scan
+        if self.confidence is not None:
+            new_confidence = np.empty(
+                (*self.initial_scan.shape[:-2], max_index, 1),
+                dtype=self.initial_scan.dtype,
+            )
+            new_confidence[..., :len_scan, :] = self.confidence
+            new_confidence[..., indices, :] = other.confidence
+            self.confidence = new_confidence
         if self.use_adaptive_moment:
             new_momentum = np.empty(
                 (*self.initial_scan.shape[:-2], max_index, 4),
@@ -111,6 +328,8 @@ class PositionOptions:
     def copy_to_device(self):
         """Copy to the current GPU memory."""
         self.initial_scan = cp.asarray(self.initial_scan)
+        if self.confidence is not None:
+            self.confidence = cp.asarray(self.confidence)
         if self.use_adaptive_moment:
             self._momentum = cp.asarray(self._momentum)
         return self
@@ -118,18 +337,22 @@ class PositionOptions:
     def copy_to_host(self):
         """Copy to the host CPU memory."""
         self.initial_scan = cp.asnumpy(self.initial_scan)
+        if self.confidence is not None:
+            self.confidence = cp.asnumpy(self.confidence)
         if self.use_adaptive_moment:
             self._momentum = cp.asnumpy(self._momentum)
         return self
 
-    def resample(self, factor):
-        """Return a new PositionOptions with the parameters scaled."""
+    def resample(self, factor: float) -> PositionOptions:
+        """Return a new `PositionOptions` with the parameters scaled."""
         new = PositionOptions(
             initial_scan=self.initial_scan * factor,
             use_adaptive_moment=self.use_adaptive_moment,
             vdecay=self.vdecay,
             mdecay=self.mdecay,
             use_position_regularization=self.use_position_regularization,
+            transform=self.transform,
+            confidence=self.confidence,
         )
         # Momentum reset to zero when grid scale changes
 
@@ -145,7 +368,7 @@ class PositionOptions:
     def vy(self):
         return self._momentum[..., 1]
 
-    @vx.setter
+    @vy.setter
     def vy(self, x):
         self._momentum[..., 1] = x
 
@@ -153,7 +376,7 @@ class PositionOptions:
     def mx(self):
         return self._momentum[..., 2]
 
-    @vx.setter
+    @mx.setter
     def mx(self, x):
         self._momentum[..., 2] = x
 
@@ -161,9 +384,25 @@ class PositionOptions:
     def my(self):
         return self._momentum[..., 3]
 
-    @vx.setter
+    @my.setter
     def my(self, x):
         self._momentum[..., 3] = x
+
+    @property
+    def v(self):
+        return self._momentum[..., 0:2]
+
+    @v.setter
+    def v(self, x):
+        self._momentum[..., 0:2] = x
+
+    @property
+    def m(self):
+        return self._momentum[..., 2:4]
+
+    @m.setter
+    def m(self, x):
+        self._momentum[..., 2:4] = x
 
 
 def check_allowed_positions(scan: np.array, psi: np.array, probe_shape: tuple):
@@ -178,20 +417,19 @@ def check_allowed_positions(scan: np.array, psi: np.array, probe_shape: tuple):
         interpolation near the edges of the field of view.
     """
     int_scan = scan // 1
-    less_than_one = int_scan < 1
-    greater_than_psi = np.stack(
-        (int_scan[..., -2] >= psi.shape[-2] - probe_shape[-2],
-         int_scan[..., -1] >= psi.shape[-1] - probe_shape[-1]),
-        -1,
-    )
-    if np.any(less_than_one) or np.any(greater_than_psi):
-        x = np.logical_or(less_than_one, greater_than_psi)
+    min_corner = np.min(int_scan, axis=-2)
+    max_corner = np.max(int_scan, axis=-2)
+    valid_min_corner = (1, 1)
+    valid_max_corner = (psi.shape[-2] - probe_shape[-2] - 1,
+                        psi.shape[-1] - probe_shape[-1] - 1)
+    if (np.any(min_corner < valid_min_corner)
+            or np.any(max_corner > valid_max_corner)):
         raise ValueError(
-            "Scan positions must be >= 2 and "
-            "scan positions + 2 + probe.shape must be < object.shape. "
+            "Scan positions must be >= 1 and "
+            "scan positions + 1 + probe.shape must be <= psi.shape. "
             "psi may be too small or the scan positions may be scaled wrong. "
-            "These scan positions exist outside field of view:\n"
-            f"{scan[np.logical_or(x[..., 0], x[..., 1])]}")
+            f"The span of scan is {min_corner} to {max_corner}, and "
+            f"the shape of psi is {psi.shape}.")
 
 
 def update_positions_pd(operator, data, psi, probe, scan,
@@ -267,28 +505,6 @@ def update_positions_pd(operator, data, psi, probe, scan,
     return scan, cost
 
 
-def _image_grad(op, x):
-    """Return the gradient of the x for each of the last two dimesions."""
-    # FIXME: Use different gradient approximation that does not use FFT. Because
-    # FFT caches are per-thread and per-device, using FFT is inefficient.
-    ramp = 2j * cp.pi * cp.linspace(
-        -0.5,
-        0.5,
-        x.shape[-1],
-        dtype='float32',
-        endpoint=False,
-    )
-    grad_x = op.propagation._ifftn(
-        ramp[:, None] * op.propagation._fftn(x, axes=(-2,)),
-        axes=(-2,),
-    )
-    grad_y = op.propagation._ifftn(
-        ramp * op.propagation._fftn(x, axes=(-1,)),
-        axes=(-1,),
-    )
-    return grad_x, grad_y
-
-
 def _gaussian_frequency(sigma, size):
     """Return a gaussian filter in frequency space."""
     arr = cp.fft.fftfreq(size)
@@ -306,7 +522,8 @@ def affine_position_regularization(
     probe,
     original,
     updated,
-    max_error=None,
+    position_options,
+    max_error=32,
 ):
     """Regularize position updates with an affine deformation constraint.
 
@@ -314,10 +531,6 @@ def affine_position_regularization(
     plus some random error. The regularized positions are then weighted average
     of the affine deformation applied to the original positions and the updated
     positions.
-
-    The affine deformation, X, is represented as a (..., 2, 2) array such that
-    updated = original @ X. X may be decomposed into scale, rotation, and shear
-    operations.
 
     Parameters
     ----------
@@ -330,102 +543,48 @@ def affine_position_regularization(
     -------
     regularized (..., N, 2)
         The updated scanning regularized with affine deformation.
-    transformation (..., 2, 2)
-        The global affine transformation
 
     References
     ----------
     This algorithm copied from ptychoshelves.
 
     """
-    # Estimate the reliability of each updated position based on the content of
-    # the patch of the object at that position; smooth patches are less
-    # reliable than patches with interesting features. This position relability
-    # is some imperical formula based on weighting the local image gradient of
-    # the object by the amount of illumination it recieved.
+    position_options.transform, _ = estimate_global_transformation_ransac(
+        positions0=original.get() - position_options.origin,
+        positions1=updated.get() - position_options.origin,
+        transform=position_options.transform,
+        max_error=max_error,
+    )
+    return updated, position_options
 
-    obj_proj = op.diffraction.patch.fwd(
-        images=psi / cp.max(cp.abs(psi), axis=(-1, -2), keepdims=True),
-        positions=updated,
-        patch_width=probe.shape[-1],
-    )
-    nx, ny = obj_proj.shape[-2:]
-    X, Y = cp.mgrid[-ny // 2:ny // 2, -nx // 2:nx // 2]
-    spatial_filter = cp.exp(-(X**16 + Y**16) / (min(nx, ny) / 2.2)**16)
-    obj_proj *= spatial_filter
-    dX, dY = _image_grad(op, obj_proj)
 
-    illum = probe[..., :, 0, 0, :, :]
-    illum = illum * illum.conj()
-    illum = cp.tile(illum, (1, updated.shape[-2], 1, 1))
-    sigma = probe.shape[-1] / 10
-    total_illumination = op.diffraction.patch.adj(
-        patches=illum,
-        images=cp.zeros(psi.shape, dtype='complex64'),
-        positions=updated,
-    )
-    total_illumination = op.propagation._fft2(total_illumination)
-    total_illumination *= _gaussian_frequency(
-        sigma=sigma,
-        size=total_illumination.shape[-1],
-    )
-    total_illumination *= _gaussian_frequency(
-        sigma=sigma,
-        size=total_illumination.shape[-2],
-    )[..., None]
-    total_illumination = op.propagation._ifft2(total_illumination)
-    illum_proj = op.diffraction.patch.fwd(
-        images=total_illumination,
-        positions=updated,
-        patch_width=probe.shape[-1],
-    )
-    dX = abs(dX) * illum_proj.real * illum.real
-    dY = abs(dY) * illum_proj.real * illum.real
+def gaussian_gradient(
+    x: cp.ndarray,
+    sigma: float = 0.333,
+) -> tuple[cp.ndarray, cp.ndarray]:
+    """Return 1st order Gaussian derivatives of the last two dimensions of x.
 
-    total_variation = np.stack(
-        (
-            cp.sqrt(cp.mean(dX, axis=(-1, -2))),
-            cp.sqrt(cp.mean(dY, axis=(-1, -2))),
+    Don't use scipy.ndimage.gaussian_filter because we only want derivatives
+    along last two, not all dimensions.
+
+    References
+    ----------
+    https://www.crisluengo.net/archives/22/
+
+    """
+    return (
+        cupyx.scipy.ndimage.gaussian_filter1d(
+            -x,
+            sigma=sigma,
+            order=1,
+            axis=-2,
+            mode='nearest',
         ),
-        axis=-1,
+        cupyx.scipy.ndimage.gaussian_filter1d(
+            -x,
+            sigma=sigma,
+            order=1,
+            axis=-1,
+            mode='nearest',
+        ),
     )
-
-    position_reliability = total_variation**4 / cp.mean(
-        total_variation**4, axis=-2, keepdims=True)
-
-    # Use weighted least squares to find the global affine transformation, X.
-    # The two columns of X are independent; we solve separtely so we can use
-    # different weights in each direction.
-    # TODO: Use homogenous coordinates to add shifts into model
-    X = cp.empty((*updated.shape[:-2], 2, 2), dtype='float32')
-    X[..., 0:1] = tike.linalg.lstsq(
-        b=updated[..., 0:1],
-        a=original,
-        weights=position_reliability[..., 0],
-    )
-    X[..., 1:2] = tike.linalg.lstsq(
-        b=updated[..., 1:2],
-        a=original,
-        weights=position_reliability[..., 1],
-    )
-
-    logger.info(f'affine position error:\n{X}')
-
-    # TODO: Decompose X into scale, rotate, shear operations.
-    # Remove non-affine and unwanted transformations
-    # scale, rotate, shear = _decompose_transformation()
-    # X = scale @ rotate @ shear
-
-    # Regularize the positions based on the position reliability and distance
-    # from the original positions.
-    relax = 0.1
-    # Constrain more the probes in flat regions
-    W = relax * (1 - (position_reliability / (1 + position_reliability)))
-    # Penalize positions with a large random error
-    if max_error is not None:
-        random_error = updated - original @ X
-        W = cp.minimum(
-            10 * relax,
-            W + cp.maximum(0, random_error - max_error)**2 / max_error**2,
-        )
-    return (1 - W) * updated + W * original @ X, X

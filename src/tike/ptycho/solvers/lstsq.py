@@ -674,19 +674,23 @@ def _precondition_nearplane_gradients(
 
     if recover_probe:
 
-        b = tike.ptycho.probe.finite_probe_support(
+        b0 = tike.ptycho.probe.finite_probe_support(
             unique_probe[..., [m], :, :],
             p=probe_options.probe_support,
             radius=probe_options.probe_support_radius,
             degree=probe_options.probe_support_degree,
         )
 
-        common_grad_probe = (common_grad_probe - b * probe[..., [m], :, :]) / (
-            (1 - alpha) * probe_update_denominator +
-            alpha * probe_update_denominator.max(
-                axis=(-2, -1),
-                keepdims=True,
-            ) + b)
+        b1 = probe_options.additional_probe_penalty * cp.linspace(
+            0, 1, probe[0].shape[-3], dtype='float32')[..., [m], None, None]
+
+        common_grad_probe = (common_grad_probe -
+                             (b0 + b1) * probe[..., [m], :, :]) / (
+                                 (1 - alpha) * probe_update_denominator +
+                                 alpha * probe_update_denominator.max(
+                                     axis=(-2, -1),
+                                     keepdims=True,
+                                 ) + b0 + b1)
 
         dPO = common_grad_probe * patches
         A4 = cp.sum((dPO * dPO.conj()).real + eps, axis=(-2, -1))
@@ -763,7 +767,6 @@ def _update_residuals(R, eigen_probe, axis, c, m):
     )
     return R
 
-
 def _update_position(
     position_options,
     diff,
@@ -781,7 +784,7 @@ def _update_position(
     # According to the manuscript, we can either shift the probe or the object
     # and they are equivalent (in theory). Here we shift the object because
     # that is what ptychoshelves does.
-    grad_y, grad_x = tike.ptycho.position._image_grad(op, patches)
+    grad_x, grad_y = tike.ptycho.position.gaussian_gradient(patches)
 
     numerator = cp.sum(cp.real(diff * cp.conj(grad_x * main_probe)),
                        axis=(-2, -1))
@@ -798,51 +801,20 @@ def _update_position(
     step_x = step_x[..., 0, 0]
     step_y = step_y[..., 0, 0]
 
+    step = cp.stack((step_x, step_y), axis=-1)
+
     # Momentum
     if position_options.use_adaptive_moment:
         logger.info(
             "position correction with ADAptive Momemtum acceleration enabled.")
-        step_x, position_options.vx, position_options.mx = tike.opt.adam(
-            step_x,
-            position_options.vx,
-            position_options.mx,
+        step, position_options.v, position_options.m = tike.opt.adam(
+            step,
+            position_options.v,
+            position_options.m,
             vdecay=position_options.vdecay,
-            mdecay=position_options.mdecay)
-        step_y, position_options.vy, position_options.my = tike.opt.adam(
-            step_y,
-            position_options.vy,
-            position_options.my,
-            vdecay=position_options.vdecay,
-            mdecay=position_options.mdecay)
+            mdecay=position_options.mdecay,
+        )
 
-    # Step limit for stability
-    _max_shift = cp.minimum(
-        max_shift,
-        _mad(
-            cp.concatenate((step_x, step_y), axis=-1),
-            axis=-1,
-            keepdims=True,
-        ),
-    )
-    step_x = cp.maximum(-_max_shift, cp.minimum(step_x, _max_shift))
-    step_y = cp.maximum(-_max_shift, cp.minimum(step_y, _max_shift))
-
-    # SYNCHRONIZE ME?
-    # step -= comm.Allreduce_mean(step)
-    # Ensure net movement is zero
-    step_x -= cp.mean(step_x, axis=-1, keepdims=True)
-    step_y -= cp.mean(step_y, axis=-1, keepdims=True)
-    logger.info('position update norm is %+.3e', tike.linalg.norm(step_x))
-
-    # print(cp.abs(step_x) > 0.5)
-    # print(cp.abs(step_y) > 0.5)
-
-    scan[..., 0] -= step_y
-    scan[..., 1] -= step_x
+    scan -= step
 
     return scan, position_options
-
-
-def _mad(x, **kwargs):
-    """Return the mean absolute deviation around the median."""
-    return cp.mean(cp.abs(x - cp.median(x, **kwargs)), **kwargs)

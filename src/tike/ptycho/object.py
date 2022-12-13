@@ -4,7 +4,7 @@ Ptychographic objects are stored as a single complex array which represent
 the complex refractive indices in the field of view.
 
 """
-
+from __future__ import annotations
 import dataclasses
 import logging
 
@@ -76,7 +76,8 @@ class ObjectOptions:
             self.preconditioner = cp.asnumpy(self.preconditioner[0])
         return self
 
-    def resample(self, factor):
+    def resample(self, factor: float) -> ObjectOptions:
+        """Return a new `ObjectOptions` with the parameters rescaled."""
         return ObjectOptions(
             positivity_constraint=self.positivity_constraint,
             smoothness_constraint=self.smoothness_constraint,
@@ -143,20 +144,15 @@ def get_padded_object(scan, probe):
     positions are shifted to be centered in this newly initialized object
     array.
     """
-    pad = probe.shape[-1] // 2
-    # Shift scan positions to zeros
-    scan = scan - np.min(scan, axis=-2) + pad
-
-    span = np.max(scan[..., 0]), np.max(scan[..., 1])
-
-    height = probe.shape[-1] + int(span[0]) + pad
-    width = probe.shape[-1] + int(span[1]) + pad
-
+    int_scan = scan // 1
+    min_corner = np.min(int_scan, axis=-2)
+    max_corner = np.max(int_scan, axis=-2)
+    span = max_corner - min_corner + probe.shape[-1] + 2
     return np.full(
-        shape=(height, width),
+        shape=span.astype('int'),
         dtype='complex64',
         fill_value=np.complex64(0.5 + 0j),
-    ), scan
+    ), scan + 1 - min_corner
 
 
 def _int_min_max(x):
