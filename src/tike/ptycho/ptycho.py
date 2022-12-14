@@ -448,18 +448,11 @@ class Reconstruction():
                     and self._device_parameters.position_options[0]
                     .use_position_regularization):
 
-                # TODO: Regularize on all GPUs
-                (self._device_parameters.scan[0],
-                 self._device_parameters.position_options[0]
+                (self._device_parameters.position_options
                 ) = affine_position_regularization(
-                    op=self.operator,
-                    psi=self._device_parameters.psi[0],
-                    probe=self._device_parameters.probe[0],
-                    original=self._device_parameters.position_options[0]
-                    .initial_scan,
-                    updated=self._device_parameters.scan[0],
-                    position_options=self._device_parameters
-                    .position_options[0],
+                    self.comm,
+                    updated=self._device_parameters.scan,
+                    position_options=self._device_parameters.position_options,
                 )
 
             self._device_parameters.algorithm_options.times.append(

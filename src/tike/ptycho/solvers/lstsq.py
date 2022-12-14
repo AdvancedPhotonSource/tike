@@ -766,6 +766,7 @@ def _update_residuals(R, eigen_probe, axis, c, m):
     )
     return R
 
+
 def _update_position(
     position_options,
     diff,

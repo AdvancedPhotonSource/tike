@@ -517,14 +517,11 @@ def _gaussian_frequency(sigma, size):
 
 # TODO: What is a good default value for max_error?
 def affine_position_regularization(
-    op,
-    psi,
-    probe,
-    original,
-    updated,
-    position_options,
-    max_error=32,
-):
+    comm: tike.communicators.Comm,
+    updated: list[cp.ndarray],
+    position_options: list[PositionOptions],
+    max_error: float = 32,
+) -> list[PositionOptions]:
     """Regularize position updates with an affine deformation constraint.
 
     Assume that the true position updates are a global affine transformation
@@ -544,18 +541,30 @@ def affine_position_regularization(
     regularized (..., N, 2)
         The updated scanning regularized with affine deformation.
 
-    References
-    ----------
-    This algorithm copied from ptychoshelves.
-
     """
-    position_options.transform, _ = estimate_global_transformation_ransac(
-        positions0=original.get() - position_options.origin,
-        positions1=updated.get() - position_options.origin,
-        transform=position_options.transform,
-        max_error=max_error,
-    )
-    return updated, position_options
+    # Gather all of the scanning positions on one host
+    positions0 = comm.pool.gather_host(
+        [x.initial_scan for x in position_options])
+    positions1 = comm.pool.gather_host(updated)
+    if comm.use_mpi:
+        positions0 = comm.mpi.Gather(positions0)
+        positions1 = comm.mpi.Gather(positions1)
+
+    if not comm.use_mpi or comm.mpi.rank == 0:
+        new_transform, _ = estimate_global_transformation_ransac(
+            positions0=positions0 - position_options[0].origin,
+            positions1=positions1 - position_options[0].origin,
+            transform=position_options[0].transform,
+            max_error=max_error,
+        )
+
+    if comm.use_mpi:
+        new_transform = comm.mpi.comm.bcast(new_transform)
+
+    for i in range(len(position_options)):
+        position_options[i].transform = new_transform
+
+    return position_options
 
 
 def gaussian_gradient(

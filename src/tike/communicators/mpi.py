@@ -133,6 +133,7 @@ try:
             return tuple(
                 np.array_split(arg, self.size, axis=axis)[self.rank]
                 for arg in args)
+
 except ModuleNotFoundError:
     MPIComm = None
     warnings.warn(
