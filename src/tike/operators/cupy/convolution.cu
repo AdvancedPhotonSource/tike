@@ -88,6 +88,8 @@ _loop_over_patches(
         // for x,y coords in patch
         for (int py = blockIdx.z; py < patch_shape; py += gridDim.z) {
           if (sy + py < 0 || nimagey <= sy + py) continue;
+          // Only x coodrinate is used in thread block because the max number
+          // of threads on an SM is too small for one patch
           for (int px = threadIdx.x; px < patch_shape; px += blockDim.x) {
             if (sx + px < 0 || nimagex <= sx + px) continue;
             // linear patch index (pi)
