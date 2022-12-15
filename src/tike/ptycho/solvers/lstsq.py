@@ -268,9 +268,6 @@ def _psi_preconditioner(psi_update_denominator,
     # object update.
     probe_amp = (unique_probe[..., 0, m, :, :] *
                  unique_probe[..., 0, m, :, :].conj())
-    # TODO: Allow this kind of broadcasting inside the patch operator
-    if probe_amp.shape[-3] == 1:
-        probe_amp = cp.tile(probe_amp, (scan_.shape[-2], 1, 1))
     if psi_update_denominator is None:
         psi_update_denominator = cp.zeros(
             shape=psi.shape,
