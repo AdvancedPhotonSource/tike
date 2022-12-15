@@ -45,6 +45,11 @@ _adjoint(float2 *patches, float2 *images, int nimagex, int pi, int ii,
   // clang-format on
 }
 
+// NOTE: Uses the same loop structure for forward and adjoint operations
+// because inverting the loop structure to loop over image pixels instead of
+// patch pixels is much slower. There are many more checks and conditionals in
+// order to avoid atomic operations.
+
 // The kernel should be launched with the following maximum shapes:
 // grid shape = (nscan, nimage, patch_size)
 // block shape = (min(max_thread, patch_size), 1, 1)
