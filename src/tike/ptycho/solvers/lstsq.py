@@ -521,6 +521,8 @@ def _update_nearplane(
 
         if recover_probe:
             dprobe = weighted_step_probe[0] * common_grad_probe[0]
+            if algorithm_options.batch_method == 'cluster_compact':
+                dprobe /= len(scan_)
             if probe_options.use_adaptive_moment:
                 if probe_options.m is None:
                     probe_options.m = cp.zeros_like(probe[0])
