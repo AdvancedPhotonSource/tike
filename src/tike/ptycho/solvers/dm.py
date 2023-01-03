@@ -362,9 +362,6 @@ def _get_nearplane_gradients(
                 positions=scan,
             )
             probe_amp = probe[..., 0, m, :, :] * probe[..., 0, m, :, :].conj()
-            # TODO: Allow this kind of broadcasting inside the patch operator
-            if probe_amp.shape[-3] == 1:
-                probe_amp = cp.tile(probe_amp, (scan.shape[-2], 1, 1))
             psi_update_denominator = op.diffraction.patch.adj(
                 patches=probe_amp,
                 images=psi_update_denominator,

@@ -160,12 +160,13 @@ class Convolution(Operator):
         nearplane[..., self.pad:self.end, self.pad:self.end] *= probe.conj()
         if rpie:
             probe_amp = probe * probe.conj()
-            # TODO: Allow this kind of broadcasting inside the patch operator
-            probe_amp = cp.tile(probe_amp, (scan.shape[-2], 1, 1, 1))
+            probe_amp = probe_amp.reshape(
+                (*scan.shape[:-2], -1, *nearplane.shape[-2:])
+                # (..., nscan * nprobe, probe_shape, probe_shape)
+                # (...,         nprobe, probe_shape, probe_shape)
+            )
             probe_amp = self.patch.adj(
-                patches=probe_amp.reshape(
-                    (*scan.shape[:-2], scan.shape[-2] * nearplane.shape[-3],
-                     *nearplane.shape[-2:])),
+                patches=probe_amp,
                 images=self.xp.zeros((*scan.shape[:-2], self.nz, self.n),
                                      dtype='complex64'),
                 positions=scan,

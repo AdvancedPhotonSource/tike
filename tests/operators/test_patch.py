@@ -124,5 +124,67 @@ def test_patch_correctness(size=256, win=8):
     )
 
 
+def test_patch_correctness_adjoint(size=8, win=2):
+
+    positions = np.array([
+        [0, 0],
+        [0, size - win],
+        [size - win, 0],
+        [size - win, size - win],
+        [size // 2 - win // 2, size // 2 - win // 2],
+        [0.123, 3],
+        [3, 0.123],
+        [5.5, 3.5],
+    ])
+    fov = cp.zeros((size, size), dtype='complex64')
+    fov[:win, :win] += 1
+    fov[:win, -win:] += 1
+    fov[-win:, :win] += 1
+    fov[-win:, -win:] += 1
+    fov[size // 2 - win // 2:size // 2 - win // 2 + win,
+        size // 2 - win // 2:size // 2 - win // 2 + win] += 1
+    fov[0:win, 3:3 + win] += (1 - 0.123)
+    fov[1:1 + win, 3:3 + win] += 0.123
+    fov[3:3 + win, 0:win, ] += (1 - 0.123)
+    fov[3:3 + win, 1:1 + win, ] += 0.123
+    fov[5:5+win, 3:3+win] += 0.25
+    fov[6:6+win, 3:3+win] += 0.25
+    fov[5:5+win, 4:4+win] += 0.25
+    fov[6:6+win, 4:4+win] += 0.25
+
+    patches = cp.ones((len(positions), win, win), dtype='complex64')
+    with Patch() as op:
+        combined = op.adj(patches=patches,
+                          positions=cp.array(positions,
+                                             dtype='float32',
+                                             order='C'),
+                          patch_width=win,
+                          images=cp.zeros((size, size), dtype='complex64'))
+
+    fov = fov.get()
+    combined = combined.get()
+    try:
+        import matplotlib
+        matplotlib.use('Agg')
+        from matplotlib import pyplot as plt
+        plt.figure()
+        plt.subplot(1, 3, 1)
+        plt.imshow(fov.real)
+        plt.subplot(1, 3, 2)
+        plt.imshow(combined.real)
+        plt.subplot(1, 3, 3)
+        plt.imshow(combined.real - fov.real, cmap=plt.cm.inferno)
+        plt.colorbar()
+        plt.savefig('patches-adj.png')
+    except ModuleNotFoundError:
+        pass
+
+    np.testing.assert_allclose(
+        fov,
+        combined,
+        atol=1e-6,
+    )
+
+
 if __name__ == '__main__':
     unittest.main()

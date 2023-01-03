@@ -41,7 +41,8 @@ class Patch(Operator):
     positions : (..., N, 2) float32
         Coordinates of the minimum corner of the patches in the image grid.
     patches : (..., N * nrepeat, width+, width+) complex64
-        The extracted (zero-padded) patches.
+           OR (..., L, width+, width+) complex64
+        The extracted (zero-padded) patches. (N * nrepeat) = K * L, K >= nrepeat
     patch_width : int
         The width of the unpadded patches.
     """
@@ -114,12 +115,15 @@ class Patch(Operator):
                 (*positions.shape[:-2], height, width),
                 dtype='complex64',
             )
-        assert images.shape[:-2] == positions.shape[:-2]
-        assert positions.shape[:-2] == patches.shape[:-3], (positions.shape,
-                                                            patches.shape)
-        assert positions.shape[-2] * nrepeat == patches.shape[-3], (
-            positions.shape, nrepeat, patches.shape)
+        leading = images.shape[:-2]
+        height, width = images.shape[-2:]
+        assert positions.shape[:-2] == leading
+        N = positions.shape[-2]
         assert positions.shape[-1] == 2
+        assert patches.shape[:-3] == leading
+        K = patches.shape[-3]
+        assert (N * nrepeat) % K == 0 and K >= nrepeat
+        assert patches.shape[-1] == patches.shape[-2]
         assert images.dtype == 'complex64'
         assert patches.dtype == 'complex64'
         assert positions.dtype == 'float32'
@@ -139,11 +143,13 @@ class Patch(Operator):
                 patches,
                 positions,
                 nimage,
-                *images.shape[-2:],
-                positions.shape[-2],
+                height,
+                width,
+                N,
                 nrepeat,
                 patch_width,
                 patches.shape[-1],
+                K,
             ),
         )
         return images
