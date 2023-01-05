@@ -3,7 +3,10 @@
 __author__ = "Xiaodong Yu"
 __copyright__ = "Copyright (c) 2021, UChicago Argonne, LLC."
 
+import warnings
+
 import cupy as cp
+import numpy.typing as npt
 
 from .mpi import MPIComm
 from .pool import ThreadPool
@@ -64,6 +67,10 @@ class Comm:
             workers[1].
 
         """
+        warnings.warn(
+            "Comm.reduce is deprecated. "
+            "Use Comm.pool.reduce_gpu or Comm.pool.reduce_cpu directly.",
+            DeprecationWarning)
         if dest == 'gpu':
             return self.pool.reduce_gpu(x, s, **kwargs)
         elif dest == 'cpu':
@@ -71,8 +78,8 @@ class Comm:
         else:
             raise ValueError(f'dest must be gpu or cpu.')
 
-    def Allreduce_reduce(self, x, dest, s=1, **kwargs):
-        """ThreadPool reduce coupled with MPI allreduce."""
+    def Allreduce_reduce(self, x: npt.ArrayLike, dest, s=1, **kwargs):
+        """MPI Allreduce followed by ThreadPool reduce."""
         src = self.reduce(x, dest, s, **kwargs)
         if dest == 'gpu':
             return [cp.asarray(self.mpi.Allreduce(cp.asnumpy(src[0])))]
@@ -81,7 +88,7 @@ class Comm:
         else:
             raise ValueError(f'dest must be gpu or cpu.')
 
-    def Allreduce_mean(self, x, **kwargs):
+    def Allreduce_reduce_mean(self, x, **kwargs):
         """Multi-process multi-GPU based mean."""
         src = self.pool.reduce_mean(x, **kwargs)
         mean = self.mpi.Allreduce(cp.asnumpy(src)) / self.mpi.size
