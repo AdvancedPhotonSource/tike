@@ -4,6 +4,7 @@ __author__ = "Xiaodong Yu"
 __copyright__ = "Copyright (c) 2021, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
+import os
 import warnings
 
 import numpy as np
@@ -28,6 +29,15 @@ try:
         """
 
         def __init__(self):
+            if (
+                'OMPI_MCA_opal_cuda_support' not in os.environ
+                or os.environ['OMPI_MCA_opal_cuda_support'].lower() != 'true'
+            ):
+                msg = (
+                    'Environment variable `OMPI_MCA_opal_cuda_support` must '
+                    'be set to `true` for this communicator to function property.'
+                )
+                raise ValueError(msg)
             self.comm = MPI.COMM_WORLD
             self.rank = self.comm.Get_rank()
             self.size = self.comm.Get_size()
@@ -38,67 +48,95 @@ try:
         def __exit__(self, type, value, traceback):
             pass
 
-        def p2p(self, sendbuf, src=0, dest=1, tg=0, **kwargs):
-            """Send data from a source to a designated destination."""
+        # def p2p(self, sendbuf, src=0, dest=1, tg=0, **kwargs):
+        #     """Send data from a source to a designated destination."""
 
-            if sendbuf is None:
-                raise ValueError(f"Sendbuf can't be empty.")
-            if self.rank == src:
-                self.comm.Send(sendbuf, dest=dest, tag=tg, **kwargs)
-            elif self.rank == dest:
-                info = MPI.Status()
-                recvbuf = np.empty(sendbuf.shape, sendbuf.dtype)
-                self.comm.Recv(recvbuf,
-                               source=src,
-                               tag=tg,
-                               status=info,
-                               **kwargs)
-                return recvbuf
+        #     if sendbuf is None:
+        #         raise ValueError(f"Sendbuf can't be empty.")
+        #     if self.rank == src:
+        #         self.comm.Send(sendbuf, dest=dest, tag=tg, **kwargs)
+        #     elif self.rank == dest:
+        #         info = MPI.Status()
+        #         recvbuf = np.empty(sendbuf.shape, sendbuf.dtype)
+        #         self.comm.Recv(recvbuf,
+        #                        source=src,
+        #                        tag=tg,
+        #                        status=info,
+        #                        **kwargs)
+        #         return recvbuf
 
-        def Bcast(self, data, root: int = 0):
-            """Send data from a root to all processes."""
+        # def Bcast(self, data: np.ndarray, root: int = 0) -> np.ndarray:
+        #     """Send data from a root to all processes."""
 
-            if data is None:
-                raise ValueError(f"Broadcast data can't be empty.")
-            if self.rank == root:
-                data = data
-            else:
-                data = np.empty(data.shape, data.dtype)
-            self.comm.Bcast(data, root)
-            return data
+        #     if data is None:
+        #         raise ValueError(f"Broadcast data can't be empty.")
+        #     if self.rank == root:
+        #         data = data
+        #     else:
+        #         data = np.empty(data.shape, data.dtype)
+        #     self.comm.Bcast(data, root)
+        #     return data
 
-        def Gather(self, sendbuf, axis=0, dest: int = 0):
-            """Take data from all processes into one destination."""
+        # def Gather(self, sendbuf, axis=0, dest: int = 0):
+        #     """Take data from all processes into one destination."""
 
-            if sendbuf is None:
-                raise ValueError(f"Gather data can't be empty.")
-            recvbuf = None
-            if self.rank == dest:
-                recvbuf = np.concatenate(
-                    [np.empty_like(sendbuf) for _ in range(self.size)],
-                    axis=axis,
-                )
-            self.comm.Gather(sendbuf, recvbuf, dest)
-            if self.rank == dest:
-                return recvbuf
+        #     if sendbuf is None:
+        #         raise ValueError(f"Gather data can't be empty.")
+        #     recvbuf = None
+        #     if self.rank == dest:
+        #         recvbuf = np.concatenate(
+        #             [np.empty_like(sendbuf) for _ in range(self.size)],
+        #             axis=axis,
+        #         )
+        #     self.comm.Gather(sendbuf, recvbuf, dest)
+        #     if self.rank == dest:
+        #         return recvbuf
 
-        def Scatter(self, sendbuf, src: int = 0):
-            """Spread data from a source to all processes."""
+        # def Scatter(self, sendbuf, src: int = 0):
+        #     """Spread data from a source to all processes."""
 
-            if sendbuf is None:
-                raise ValueError(f"Scatter data can't be empty.")
-            recvbuf = np.empty(sendbuf.shape, sendbuf.dtype)
-            self.comm.Scatter(sendbuf, recvbuf, src)
-            return recvbuf
+        #     if sendbuf is None:
+        #         raise ValueError(f"Scatter data can't be empty.")
+        #     recvbuf = np.empty(sendbuf.shape, sendbuf.dtype)
+        #     self.comm.Scatter(sendbuf, recvbuf, src)
+        #     return recvbuf
 
-        def Allreduce(self, sendbuf, op=MPI.SUM):
-            """Combines data from all processes and distributes
-            the result back to all processes."""
+        def Allreduce(
+            self,
+            sendbuf: np.ndarray | cp.ndarray,
+            op=MPI.SUM,
+        ) -> np.ndarray | cp.ndarray:
+            """Sum sendbuf from all ranks and return the result to all ranks."""
 
             if sendbuf is None:
                 raise ValueError(f"Allreduce data can't be empty.")
-            recvbuf = np.empty(sendbuf.shape, sendbuf.dtype)
+
+            xp = cp.get_array_module(sendbuf)
+
+            recvbuf = xp.empty_like(sendbuf)
+
+            cp.cuda.get_current_stream().synchronize()
+
             self.comm.Allreduce(sendbuf, recvbuf, op=op)
+
+            return recvbuf
+
+        def Allgather(
+            self,
+            sendbuf: np.ndarray | cp.ndarray,
+        ) -> np.ndarray | cp.ndarray:
+            """Concatenate sendbuf from all ranks on all ranks."""
+
+            if sendbuf is None:
+                raise ValueError("Allgather data can't be None")
+
+            xp = cp.get_array_module(sendbuf)
+
+            recvbuf = xp.empty_like(sendbuf, shape=(self.size, *sendbuf.shape))
+
+            cp.cuda.get_current_stream().synchronize()
+
+            self.comm.Allgather(sendbuf, recvbuf)
 
             return recvbuf
 

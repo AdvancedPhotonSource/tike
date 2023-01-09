@@ -4,9 +4,10 @@ __author__ = "Xiaodong Yu"
 __copyright__ = "Copyright (c) 2021, UChicago Argonne, LLC."
 
 import warnings
+import typing
 
 import cupy as cp
-import numpy.typing as npt
+import numpy as np
 
 from .mpi import MPIComm
 from .pool import ThreadPool
@@ -34,7 +35,6 @@ class Comm:
         gpu_count,
         mpi=MPIComm,
         pool=ThreadPool,
-        **kwargs,
     ):
         if mpi is not None:
             self.mpi = mpi()
@@ -78,22 +78,34 @@ class Comm:
         else:
             raise ValueError(f'dest must be gpu or cpu.')
 
-    def Allreduce_reduce(self, x: npt.ArrayLike, dest, s=1, **kwargs):
-        """MPI Allreduce followed by ThreadPool reduce."""
-        src = self.reduce(x, dest, s, **kwargs)
-        if dest == 'gpu':
-            return [cp.asarray(self.mpi.Allreduce(cp.asnumpy(src[0])))]
-        elif dest == 'cpu':
-            return self.mpi.Allreduce(src).item()
-        else:
-            raise ValueError(f'dest must be gpu or cpu.')
+    def Allreduce_reduce_gpu(
+        self,
+        x: typing.List[cp.ndarray],
+    ) -> typing.List[cp.ndarray]:
+        """ThreadPool reduce followed by MPI Allreduce."""
+        # TODO: Support stride/worker params for reduce_gpu
+        # pool.map is required to ensure correct device context for x
+        return self.pool.map(self.mpi.Allreduce, self.pool.reduce_gpu(x))
 
-    def Allreduce_reduce_mean(self, x, **kwargs):
+    def Allreduce_reduce_cpu(
+        self,
+        x: typing.List[cp.ndarray],
+    ) -> np.ndarray:
+        """ThreadPool reduce followed by MPI Allreduce."""
+        return self.mpi.Allreduce(self.pool.reduce_cpu(x))
+
+    def Allreduce_mean(
+        self,
+        x: typing.List[cp.ndarray],
+        axis: int | typing.List[int] = 0,
+    ) -> cp.ndarray:
         """Multi-process multi-GPU based mean."""
-        src = self.pool.reduce_mean(x, **kwargs)
-        mean = self.mpi.Allreduce(cp.asnumpy(src)) / self.mpi.size
-
-        return cp.asarray(mean)
+        assert isinstance(x, list), f"x should be list not {type(x)}"
+        with cp.cuda.Device(self.pool.workers[0]):
+            counts_local = cp.array(len(x))
+            counts_all = self.mpi.Allgather(counts_local)
+            weight_local = counts_local / counts_all.sum()
+            return self.mpi.Allreduce(self.pool.reduce_mean(x, axis=axis) * weight_local)
 
     def Allreduce(self, x, s=None, **kwargs):
         """ThreadPool allreduce coupled with MPI allreduce.

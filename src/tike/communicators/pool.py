@@ -112,7 +112,7 @@ class ThreadPool(ThreadPoolExecutor):
 
     def bcast(
         self,
-        x: typing.Union[cp.array, np.array],
+        x: typing.List[typing.Union[cp.array, np.array]],
         stride: int = 1,
     ) -> typing.List[cp.array]:
         """Send each x to all device groups.
@@ -141,13 +141,13 @@ class ThreadPool(ThreadPoolExecutor):
         axis: int = 0,
     ) -> cp.array:
         """Concatenate x on a single worker along the given axis."""
-        if self.num_workers == 1:
-            return x[0]
+        assert isinstance(x, list), f"x should be list not {type(x)}"
         worker = self.workers[0] if worker is None else worker
+        merge = self.xp.concatenate if x[0].ndim > 0 else self.xp.stack
         with self.Device(worker):
-            return self.xp.concatenate(
+            return merge(
                 [self._copy_to(part, worker) for part in x],
-                axis,
+                axis=axis,
             )
 
     def gather_host(
@@ -156,15 +156,14 @@ class ThreadPool(ThreadPoolExecutor):
         axis: int = 0,
     ) -> np.array:
         """Concatenate x on host along the given axis."""
-        if self.num_workers == 1:
-            return cp.asnumpy(x[0])
 
         def f(x, worker):
             return self._copy_host(x, worker)
 
-        return np.concatenate(
+        merge = np.concatenate if x[0].ndim > 0 else np.stack
+        return merge(
             self.map(f, x, self.workers),
-            axis,
+            axis=axis,
         )
 
     def all_gather(
@@ -281,8 +280,8 @@ class ThreadPool(ThreadPoolExecutor):
             to workers[1].
 
         """
-        if self.num_workers == 1:
-            return x
+        # if self.num_workers == 1:
+        #     return x
 
         def f(worker):
             i = self.workers.index(worker)
@@ -303,16 +302,14 @@ class ThreadPool(ThreadPoolExecutor):
     def reduce_mean(
         self,
         x: typing.List[cp.array],
-        axis: int | typing.List[int],
+        axis: int | typing.List[int] = 0,
         worker: int | None = None,
     ) -> cp.array:
         """Reduce x by addition to one GPU from all other GPUs."""
-        if self.num_workers == 1:
-            return x[0]
         worker = self.workers[0] if worker is None else worker
         return cp.mean(
             self.gather(x, worker=worker, axis=axis),
-            keepdims=True,
+            keepdims=x[0].ndim > 0,
             axis=axis,
         )
 
