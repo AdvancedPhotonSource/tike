@@ -19,10 +19,7 @@ def _estimate_step_length(obj, fwd_data, theta, grid, op, comm, s):
         def f(data):
             return tike.linalg.norm(data)**2
         sqr = comm.pool.map(f, data, workers=workers)
-        if comm.use_mpi:
-            sqr_sum = comm.Allreduce_reduce(sqr, 'cpu')
-        else:
-            sqr_sum = comm.reduce(sqr, 'cpu')
+        sqr_sum = comm.Allreduce_reduce_cpu(sqr)
         return sqr_sum**0.5
 
     outnback = comm.pool.map(
@@ -107,10 +104,7 @@ def update_obj(
             fwd_data[::obj_split],
             workers=workers,
         )
-        if comm.use_mpi:
-            return comm.Allreduce_reduce(cost_out, 'cpu')
-        else:
-            return comm.reduce(cost_out, 'cpu')
+        return comm.Allreduce_reduce_cpu(cost_out)
 
     def grad(obj):
         fwd_data = fwd_op(obj)
@@ -139,10 +133,7 @@ def update_obj(
             return comm.pool.map(init, grad1, workers=workers)
 
         n = comm.pool.map(f, grad1, workers=workers)
-        if comm.use_mpi:
-            norm_ = comm.Allreduce_reduce(n, 'cpu')
-        else:
-            norm_ = comm.reduce(n, 'cpu')
+        norm_ = comm.Allreduce_reduce_cpu(n)
         return comm.pool.map(
             d,
             grad0,

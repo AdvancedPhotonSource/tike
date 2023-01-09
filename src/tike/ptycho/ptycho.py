@@ -682,10 +682,7 @@ def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
             "Increase num_batch to process your data in smaller chunks "
             "or use CuPy to switch to the Unified Memory Pool.")
 
-    if comm.use_mpi:
-        n = np.sqrt(comm.Allreduce_reduce(n, 'cpu'))
-    else:
-        n = np.sqrt(comm.reduce(n, 'cpu'))
+    n = np.sqrt(comm.Allreduce_reduce_cpu(n))
 
     rescale = cp.asarray(n[0] / n[1])
 

@@ -87,11 +87,8 @@ def dm(
             op=op,
         ))
 
-        if comm.use_mpi:
-            # TODO: This reduction should be mean
-            batch_cost.append(comm.Allreduce_reduce(cost, 'cpu'))
-        else:
-            batch_cost.append(comm.reduce(cost, 'cpu'))
+        # TODO: This reduction should be mean
+        batch_cost.append(comm.Allreduce_reduce_cpu(cost))
 
         (
             psi_update_numerator,
@@ -264,15 +261,10 @@ def _apply_update(
 ):
 
     if recover_psi:
-        if comm.use_mpi:
-            psi_update_numerator = comm.Allreduce_reduce(
-                psi_update_numerator, 'gpu')[0]
-            psi_update_denominator = comm.Allreduce_reduce(
-                psi_update_denominator, 'gpu')[0]
-        else:
-            psi_update_numerator = comm.reduce(psi_update_numerator, 'gpu')[0]
-            psi_update_denominator = comm.reduce(psi_update_denominator,
-                                                 'gpu')[0]
+        psi_update_numerator = comm.Allreduce_reduce_gpu(
+            psi_update_numerator, 'gpu')[0]
+        psi_update_denominator = comm.Allreduce_reduce_gpu(
+            psi_update_denominator, 'gpu')[0]
 
         new_psi = psi_update_numerator / (psi_update_denominator + 1e-9)
         if object_options.use_adaptive_moment:
@@ -291,16 +283,10 @@ def _apply_update(
         psi = comm.pool.bcast([new_psi])
 
     if recover_probe:
-        if comm.use_mpi:
-            probe_update_numerator = comm.Allreduce_reduce(
-                probe_update_numerator, 'gpu')[0]
-            probe_update_denominator = comm.Allreduce_reduce(
-                probe_update_denominator, 'gpu')[0]
-        else:
-            probe_update_numerator = comm.reduce(probe_update_numerator,
-                                                 'gpu')[0]
-            probe_update_denominator = comm.reduce(probe_update_denominator,
-                                                   'gpu')[0]
+        probe_update_numerator = comm.Allreduce_reduce_gpu(
+            probe_update_numerator)[0]
+        probe_update_denominator = comm.Allreduce_reduce_gpu(
+            probe_update_denominator)[0]
 
         new_probe = probe_update_numerator / (probe_update_denominator + 1e-9)
         if probe_options.use_adaptive_moment:

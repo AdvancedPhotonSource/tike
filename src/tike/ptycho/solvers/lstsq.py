@@ -150,10 +150,7 @@ def lstsq_grad(
             op=op,
         ))
 
-        if comm.use_mpi:
-            batch_cost.append(comm.Allreduce_reduce(cost, 'cpu'))
-        else:
-            batch_cost.append(comm.reduce(cost, 'cpu'))
+        batch_cost.append(comm.Allreduce_reduce_cpu(cost))
 
         (
             psi,

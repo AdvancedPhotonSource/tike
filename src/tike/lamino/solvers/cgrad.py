@@ -60,17 +60,12 @@ def update_obj(op, comm, data, theta, obj, num_iter=1, step_length=1):
 
     def cost_function(obj):
         cost_out = comm.pool.map(op.cost, data, theta, obj)
-        if comm.use_mpi:
-            return comm.Allreduce_reduce(cost_out, 'cpu')
-        else:
-            return comm.reduce(cost_out, 'cpu')
+        return comm.Allreduce_reduce_cpu(cost_out)
 
     def grad(obj):
         grad_list = comm.pool.map(op.grad, data, theta, obj)
-        if comm.use_mpi:
-            return comm.Allreduce_reduce(grad_list, 'gpu')
-        else:
-            return comm.reduce(grad_list, 'gpu')
+        return comm.Allreduce_reduce_gpu(grad_list)
+
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""

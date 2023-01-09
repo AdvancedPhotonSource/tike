@@ -98,10 +98,7 @@ def rpie(
             op=op,
         ))
 
-        if comm.use_mpi:
-            batch_cost.append(comm.Allreduce_reduce(cost, 'cpu'))
-        else:
-            batch_cost.append(comm.reduce(cost, 'cpu'))
+        batch_cost.append(comm.Allreduce_reduce_cpu(cost))
 
         (
             psi,
@@ -244,15 +241,10 @@ def _update_nearplane(
     alpha = algorithm_options.alpha
 
     if recover_psi:
-        if comm.use_mpi:
-            psi_update_numerator = comm.Allreduce_reduce(
-                psi_update_numerator, 'gpu')[0]
-            psi_update_denominator = comm.Allreduce_reduce(
-                psi_update_denominator, 'gpu')[0]
-        else:
-            psi_update_numerator = comm.reduce(psi_update_numerator, 'gpu')[0]
-            psi_update_denominator = comm.reduce(psi_update_denominator,
-                                                 'gpu')[0]
+        psi_update_numerator = comm.Allreduce_reduce_gpu(
+            psi_update_numerator, 'gpu')[0]
+        psi_update_denominator = comm.Allreduce_reduce_gpu(
+            psi_update_denominator, 'gpu')[0]
 
         dpsi = psi_update_numerator / ((1 - alpha) * psi_update_denominator +
                                        alpha * psi_update_denominator.max(
@@ -275,16 +267,10 @@ def _update_nearplane(
         psi = comm.pool.bcast([psi[0]])
 
     if recover_probe:
-        if comm.use_mpi:
-            probe_update_numerator = comm.Allreduce_reduce(
-                probe_update_numerator, 'gpu')[0]
-            probe_update_denominator = comm.Allreduce_reduce(
-                probe_update_denominator, 'gpu')[0]
-        else:
-            probe_update_numerator = comm.reduce(probe_update_numerator,
-                                                 'gpu')[0]
-            probe_update_denominator = comm.reduce(probe_update_denominator,
-                                                   'gpu')[0]
+        probe_update_numerator = comm.Allreduce_reduce_gpu(
+            probe_update_numerator)[0]
+        probe_update_denominator = comm.Allreduce_reduce_gpu(
+            probe_update_denominator)[0]
 
         b0 = tike.ptycho.probe.finite_probe_support(
             probe[0],
