@@ -10,7 +10,7 @@ try:
     _mpi_size = MPI.COMM_WORLD.Get_size()
     _mpi_rank = MPI.COMM_WORLD.Get_rank()
 except ModuleNotFoundError:
-    _mpi_size = 0
+    _mpi_size = 1
     _mpi_rank = 0
 
 
@@ -22,7 +22,6 @@ class TestComm(unittest.TestCase):
             tuple(i + workers * _mpi_rank for i in range(workers)))
         self.xp = self.comm.pool.xp
 
-    @unittest.skipIf(tike.communicators.MPIComm == None, "MPI is unavailable.")
     def test_Allreduce_reduce_gpu(self):
         a = cp.array(1)
         a_list = self.comm.pool.bcast([a])
@@ -33,7 +32,6 @@ class TestComm(unittest.TestCase):
         # print(result, type(result))
         cp.testing.assert_array_equal(result[0], truth[0])
 
-    @unittest.skipIf(tike.communicators.MPIComm == None, "MPI is unavailable.")
     def test_Allreduce_reduce_cpu(self):
         a = np.array(1)
         a_list = self.comm.pool.bcast([a])
@@ -44,7 +42,6 @@ class TestComm(unittest.TestCase):
         # print(result, type(result))
         np.testing.assert_array_equal(result, truth)
 
-    @unittest.skipIf(tike.communicators.MPIComm == None, "MPI is unavailable.")
     def test_Allreduce_reduce_mean(self):
         a = cp.array(1.0)
         a_list = self.comm.pool.bcast([a])
@@ -56,7 +53,6 @@ class TestComm(unittest.TestCase):
         cp.testing.assert_array_equal(result, truth)
 
 
-    @unittest.skipIf(tike.communicators.MPIComm == None, "MPI is unavailable.")
     def test_Allreduce_allreduce(self):
         a = self.xp.arange(10).reshape(2, 5)
         a_list = self.comm.pool.bcast([a])
