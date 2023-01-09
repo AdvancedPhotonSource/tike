@@ -18,8 +18,12 @@ class TestMPIComm(unittest.TestCase):
     def test_p2p(self):
         pass
 
-    def test_bcast(self):
-        pass
+    def test_bcast(self, root=0):
+        with cp.cuda.Device(self.mpi.rank):
+            x = self.xp.ones(5) if self.mpi.rank == root else self.xp.zeros(5)
+            truth = self.xp.ones(5)
+            result = self.mpi.Bcast(x, root=root)
+            self.xp.testing.assert_array_equal(result, truth)
 
     def test_gather(self):
         pass

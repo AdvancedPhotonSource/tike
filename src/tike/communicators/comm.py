@@ -9,7 +9,7 @@ import typing
 import cupy as cp
 import numpy as np
 
-from .mpi import MPIComm
+from .mpi import MPIComm, NoMPIComm
 from .pool import ThreadPool
 
 
@@ -41,17 +41,16 @@ class Comm:
             self.use_mpi = True
         else:
             self.use_mpi = False
+            self.mpi = NoMPIComm()
         self.pool = pool(gpu_count)
 
     def __enter__(self):
-        if self.use_mpi is True:
-            self.mpi.__enter__()
+        self.mpi.__enter__()
         self.pool.__enter__()
         return self
 
     def __exit__(self, type, value, traceback):
-        if self.use_mpi is True:
-            self.mpi.__exit__(type, value, traceback)
+        self.mpi.__exit__(type, value, traceback)
         self.pool.__exit__(type, value, traceback)
 
     def reduce(self, x, dest, s=1, **kwargs):
@@ -105,7 +104,8 @@ class Comm:
             counts_local = cp.array(len(x))
             counts_all = self.mpi.Allgather(counts_local)
             weight_local = counts_local / counts_all.sum()
-            return self.mpi.Allreduce(self.pool.reduce_mean(x, axis=axis) * weight_local)
+            return self.mpi.Allreduce(
+                self.pool.reduce_mean(x, axis=axis) * weight_local)
 
     def Allreduce(self, x, s=None, **kwargs):
         """ThreadPool allreduce coupled with MPI allreduce.

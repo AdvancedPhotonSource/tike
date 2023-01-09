@@ -280,6 +280,7 @@ class ThreadPool(ThreadPoolExecutor):
             to workers[1].
 
         """
+
         # if self.num_workers == 1:
         #     return x
 

@@ -10,6 +10,7 @@ import warnings
 import numpy as np
 import cupy as cp
 
+
 class MPIio:
     """Implementations for problem specific data loaders"""
 
@@ -30,7 +31,7 @@ class MPIio:
 
         # Generate the mask
         mask = np.logical_and(edges[self.rank] < scan[:, 0],
-                                scan[:, 0] <= edges[self.rank + 1])
+                              scan[:, 0] <= edges[self.rank + 1])
 
         scan = scan[mask]
         split_args = [arg[mask] for arg in args]
@@ -47,7 +48,7 @@ class MPIio:
 
 
 class NoMPIComm(MPIio):
-        """Placeholder for MPI Communications when no MPI4Py is installed.
+    """Placeholder for MPI Communications when no MPI4Py is installed.
 
         Attributes
         ----------
@@ -57,38 +58,51 @@ class NoMPIComm(MPIio):
             The total number of MPI processes.
         """
 
-        def __init__(self):
-            self.rank = 0
-            self.size = 1
+    def __init__(self):
+        self.rank = 0
+        self.size = 1
 
-        def __enter__(self):
-            return self
+    def __enter__(self):
+        return self
 
-        def __exit__(self, type, value, traceback):
-            pass
+    def __exit__(self, type, value, traceback):
+        pass
 
-        def Allreduce(
-            self,
-            sendbuf: np.ndarray | cp.ndarray,
-            op=None,
-        ) -> np.ndarray | cp.ndarray:
-            """Sum sendbuf from all ranks and return the result to all ranks."""
+    def Bcast(
+        self,
+        sendbuf: np.ndarray | cp.ndarray,
+        root: int = 0,
+    ) -> np.ndarray | cp.ndarray:
+        """Send data from a root to all processes."""
 
-            if sendbuf is None:
-                raise ValueError(f"Allreduce data can't be empty.")
+        if sendbuf is None:
+            raise ValueError(f"Broadcast data can't be empty.")
 
-            return sendbuf
+        return sendbuf
 
-        def Allgather(
-            self,
-            sendbuf: np.ndarray | cp.ndarray,
-        ) -> np.ndarray | cp.ndarray:
-            """Concatenate sendbuf from all ranks on all ranks."""
+    def Allreduce(
+        self,
+        sendbuf: np.ndarray | cp.ndarray,
+        op=None,
+    ) -> np.ndarray | cp.ndarray:
+        """Sum sendbuf from all ranks and return the result to all ranks."""
 
-            if sendbuf is None:
-                raise ValueError("Allgather data can't be None")
+        if sendbuf is None:
+            raise ValueError(f"Allreduce data can't be empty.")
 
-            return sendbuf[None, ...]
+        return sendbuf
+
+    def Allgather(
+        self,
+        sendbuf: np.ndarray | cp.ndarray,
+    ) -> np.ndarray | cp.ndarray:
+        """Concatenate sendbuf from all ranks on all ranks."""
+
+        if sendbuf is None:
+            raise ValueError("Allgather data can't be None")
+
+        return sendbuf[None, ...]
+
 
 try:
     from mpi4py import MPI
@@ -147,17 +161,27 @@ try:
         #                        **kwargs)
         #         return recvbuf
 
-        # def Bcast(self, data: np.ndarray, root: int = 0) -> np.ndarray:
-        #     """Send data from a root to all processes."""
+        def Bcast(
+            self,
+            sendbuf: np.ndarray | cp.ndarray,
+            root: int = 0,
+        ) -> np.ndarray | cp.ndarray:
+            """Send data from a root to all processes."""
 
-        #     if data is None:
-        #         raise ValueError(f"Broadcast data can't be empty.")
-        #     if self.rank == root:
-        #         data = data
-        #     else:
-        #         data = np.empty(data.shape, data.dtype)
-        #     self.comm.Bcast(data, root)
-        #     return data
+            if sendbuf is None:
+                raise ValueError(f"Broadcast data can't be empty.")
+
+            xp = cp.get_array_module(sendbuf)
+
+            if not self._use_opal and xp == cp:
+                # Move to host for non-GPU aware MPI
+                return cp.asarray(self.Bcast(cp.asnumpy(sendbuf)))
+
+            if self.rank != root:
+                sendbuf = xp.empty_like(sendbuf)
+            cp.cuda.get_current_stream().synchronize()
+            self.comm.Bcast(sendbuf, root=root)
+            return sendbuf
 
         # def Gather(self, sendbuf, axis=0, dest: int = 0):
         #     """Take data from all processes into one destination."""
@@ -197,10 +221,7 @@ try:
 
             if not self._use_opal and xp == cp:
                 # Move to host for non-GPU aware MPI
-                sendbuf = cp.asnumpy(sendbuf)
-                recvbuf = np.empty_like(sendbuf)
-                self.comm.Allreduce(sendbuf, recvbuf, op=op)
-                return cp.asarray(recvbuf)
+                return cp.asarray(self.Allreduce(cp.asnumpy(sendbuf)))
 
             recvbuf = xp.empty_like(sendbuf)
             cp.cuda.get_current_stream().synchronize()
@@ -220,10 +241,7 @@ try:
 
             if not self._use_opal and xp == cp:
                 # Move to host for non-GPU aware MPI
-                sendbuf = cp.asnumpy(sendbuf)
-                recvbuf = np.empty_like(sendbuf, shape=(self.size, *sendbuf.shape))
-                self.comm.Allgather(sendbuf, recvbuf)
-                return cp.asarray(recvbuf)
+                return cp.asarray(self.Allgather(cp.asnumpy(sendbuf)))
 
             recvbuf = xp.empty_like(sendbuf, shape=(self.size, *sendbuf.shape))
             cp.cuda.get_current_stream().synchronize()
@@ -232,10 +250,7 @@ try:
 
 except ModuleNotFoundError:
 
-    MPIComm = NoMPIComm
+    MPIComm = None
     warnings.warn(
         "tike was unable to import mpi4py, "
         "so MPI features are unavailable.", UserWarning)
-
-
-
