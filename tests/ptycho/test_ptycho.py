@@ -768,6 +768,7 @@ def _save_eigen_weights(fname, weights):
     plt.savefig(f'{fname}/weights.svg')
 
 
+@unittest.skipIf(_mpi_size > 1, reason="MPI not implemented for multi-grid.")
 class PtychoReconMultiGrid():
     """Test ptychography multi-grid reconstruction method."""
 
@@ -778,7 +779,7 @@ class PtychoReconMultiGrid():
         """Check ptycho.solver.algorithm for consistency."""
 
         if _mpi_size > 1:
-            return 1
+            raise NotImplementedError()
 
         device_per_rank = cp.cuda.runtime.getDeviceCount() // _mpi_size
         base_device = device_per_rank * _mpi_rank

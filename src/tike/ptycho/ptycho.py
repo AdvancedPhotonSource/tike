@@ -312,7 +312,7 @@ class Reconstruction():
                     "automatic psi initialization is not synchronized "
                     "across processes.")
         else:
-            mpi = None
+            mpi = NoMPIComm
 
         self.data = data
         self.parameters = parameters

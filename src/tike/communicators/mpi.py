@@ -80,6 +80,19 @@ class NoMPIComm(MPIio):
 
         return sendbuf
 
+    def Gather(
+        self,
+        sendbuf: np.ndarray | cp.ndarray,
+        axis: int = 0,
+        dest: int = 0,
+    ) -> typing.List[typing.Union[np.ndarray, cp.ndarray]]:
+        """Take data from all processes into one destination."""
+
+        if sendbuf is None:
+            raise ValueError(f"Gather data can't be empty.")
+
+        return sendbuf[None, ...]
+
     def Allreduce(
         self,
         sendbuf: np.ndarray | cp.ndarray,
@@ -183,20 +196,29 @@ try:
             self.comm.Bcast(sendbuf, root=root)
             return sendbuf
 
-        def Gather(self, sendbuf, axis=0, dest: int = 0):
+        def Gather(
+            self,
+            sendbuf: np.ndarray | cp.ndarray,
+            root: int = 0,
+        ) -> typing.List[typing.Union[np.ndarray, cp.ndarray]]:
             """Take data from all processes into one destination."""
 
             if sendbuf is None:
                 raise ValueError(f"Gather data can't be empty.")
-            recvbuf = None
-            if self.rank == dest:
-                recvbuf = np.concatenate(
-                    [np.empty_like(sendbuf) for _ in range(self.size)],
-                    axis=axis,
-                )
-            self.comm.Gather(sendbuf, recvbuf, dest)
-            if self.rank == dest:
-                return recvbuf
+
+            xp = cp.get_array_module(sendbuf)
+
+            if not self._use_opal and xp == cp:
+                # Move to host for non-GPU aware MPI
+                return cp.asarray(self.Gather(cp.asnumpy(sendbuf)))
+
+            recvbuf = xp.empty_like(
+                sendbuf,
+                shape=(self.size, *sendbuf.shape),
+            ) if self.rank == dest else None
+            cp.cuda.get_current_stream().synchronize()
+            self.comm.Gather(sendbuf, recvbuf, root=root)
+            return recvbuf
 
         # def Scatter(self, sendbuf, src: int = 0):
         #     """Spread data from a source to all processes."""

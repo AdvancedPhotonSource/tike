@@ -33,15 +33,14 @@ class Comm:
     def __init__(
         self,
         gpu_count,
-        mpi=MPIComm,
+        mpi=NoMPIComm,
         pool=ThreadPool,
     ):
-        if mpi is not None:
-            self.mpi = mpi()
-            self.use_mpi = True
-        else:
+        if isintance(mpi, NoMPIComm):
             self.use_mpi = False
-            self.mpi = NoMPIComm()
+        else:
+            self.use_mpi = True
+        self.mpi = mpi()
         self.pool = pool(gpu_count)
 
     def __enter__(self):
