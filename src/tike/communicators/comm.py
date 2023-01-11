@@ -101,9 +101,12 @@ class Comm:
         """Multi-process multi-GPU based mean."""
         assert isinstance(x, list), f"x should be list not {type(x)}"
         with cp.cuda.Device(self.pool.workers[0]):
-            counts_local = cp.array(len(x))
-            counts_all = self.mpi.Allgather(counts_local)
-            weight_local = counts_local / counts_all.sum()
+            counts_local = np.array(
+                [x0.shape[axis] for x0 in x],
+                dtype=x[0].dtype,
+            ).sum()
+            counts_all = self.mpi.Allgather(counts_local).sum()
+            weight_local = counts_local / counts_all
             return self.mpi.Allreduce(
                 self.pool.reduce_mean(x, axis=axis) * weight_local)
 

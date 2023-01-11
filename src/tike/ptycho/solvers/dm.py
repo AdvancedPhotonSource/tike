@@ -262,9 +262,9 @@ def _apply_update(
 
     if recover_psi:
         psi_update_numerator = comm.Allreduce_reduce_gpu(
-            psi_update_numerator, 'gpu')[0]
+            psi_update_numerator)[0]
         psi_update_denominator = comm.Allreduce_reduce_gpu(
-            psi_update_denominator, 'gpu')[0]
+            psi_update_denominator)[0]
 
         new_psi = psi_update_numerator / (psi_update_denominator + 1e-9)
         if object_options.use_adaptive_moment:

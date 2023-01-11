@@ -183,20 +183,20 @@ try:
             self.comm.Bcast(sendbuf, root=root)
             return sendbuf
 
-        # def Gather(self, sendbuf, axis=0, dest: int = 0):
-        #     """Take data from all processes into one destination."""
+        def Gather(self, sendbuf, axis=0, dest: int = 0):
+            """Take data from all processes into one destination."""
 
-        #     if sendbuf is None:
-        #         raise ValueError(f"Gather data can't be empty.")
-        #     recvbuf = None
-        #     if self.rank == dest:
-        #         recvbuf = np.concatenate(
-        #             [np.empty_like(sendbuf) for _ in range(self.size)],
-        #             axis=axis,
-        #         )
-        #     self.comm.Gather(sendbuf, recvbuf, dest)
-        #     if self.rank == dest:
-        #         return recvbuf
+            if sendbuf is None:
+                raise ValueError(f"Gather data can't be empty.")
+            recvbuf = None
+            if self.rank == dest:
+                recvbuf = np.concatenate(
+                    [np.empty_like(sendbuf) for _ in range(self.size)],
+                    axis=axis,
+                )
+            self.comm.Gather(sendbuf, recvbuf, dest)
+            if self.rank == dest:
+                return recvbuf
 
         # def Scatter(self, sendbuf, src: int = 0):
         #     """Spread data from a source to all processes."""

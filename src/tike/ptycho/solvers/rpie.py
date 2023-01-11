@@ -242,9 +242,9 @@ def _update_nearplane(
 
     if recover_psi:
         psi_update_numerator = comm.Allreduce_reduce_gpu(
-            psi_update_numerator, 'gpu')[0]
+            psi_update_numerator)[0]
         psi_update_denominator = comm.Allreduce_reduce_gpu(
-            psi_update_denominator, 'gpu')[0]
+            psi_update_denominator)[0]
 
         dpsi = psi_update_numerator / ((1 - alpha) * psi_update_denominator +
                                        alpha * psi_update_denominator.max(
