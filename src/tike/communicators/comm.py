@@ -36,7 +36,7 @@ class Comm:
         mpi=NoMPIComm,
         pool=ThreadPool,
     ):
-        if isintance(mpi, NoMPIComm):
+        if isinstance(mpi, NoMPIComm):
             self.use_mpi = False
         else:
             self.use_mpi = True
@@ -101,7 +101,7 @@ class Comm:
         assert isinstance(x, list), f"x should be list not {type(x)}"
         with cp.cuda.Device(self.pool.workers[0]):
             counts_local = np.array(
-                [x0.shape[axis] for x0 in x],
+                [1 if x0.ndim == 0 else x0.shape[axis] for x0 in x],
                 dtype=x[0].dtype,
             ).sum()
             counts_all = self.mpi.Allgather(counts_local).sum()

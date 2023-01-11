@@ -5,6 +5,7 @@ __copyright__ = "Copyright (c) 2021, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 import os
+import typing
 import warnings
 
 import numpy as np
@@ -83,8 +84,7 @@ class NoMPIComm(MPIio):
     def Gather(
         self,
         sendbuf: np.ndarray | cp.ndarray,
-        axis: int = 0,
-        dest: int = 0,
+        root: int = 0,
     ) -> typing.List[typing.Union[np.ndarray, cp.ndarray]]:
         """Take data from all processes into one destination."""
 
@@ -215,7 +215,7 @@ try:
             recvbuf = xp.empty_like(
                 sendbuf,
                 shape=(self.size, *sendbuf.shape),
-            ) if self.rank == dest else None
+            ) if self.rank == root else None
             cp.cuda.get_current_stream().synchronize()
             self.comm.Gather(sendbuf, recvbuf, root=root)
             return recvbuf

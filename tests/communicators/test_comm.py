@@ -52,7 +52,6 @@ class TestComm(unittest.TestCase):
         # print(result, type(result))
         cp.testing.assert_array_equal(result, truth)
 
-
     def test_Allreduce_allreduce(self):
         a = self.xp.arange(10).reshape(2, 5)
         a_list = self.comm.pool.bcast([a])

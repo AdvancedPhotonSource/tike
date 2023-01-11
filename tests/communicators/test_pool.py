@@ -46,7 +46,6 @@ class TestThreadPool(unittest.TestCase):
         # print(result.shape, type(result))
         np.testing.assert_array_equal(result, truth)
 
-
     def test_scatter(self, stride=3):
         a = [self.xp.ones(3) * i for i in range(self.pool.num_workers)]
         truth = [
@@ -102,11 +101,13 @@ class TestThreadPool(unittest.TestCase):
         a = [self.xp.ones(3) * i for i in range(self.pool.num_workers)]
         if self.pool.num_workers > 1:
             truth = [
-                self.xp.sum(self.xp.stack(
-                    a[(i // stride * stride):((i // stride + 1) * stride)],
-                    axis=0,),
-                            axis=0,)
-                for i in range(int(np.ceil(self.pool.num_workers)))
+                self.xp.sum(
+                    self.xp.stack(
+                        a[(i // stride * stride):((i // stride + 1) * stride)],
+                        axis=0,
+                    ),
+                    axis=0,
+                ) for i in range(int(np.ceil(self.pool.num_workers)))
             ]
         else:
             truth = a
@@ -127,6 +128,7 @@ class TestThreadPool(unittest.TestCase):
         # print(truth.shape, type(truth))
         # print(result.shape, type(truth))
         self.xp.testing.assert_array_equal(result, truth)
+
 
 class TestSoloThreadPool(TestThreadPool):
 
