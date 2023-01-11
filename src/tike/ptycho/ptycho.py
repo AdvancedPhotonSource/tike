@@ -66,8 +66,8 @@ import warnings
 import numpy as np
 import cupy as cp
 
-from tike.operators import Ptycho
-from tike.communicators import Comm, MPIComm
+import tike.operators
+import tike.communicators
 import tike.opt
 from tike.ptycho import solvers
 import tike.random
@@ -157,7 +157,7 @@ def simulate(
 
     """
     check_allowed_positions(scan, psi, probe.shape)
-    with Ptycho(
+    with tike.operators.Ptycho(
             probe_shape=probe.shape[-1],
             detector_shape=int(detector_shape),
             nz=psi.shape[-2],
@@ -305,28 +305,28 @@ class Reconstruction():
                     ))
 
         if use_mpi is True:
-            mpi = MPIComm
+            mpi = tike.communicators.MPIComm
             if parameters.psi is None:
                 raise ValueError(
                     "When MPI is enabled, initial object guess cannot be None; "
                     "automatic psi initialization is not synchronized "
                     "across processes.")
         else:
-            mpi = NoMPIComm
+            mpi = tike.communicators.NoMPIComm
 
         self.data = data
         self.parameters = parameters
         self._device_parameters = copy.deepcopy(parameters)
         self.device = cp.cuda.Device(
             num_gpu[0] if isinstance(num_gpu, tuple) else None)
-        self.operator = Ptycho(
+        self.operator = tike.operators.Ptycho(
             probe_shape=parameters.probe.shape[-1],
             detector_shape=data.shape[-1],
             nz=parameters.psi.shape[-2],
             n=parameters.psi.shape[-1],
             model=model,
         )
-        self.comm = Comm(num_gpu, mpi)
+        self.comm = tike.communicators.Comm(num_gpu, mpi)
 
     def __enter__(self):
         self.device.__enter__()
