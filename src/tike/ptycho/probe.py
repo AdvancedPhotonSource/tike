@@ -375,17 +375,10 @@ def update_eigen_probe(
         c=c,
         m=m,
     )
-    if comm.use_mpi:
-        update[0] = comm.Allreduce_mean(
-            update,
-            axis=-5,
-        )
-        update = comm.pool.bcast([update[0]])
-    else:
-        update = comm.pool.bcast([comm.pool.reduce_mean(
-            update,
-            axis=-5,
-        )])
+    update = comm.pool.bcast([comm.Allreduce_mean(
+        update,
+        axis=-5,
+    )])
 
     (eigen_probe, n, d, d_mean) = (list(a) for a in zip(*comm.pool.map(
         _get_d,
@@ -398,17 +391,10 @@ def update_eigen_probe(
         m=m,
     )))
 
-    if comm.use_mpi:
-        d_mean[0] = comm.Allreduce_mean(
-            d_mean,
-            axis=-3,
-        )
-        d_mean = comm.pool.bcast([d_mean[0]])
-    else:
-        d_mean = comm.pool.bcast([comm.pool.reduce_mean(
-            d_mean,
-            axis=-3,
-        )])
+    d_mean = comm.pool.bcast([comm.Allreduce_mean(
+        d_mean,
+        axis=-3,
+    )])
 
     weights = list(
         comm.pool.map(
