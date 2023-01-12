@@ -106,7 +106,7 @@ def lstsq_grad(
                 [2] * comm.pool.num_workers,
             )
 
-        if algorithm_options.batch_method == 'cluster_compact':
+        if algorithm_options.batch_method == 'compact':
             object_options.combined_update = cp.zeros_like(psi[0])
 
     batch_cost = []
@@ -207,7 +207,7 @@ def lstsq_grad(
             n=n,
         )
 
-    if object_options and algorithm_options.batch_method == 'cluster_compact':
+    if object_options and algorithm_options.batch_method == 'compact':
         # (27b) Object update
         dpsi = object_options.combined_update
         if object_options.use_adaptive_moment:
@@ -498,7 +498,7 @@ def _update_nearplane(
             dpsi = (weighted_step_psi[0] /
                     probe[0].shape[-3]) * common_grad_psi[0]
 
-            if algorithm_options.batch_method != 'cluster_compact':
+            if algorithm_options.batch_method != 'compact':
                 if object_options.use_adaptive_moment:
                     (
                         dpsi,
@@ -518,7 +518,7 @@ def _update_nearplane(
 
         if recover_probe:
             dprobe = weighted_step_probe[0] * common_grad_probe[0]
-            if algorithm_options.batch_method == 'cluster_compact':
+            if algorithm_options.batch_method == 'compact':
                 dprobe /= len(scan_)
             if probe_options.use_adaptive_moment:
                 if probe_options.m is None:
