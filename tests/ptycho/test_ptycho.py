@@ -392,7 +392,7 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
         params.algorithm_options = tike.ptycho.LstsqOptions(
             num_batch=5,
             num_iter=16,
-            batch_method='cluster_compact',
+            batch_method='compact',
         )
         params.probe_options = ProbeOptions(use_adaptive_moment=True,)
         params.object_options = ObjectOptions(use_adaptive_moment=True,)

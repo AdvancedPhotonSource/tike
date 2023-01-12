@@ -5,7 +5,7 @@ import numpy as np
 import scipy.stats
 
 from tike.opt import batch_indicies, randomizer
-from tike.random import cluster_wobbly_center, cluster_compact
+from tike.cluster import wobbly_center, compact
 
 
 class ClusterTests():
@@ -46,7 +46,7 @@ class ClusterTests():
 
 class TestWobblyCenter(unittest.TestCase, ClusterTests):
 
-    cluster_method = staticmethod(cluster_wobbly_center)
+    cluster_method = staticmethod(wobbly_center)
 
     def setUp(self, num_pop=500, num_cluster=10):
         """Generates a normally distributed 3D population."""
@@ -67,12 +67,12 @@ class TestWobblyCenter(unittest.TestCase, ClusterTests):
             np.array([0, 5, 8]),
             np.array([1, 6, 7]),
         ]
-        result = cluster_wobbly_center(np.arange(10)[:, None], 3)
+        result = wobbly_center(np.arange(10)[:, None], 3)
         for a, b in zip(references, result):
             np.testing.assert_array_equal(a, b)
 
     def test_same_mean(self):
-        """"Test that wobbly center generates better samples of the population.
+        """Test that wobbly center generates better samples of the population.
 
         In this case 'better' is when the ANOVA test concludes that the samples
         are statistically the same on average. The ANOVA null hypothesis is
@@ -88,7 +88,7 @@ class TestWobblyCenter(unittest.TestCase, ClusterTests):
 
         print('\nwobbly center')
         p0 = print_sample_error(
-            cluster_wobbly_center(self.population, self.num_cluster))
+            wobbly_center(self.population, self.num_cluster))
         print('random sample')
         p1 = print_sample_error(batch_indicies(self.num_pop, self.num_cluster))
 
@@ -98,7 +98,7 @@ class TestWobblyCenter(unittest.TestCase, ClusterTests):
 
 class TestClusterCompact(unittest.TestCase, ClusterTests):
 
-    cluster_method = staticmethod(cluster_compact)
+    cluster_method = staticmethod(compact)
 
     def setUp(self, num_pop=50**2, num_cluster=10):
         """Generates points on a regular grid."""
@@ -132,7 +132,7 @@ class TestClusterCompact(unittest.TestCase, ClusterTests):
 
         print('\ncompact cluster')
         p0 = print_sample_error(
-            cluster_compact(self.population, self.num_cluster))
+            compact(self.population, self.num_cluster))
         print('random sample')
         p1 = print_sample_error(batch_indicies(self.num_pop, self.num_cluster))
 
@@ -144,7 +144,7 @@ class TestClusterCompact(unittest.TestCase, ClusterTests):
         import matplotlib
         matplotlib.use('Agg')
         from matplotlib import pyplot as plt
-        samples = cluster_compact(self.population, self.num_cluster)
+        samples = compact(self.population, self.num_cluster)
         plt.figure()
         for s in samples:
             plt.scatter(self.population[s][:, 0], self.population[s][:, 1])

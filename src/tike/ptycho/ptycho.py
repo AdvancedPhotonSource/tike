@@ -57,7 +57,6 @@ __all__ = [
 ]
 
 import copy
-from itertools import product
 import logging
 import time
 import typing
@@ -70,7 +69,7 @@ import tike.operators
 import tike.communicators
 import tike.opt
 from tike.ptycho import solvers
-import tike.random
+import tike.cluster
 
 from .position import (
     PositionOptions,
@@ -344,7 +343,7 @@ class Reconstruction():
             self._device_parameters.scan,
             self.data,
             self._device_parameters.eigen_weights,
-        ) = split_by_scan_grid(
+        ) = tike.cluster.by_scan_grid(
             self.comm.pool,
             (
                 self.comm.pool.num_workers
@@ -385,7 +384,7 @@ class Reconstruction():
 
         # Unique batch for each device
         self.batches = self.comm.pool.map(
-            getattr(tike.random,
+            getattr(tike.cluster,
                     self._device_parameters.algorithm_options.batch_method),
             self._device_parameters.scan,
             num_cluster=self._device_parameters.algorithm_options.num_batch,
@@ -576,7 +575,7 @@ class Reconstruction():
             order,
             new_scan,
             new_data,
-        ) = split_by_scan_grid(
+        ) = tike.cluster.by_scan_grid(
             self.comm.pool,
             (
                 self.comm.pool.num_workers
@@ -609,7 +608,7 @@ class Reconstruction():
 
         # Rebatch on each device
         self.batches = self.comm.pool.map(
-            getattr(tike.random,
+            getattr(tike.cluster,
                     self._device_parameters.algorithm_options.batch_method),
             self._device_parameters.scan,
             num_cluster=self._device_parameters.algorithm_options.num_batch,
@@ -691,120 +690,6 @@ def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
     probe[0] *= rescale
 
     return comm.pool.bcast([probe[0]])
-
-
-def _split(m, x, dtype):
-    return cp.asarray(x[m], dtype=dtype)
-
-
-def split_by_scan_grid(pool, shape, dtype, scan, *args, fly=1):
-    """Split the field of view into a 2D grid.
-
-    Mask divide the data into a 2D grid of spatially contiguous regions.
-
-    Parameters
-    ----------
-    shape : tuple of int
-        The number of grid divisions along each dimension.
-    dtype : List[str]
-        The datatypes of the args after splitting.
-    scan : (nscan, 2) float32
-        The 2D coordinates of the scan positions.
-    args : (nscan, ...) float32 or None
-        The arrays to be split by scan position.
-    fly : int
-        The number of scan positions per frame.
-
-    Returns
-    -------
-    order : List[array[int]]
-        The locations of the inputs in the original arrays.
-    scan : List[array[float32]]
-        The divided 2D coordinates of the scan positions.
-    args : List[array[float32]] or None
-        Each input divided into regions or None if arg was None.
-    """
-    if len(shape) != 2:
-        raise ValueError('The grid shape must have two dimensions.')
-    vstripes = split_by_scan_stripes(scan, shape[0], axis=0, fly=fly)
-    hstripes = split_by_scan_stripes(scan, shape[1], axis=1, fly=fly)
-    mask = [np.logical_and(*pair) for pair in product(vstripes, hstripes)]
-
-    order = np.arange(scan.shape[-2])
-    order = [order[m] for m in mask]
-
-    split_args = []
-    for arg, t in zip([scan, *args], dtype):
-        if arg is None:
-            split_args.append(None)
-        else:
-            split_args.append(pool.map(_split, mask, x=arg, dtype=t))
-
-    return (order, *split_args)
-
-
-def split_by_scan_stripes(scan, n, fly=1, axis=0):
-    """Return `n` boolean masks that split the field of view into stripes.
-
-    Mask divide the data into spatially contiguous regions along the position
-    axis.
-
-    Split scan into three stripes:
-    >>> [scan[s] for s in split_by_scan_stripes(scan, 3)]
-
-    FIXME: Only uses the first view to divide the positions. Assumes the
-    positions on all angles are distributed similarly.
-
-    Parameters
-    ----------
-    scan : (nscan, 2) float32
-        The 2D coordinates of the scan positions.
-    n : int
-        The number of stripes.
-    fly : int
-        The number of scan positions per frame.
-    axis : int (0 or 1)
-        Which spatial dimension to divide along. i.e. horizontal or vertical.
-
-    Returns
-    -------
-    mask : list of (nscan, ) boolean
-        A list of boolean arrays which divide the scan positions into `n`
-        stripes.
-
-    """
-    if scan.ndim != 2:
-        raise ValueError('scan must have two dimensions.')
-    if n < 1:
-        raise ValueError('The number of stripes must be > 0.')
-
-    nscan, _ = scan.shape
-    if (nscan // fly) * fly != nscan:
-        raise ValueError('The number of scan positions must be an '
-                         'integer multiple of the number of fly positions.')
-
-    # Reshape scan so positions in the same fly scan are not separated
-    scan = scan.reshape(nscan // fly, fly, 2)
-
-    # Determine the edges of the horizontal stripes
-    edges = np.linspace(
-        scan[..., axis].min(),
-        scan[..., axis].max(),
-        n + 1,
-        endpoint=True,
-    )
-
-    # Move the outer edges to include all points
-    edges[0] -= 1
-    edges[-1] += 1
-
-    # Generate masks which put points into stripes
-    return [
-        np.logical_and(
-            edges[i] < scan[:, 0, axis],
-            scan[:, 0, axis] <= edges[i + 1],
-        ).repeat(fly) for i in range(n)
-    ]
 
 
 def reconstruct_multigrid(
