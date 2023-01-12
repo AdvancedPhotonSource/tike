@@ -66,7 +66,6 @@ def update_obj(op, comm, data, theta, obj, num_iter=1, step_length=1):
         grad_list = comm.pool.map(op.grad, data, theta, obj)
         return comm.Allreduce_reduce_gpu(grad_list)
 
-
     def dir_multi(dir):
         """Scatter dir to all GPUs"""
         return comm.pool.bcast(dir)

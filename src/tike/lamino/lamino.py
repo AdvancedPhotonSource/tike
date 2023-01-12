@@ -57,8 +57,8 @@ __all__ = [
 import logging
 import numpy as np
 
-from tike.communicators import Comm
-from tike.operators import Lamino
+import tike.communicators
+import tike.operators
 from tike.lamino import solvers
 
 logger = logging.getLogger(__name__)
@@ -73,7 +73,7 @@ def simulate(
     """Return complex values of simulated laminography data."""
     assert obj.ndim == 3
     assert theta.ndim == 1
-    with Lamino(
+    with tike.operators.Lamino(
             n=obj.shape[-1],
             tilt=tilt,
             **kwargs,
@@ -120,12 +120,12 @@ def reconstruct(
     obj = np.zeros([n, n, n], dtype='complex64') if obj is None else obj
     if algorithm in solvers.__all__:
         # Initialize an operator.
-        with Lamino(
+        with tike.operators.Lamino(
                 n=obj.shape[-1],
                 tilt=tilt,
                 eps=eps,
                 **kwargs,
-        ) as operator, Comm(num_gpu, mpi=None) as comm:
+        ) as operator, tike.communicators.Comm(num_gpu) as comm:
             # send any array-likes to device
             data = np.array_split(data.astype('complex64'),
                                   comm.pool.num_workers)
@@ -170,8 +170,10 @@ def reconstruct(
             if isinstance(v, list):
                 result[k] = v[0]
 
-        return {k: operator.asnumpy(v) if np.ndim(v) > 0 else v
-                for k, v in result.items()}
+        return {
+            k: operator.asnumpy(v) if np.ndim(v) > 0 else v
+            for k, v in result.items()
+        }
     else:
         raise ValueError(
             "The '{}' algorithm is not an available.".format(algorithm))

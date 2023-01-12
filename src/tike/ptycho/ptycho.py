@@ -304,7 +304,7 @@ class Reconstruction():
                         parameters.algorithm_options.num_iter,
                     ))
 
-        if use_mpi is True:
+        if use_mpi:
             mpi = tike.communicators.MPIComm
             if parameters.psi is None:
                 raise ValueError(
