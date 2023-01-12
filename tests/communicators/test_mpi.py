@@ -31,7 +31,7 @@ class TestMPIComm(unittest.TestCase):
             x = self.xp.ones(5) * self.mpi.rank
             truth = self.xp.ones((self.mpi.size, 5)) * self.xp.arange(
                 self.mpi.size)[..., None]
-            result = self.mpi.Gather(x, root=root)
+            result = self.mpi.Gather(x, root=root, axis=None)
             if self.mpi.rank == root:
                 self.xp.testing.assert_array_equal(result, truth)
             else:
@@ -54,6 +54,6 @@ class TestMPIComm(unittest.TestCase):
             x = self.xp.ones(5) * self.mpi.rank
             truth = self.xp.arange(self.mpi.size)[:, None] * self.xp.ones(
                 (1, 5))
-            result = self.mpi.Allgather(x)
+            result = self.mpi.Allgather(x, axis=None)
             print(result, truth)
             self.xp.testing.assert_array_equal(result, truth)

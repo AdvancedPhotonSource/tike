@@ -84,6 +84,7 @@ class NoMPIComm(MPIio):
     def Gather(
         self,
         sendbuf: np.ndarray | cp.ndarray,
+        axis: int | None = 0,
         root: int = 0,
     ) -> typing.List[typing.Union[np.ndarray, cp.ndarray]]:
         """Take data from all processes into one destination."""
@@ -91,7 +92,9 @@ class NoMPIComm(MPIio):
         if sendbuf is None:
             raise ValueError(f"Gather data can't be empty.")
 
-        return sendbuf[None, ...]
+        if axis is None:
+            return sendbuf[None, ...]
+        return sendbuf
 
     def Allreduce(
         self,
@@ -108,13 +111,16 @@ class NoMPIComm(MPIio):
     def Allgather(
         self,
         sendbuf: np.ndarray | cp.ndarray,
+        axis: int | None = 0,
     ) -> np.ndarray | cp.ndarray:
         """Concatenate sendbuf from all ranks on all ranks."""
 
         if sendbuf is None:
             raise ValueError("Allgather data can't be None")
 
-        return sendbuf[None, ...]
+        if axis is None:
+            return sendbuf[None, ...]
+        return sendbuf
 
 
 try:
@@ -199,9 +205,17 @@ try:
         def Gather(
             self,
             sendbuf: np.ndarray | cp.ndarray,
+            axis: int | None = 0,
             root: int = 0,
-        ) -> typing.List[typing.Union[np.ndarray, cp.ndarray]]:
-            """Take data from all processes into one destination."""
+        ) -> np.ndarray | cp.ndarray:
+            """Take data from all processes into one destination.
+
+            Parameters
+            ----------
+            axis:
+                Concatenate the gathered arrays long this existing axis; a new
+                leading axis is created if axis is None.
+            """
 
             if sendbuf is None:
                 raise ValueError(f"Gather data can't be empty.")
@@ -212,12 +226,15 @@ try:
                 # Move to host for non-GPU aware MPI
                 return cp.asarray(self.Gather(cp.asnumpy(sendbuf)))
 
+            assert axis is None or sendbuf.ndim > 0, "Cannot concatenate zero-dimensional arrays; use `axis=None`"
             recvbuf = xp.empty_like(
                 sendbuf,
                 shape=(self.size, *sendbuf.shape),
             ) if self.rank == root else None
             cp.cuda.get_current_stream().synchronize()
             self.comm.Gather(sendbuf, recvbuf, root=root)
+            if self.rank == root and axis is not None:
+                recvbuf = xp.concatenate(recvbuf, axis=axis)
             return recvbuf
 
         # def Scatter(self, sendbuf, src: int = 0):
@@ -253,8 +270,16 @@ try:
         def Allgather(
             self,
             sendbuf: np.ndarray | cp.ndarray,
+            axis: int | None = 0,
         ) -> np.ndarray | cp.ndarray:
-            """Concatenate sendbuf from all ranks on all ranks."""
+            """Concatenate sendbuf from all ranks on all ranks.
+
+            Parameters
+            ----------
+            axis:
+                Concatenate the gathered arrays long this existing axis; a new
+                leading axis is created if axis is None.
+            """
 
             if sendbuf is None:
                 raise ValueError("Allgather data can't be None")
@@ -265,9 +290,12 @@ try:
                 # Move to host for non-GPU aware MPI
                 return cp.asarray(self.Allgather(cp.asnumpy(sendbuf)))
 
+            assert axis is None or sendbuf.ndim > 0, "Cannot concatenate zero-dimensional arrays; use `axis=None`"
             recvbuf = xp.empty_like(sendbuf, shape=(self.size, *sendbuf.shape))
             cp.cuda.get_current_stream().synchronize()
             self.comm.Allgather(sendbuf, recvbuf)
+            if axis is not None:
+                recvbuf = xp.concatenate(recvbuf, axis=axis)
             return recvbuf
 
 except ModuleNotFoundError:

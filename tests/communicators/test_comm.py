@@ -46,7 +46,7 @@ class TestComm(unittest.TestCase):
         a = cp.array(1.0)
         a_list = self.comm.pool.bcast([a])
         truth = cp.array(1.0)
-        result = self.comm.Allreduce_mean(a_list)
+        result = self.comm.Allreduce_mean(a_list, axis=None)
         # print()
         # print(truth, type(truth))
         # print(result, type(result))

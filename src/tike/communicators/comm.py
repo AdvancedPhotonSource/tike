@@ -104,7 +104,7 @@ class Comm:
                 [1 if x0.ndim == 0 else x0.shape[axis] for x0 in x],
                 dtype=x[0].dtype,
             ).sum()
-            counts_all = self.mpi.Allgather(counts_local).sum()
+            counts_all = self.mpi.Allgather(counts_local, axis=None).sum()
             weight_local = counts_local / counts_all
             return self.mpi.Allreduce(
                 self.pool.reduce_mean(x, axis=axis) * weight_local)

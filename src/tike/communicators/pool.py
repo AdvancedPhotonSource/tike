@@ -138,12 +138,24 @@ class ThreadPool(ThreadPoolExecutor):
         self,
         x: typing.List[cp.array],
         worker: int = None,
-        axis: int = 0,
+        axis: int | None = 0,
     ) -> cp.array:
-        """Concatenate x on a single worker along the given axis."""
+        """Concatenate x on a single worker along the given axis.
+
+        Parameters
+        ----------
+        axis:
+            Concatenate the gathered arrays long this existing axis; a new
+            leading axis is created if axis is None.
+        """
         assert isinstance(x, list), f"x should be list not {type(x)}"
         worker = self.workers[0] if worker is None else worker
-        merge = self.xp.concatenate if x[0].ndim > 0 else self.xp.stack
+        if axis is None:
+            merge = self.xp.stack
+            axis = 0
+        else:
+            assert x[0].ndim > 0, "Cannot concatenate zero-dimensional arrays; use `axis=None`"
+            merge = self.xp.concatenate
         with self.Device(worker):
             return merge(
                 [self._copy_to(part, worker) for part in x],
@@ -153,14 +165,26 @@ class ThreadPool(ThreadPoolExecutor):
     def gather_host(
         self,
         x: typing.List[cp.array],
-        axis: int = 0,
+        axis: int | None = 0,
     ) -> np.array:
-        """Concatenate x on host along the given axis."""
+        """Concatenate x on host along the given axis.
+
+        Parameters
+        ----------
+        axis:
+            Concatenate the gathered arrays long this existing axis; a new
+            leading axis is created if axis is None.
+        """
 
         def f(x, worker):
             return self._copy_host(x, worker)
 
-        merge = np.concatenate if x[0].ndim > 0 else np.stack
+        if axis is None:
+            merge = np.stack
+            axis = 0
+        else:
+            assert x[0].ndim > 0, "Cannot concatenate zero-dimensional arrays; use `axis=None`"
+            merge = np.concatenate
         return merge(
             self.map(f, x, self.workers),
             axis=axis,
@@ -169,9 +193,16 @@ class ThreadPool(ThreadPoolExecutor):
     def all_gather(
         self,
         x: typing.List[cp.array],
-        axis: int = 0,
+        axis: int | None = 0,
     ) -> typing.List[cp.array]:
-        """Concatenate x on all workers along the given axis."""
+        """Concatenate x on all workers along the given axis.
+
+        Parameters
+        ----------
+        axis:
+            Concatenate the gathered arrays long this existing axis; a new
+            leading axis is created if axis is None.
+        """
 
         def f(worker):
             return self.gather(x, worker, axis)
