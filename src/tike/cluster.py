@@ -393,3 +393,23 @@ def _assert_cluster_is_full(labels, c, size):
                                          f'cluster {c} had '
                                          f'{xp.sum(labels == c)} points '
                                          f'when it should have {size}.')
+
+
+def cluster_wobbly_center(*args, **kwargs):
+    import warnings
+    warnings.warn(
+        'tike.random.cluster_wobbly_center is depreacted. '
+        'Use tike.cluster.wobbly_center instead.',
+        DeprecationWarning,
+    )
+    return wobbly_center(*args, **kwargs)
+
+
+def cluster_compact(*args, **kwargs):
+    import warnings
+    warnings.warn(
+        'tike.random.cluster_compact is depreacted. '
+        'Use tike.cluster.compact instead.',
+        DeprecationWarning,
+    )
+    return compact(*args, **kwargs)
