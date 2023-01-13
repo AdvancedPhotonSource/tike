@@ -5,7 +5,7 @@ import numpy as np
 import scipy.stats
 
 from tike.opt import batch_indicies, randomizer
-from tike.random import cluster_wobbly_center, cluster_compact
+import tike.cluster
 
 
 class ClusterTests():
@@ -46,7 +46,7 @@ class ClusterTests():
 
 class TestWobblyCenter(unittest.TestCase, ClusterTests):
 
-    cluster_method = staticmethod(cluster_wobbly_center)
+    cluster_method = staticmethod(tike.cluster.wobbly_center)
 
     def setUp(self, num_pop=500, num_cluster=10):
         """Generates a normally distributed 3D population."""
@@ -67,12 +67,12 @@ class TestWobblyCenter(unittest.TestCase, ClusterTests):
             np.array([0, 5, 8]),
             np.array([1, 6, 7]),
         ]
-        result = cluster_wobbly_center(np.arange(10)[:, None], 3)
+        result = tike.cluster.wobbly_center(np.arange(10)[:, None], 3)
         for a, b in zip(references, result):
             np.testing.assert_array_equal(a, b)
 
     def test_same_mean(self):
-        """"Test that wobbly center generates better samples of the population.
+        """Test that wobbly center generates better samples of the population.
 
         In this case 'better' is when the ANOVA test concludes that the samples
         are statistically the same on average. The ANOVA null hypothesis is
@@ -88,7 +88,7 @@ class TestWobblyCenter(unittest.TestCase, ClusterTests):
 
         print('\nwobbly center')
         p0 = print_sample_error(
-            cluster_wobbly_center(self.population, self.num_cluster))
+            tike.cluster.wobbly_center(self.population, self.num_cluster))
         print('random sample')
         p1 = print_sample_error(batch_indicies(self.num_pop, self.num_cluster))
 
@@ -98,7 +98,7 @@ class TestWobblyCenter(unittest.TestCase, ClusterTests):
 
 class TestClusterCompact(unittest.TestCase, ClusterTests):
 
-    cluster_method = staticmethod(cluster_compact)
+    cluster_method = staticmethod(tike.cluster.compact)
 
     def setUp(self, num_pop=50**2, num_cluster=10):
         """Generates points on a regular grid."""
@@ -132,7 +132,7 @@ class TestClusterCompact(unittest.TestCase, ClusterTests):
 
         print('\ncompact cluster')
         p0 = print_sample_error(
-            cluster_compact(self.population, self.num_cluster))
+            tike.cluster.compact(self.population, self.num_cluster))
         print('random sample')
         p1 = print_sample_error(batch_indicies(self.num_pop, self.num_cluster))
 
@@ -144,7 +144,7 @@ class TestClusterCompact(unittest.TestCase, ClusterTests):
         import matplotlib
         matplotlib.use('Agg')
         from matplotlib import pyplot as plt
-        samples = cluster_compact(self.population, self.num_cluster)
+        samples = tike.cluster.compact(self.population, self.num_cluster)
         plt.figure()
         for s in samples:
             plt.scatter(self.population[s][:, 0], self.population[s][:, 1])
@@ -153,3 +153,27 @@ class TestClusterCompact(unittest.TestCase, ClusterTests):
         if not os.path.isdir(folder):
             os.makedirs(folder)
         plt.savefig(os.path.join(folder, 'clusters.svg'))
+
+
+def test_split_by_scan():
+    scan = np.mgrid[0:3, 0:3].reshape(2, -1)
+    scan = np.moveaxis(scan, 0, -1)
+
+    ind = tike.cluster.by_scan_stripes(scan, 3, axis=0)
+    split = [scan[i] for i in ind]
+
+    solution = [
+        [[0, 0], [0, 1], [0, 2]],
+        [[1, 0], [1, 1], [1, 2]],
+        [[2, 0], [2, 1], [2, 2]],
+    ]
+    np.testing.assert_equal(split, solution)
+
+    ind = tike.cluster.by_scan_stripes(scan, 3, axis=1)
+    split = [scan[i] for i in ind]
+    solution = [
+        [[0, 0], [1, 0], [2, 0]],
+        [[0, 1], [1, 1], [2, 1]],
+        [[0, 2], [1, 2], [2, 2]],
+    ]
+    np.testing.assert_equal(split, solution)

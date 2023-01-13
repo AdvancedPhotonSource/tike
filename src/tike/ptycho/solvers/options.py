@@ -24,9 +24,9 @@ class IterativeOptions(abc.ABC):
     """The dataset is divided into this number of groups where each group is
     processed sequentially."""
 
-    batch_method: str = 'cluster_wobbly_center'
+    batch_method: str = 'wobbly_center'
     """The name of the batch selection method. Choose from the cluster methods
-    in the tike.random module."""
+    in the tike.cluster module."""
 
     costs: typing.List[typing.List[float]] = dataclasses.field(
         init=False,
