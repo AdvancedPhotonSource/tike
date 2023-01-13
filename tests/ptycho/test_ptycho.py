@@ -47,6 +47,7 @@
 # #########################################################################
 
 import matplotlib
+
 matplotlib.use('Agg')
 
 import bz2
@@ -63,7 +64,7 @@ import tike.ptycho
 from tike.ptycho.probe import ProbeOptions
 from tike.ptycho.position import PositionOptions
 from tike.ptycho.object import ObjectOptions
-from tike.communicators import MPIComm
+from tike.communicators import Comm, MPIComm
 from tike.ptycho.solvers.options import (
     _resize_fft,
     _resize_spline,
@@ -255,6 +256,16 @@ class TemplatePtychoRecon():
         self.probe = tike.ptycho.probe.adjust_probe_power(self.probe)
         self.probe = tike.ptycho.probe.orthogonalize_eig(self.probe)
 
+        with Comm(1, mpi=MPIComm) as comm:
+            mask = tike.cluster.by_scan_stripes(
+                self.scan,
+                n=comm.mpi.size,
+                fly=1,
+                axis=0,
+            )[comm.mpi.rank]
+            self.scan = self.scan[mask]
+            self.data = self.data[mask]
+
     def init_params(self):
         return tike.ptycho.PtychoParameters(
             psi=np.full(
@@ -268,25 +279,6 @@ class TemplatePtychoRecon():
 
     def template_consistent_algorithm(self, *, params={}):
         """Check ptycho.solver.algorithm for consistency."""
-
-        if _mpi_size > 1:
-            with MPIComm() as IO:
-                params['parameters'].probe = IO.Bcast(
-                    params['parameters'].probe)
-                if params['parameters'].eigen_weights is not None:
-                    (
-                        params['parameters'].scan,
-                        self.data,
-                        params['parameters'].eigen_weights,
-                    ) = IO.MPIio_ptycho(
-                        params['parameters'].scan,
-                        self.data,
-                        params['parameters'].eigen_weights,
-                    )
-                else:
-                    params['parameters'].scan, self.data = IO.MPIio_ptycho(
-                        params['parameters'].scan, self.data)
-
         device_per_rank = cp.cuda.runtime.getDeviceCount() // _mpi_size
         base_device = device_per_rank * _mpi_rank
         with cp.cuda.Device(base_device):
@@ -299,6 +291,7 @@ class TemplatePtychoRecon():
                         i + base_device for i in range(device_per_rank)),
                     use_mpi=_mpi_size > 1,
                 )
+
         print()
         print('\n'.join(f'{c[0]:1.3e}'
                         for c in params['parameters'].algorithm_options.costs))
@@ -459,6 +452,10 @@ class TestPtychoRecon(TemplatePtychoRecon, unittest.TestCase):
             },), f"{'mpi-' if _mpi_size > 1 else ''}dm{self.post_name}")
 
 
+@unittest.skipIf(
+    _mpi_size > 1,
+    reason="MPI not implemented for online reconstruction.",
+)
 class TestPtychoOnline(TestPtychoRecon, unittest.TestCase):
     """Test ptychography reconstruction when data is streaming."""
 
@@ -477,6 +474,9 @@ class TestPtychoOnline(TestPtychoRecon, unittest.TestCase):
         self.scan_more = scan[1:]
 
     def template_consistent_algorithm(self, *, params={}):
+
+        if _mpi_size > 1:
+            raise NotImplementedError()
 
         with tike.ptycho.Reconstruction(**params, data=self.data) as context:
             context.iterate(2)
@@ -513,7 +513,20 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
                 self.probe,
             ] = pickle.load(f)
 
+        with Comm(1, mpi=MPIComm) as comm:
+            mask = tike.cluster.by_scan_stripes(
+                self.scan,
+                n=comm.mpi.size,
+                fly=1,
+                axis=0,
+            )[comm.mpi.rank]
+            self.scan = self.scan[mask]
+            self.scan_truth = self.scan_truth[mask]
+            self.data = self.data[mask]
+
     def _save_position_error_variance(self, result, algorithm):
+        if result is None or _mpi_rank > 0:
+            return
         try:
             import matplotlib
             matplotlib.use('Agg')
@@ -548,7 +561,7 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
             plt.scatter(
                 result.position_options.initial_scan[..., 0],
                 result.position_options.initial_scan[..., 1],
-                marker='o'
+                marker='o',
             )
             plt.scatter(
                 result.scan[..., 0],
@@ -558,9 +571,11 @@ class TestPtychoPosition(TemplatePtychoRecon, unittest.TestCase):
                 facecolor='None',
             )
             plt.scatter(
-                result.position_options.transform(result.position_options.initial_scan)[..., 0],
-                result.position_options.transform(result.position_options.initial_scan)[..., 1],
-                marker='x'
+                result.position_options.transform(
+                    result.position_options.initial_scan)[..., 0],
+                result.position_options.transform(
+                    result.position_options.initial_scan)[..., 1],
+                marker='x',
             )
             plt.legend(['initial', 'result', 'global'])
             plt.savefig(os.path.join(fname, 'position-models.svg'))
@@ -651,6 +666,17 @@ class TestPtychoPositionReference(TestPtychoPosition, unittest.TestCase):
             ] = pickle.load(f)
         self.scan_truth = self.scan
 
+        with Comm(1, mpi=MPIComm) as comm:
+            mask = tike.cluster.by_scan_stripes(
+                self.scan,
+                n=comm.mpi.size,
+                fly=1,
+                axis=0,
+            )[comm.mpi.rank]
+            self.scan = self.scan[mask]
+            self.data = self.data[mask]
+            self.scan_truth = self.scan_truth[mask]
+
 
 def _save_eigen_probe(output_folder, eigen_probe):
     import matplotlib
@@ -712,6 +738,8 @@ def _save_probe(output_folder, probe, algorithm):
 
 
 def _save_ptycho_result(result, algorithm):
+    if result is None or _mpi_rank > 0:
+        return
     try:
         import matplotlib
         matplotlib.use('Agg')
