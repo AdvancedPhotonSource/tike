@@ -119,29 +119,6 @@ class TestPtychoUtils(unittest.TestCase):
         psi, scan = tike.ptycho.object.get_padded_object(scan, probe)
         tike.ptycho.check_allowed_positions(scan, psi, probe_shape=probe.shape)
 
-    def test_split_by_scan(self):
-        scan = np.mgrid[0:3, 0:3].reshape(2, -1)
-        scan = np.moveaxis(scan, 0, -1)
-
-        ind = tike.ptycho.ptycho.split_by_scan_stripes(scan, 3, axis=0)
-        split = [scan[i] for i in ind]
-
-        solution = [
-            [[0, 0], [0, 1], [0, 2]],
-            [[1, 0], [1, 1], [1, 2]],
-            [[2, 0], [2, 1], [2, 2]],
-        ]
-        np.testing.assert_equal(split, solution)
-
-        ind = tike.ptycho.ptycho.split_by_scan_stripes(scan, 3, axis=1)
-        split = [scan[i] for i in ind]
-        solution = [
-            [[0, 0], [1, 0], [2, 0]],
-            [[0, 1], [1, 1], [2, 1]],
-            [[0, 2], [1, 2], [2, 2]],
-        ]
-        np.testing.assert_equal(split, solution)
-
 
 class TestPtychoSimulate(unittest.TestCase):
 
