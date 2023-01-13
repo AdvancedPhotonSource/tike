@@ -1,6 +1,6 @@
 """Defines a communicator for both inter-GPU and inter-node communications."""
 
-__author__ = "Xiaodong Yu"
+__author__ = "Xiaodong Yu, Daniel Ching"
 __copyright__ = "Copyright (c) 2021, UChicago Argonne, LLC."
 
 import warnings
