@@ -12,21 +12,6 @@ import cupy as cp
 import numpy as np
 
 
-class _Device():
-
-    def __init__(self, x) -> None:
-        pass
-
-    def __enter__(self, *args):
-        pass
-
-    def __exit__(self, *args):
-        pass
-
-
-np.asnumpy = np.asarray
-
-
 class ThreadPool(ThreadPoolExecutor):
     """Python thread pool plus scatter gather methods.
 
