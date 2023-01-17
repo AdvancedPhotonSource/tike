@@ -560,7 +560,7 @@ def affine_position_regularization(
     else:
         new_transform = None
 
-    new_transform = comm.mpi.bcast(new_transform)
+    new_transform = comm.mpi.bcast(new_transform, root=0)
 
     for i in range(len(position_options)):
         position_options[i].transform = new_transform
