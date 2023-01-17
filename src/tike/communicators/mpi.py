@@ -315,9 +315,9 @@ try:
                 recvbuf = xp.concatenate(recvbuf, axis=axis)
             return recvbuf
 
-except ModuleNotFoundError:
+except ImportError:
 
-    MPIComm = None
+    MPIComm = NoMPIComm
     warnings.warn(
         "tike was unable to import mpi4py, "
         "so MPI features are unavailable.", UserWarning)
