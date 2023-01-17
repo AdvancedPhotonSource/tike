@@ -133,7 +133,6 @@ class ThreadPool(ThreadPoolExecutor):
             Concatenate the gathered arrays long this existing axis; a new
             leading axis is created if axis is None.
         """
-        assert isinstance(x, list), f"x should be list not {type(x)}"
         worker = self.workers[0] if worker is None else worker
         if axis is None:
             merge = self.xp.stack
