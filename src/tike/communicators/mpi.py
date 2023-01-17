@@ -79,9 +79,9 @@ class NoMPIComm(MPIio):
 
     def Bcast(
         self,
-        sendbuf: np.ndarray | cp.ndarray,
+        sendbuf: typing.Union[np.ndarray, cp.ndarray],
         root: int = 0,
-    ) -> np.ndarray | cp.ndarray:
+    ) -> typing.Union[np.ndarray, cp.ndarray]:
         """Send data from a root to all processes."""
 
         if sendbuf is None:
@@ -91,8 +91,8 @@ class NoMPIComm(MPIio):
 
     def Gather(
         self,
-        sendbuf: np.ndarray | cp.ndarray,
-        axis: int | None = 0,
+        sendbuf: typing.Union[np.ndarray, cp.ndarray],
+        axis: typing.Union[int, None] = 0,
         root: int = 0,
     ) -> typing.List[typing.Union[np.ndarray, cp.ndarray]]:
         """Take data from all processes into one destination."""
@@ -106,9 +106,9 @@ class NoMPIComm(MPIio):
 
     def Allreduce(
         self,
-        sendbuf: np.ndarray | cp.ndarray,
+        sendbuf: typing.Union[np.ndarray, cp.ndarray],
         op=None,
-    ) -> np.ndarray | cp.ndarray:
+    ) -> typing.Union[np.ndarray, cp.ndarray]:
         """Sum sendbuf from all ranks and return the result to all ranks."""
 
         if sendbuf is None:
@@ -118,9 +118,9 @@ class NoMPIComm(MPIio):
 
     def Allgather(
         self,
-        sendbuf: np.ndarray | cp.ndarray,
-        axis: int | None = 0,
-    ) -> np.ndarray | cp.ndarray:
+        sendbuf: typing.Union[np.ndarray, cp.ndarray],
+        axis: typing.Union[int, None] = 0,
+    ) -> typing.Union[np.ndarray, cp.ndarray]:
         """Concatenate sendbuf from all ranks on all ranks."""
 
         if sendbuf is None:
@@ -194,13 +194,14 @@ try:
             root: int = 0,
         ) -> typing.Any:
             """Send a Python object from a root to all processes."""
+            cp.cuda.get_current_stream().synchronize()
             return self.comm.bcast(sendobj, root=root)
 
         def Bcast(
             self,
-            sendbuf: np.ndarray | cp.ndarray,
+            sendbuf: typing.Union[np.ndarray, cp.ndarray],
             root: int = 0,
-        ) -> np.ndarray | cp.ndarray:
+        ) -> typing.Union[np.ndarray, cp.ndarray]:
             """Send data from a root to all processes."""
 
             if sendbuf is None:
@@ -220,10 +221,10 @@ try:
 
         def Gather(
             self,
-            sendbuf: np.ndarray | cp.ndarray,
-            axis: int | None = 0,
+            sendbuf: typing.Union[np.ndarray, cp.ndarray],
+            axis: typing.Union[int, None] = 0,
             root: int = 0,
-        ) -> np.ndarray | cp.ndarray:
+        ) -> typing.Union[np.ndarray, cp.ndarray]:
             """Take data from all processes into one destination.
 
             Parameters
@@ -264,9 +265,9 @@ try:
 
         def Allreduce(
             self,
-            sendbuf: np.ndarray | cp.ndarray,
+            sendbuf: typing.Union[np.ndarray, cp.ndarray],
             op=MPI.SUM,
-        ) -> np.ndarray | cp.ndarray:
+        ) -> typing.Union[np.ndarray, cp.ndarray]:
             """Sum sendbuf from all ranks and return the result to all ranks."""
 
             if sendbuf is None:
@@ -285,9 +286,9 @@ try:
 
         def Allgather(
             self,
-            sendbuf: np.ndarray | cp.ndarray,
-            axis: int | None = 0,
-        ) -> np.ndarray | cp.ndarray:
+            sendbuf: typing.Union[np.ndarray, cp.ndarray],
+            axis: typing.Union[int, None] = 0,
+        ) -> typing.Union[np.ndarray, cp.ndarray]:
             """Concatenate sendbuf from all ranks on all ranks.
 
             Parameters

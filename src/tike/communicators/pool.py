@@ -123,7 +123,7 @@ class ThreadPool(ThreadPoolExecutor):
         self,
         x: typing.List[cp.array],
         worker: int = None,
-        axis: int | None = 0,
+        axis: typing.Union[int, None] = 0,
     ) -> cp.array:
         """Concatenate x on a single worker along the given axis.
 
@@ -149,7 +149,7 @@ class ThreadPool(ThreadPoolExecutor):
     def gather_host(
         self,
         x: typing.List[cp.array],
-        axis: int | None = 0,
+        axis: typing.Union[int, None] = 0,
     ) -> np.array:
         """Concatenate x on host along the given axis.
 
@@ -177,7 +177,7 @@ class ThreadPool(ThreadPoolExecutor):
     def all_gather(
         self,
         x: typing.List[cp.array],
-        axis: int | None = 0,
+        axis: typing.Union[int, None] = 0,
     ) -> typing.List[cp.array]:
         """Concatenate x on all workers along the given axis.
 
@@ -279,7 +279,7 @@ class ThreadPool(ThreadPoolExecutor):
         self,
         x: typing.List[cp.array],
         stride: int = 1,
-        workers: typing.List[int] | None = None,
+        workers: typing.Union[typing.List[int], None] = None,
     ) -> typing.List[cp.array]:
         """Reduce x by addition to a device group from all other devices.
 
@@ -318,8 +318,8 @@ class ThreadPool(ThreadPoolExecutor):
     def reduce_mean(
         self,
         x: typing.List[cp.array],
-        axis: int | typing.List[int] = 0,
-        worker: int | None = None,
+        axis: typing.Union[int, typing.List[int]] = 0,
+        worker: typing.Union[int, None] = None,
     ) -> cp.array:
         """Reduce x by addition to one GPU from all other GPUs."""
         worker = self.workers[0] if worker is None else worker
@@ -332,7 +332,7 @@ class ThreadPool(ThreadPoolExecutor):
     def allreduce(
         self,
         x: typing.List[cp.array],
-        stride: int | None = None,
+        stride: typing.Union[int, None] = None,
     ) -> typing.List[cp.array]:
         """All-reduce x by addition within device groups.
 
@@ -370,7 +370,7 @@ class ThreadPool(ThreadPoolExecutor):
         self,
         func,
         *iterables,
-        workers: typing.List[int] | None = None,
+        workers: typing.Union[typing.List[int], None] = None,
         **kwargs,
     ) -> list:
         """ThreadPoolExecutor.map, but wraps call in a cuda.Device context."""
