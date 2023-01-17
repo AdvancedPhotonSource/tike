@@ -57,8 +57,8 @@ __all__ = [
 import logging
 import numpy as np
 
-from tike.communicators import Comm, MPIComm
-from tike.operators import Bucket as Lamino
+import tike.communicators
+import tike.operators
 from tike.lamino import solvers
 
 logger = logging.getLogger(__name__)
@@ -73,7 +73,7 @@ def simulate(
     """Return complex values of simulated laminography data."""
     assert obj.ndim == 3
     assert theta.ndim == 1
-    with Lamino(
+    with tike.operators.Bucket(
             n=obj.shape[-1],
             tilt=tilt,
             **kwargs,
@@ -111,40 +111,36 @@ def reconstruct(
 
     """
     n = data.shape[2]
-    if use_mpi is True:
-        mpi = MPIComm
+    if use_mpi:
+        mpi = tike.communicators.MPIComm
         if obj is None:
             raise ValueError(
                 "When MPI is enabled, initial object guess cannot be None.")
     else:
-        mpi = None
+        mpi = tike.communicators.NoMPIComm
         obj = np.zeros([n, n, n], dtype='complex64') if obj is None else obj
 
     if algorithm in solvers.__all__:
         # Initialize an operator.
-        with Lamino(
+        with tike.operators.Bucket(
                 n=obj.shape[-1],
                 tilt=tilt,
                 eps=eps,
                 **kwargs,
-        ) as operator, Comm(num_gpu, mpi) as comm:
+        ) as operator, tike.communicators.Comm(num_gpu, mpi) as comm:
             # send any array-likes to device
             obj_split = max(1, min(comm.pool.num_workers, obj_split))
             data_split = comm.pool.num_workers // obj_split
-            data = np.array_split(data.astype('complex64'),
-                                  data_split)
+            data = np.array_split(data.astype('complex64'), data_split)
             data = comm.pool.scatter(data, obj_split)
-            theta = np.array_split(theta.astype('float32'),
-                                   data_split)
+            theta = np.array_split(theta.astype('float32'), data_split)
             theta = comm.pool.scatter(theta, obj_split)
-            obj = np.array_split(obj.astype('complex64'),
-                                 obj_split)
-            if comm.use_mpi is True:
+            obj = np.array_split(obj.astype('complex64'), obj_split)
+            if comm.use_mpi:
                 grid = operator._make_grid(comm.mpi.size, comm.mpi.rank)
             else:
                 grid = operator._make_grid()
-            grid = np.array_split(grid.astype('int16'),
-                                  obj_split)
+            grid = np.array_split(grid.astype('int16'), obj_split)
             grid = [x.reshape(x.shape[0] * n * n, 3) for x in grid]
             grid = comm.pool.bcast(grid, obj_split)
             result = {
@@ -155,8 +151,8 @@ def reconstruct(
                     kwargs[key] = comm.pool.bcast([value])
 
             logger.info("{} on {:,d} by {:,d} by {:,d} volume for {:,d} "
-                        "iterations.".format(algorithm,
-                                             *obj[0].shape, num_iter))
+                        "iterations.".format(algorithm, *obj[0].shape,
+                                             num_iter))
 
             costs = []
             for i in range(num_iter):
@@ -183,15 +179,9 @@ def reconstruct(
                     break
 
         result['cost'] = operator.asarray(costs)
-        for k, v in result.items():
-            if isinstance(v, list):
-                result[k] = np.concatenate(
-                    [operator.asnumpy(part) for part in v[:obj_split]],
-                    axis=0,
-                )
-            elif np.ndim(v) > 0:
-                result[k] = operator.asnumpy(v)
-
+        result['cost'] = operator.asnumpy(result['cost'])
+        result['obj'] = comm.pool.gather_host(result['obj'][:obj_split])
+        result['step_length'] = operator.asnumpy(result['step_length'])
         return result
     else:
         raise ValueError(

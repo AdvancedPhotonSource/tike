@@ -23,7 +23,7 @@ class TestProbe(unittest.TestCase):
         high = 21
         posi = 53
         eigen = 1
-        comm = Comm(2, None)
+        comm = Comm(2)
 
         R = comm.pool.bcast([np.random.rand(*leading, posi, 1, 1, wide, high)])
         eigen_probe = comm.pool.bcast(

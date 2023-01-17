@@ -1,11 +1,15 @@
 """Defines a communicator for both inter-GPU and inter-node communications."""
 
-__author__ = "Xiaodong Yu"
+__author__ = "Xiaodong Yu, Daniel Ching"
 __copyright__ = "Copyright (c) 2021, UChicago Argonne, LLC."
 
-import cupy as cp
+import warnings
+import typing
 
-from .mpi import MPIComm
+import cupy as cp
+import numpy as np
+
+from .mpi import MPIComm, NoMPIComm
 from .pool import ThreadPool
 
 
@@ -29,26 +33,23 @@ class Comm:
     def __init__(
         self,
         gpu_count,
-        mpi=MPIComm,
+        mpi=NoMPIComm,
         pool=ThreadPool,
-        **kwargs,
     ):
-        if mpi is not None:
-            self.mpi = mpi()
-            self.use_mpi = True
-        else:
+        if isinstance(mpi, NoMPIComm):
             self.use_mpi = False
+        else:
+            self.use_mpi = True
+        self.mpi = mpi()
         self.pool = pool(gpu_count)
 
     def __enter__(self):
-        if self.use_mpi is True:
-            self.mpi.__enter__()
+        self.mpi.__enter__()
         self.pool.__enter__()
         return self
 
     def __exit__(self, type, value, traceback):
-        if self.use_mpi is True:
-            self.mpi.__exit__(type, value, traceback)
+        self.mpi.__exit__(type, value, traceback)
         self.pool.__exit__(type, value, traceback)
 
     def reduce(self, x, dest, s=1, **kwargs):
@@ -64,6 +65,10 @@ class Comm:
             workers[1].
 
         """
+        warnings.warn(
+            "Comm.reduce is deprecated. "
+            "Use Comm.pool.reduce_gpu or Comm.pool.reduce_cpu directly.",
+            DeprecationWarning)
         if dest == 'gpu':
             return self.pool.reduce_gpu(x, s, **kwargs)
         elif dest == 'cpu':
@@ -71,22 +76,38 @@ class Comm:
         else:
             raise ValueError(f'dest must be gpu or cpu.')
 
-    def Allreduce_reduce(self, x, dest, s=1, **kwargs):
-        """ThreadPool reduce coupled with MPI allreduce."""
-        src = self.reduce(x, dest, s, **kwargs)
-        if dest == 'gpu':
-            return [cp.asarray(self.mpi.Allreduce(cp.asnumpy(src[0])))]
-        elif dest == 'cpu':
-            return self.mpi.Allreduce(src).item()
-        else:
-            raise ValueError(f'dest must be gpu or cpu.')
+    def Allreduce_reduce_gpu(
+        self,
+        x: typing.List[cp.ndarray],
+    ) -> typing.List[cp.ndarray]:
+        """ThreadPool reduce followed by MPI Allreduce."""
+        # TODO: Support stride/worker params for reduce_gpu
+        # pool.map is required to ensure correct device context for x
+        return self.pool.map(self.mpi.Allreduce, self.pool.reduce_gpu(x))
 
-    def Allreduce_mean(self, x, **kwargs):
+    def Allreduce_reduce_cpu(
+        self,
+        x: typing.List[cp.ndarray],
+    ) -> np.ndarray:
+        """ThreadPool reduce followed by MPI Allreduce."""
+        return self.mpi.Allreduce(self.pool.reduce_cpu(x))
+
+    def Allreduce_mean(
+        self,
+        x: typing.List[cp.ndarray],
+        axis: int | typing.List[int] = 0,
+    ) -> cp.ndarray:
         """Multi-process multi-GPU based mean."""
-        src = self.pool.reduce_mean(x, **kwargs)
-        mean = self.mpi.Allreduce(cp.asnumpy(src)) / self.mpi.size
-
-        return cp.asarray(mean)
+        assert isinstance(x, list), f"x should be list not {type(x)}"
+        with cp.cuda.Device(self.pool.workers[0]):
+            counts_local = np.array(
+                [1 if x0.ndim == 0 else x0.shape[axis] for x0 in x],
+                dtype=x[0].dtype,
+            ).sum()
+            counts_all = self.mpi.Allgather(counts_local, axis=None).sum()
+            weight_local = counts_local / counts_all
+            return self.mpi.Allreduce(
+                self.pool.reduce_mean(x, axis=axis) * weight_local)
 
     def Allreduce(self, x, s=None, **kwargs):
         """ThreadPool allreduce coupled with MPI allreduce.
