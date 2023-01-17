@@ -147,7 +147,7 @@ def lstsq_grad(
             op=op,
         ))
 
-        batch_cost.append(comm.Allreduce_reduce_cpu(cost))
+        batch_cost.append(comm.Allreduce_mean(cost, axis=None).get())
 
         (
             psi,
