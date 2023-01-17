@@ -177,7 +177,7 @@ class TestLaminoRecon(unittest.TestCase):
 
         if params.get('use_mpi') is True:
             with MPIComm() as mpi:
-                obj_out = mpi.Gather(result['obj'])
+                obj_out = mpi.Gather(result['obj'], root=0, axis=0)
                 if mpi.rank == 0:
                     result['obj'] = obj_out
                     recon_file = os.path.join(
@@ -201,6 +201,8 @@ class TestLaminoRecon(unittest.TestCase):
                         standard,
                         atol=1e-3,
                     )
+                else:
+                    result = None
         else:
             recon_file = os.path.join(
                 testdir,
@@ -329,9 +331,9 @@ class TestLaminoRadon(unittest.TestCase):
 
 
 def _save_lamino_result(result, algorithm):
+    if result is None:
+        return
     try:
-        if _mpi_rank != 0:
-            return
         import matplotlib
         matplotlib.use('Agg')
         from matplotlib import pyplot as plt

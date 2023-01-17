@@ -16,13 +16,12 @@ def _estimate_step_length(obj, fwd_data, theta, grid, op, comm, s):
     logger.info('Estimate step length from forward adjoint operations.')
 
     def reduce_norm(data, workers):
+
         def f(data):
             return tike.linalg.norm(data)**2
+
         sqr = comm.pool.map(f, data, workers=workers)
-        if comm.use_mpi:
-            sqr_sum = comm.Allreduce_reduce(sqr, 'cpu')
-        else:
-            sqr_sum = comm.reduce(sqr, 'cpu')
+        sqr_sum = comm.Allreduce_reduce_cpu(sqr).item()
         return sqr_sum**0.5
 
     outnback = comm.pool.map(
@@ -52,10 +51,7 @@ def bucket(
 
     def fwd_op(u):
         fwd_data = comm.pool.map(op.fwd, u, theta, grid)
-        if comm.use_mpi:
-            return comm.Allreduce(fwd_data, obj_split)
-        else:
-            return comm.pool.allreduce(fwd_data, obj_split)
+        return comm.Allreduce(fwd_data, obj_split)
 
     fwd_data = fwd_op(obj)
     if step_length == 1:
@@ -90,7 +86,10 @@ def bucket(
 def update_obj(
     op,
     comm,
-    data, theta, obj, grid,
+    data,
+    theta,
+    obj,
+    grid,
     obj_split,
     fwd_op,
     num_iter=1,
@@ -107,10 +106,7 @@ def update_obj(
             fwd_data[::obj_split],
             workers=workers,
         )
-        if comm.use_mpi:
-            return comm.Allreduce_reduce(cost_out, 'cpu')
-        else:
-            return comm.reduce(cost_out, 'cpu')
+        return comm.Allreduce_reduce_cpu(cost_out).item()
 
     def grad(obj):
         fwd_data = fwd_op(obj)
@@ -139,10 +135,7 @@ def update_obj(
             return comm.pool.map(init, grad1, workers=workers)
 
         n = comm.pool.map(f, grad1, workers=workers)
-        if comm.use_mpi:
-            norm_ = comm.Allreduce_reduce(n, 'cpu')
-        else:
-            norm_ = comm.reduce(n, 'cpu')
+        norm_ = comm.Allreduce_reduce_cpu(n).item()
         return comm.pool.map(
             d,
             grad0,

@@ -159,19 +159,12 @@ def _update_all(
         op=op,
     )))
 
-    if comm.use_mpi:
-        cost = comm.Allreduce_reduce(cost, 'cpu')
-    else:
-        cost = comm.reduce(cost, 'cpu')
+    cost = comm.Allreduce_reduce_cpu(cost)
     logger.info('%10s cost is %+12.5e', 'farplane', cost)
 
     if object_options is not None:
-        if comm.use_mpi:
-            dpsi = comm.Allreduce_reduce(grad_psi, 'gpu')[0]
-            probe_amp = comm.Allreduce_reduce(probe_amp, 'gpu')[0]
-        else:
-            dpsi = comm.reduce(grad_psi, 'gpu')[0]
-            probe_amp = comm.reduce(probe_amp, 'gpu')[0]
+        dpsi = comm.Allreduce_reduce_gpu(grad_psi)[0]
+        probe_amp = comm.Allreduce_reduce_gpu(probe_amp)[0]
 
         dpsi /= (1 - algorithm_options.alpha
                 ) * probe_amp + algorithm_options.alpha * probe_amp.max(
@@ -195,13 +188,8 @@ def _update_all(
         psi = comm.pool.bcast([psi[0]])
 
     if probe_options is not None:
-        if comm.use_mpi:
-            dprobe = comm.Allreduce_reduce(grad_probe, 'gpu')[0]
-            psi_amp = comm.Allreduce_reduce(psi_amp, 'gpu')[0]
-
-        else:
-            dprobe = comm.reduce(grad_probe, 'gpu')[0]
-            psi_amp = comm.reduce(psi_amp, 'gpu')[0]
+        dprobe = comm.Allreduce_reduce_gpu(grad_probe)[0]
+        psi_amp = comm.Allreduce_reduce_gpu(psi_amp)[0]
 
         dprobe /= (1 - algorithm_options.alpha
                   ) * psi_amp + algorithm_options.alpha * psi_amp.max(

@@ -5,13 +5,11 @@ __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 from concurrent.futures import ThreadPoolExecutor
-import os
 import typing
 import warnings
 
 import cupy as cp
 import numpy as np
-import numpy.typing as npt
 
 
 class ThreadPool(ThreadPoolExecutor):
@@ -39,8 +37,16 @@ class ThreadPool(ThreadPoolExecutor):
         list of workers.
     """
 
-    def __init__(self, workers):
-        self.device_count = cp.cuda.runtime.getDeviceCount()
+    Device = cp.cuda.Device
+
+    def __init__(
+        self,
+        workers,
+        xp=cp,
+        device_count=None,
+    ):
+        self.device_count = cp.cuda.runtime.getDeviceCount(
+        ) if device_count is None else device_count
         if type(workers) is int:
             if workers < 1:
                 raise ValueError(f"Provide workers > 0, not {workers}.")
@@ -58,7 +64,7 @@ class ThreadPool(ThreadPoolExecutor):
             if w < 0 or w >= self.device_count:
                 raise ValueError(f'{w} is not a valid GPU device number.')
         self.workers = workers
-        self.xp = cp
+        self.xp = xp
         super().__init__(self.num_workers)
 
     def __enter__(self):
@@ -73,94 +79,169 @@ class ThreadPool(ThreadPoolExecutor):
     def num_workers(self):
         return len(self.workers)
 
-    def _copy_to(self, x: typing.Union[cp.array, np.array],
-                 worker: int) -> cp.array:
-        with cp.cuda.Device(worker):
+    def _copy_to(
+        self,
+        x: typing.Union[cp.array, np.array],
+        worker: int,
+    ) -> cp.array:
+        with self.Device(worker):
             return self.xp.asarray(x)
 
-    def _copy_host(self, x: cp.array, worker: int) -> np.array:
-        with cp.cuda.Device(worker):
+    def _copy_host(
+        self,
+        x: cp.array,
+        worker: int,
+    ) -> np.array:
+        with self.Device(worker):
             return self.xp.asnumpy(x)
 
-    def bcast(self, x: npt.ArrayLike, s: int = 1) -> typing.List[cp.array]:
+    def bcast(
+        self,
+        x: typing.List[typing.Union[cp.array, np.array]],
+        stride: int = 1,
+    ) -> typing.List[cp.array]:
         """Send each x to all device groups.
 
         Parameters
         ----------
         x : list
             A list of data to be broadcast.
-        s : int > 0
-            The size of a device group. e.g. s=2 and num_gpu=8, then x[0] will
-            be broadcast to workers[::2] while x[1] will go to workers[1::2].
+        stride : int > 0
+            The stride of the broadcast. e.g. stride=2 and num_gpu=8, then x[0]
+            will be broadcast to workers[::2] while x[1] will go to
+            workers[1::2].
 
         """
 
         def f(worker):
-            idx = self.workers.index(worker) % s
+            idx = self.workers.index(worker) % stride
             return self._copy_to(x[idx], worker)
 
         return list(self.map(f, self.workers))
 
-    def gather(self, x: list, worker=None, axis=0) -> cp.array:
-        """Concatenate x on a single worker along the given axis."""
-        if self.num_workers == 1:
-            return x[0]
+    def gather(
+        self,
+        x: typing.List[cp.array],
+        worker: int = None,
+        axis: int | None = 0,
+    ) -> cp.array:
+        """Concatenate x on a single worker along the given axis.
+
+        Parameters
+        ----------
+        axis:
+            Concatenate the gathered arrays long this existing axis; a new
+            leading axis is created if axis is None.
+        """
+        assert isinstance(x, list), f"x should be list not {type(x)}"
         worker = self.workers[0] if worker is None else worker
-        with cp.cuda.Device(worker):
-            return self.xp.concatenate(
+        if axis is None:
+            merge = self.xp.stack
+            axis = 0
+        else:
+            assert x[0].ndim > 0, "Cannot concatenate zero-dimensional arrays; use `axis=None`"
+            merge = self.xp.concatenate
+        with self.Device(worker):
+            return merge(
                 [self._copy_to(part, worker) for part in x],
-                axis,
+                axis=axis,
             )
 
-    def gather_host(self, x: list, axis=0) -> np.array:
-        """Concatenate x on host along the given axis."""
-        if self.num_workers == 1:
-            return cp.asnumpy(x[0])
+    def gather_host(
+        self,
+        x: typing.List[cp.array],
+        axis: int | None = 0,
+    ) -> np.array:
+        """Concatenate x on host along the given axis.
+
+        Parameters
+        ----------
+        axis:
+            Concatenate the gathered arrays long this existing axis; a new
+            leading axis is created if axis is None.
+        """
 
         def f(x, worker):
             return self._copy_host(x, worker)
 
-        return np.concatenate(
+        if axis is None:
+            merge = np.stack
+            axis = 0
+        else:
+            assert x[0].ndim > 0, "Cannot concatenate zero-dimensional arrays; use `axis=None`"
+            merge = np.concatenate
+        return merge(
             self.map(f, x, self.workers),
-            axis,
+            axis=axis,
         )
 
-    def all_gather(self, x: list, axis=0) -> list:
-        """Concatenate x on all workers along the given axis."""
+    def all_gather(
+        self,
+        x: typing.List[cp.array],
+        axis: int | None = 0,
+    ) -> typing.List[cp.array]:
+        """Concatenate x on all workers along the given axis.
+
+        Parameters
+        ----------
+        axis:
+            Concatenate the gathered arrays long this existing axis; a new
+            leading axis is created if axis is None.
+        """
 
         def f(worker):
             return self.gather(x, worker, axis)
 
         return list(self.map(f, self.workers))
 
-    def scatter(self, x: list, s=1) -> list:
-        """Send each x to a different device group`.
+    def scatter(
+        self,
+        x: typing.List[cp.array],
+        stride: int = 1,
+    ) -> typing.List[cp.array]:
+        """Scatter each x with given stride.
+
+        scatter_bcast(x=[0, 1], stride=3) -> [0, 0, 0, 1, 1, 1]
+
+        Same as scatter_bcast, but with a different communication pattern. In
+        this function, array are copied from their initial devices.
 
         Parameters
         ----------
         x : list
             Chunks to be sent to other devices.
-        s : int
-            The size of a device group. e.g. s=4 and num_gpu=8, then x[0] will
-            be scattered to workers[:4] while x[1] will go to workers[4:].
+        stride : int
+            The size of a device group. e.g. stride=4 and num_gpu=8, then
+            x[0] will be broadcast to workers[:4] while x[1] will go to
+            workers[4:].
 
         """
 
         def f(worker):
-            idx = self.workers.index(worker) // s
+            idx = self.workers.index(worker) // stride
             return self._copy_to(x[idx], worker)
 
-        return self.map(f, self.workers)
+        return list(self.map(f, self.workers))
 
-    def scatter_bcast(self, x: list, stride=1):
-        """Send x chunks to some workers and then copy to remaining workers.
+    def scatter_bcast(
+        self,
+        x: typing.List[cp.array],
+        stride: int = 1,
+    ) -> typing.List[cp.array]:
+        """Scatter each x with given stride and then broadcast nearby.
+
+        scatter_bcast(x=[0, 1], stride=3) -> [0, 0, 0, 1, 1, 1]
+
+        Same as scatter, but with a different communication pattern. In this
+        function, arrays are first copied to a device in each group, then
+        copied from that device locally.
 
         Parameters
         ----------
         x : list
             Chunks to be sent and copied.
         stride : int
-            The stride length of the scatter. e.g. s=4 and num_gpu=8, then
+            The stride length of the scatter. e.g. stride=4 and num_gpu=8, then
             x[0] will be broadcast to workers[:4] while x[1] will go to
             workers[4:].
 
@@ -195,93 +276,111 @@ class ThreadPool(ThreadPoolExecutor):
 
         return output
 
-    def reduce_gpu(self, x: list, s=1, workers=None):
+    def reduce_gpu(
+        self,
+        x: typing.List[cp.array],
+        stride: int = 1,
+        workers: typing.List[int] | None = None,
+    ) -> typing.List[cp.array]:
         """Reduce x by addition to a device group from all other devices.
+
+        reduce_gpu([0, 1, 2, 3, 4], stride=2) -> [6, 4]
 
         Parameters
         ----------
         x : list
             Chunks to be reduced to a device group.
-        s : int
-            The size of the device group. e.g. s=2 and num_gpu=8, then x[::2]
-            will be reduced to workers[0] while x[1::2] will be reduced to
-            workers[1].
+        stride : int
+            The stride of the reduction. e.g. stride=2 and num_gpu=8, then
+            x[0::2] will be reduced to workers[0] while x[1::2] will be reduced
+            to workers[1].
 
         """
 
+        # if self.num_workers == 1:
+        #     return x
+
         def f(worker):
             i = self.workers.index(worker)
-            for part in x[(i % s):i:s]:
-                x[i] += self._copy_to(part, worker)
-            for part in x[(i + s)::s]:
-                x[i] += self._copy_to(part, worker)
-            return x[i]
+            x1 = 0
+            for part in x[i::stride]:
+                x1 += self._copy_to(part, worker)
+            return x1
 
-        if self.num_workers == 1:
-            return x
-
-        workers = self.workers[:s] if workers is None else workers
+        workers = self.workers[:stride] if workers is None else workers
         return self.map(f, workers, workers=workers)
 
-    def reduce_cpu(self, x: typing.List[cp.array]) -> npt.NDArray:
+    def reduce_cpu(self, x: typing.List[cp.array]) -> np.array:
         """Reduce x by addition from all GPUs to a CPU buffer."""
         assert len(x) <= self.num_workers, (
             f"{len(x)} work is more than {self.num_workers} workers")
         return np.sum(self.map(self._copy_host, x, self.workers), axis=0)
 
-    def reduce_mean(self, x: list, axis, worker=None) -> cp.array:
+    def reduce_mean(
+        self,
+        x: typing.List[cp.array],
+        axis: int | typing.List[int] = 0,
+        worker: int | None = None,
+    ) -> cp.array:
         """Reduce x by addition to one GPU from all other GPUs."""
-        if self.num_workers == 1:
-            return x[0]
         worker = self.workers[0] if worker is None else worker
         return cp.mean(
             self.gather(x, worker=worker, axis=axis),
-            keepdims=True,
+            keepdims=x[0].ndim > 0,
             axis=axis,
         )
 
-    def allreduce(self, x: list, s=None) -> list:
+    def allreduce(
+        self,
+        x: typing.List[cp.array],
+        stride: int | None = None,
+    ) -> typing.List[cp.array]:
         """All-reduce x by addition within device groups.
+
+        allreduce([0, 1, 2, 3, 4, 5, 6], stride=2) -> [1, 1, 5, 5, 9, 9, 6]
 
         Parameters
         ----------
         x : list
             Chunks to be all-reduced in grouped devices context.
-        s : int
+        stride : int
             The size of a device group. e.g. s=4 and num_gpu=8, then x[:4] will
             perform all-reduce within workers[:4] while x[4:] will perform
             all-reduce within workers[4:].
 
         """
-
-        def f(worker, id, buf, stride, s):
-            idx = id // s * s + (id + stride) % s
-            return cp.add(buf, self._copy_to(x[idx], worker))
-
         if self.num_workers == 1:
             return x
 
-        buff = list(x)
-        s = len(x) if s is None else s
-        for stride in range(1, s):
-            buff = self.map(
-                f,
-                self.workers,
-                range(self.num_workers),
-                buff,
-                stride=stride,
-                s=s,
-            )
+        stride = len(x) if stride is None else stride
+        assert stride >= 1, "Stride cannot be less than 1; it is {stride}."
 
-        return buff
+        def f(worker):
+            group_start = stride * (self.workers.index(worker) // stride)
+            buff = 0
+            for i in range(group_start, min(group_start + stride, len(x))):
+                buff += self._copy_to(x[i], worker)
+            return buff
 
-    def map(self, func, *iterables, workers=None, **kwargs):
+        return list(self.map(
+            f,
+            self.workers,
+        ))
+
+    def map(
+        self,
+        func,
+        *iterables,
+        workers: typing.List[int] | None = None,
+        **kwargs,
+    ) -> list:
         """ThreadPoolExecutor.map, but wraps call in a cuda.Device context."""
 
         def f(worker, *args):
-            with cp.cuda.Device(worker):
+            with self.Device(worker):
                 return func(*args, **kwargs)
 
         workers = self.workers if workers is None else workers
 
-        return list(super().map(f, workers, *iterables))
+        # return list(super().map(f, workers, *iterables))
+        return list(map(f, workers, *iterables))

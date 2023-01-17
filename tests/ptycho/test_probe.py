@@ -2,9 +2,7 @@ import os
 import unittest
 
 import cupy as cp
-import matplotlib
-matplotlib.use('Agg')
-from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.io
 import tike.ptycho.probe
@@ -23,7 +21,7 @@ class TestProbe(unittest.TestCase):
         high = 21
         posi = 53
         eigen = 1
-        comm = Comm(2, None)
+        comm = Comm(2)
 
         R = comm.pool.bcast([np.random.rand(*leading, posi, 1, 1, wide, high)])
         eigen_probe = comm.pool.bcast(

@@ -70,9 +70,9 @@ class Patch(Operator):
                                                             patches.shape)
         assert positions.shape[-2] * nrepeat == patches.shape[-3]
         assert positions.shape[-1] == 2, positions.shape
-        assert images.dtype == 'complex64'
-        assert patches.dtype == 'complex64'
-        assert positions.dtype == 'float32'
+        assert images.dtype == 'complex64', f"{images.dtype}"
+        assert patches.dtype == 'complex64', f"{patches.dtype}"
+        assert positions.dtype == 'float32', f"{positions.dtype}"
         nimage = int(np.prod(images.shape[:-2]))
         grids = (
             positions.shape[-2],

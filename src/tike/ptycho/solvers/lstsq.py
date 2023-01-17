@@ -86,10 +86,7 @@ def lstsq_grad(
                 psi,
                 op=op,
             )
-        if comm.use_mpi:
-            preconditioner = comm.Allreduce(preconditioner)
-        else:
-            preconditioner = comm.pool.allreduce(preconditioner)
+        preconditioner = comm.Allreduce(preconditioner)
         # Use a rolling average of this preconditioner and the previous
         # preconditioner
         if object_options.preconditioner is None:
@@ -106,7 +103,7 @@ def lstsq_grad(
                 [2] * comm.pool.num_workers,
             )
 
-        if algorithm_options.batch_method == 'cluster_compact':
+        if algorithm_options.batch_method == 'compact':
             object_options.combined_update = cp.zeros_like(psi[0])
 
     batch_cost = []
@@ -150,10 +147,7 @@ def lstsq_grad(
             op=op,
         ))
 
-        if comm.use_mpi:
-            batch_cost.append(comm.Allreduce_reduce(cost, 'cpu'))
-        else:
-            batch_cost.append(comm.reduce(cost, 'cpu'))
+        batch_cost.append(comm.Allreduce_reduce_cpu(cost))
 
         (
             psi,
@@ -207,7 +201,7 @@ def lstsq_grad(
             n=n,
         )
 
-    if object_options and algorithm_options.batch_method == 'cluster_compact':
+    if object_options and algorithm_options.batch_method == 'compact':
         # (27b) Object update
         dpsi = object_options.combined_update
         if object_options.use_adaptive_moment:
@@ -344,20 +338,12 @@ def _update_nearplane(
         )))
 
         if recover_psi:
-            if comm.use_mpi:
-                common_grad_psi = comm.Allreduce(common_grad_psi)
-            else:
-                common_grad_psi = comm.pool.allreduce(common_grad_psi)
+            common_grad_psi = comm.Allreduce(common_grad_psi)
 
         if recover_probe:
-            if comm.use_mpi:
-                common_grad_probe = comm.Allreduce(common_grad_probe)
-                probe_update_denominator = comm.Allreduce(
-                    probe_update_denominator)
-            else:
-                common_grad_probe = comm.pool.allreduce(common_grad_probe)
-                probe_update_denominator = comm.pool.allreduce(
-                    probe_update_denominator)
+            common_grad_probe = comm.Allreduce(common_grad_probe)
+            probe_update_denominator = comm.Allreduce(
+                probe_update_denominator)
 
         (
             common_grad_psi,
@@ -385,18 +371,12 @@ def _update_nearplane(
         )))
 
         if recover_psi:
-            if comm.use_mpi:
-                delta = comm.Allreduce_mean(A1, axis=-3)
-            else:
-                delta = comm.pool.reduce_mean(A1, axis=-3)
+            delta = comm.Allreduce_mean(A1, axis=-3)
             A1 = comm.pool.map(_A_diagonal_dominant, A1,
                                comm.pool.bcast([delta]))
 
         if recover_probe:
-            if comm.use_mpi:
-                delta = comm.Allreduce_mean(A4, axis=-3)
-            else:
-                delta = comm.pool.reduce_mean(A4, axis=-3)
+            delta = comm.Allreduce_mean(A4, axis=-3)
             A4 = comm.pool.map(_A_diagonal_dominant, A4,
                                comm.pool.bcast([delta]))
 
@@ -414,24 +394,14 @@ def _update_nearplane(
                 recover_psi=recover_psi,
                 recover_probe=recover_probe,
             )))
-            if comm.use_mpi:
-                weighted_step_psi[0] = comm.Allreduce_mean(
-                    weighted_step_psi,
-                    axis=-5,
-                )[..., 0, 0, 0]
-                weighted_step_probe[0] = comm.Allreduce_mean(
-                    weighted_step_probe,
-                    axis=-5,
-                )
-            else:
-                weighted_step_psi[0] = comm.pool.reduce_mean(
-                    weighted_step_psi,
-                    axis=-5,
-                )[..., 0, 0, 0]
-                weighted_step_probe[0] = comm.pool.reduce_mean(
-                    weighted_step_probe,
-                    axis=-5,
-                )
+            weighted_step_psi[0] = comm.Allreduce_mean(
+                weighted_step_psi,
+                axis=-5,
+            )[..., 0, 0, 0]
+            weighted_step_probe[0] = comm.Allreduce_mean(
+                weighted_step_probe,
+                axis=-5,
+            )
 
         if m == 0 and recover_probe and eigen_weights[0] is not None:
             logger.info('Updating eigen probes')
@@ -447,18 +417,11 @@ def _update_nearplane(
 
             # (30) residual probe updates
             if eigen_weights[0].shape[-2] > 1:
-                if comm.use_mpi:
-                    grad_probe_mean = comm.Allreduce_mean(
-                        common_grad_probe,
-                        axis=-5,
-                    )
-                    grad_probe_mean = comm.pool.bcast([grad_probe_mean])
-                else:
-                    grad_probe_mean = comm.pool.bcast(
-                        [comm.pool.reduce_mean(
-                            common_grad_probe,
-                            axis=-5,
-                        )])
+                grad_probe_mean = comm.Allreduce_mean(
+                    common_grad_probe,
+                    axis=-5,
+                )
+                grad_probe_mean = comm.pool.bcast([grad_probe_mean])
                 R = comm.pool.map(_get_residuals, grad_probe, grad_probe_mean)
 
             if eigen_probe[0] is not None and m < eigen_probe[0].shape[-3]:
@@ -498,7 +461,7 @@ def _update_nearplane(
             dpsi = (weighted_step_psi[0] /
                     probe[0].shape[-3]) * common_grad_psi[0]
 
-            if algorithm_options.batch_method != 'cluster_compact':
+            if algorithm_options.batch_method != 'compact':
                 if object_options.use_adaptive_moment:
                     (
                         dpsi,
@@ -518,7 +481,7 @@ def _update_nearplane(
 
         if recover_probe:
             dprobe = weighted_step_probe[0] * common_grad_probe[0]
-            if algorithm_options.batch_method == 'cluster_compact':
+            if algorithm_options.batch_method == 'compact':
                 dprobe /= len(scan_)
             if probe_options.use_adaptive_moment:
                 if probe_options.m is None:
@@ -652,7 +615,7 @@ def _precondition_nearplane_gradients(
 
     diff = nearplane[..., [m], :, :]
 
-    eps = 1e-9 / (diff.shape[-2] * diff.shape[-1])
+    eps = op.xp.float32(1e-9) / (diff.shape[-2] * diff.shape[-1])
 
     if recover_psi:
         common_grad_psi /= ((1 - alpha) * psi_update_denominator +

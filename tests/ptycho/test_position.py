@@ -1,12 +1,20 @@
-import numpy as np
-import tike.ptycho
-import tike.linalg
+import bz2
+import pickle
+
 import matplotlib.pyplot as plt
+import numpy as np
 import os.path
 import unittest
 
-fname = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'result')
-os.makedirs(fname, exist_ok=True)
+from tike.ptycho.object import ObjectOptions
+from tike.ptycho.position import PositionOptions
+from tike.ptycho.probe import ProbeOptions
+import tike.communicators
+import tike.linalg
+import tike.ptycho
+
+from .io import result_dir, data_dir, _save_ptycho_result
+from .templates import ReconstructTwice
 
 
 def test_position_join(N=245, num_batch=11):
@@ -129,7 +137,208 @@ class TestAffineEstimation(unittest.TestCase):
         )
         plt.axis('equal')
         plt.legend(['initial', 'final', 'estimated'])
-        plt.savefig(os.path.join(fname, 'fit-weighted-linear.svg'))
+        plt.savefig(os.path.join(result_dir, 'fit-weighted-linear.svg'))
         plt.close(f)
 
         np.testing.assert_almost_equal(result.asarray3(), T, decimal=3)
+
+
+class CNMPositionSetup():
+
+    def setUp(self, filename='position-error-247.pickle.bz2'):
+        """Load a dataset for reconstruction.
+
+        This position correction test dataset was collected by Tao Zhou at the
+        Center for Nanoscale Materials Hard X-ray Nanoprobe
+        (https://www.anl.gov/cnm).
+        """
+        dataset_file = os.path.join(data_dir, filename)
+        with bz2.open(dataset_file, 'rb') as f:
+            [
+                self.data,
+                self.scan,
+                self.scan_truth,
+                self.probe,
+            ] = pickle.load(f)
+
+        with tike.communicators.Comm(1, mpi=tike.communicators.MPIComm) as comm:
+            mask = tike.cluster.by_scan_stripes(
+                self.scan,
+                n=comm.mpi.size,
+                fly=1,
+                axis=0,
+            )[comm.mpi.rank]
+            self.scan = self.scan[mask]
+            self.scan_truth = self.scan_truth[mask]
+            self.data = self.data[mask]
+
+        self.psi = np.full(
+            (600, 600),
+            dtype=np.complex64,
+            fill_value=np.complex64(0.5 + 0j),
+        )
+
+
+class CNMTruePositionSetup(CNMPositionSetup):
+
+    def setUp(self, filename='position-error-247.pickle.bz2'):
+        super().setUp(filename)
+        self.scan = self.scan_truth
+
+
+class PtychoPosition(ReconstructTwice, CNMPositionSetup):
+    """Test various ptychography reconstruction methods position correction."""
+
+    post_name = "-position"
+
+    def _save_position_error_variance(self, result, algorithm):
+        if result is None or self.mpi_rank > 0:
+            return
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+            from matplotlib import pyplot as plt
+            import tike.view
+            fname = os.path.join(result_dir, f'{algorithm}')
+            os.makedirs(fname, exist_ok=True)
+
+            f = plt.figure(dpi=600)
+            plt.title(algorithm)
+            tike.view.plot_positions_convergence(
+                self.scan_truth,
+                result.position_options.initial_scan,
+                result.scan,
+            )
+            plt.savefig(os.path.join(fname, 'position-error.svg'))
+            plt.close(f)
+
+            f = plt.figure(dpi=600)
+            plt.title(algorithm)
+            plt.scatter(
+                np.linalg.norm(self.scan_truth - result.scan, axis=-1),
+                result.position_options.confidence[..., 0],
+            )
+            plt.xlabel('position error')
+            plt.ylabel('position confidence')
+            plt.savefig(os.path.join(fname, 'position-confidence.svg'))
+            plt.close(f)
+
+            f = plt.figure(dpi=600)
+            plt.title(algorithm)
+            plt.scatter(
+                result.position_options.initial_scan[..., 0],
+                result.position_options.initial_scan[..., 1],
+                marker='o',
+            )
+            plt.scatter(
+                result.scan[..., 0],
+                result.scan[..., 1],
+                marker='o',
+                color='red',
+                facecolor='None',
+            )
+            plt.scatter(
+                result.position_options.transform(
+                    result.position_options.initial_scan)[..., 0],
+                result.position_options.transform(
+                    result.position_options.initial_scan)[..., 1],
+                marker='x',
+            )
+            plt.legend(['initial', 'result', 'global'])
+            plt.savefig(os.path.join(fname, 'position-models.svg'))
+            plt.close(f)
+
+        except ImportError:
+            pass
+
+    def test_consistent_rpie_off(self):
+        """Check ptycho.solver.rpie position correction."""
+        algorithm = f"{'mpi-' if self.mpi_size > 1 else ''}rpie-off{self.post_name}"
+        params = tike.ptycho.PtychoParameters(
+            psi=self.psi,
+            probe=self.probe,
+            scan=self.scan,
+            algorithm_options=tike.ptycho.RpieOptions(
+                num_batch=5,
+                num_iter=16,
+            ),
+            probe_options=ProbeOptions(),
+            object_options=ObjectOptions(),
+        )
+        result = self.template_consistent_algorithm(
+            data=self.data,
+            params=params,
+        )
+        _save_ptycho_result(result, algorithm)
+
+    def test_consistent_rpie(self):
+        """Check ptycho.solver.rpie position correction."""
+        algorithm = f"{'mpi-' if self.mpi_size > 1 else ''}rpie{self.post_name}"
+        params = tike.ptycho.PtychoParameters(
+            psi=self.psi,
+            probe=self.probe,
+            scan=self.scan,
+            algorithm_options=tike.ptycho.RpieOptions(
+                num_batch=5,
+                num_iter=16,
+            ),
+            probe_options=ProbeOptions(),
+            object_options=ObjectOptions(),
+            position_options=PositionOptions(
+                self.scan,
+                use_adaptive_moment=True,
+                use_position_regularization=True,
+            ),
+        )
+        result = self.template_consistent_algorithm(
+            data=self.data,
+            params=params,
+        )
+        _save_ptycho_result(result, algorithm)
+        self._save_position_error_variance(result, algorithm)
+
+    def test_consistent_lstsq_grad(self):
+        """Check ptycho.solver.lstsq_grad for consistency."""
+        algorithm = f"{'mpi-' if self.mpi_size > 1 else ''}lstsq_grad{self.post_name}"
+        params = tike.ptycho.PtychoParameters(
+            psi=self.psi,
+            probe=self.probe,
+            scan=self.scan,
+            algorithm_options=tike.ptycho.LstsqOptions(
+                num_batch=5,
+                num_iter=16,
+            ),
+            probe_options=ProbeOptions(),
+            object_options=ObjectOptions(),
+            position_options=PositionOptions(
+                self.scan,
+                use_adaptive_moment=True,
+                use_position_regularization=True,
+            ),
+        )
+        result = self.template_consistent_algorithm(
+            data=self.data,
+            params=params,
+        )
+        _save_ptycho_result(result, algorithm)
+        self._save_position_error_variance(result, algorithm)
+
+
+class TestPtychoPosition(
+        PtychoPosition,
+        unittest.TestCase,
+):
+    """Test various ptychography reconstruction methods position correction."""
+    pass
+
+
+@unittest.skipIf('TIKE_TEST_CI' in os.environ,
+                 reason="Just for user reference; not needed on CI.")
+class TestPtychoPositionReference(
+        CNMTruePositionSetup,
+        PtychoPosition,
+        unittest.TestCase,
+):
+    """Test various ptychography reconstruction methods position correction."""
+
+    post_name = '-position-ref'

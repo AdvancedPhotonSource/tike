@@ -139,10 +139,7 @@ def _update_probe(
 
     def cost_function(probe):
         cost_out = comm.pool.map(op.cost, data, psi, scan, probe)
-        if comm.use_mpi:
-            return comm.Allreduce_reduce(cost_out, 'cpu')
-        else:
-            return comm.reduce(cost_out, 'cpu')
+        return comm.Allreduce_reduce_cpu(cost_out)
 
     def grad(probe):
         grad_list = comm.pool.map(
@@ -153,10 +150,7 @@ def _update_probe(
             probe,
             mode=mode,
         )
-        if comm.use_mpi:
-            return comm.Allreduce_reduce(grad_list, 'gpu')
-        else:
-            return comm.reduce(grad_list, 'gpu')
+        return comm.Allreduce_reduce_gpu(grad_list)
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""
@@ -202,17 +196,12 @@ def _update_object(
 
     def cost_function_multi(psi, **kwargs):
         cost_out = comm.pool.map(op.cost, data, psi, scan, probe)
-        if comm.use_mpi:
-            return comm.Allreduce_reduce(cost_out, 'cpu')
-        else:
-            return comm.reduce(cost_out, 'cpu')
+        return comm.Allreduce_reduce_cpu(cost_out)
 
     def grad_multi(psi):
         grad_list = comm.pool.map(op.grad_psi, data, psi, scan, probe)
-        if comm.use_mpi:
-            return comm.Allreduce_reduce(grad_list, 'gpu')
-        else:
-            return comm.reduce(grad_list, 'gpu')
+        return comm.Allreduce_reduce_gpu(grad_list)
+
 
     def dir_multi(dir):
         """Scatter dir to all GPUs"""
