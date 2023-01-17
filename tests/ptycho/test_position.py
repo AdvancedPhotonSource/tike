@@ -253,7 +253,7 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
 
     def test_consistent_rpie_off(self):
         """Check ptycho.solver.rpie position correction."""
-        algorithm = f"{'mpi-' if self.mpi_size > 1 else ''}rpie-off{self.post_name}"
+        algorithm = f"mpi{self.mpi_size}-rpie-off{self.post_name}"
         params = tike.ptycho.PtychoParameters(
             psi=self.psi,
             probe=self.probe,
@@ -273,7 +273,7 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
 
     def test_consistent_rpie(self):
         """Check ptycho.solver.rpie position correction."""
-        algorithm = f"{'mpi-' if self.mpi_size > 1 else ''}rpie{self.post_name}"
+        algorithm = f"mpi{self.mpi_size}-rpie{self.post_name}"
         params = tike.ptycho.PtychoParameters(
             psi=self.psi,
             probe=self.probe,
@@ -299,7 +299,7 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
 
     def test_consistent_lstsq_grad(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
-        algorithm = f"{'mpi-' if self.mpi_size > 1 else ''}lstsq_grad{self.post_name}"
+        algorithm = f"mpi{self.mpi_size}-lstsq_grad{self.post_name}"
         params = tike.ptycho.PtychoParameters(
             psi=self.psi,
             probe=self.probe,
