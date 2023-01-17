@@ -69,6 +69,14 @@ class NoMPIComm(MPIio):
     def __exit__(self, type, value, traceback):
         pass
 
+    def bcast(
+        self,
+        sendobj: typing.Any,
+        root: int = 0,
+    ) -> typing.Any:
+        """Send a Python object from a root to all processes."""
+        return sendobj
+
     def Bcast(
         self,
         sendbuf: np.ndarray | cp.ndarray,
@@ -179,6 +187,14 @@ try:
         #                        status=info,
         #                        **kwargs)
         #         return recvbuf
+
+        def bcast(
+            self,
+            sendobj: typing.Any,
+            root: int = 0,
+        ) -> typing.Any:
+            """Send a Python object from a root to all processes."""
+            return self.comm.bcast(sendobj, root=root)
 
         def Bcast(
             self,

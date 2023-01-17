@@ -3,6 +3,7 @@
 from __future__ import annotations
 import dataclasses
 import logging
+import typing
 
 import cupy as cp
 import cupyx.scipy.ndimage
@@ -518,10 +519,10 @@ def _gaussian_frequency(sigma, size):
 # TODO: What is a good default value for max_error?
 def affine_position_regularization(
     comm: tike.communicators.Comm,
-    updated: list[cp.ndarray],
-    position_options: list[PositionOptions],
+    updated: typing.List[cp.ndarray],
+    position_options: typing.List[PositionOptions],
     max_error: float = 32,
-) -> list[PositionOptions]:
+) -> typing.List[PositionOptions]:
     """Regularize position updates with an affine deformation constraint.
 
     Assume that the true position updates are a global affine transformation
@@ -544,22 +545,22 @@ def affine_position_regularization(
     """
     # Gather all of the scanning positions on one host
     positions0 = comm.pool.gather_host(
-        [x.initial_scan for x in position_options])
-    positions1 = comm.pool.gather_host(updated)
-    if comm.use_mpi:
-        positions0 = comm.mpi.Gather(positions0)
-        positions1 = comm.mpi.Gather(positions1)
+        [x.initial_scan for x in position_options], axis=0)
+    positions1 = comm.pool.gather_host(updated, axis=0)
+    positions0 = comm.mpi.Gather(positions0, axis=0, root=0)
+    positions1 = comm.mpi.Gather(positions1, axis=0, root=0)
 
-    if not comm.use_mpi or comm.mpi.rank == 0:
+    if comm.mpi.rank == 0:
         new_transform, _ = estimate_global_transformation_ransac(
             positions0=positions0 - position_options[0].origin,
             positions1=positions1 - position_options[0].origin,
             transform=position_options[0].transform,
             max_error=max_error,
         )
+    else:
+        new_transform = None
 
-    if comm.use_mpi:
-        new_transform = comm.mpi.comm.bcast(new_transform)
+    new_transform = comm.mpi.bcast(new_transform)
 
     for i in range(len(position_options)):
         position_options[i].transform = new_transform
