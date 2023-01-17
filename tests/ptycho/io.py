@@ -7,6 +7,7 @@ import tike.view
 test_dir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
 result_dir = os.path.join(test_dir, 'result', 'ptycho')
+os.makedirs(result_dir, exist_ok=True)
 
 data_dir = os.path.join(test_dir, 'data')
 
