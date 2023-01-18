@@ -31,7 +31,7 @@ def _estimate_step_length(obj, fwd_data, theta, grid, op, comm, s):
         grid,
         overwrite=False,
     )
-    comm.pool.reduce_gpu(outnback, s=s)
+    comm.pool.reduce_gpu(outnback, stride=s)
     workers = comm.pool.workers[:s]
     objn = reduce_norm(obj, workers)
     # Multiply by 2 to because we prefer over-estimating the step
@@ -111,7 +111,7 @@ def update_obj(
     def grad(obj):
         fwd_data = fwd_op(obj)
         grad_list = comm.pool.map(op.grad, data, theta, fwd_data, grid)
-        return comm.pool.reduce_gpu(grad_list, s=obj_split)
+        return comm.pool.reduce_gpu(grad_list, stride=obj_split)
 
     def direction_dy(xp, grad1, grad0=None, dir_=None):
         """Return the Dai-Yuan search direction."""
