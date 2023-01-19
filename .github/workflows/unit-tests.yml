@@ -40,7 +40,6 @@ jobs:
           --file requirements.txt
           pytest
           python=${{ matrix.python-version }}
-          'openmpi=*=h*'
         name: Create build environment
 
       - run: conda remove -n tike mpi mpi4py --yes --quiet
@@ -112,7 +111,7 @@ jobs:
           source activate tike
           export OMPI_MCA_opal_cuda_support=true
           export TIKE_TEST_CI
-          mpirun -n 2 pytest -vs tests
+          mpiexec -n 2 python -m pytest -vs tests
         name: Run tests with MPI
 
       - uses: actions/upload-artifact@v3
