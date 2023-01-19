@@ -1,0 +1,121 @@
+name: Run unit tests
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "tests/**"
+      - "src/tike/**"
+      - pyproject.toml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "tests/**"
+      - "src/tike/**"
+      - pyproject.toml
+
+jobs:
+  linux-x86-no-mpi:
+    runs-on: self-hosted
+
+    strategy:
+      matrix:
+        python-version:
+          - "3.10"
+          - "3.7"
+          - "3.9"
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - run: >
+          conda create --quiet --yes
+          -n tike
+          --channel conda-forge
+          --file requirements.txt
+          pytest
+          python=${{ matrix.python-version }}
+          'openmpi=*=h*'
+        name: Create build environment
+
+      - run: conda remove -n tike mpi mpi4py --yes --quiet
+        name: Remove MPI from test environment
+
+      - run: conda list -n tike
+        name: List build environment
+
+      - run: |
+          source activate tike
+          pip install . --no-deps
+        name: Setup and install
+
+      - run: |
+          source activate tike
+          python tests/print-gpu-info.py
+        name: Print GPU info
+
+      - run: |
+          source activate tike
+          export TIKE_TEST_CI
+          pytest -vs tests
+        name: Run tests
+
+      - uses: actions/upload-artifact@v3
+        if: ${{ python-version == '3.9' }}
+        with:
+          path: tests/result/
+          name: Without MPI reconstructed images
+
+      - run: conda remove -n tike --all
+        name: Clean up environment
+
+  linux-x86-with-mpi:
+    runs-on: self-hosted
+
+    strategy:
+      matrix:
+        python-version:
+          - "3.8"
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - run: >
+          conda create --quiet --yes
+          -n tike
+          --channel conda-forge
+          --file requirements.txt
+          pytest
+          python=${{ matrix.python-version }}
+          'openmpi=*=h*'
+        name: Create build environment
+
+      - run: conda list -n tike
+        name: List build environment
+
+      - run: |
+          source activate tike
+          pip install . --no-deps
+        name: Setup and install
+
+      - run: |
+          source activate tike
+          python tests/print-gpu-info.py
+        name: Print GPU info
+
+      - run: |
+          source activate tike
+          export OMPI_MCA_opal_cuda_support=true
+          export TIKE_TEST_CI
+          mpirun -n 2 pytest -vs tests
+        name: Run tests with MPI
+
+      - uses: actions/upload-artifact@v3
+        with:
+          path: tests/result/
+          name: MPI reconstructed images
+
+      - run: conda remove -n tike --all
+        name: Clean up environment
