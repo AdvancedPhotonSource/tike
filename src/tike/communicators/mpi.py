@@ -94,7 +94,7 @@ class NoMPIComm(MPIio):
         sendbuf: typing.Union[np.ndarray, cp.ndarray],
         axis: typing.Union[int, None] = 0,
         root: int = 0,
-    ) -> typing.List[typing.Union[np.ndarray, cp.ndarray]]:
+    ) -> typing.Union[np.ndarray, cp.ndarray]:
         """Take data from all processes into one destination."""
 
         if sendbuf is None:
@@ -171,6 +171,21 @@ try:
         def __exit__(self, type, value, traceback):
             pass
 
+        @staticmethod
+        def check_opal(func):
+            """Move sendbuf to host before the function if opal is not avaiable."""
+
+            def wrapper(self, sendbuf, *args, **kwargs):
+                xp = cp.get_array_module(sendbuf)
+
+                if not self._use_opal and xp.__name__ == cp.__name__:
+                    return cp.asarray(
+                        func(self, cp.asnumpy(sendbuf), *args, **kwargs))
+
+                return func(self, sendbuf, *args, **kwargs)
+
+            return wrapper
+
         # def p2p(self, sendbuf, src=0, dest=1, tg=0, **kwargs):
         #     """Send data from a source to a designated destination."""
 
@@ -197,6 +212,7 @@ try:
             cp.cuda.get_current_stream().synchronize()
             return self.comm.bcast(sendobj, root=root)
 
+        @check_opal
         def Bcast(
             self,
             sendbuf: typing.Union[np.ndarray, cp.ndarray],
@@ -209,16 +225,13 @@ try:
 
             xp = cp.get_array_module(sendbuf)
 
-            if not self._use_opal and xp == cp:
-                # Move to host for non-GPU aware MPI
-                return cp.asarray(self.Bcast(cp.asnumpy(sendbuf)))
-
             if self.rank != root:
                 sendbuf = xp.empty_like(sendbuf)
             cp.cuda.get_current_stream().synchronize()
             self.comm.Bcast(sendbuf, root=root)
             return sendbuf
 
+        @check_opal
         def Gather(
             self,
             sendbuf: typing.Union[np.ndarray, cp.ndarray],
@@ -239,10 +252,6 @@ try:
 
             xp = cp.get_array_module(sendbuf)
 
-            if not self._use_opal and xp == cp:
-                # Move to host for non-GPU aware MPI
-                return cp.asarray(self.Gather(cp.asnumpy(sendbuf)))
-
             assert axis is None or sendbuf.ndim > 0, "Cannot concatenate zero-dimensional arrays; use `axis=None`"
             recvbuf = xp.empty_like(
                 sendbuf,
@@ -250,7 +259,7 @@ try:
             ) if self.rank == root else None
             cp.cuda.get_current_stream().synchronize()
             self.comm.Gather(sendbuf, recvbuf, root=root)
-            if self.rank == root and axis is not None:
+            if recvbuf is not None and axis is not None:
                 recvbuf = xp.concatenate(recvbuf, axis=axis)
             return recvbuf
 
@@ -263,6 +272,7 @@ try:
         #     self.comm.Scatter(sendbuf, recvbuf, src)
         #     return recvbuf
 
+        @check_opal
         def Allreduce(
             self,
             sendbuf: typing.Union[np.ndarray, cp.ndarray],
@@ -275,15 +285,12 @@ try:
 
             xp = cp.get_array_module(sendbuf)
 
-            if not self._use_opal and xp == cp:
-                # Move to host for non-GPU aware MPI
-                return cp.asarray(self.Allreduce(cp.asnumpy(sendbuf)))
-
             recvbuf = xp.empty_like(sendbuf)
             cp.cuda.get_current_stream().synchronize()
             self.comm.Allreduce(sendbuf, recvbuf, op=op)
             return recvbuf
 
+        @check_opal
         def Allgather(
             self,
             sendbuf: typing.Union[np.ndarray, cp.ndarray],
@@ -302,10 +309,6 @@ try:
                 raise ValueError("Allgather data can't be None")
 
             xp = cp.get_array_module(sendbuf)
-
-            if not self._use_opal and xp == cp:
-                # Move to host for non-GPU aware MPI
-                return cp.asarray(self.Allgather(cp.asnumpy(sendbuf)))
 
             assert axis is None or sendbuf.ndim > 0, "Cannot concatenate zero-dimensional arrays; use `axis=None`"
             recvbuf = xp.empty_like(sendbuf, shape=(self.size, *sendbuf.shape))
