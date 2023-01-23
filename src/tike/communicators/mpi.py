@@ -12,6 +12,49 @@ import numpy as np
 import cupy as cp
 
 
+def combined_shape(
+    shapes: typing.List[typing.Tuple[int, ...]],
+    axis: typing.Union[int, None] = 0,
+) -> typing.List[int]:
+    """Return the `shape` for `shapes` concatenated along the `axis`.
+
+    >>> combined_shape([(5, 2, 3), (1, 2, 3)], axis=0)
+    [6, 2, 3]
+
+    >>> combined_shape([(5, 2, 7), (1, 2, 3)], axis=0)
+    Traceback (most recent call last):
+        ...
+    ValueError: All dimensions except for the named `axis` must be equal
+
+    >>> combined_shape([(1, 5, 3), (1, 5, 3)], axis=None)
+    [2, 1, 5, 3]
+
+    """
+    first = shapes[0]
+    ndim = len(first)
+    for shape in shapes[1:]:
+        if ndim != len(shape):
+            msg = 'All shapes must have the same number of dimensions'
+            raise ValueError(msg)
+        for dim in range(ndim):
+            if dim != axis and first[dim] != shape[dim]:
+                msg = 'All dimensions except for the named `axis` must be equal'
+                raise ValueError(msg)
+
+    if axis is None:
+        return [len(shapes), *first]
+
+    combined = list()
+
+    for dim in range(ndim):
+        if dim == axis:
+            combined.append(sum(shape[dim] for shape in shapes))
+        else:
+            combined.append(first[dim])
+
+    return combined
+
+
 class MPIio:
     """Implementations for problem specific data loaders"""
 
