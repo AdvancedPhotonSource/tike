@@ -302,7 +302,7 @@ try:
             shapes = self.comm.gather(sendbuf.shape, root=root)
             if self.rank == root:
                 assert shapes is not None
-                sizes = [np.prod(shape) for shape in shapes]
+                sizes = [np.prod(shape, dtype=int) for shape in shapes]
                 recvbuf = xp.empty_like(
                     sendbuf,
                     shape=sum(sizes),
@@ -385,7 +385,7 @@ try:
             # Gather() doesn't support mixed shapes; we have to use Gatherv()
             # and keep track of shapes manually
             shapes = self.comm.allgather(sendbuf.shape)
-            sizes = [np.prod(shape) for shape in shapes]
+            sizes = [np.prod(shape, dtype=int) for shape in shapes]
             recvbuf = xp.empty_like(
                 sendbuf,
                 shape=sum(sizes),
