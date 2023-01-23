@@ -63,12 +63,17 @@ jobs:
           export TIKE_TEST_CI
           pytest -vs tests
         name: Run tests
+        
+      - run: |
+          cd tests/result
+          zip -r9 ../../result.zip .
+        name: Zip results
 
       - uses: actions/upload-artifact@v3
         if: ${{ matrix.python-version == '3.9' }}
         with:
-          path: tests/result/
-          name: Without MPI reconstructed images
+          path: result.zip
+          name: Without MPI results
 
       - run: conda remove -n tike --all
         name: Clean up environment
@@ -113,11 +118,16 @@ jobs:
           export TIKE_TEST_CI
           mpiexec -n 2 python -m pytest -vs tests
         name: Run tests with MPI
+      
+      - run: |
+          cd tests/result
+          zip -r9 ../../result.zip .
+        name: Zip results
 
       - uses: actions/upload-artifact@v3
         with:
-          path: tests/result/
-          name: MPI reconstructed images
+          path: result.zip
+          name: MPI results
 
       - run: conda remove -n tike --all
         name: Clean up environment
