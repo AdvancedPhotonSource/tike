@@ -9,6 +9,7 @@ import cupy as cp
 import cupyx.scipy.ndimage
 import numpy as np
 
+import tike.communicators
 import tike.linalg
 import tike.opt
 
