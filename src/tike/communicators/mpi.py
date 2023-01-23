@@ -237,7 +237,7 @@ try:
             sendbuf: typing.Union[np.ndarray, cp.ndarray],
             axis: typing.Union[int, None] = 0,
             root: int = 0,
-        ) -> typing.Union[np.ndarray, cp.ndarray]:
+        ) -> typing.Union[np.ndarray, cp.ndarray, None]:
             """Take data from all processes into one destination.
 
             Parameters
@@ -253,14 +253,41 @@ try:
             xp = cp.get_array_module(sendbuf)
 
             assert axis is None or sendbuf.ndim > 0, "Cannot concatenate zero-dimensional arrays; use `axis=None`"
-            recvbuf = xp.empty_like(
-                sendbuf,
-                shape=(self.size, *sendbuf.shape),
-            ) if self.rank == root else None
+
+            # Gather() doesn't support mixed shapes; we have to use Gatherv()
+            # and keep track of shapes manually
+            shapes = self.comm.gather(sendbuf.shape, root=root)
+            if self.rank == root:
+                assert shapes is not None
+                sizes = [np.prod(shape) for shape in shapes]
+                recvbuf = xp.empty_like(
+                    sendbuf,
+                    shape=sum(sizes),
+                )
+            else:
+                recvbuf = None
+                sizes = None
             cp.cuda.get_current_stream().synchronize()
-            self.comm.Gather(sendbuf, recvbuf, root=root)
-            if recvbuf is not None and axis is not None:
-                recvbuf = xp.concatenate(recvbuf, axis=axis)
+            self.comm.Gatherv(sendbuf, (recvbuf, sizes), root=root)
+            if self.rank == root:
+                assert recvbuf is not None
+                assert sizes is not None
+                assert shapes is not None
+                restored_arrays = [
+                    x.reshape(shape) for x, shape in zip(
+                        xp.split(
+                            recvbuf,
+                            np.cumsum(sizes[:-1]),
+                        ),
+                        shapes,
+                    )
+                ]
+                if axis is None:
+                    merge = xp.stack
+                    axis = 0
+                else:
+                    merge = xp.concatenate
+                return merge(restored_arrays, axis=axis)
             return recvbuf
 
         # def Scatter(self, sendbuf, src: int = 0):
@@ -311,12 +338,32 @@ try:
             xp = cp.get_array_module(sendbuf)
 
             assert axis is None or sendbuf.ndim > 0, "Cannot concatenate zero-dimensional arrays; use `axis=None`"
-            recvbuf = xp.empty_like(sendbuf, shape=(self.size, *sendbuf.shape))
+
+            # Gather() doesn't support mixed shapes; we have to use Gatherv()
+            # and keep track of shapes manually
+            shapes = self.comm.allgather(sendbuf.shape)
+            sizes = [np.prod(shape) for shape in shapes]
+            recvbuf = xp.empty_like(
+                sendbuf,
+                shape=sum(sizes),
+            )
             cp.cuda.get_current_stream().synchronize()
-            self.comm.Allgather(sendbuf, recvbuf)
-            if axis is not None:
-                recvbuf = xp.concatenate(recvbuf, axis=axis)
-            return recvbuf
+            self.comm.Allgatherv(sendbuf, (recvbuf, sizes))
+            restored_arrays = [
+                x.reshape(shape) for x, shape in zip(
+                    xp.split(
+                        recvbuf,
+                        np.cumsum(sizes[:-1]),
+                    ),
+                    shapes,
+                )
+            ]
+            if axis is None:
+                merge = xp.stack
+                axis = 0
+            else:
+                merge = xp.concatenate
+            return merge(restored_arrays, axis=axis)
 
 except ImportError:
 
