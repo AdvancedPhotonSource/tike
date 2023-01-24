@@ -159,7 +159,7 @@ def _update_all(
         op=op,
     )))
 
-    cost = comm.Allreduce_reduce_cpu(cost)
+    cost = comm.Allreduce_mean(cost, axis=None).get()
     logger.info('%10s cost is %+12.5e', 'farplane', cost)
 
     if object_options is not None:

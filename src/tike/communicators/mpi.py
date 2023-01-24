@@ -12,6 +12,49 @@ import numpy as np
 import cupy as cp
 
 
+def combined_shape(
+    shapes: typing.List[typing.Tuple[int, ...]],
+    axis: typing.Union[int, None] = 0,
+) -> typing.List[int]:
+    """Return the `shape` for `shapes` concatenated along the `axis`.
+
+    >>> combined_shape([(5, 2, 3), (1, 2, 3)], axis=0)
+    [6, 2, 3]
+
+    >>> combined_shape([(5, 2, 7), (1, 2, 3)], axis=0)
+    Traceback (most recent call last):
+        ...
+    ValueError: All dimensions except for the named `axis` must be equal
+
+    >>> combined_shape([(1, 5, 3), (1, 5, 3)], axis=None)
+    [2, 1, 5, 3]
+
+    """
+    first = shapes[0]
+    ndim = len(first)
+    for shape in shapes[1:]:
+        if ndim != len(shape):
+            msg = 'All shapes must have the same number of dimensions'
+            raise ValueError(msg)
+        for dim in range(ndim):
+            if dim != axis and first[dim] != shape[dim]:
+                msg = 'All dimensions except for the named `axis` must be equal'
+                raise ValueError(msg)
+
+    if axis is None:
+        return [len(shapes), *first]
+
+    combined = list()
+
+    for dim in range(ndim):
+        if dim == axis:
+            combined.append(sum(shape[dim] for shape in shapes))
+        else:
+            combined.append(first[dim])
+
+    return combined
+
+
 class MPIio:
     """Implementations for problem specific data loaders"""
 
@@ -69,11 +112,19 @@ class NoMPIComm(MPIio):
     def __exit__(self, type, value, traceback):
         pass
 
+    def bcast(
+        self,
+        sendobj: typing.Any,
+        root: int = 0,
+    ) -> typing.Any:
+        """Send a Python object from a root to all processes."""
+        return sendobj
+
     def Bcast(
         self,
-        sendbuf: np.ndarray | cp.ndarray,
+        sendbuf: typing.Union[np.ndarray, cp.ndarray],
         root: int = 0,
-    ) -> np.ndarray | cp.ndarray:
+    ) -> typing.Union[np.ndarray, cp.ndarray]:
         """Send data from a root to all processes."""
 
         if sendbuf is None:
@@ -83,10 +134,10 @@ class NoMPIComm(MPIio):
 
     def Gather(
         self,
-        sendbuf: np.ndarray | cp.ndarray,
-        axis: int | None = 0,
+        sendbuf: typing.Union[np.ndarray, cp.ndarray],
+        axis: typing.Union[int, None] = 0,
         root: int = 0,
-    ) -> typing.List[typing.Union[np.ndarray, cp.ndarray]]:
+    ) -> typing.Union[np.ndarray, cp.ndarray]:
         """Take data from all processes into one destination."""
 
         if sendbuf is None:
@@ -98,9 +149,9 @@ class NoMPIComm(MPIio):
 
     def Allreduce(
         self,
-        sendbuf: np.ndarray | cp.ndarray,
+        sendbuf: typing.Union[np.ndarray, cp.ndarray],
         op=None,
-    ) -> np.ndarray | cp.ndarray:
+    ) -> typing.Union[np.ndarray, cp.ndarray]:
         """Sum sendbuf from all ranks and return the result to all ranks."""
 
         if sendbuf is None:
@@ -110,9 +161,9 @@ class NoMPIComm(MPIio):
 
     def Allgather(
         self,
-        sendbuf: np.ndarray | cp.ndarray,
-        axis: int | None = 0,
-    ) -> np.ndarray | cp.ndarray:
+        sendbuf: typing.Union[np.ndarray, cp.ndarray],
+        axis: typing.Union[int, None] = 0,
+    ) -> typing.Union[np.ndarray, cp.ndarray]:
         """Concatenate sendbuf from all ranks on all ranks."""
 
         if sendbuf is None:
@@ -121,6 +172,21 @@ class NoMPIComm(MPIio):
         if axis is None:
             return sendbuf[None, ...]
         return sendbuf
+
+
+def check_opal(func):
+    """Move sendbuf to host before the function if opal is not avaiable."""
+
+    def wrapper(self, sendbuf, *args, **kwargs):
+        xp = cp.get_array_module(sendbuf)
+
+        if not self._use_opal and xp.__name__ == cp.__name__:
+            return cp.asarray(
+                func(self, cp.asnumpy(sendbuf), *args, **kwargs))
+
+        return func(self, sendbuf, *args, **kwargs)
+
+    return wrapper
 
 
 try:
@@ -180,11 +246,21 @@ try:
         #                        **kwargs)
         #         return recvbuf
 
+        def bcast(
+            self,
+            sendobj: typing.Any,
+            root: int = 0,
+        ) -> typing.Any:
+            """Send a Python object from a root to all processes."""
+            cp.cuda.get_current_stream().synchronize()
+            return self.comm.bcast(sendobj, root=root)
+
+        @check_opal
         def Bcast(
             self,
-            sendbuf: np.ndarray | cp.ndarray,
+            sendbuf: typing.Union[np.ndarray, cp.ndarray],
             root: int = 0,
-        ) -> np.ndarray | cp.ndarray:
+        ) -> typing.Union[np.ndarray, cp.ndarray]:
             """Send data from a root to all processes."""
 
             if sendbuf is None:
@@ -192,22 +268,19 @@ try:
 
             xp = cp.get_array_module(sendbuf)
 
-            if not self._use_opal and xp == cp:
-                # Move to host for non-GPU aware MPI
-                return cp.asarray(self.Bcast(cp.asnumpy(sendbuf)))
-
             if self.rank != root:
                 sendbuf = xp.empty_like(sendbuf)
             cp.cuda.get_current_stream().synchronize()
             self.comm.Bcast(sendbuf, root=root)
             return sendbuf
 
+        @check_opal
         def Gather(
             self,
-            sendbuf: np.ndarray | cp.ndarray,
-            axis: int | None = 0,
+            sendbuf: typing.Union[np.ndarray, cp.ndarray],
+            axis: typing.Union[int, None] = 0,
             root: int = 0,
-        ) -> np.ndarray | cp.ndarray:
+        ) -> typing.Union[np.ndarray, cp.ndarray, None]:
             """Take data from all processes into one destination.
 
             Parameters
@@ -222,19 +295,42 @@ try:
 
             xp = cp.get_array_module(sendbuf)
 
-            if not self._use_opal and xp == cp:
-                # Move to host for non-GPU aware MPI
-                return cp.asarray(self.Gather(cp.asnumpy(sendbuf)))
-
             assert axis is None or sendbuf.ndim > 0, "Cannot concatenate zero-dimensional arrays; use `axis=None`"
-            recvbuf = xp.empty_like(
-                sendbuf,
-                shape=(self.size, *sendbuf.shape),
-            ) if self.rank == root else None
+
+            # Gather() doesn't support mixed shapes; we have to use Gatherv()
+            # and keep track of shapes manually
+            shapes = self.comm.gather(sendbuf.shape, root=root)
+            if self.rank == root:
+                assert shapes is not None
+                sizes = [np.prod(shape, dtype=int) for shape in shapes]
+                recvbuf = xp.empty_like(
+                    sendbuf,
+                    shape=sum(sizes),
+                )
+            else:
+                recvbuf = None
+                sizes = None
             cp.cuda.get_current_stream().synchronize()
-            self.comm.Gather(sendbuf, recvbuf, root=root)
-            if self.rank == root and axis is not None:
-                recvbuf = xp.concatenate(recvbuf, axis=axis)
+            self.comm.Gatherv(sendbuf, (recvbuf, sizes), root=root)
+            if self.rank == root:
+                assert recvbuf is not None
+                assert sizes is not None
+                assert shapes is not None
+                restored_arrays = [
+                    x.reshape(shape) for x, shape in zip(
+                        xp.split(
+                            recvbuf,
+                            np.cumsum(sizes[:-1]),
+                        ),
+                        shapes,
+                    )
+                ]
+                if axis is None:
+                    merge = xp.stack
+                    axis = 0
+                else:
+                    merge = xp.concatenate
+                return merge(restored_arrays, axis=axis)
             return recvbuf
 
         # def Scatter(self, sendbuf, src: int = 0):
@@ -246,11 +342,12 @@ try:
         #     self.comm.Scatter(sendbuf, recvbuf, src)
         #     return recvbuf
 
+        @check_opal
         def Allreduce(
             self,
-            sendbuf: np.ndarray | cp.ndarray,
+            sendbuf: typing.Union[np.ndarray, cp.ndarray],
             op=MPI.SUM,
-        ) -> np.ndarray | cp.ndarray:
+        ) -> typing.Union[np.ndarray, cp.ndarray]:
             """Sum sendbuf from all ranks and return the result to all ranks."""
 
             if sendbuf is None:
@@ -258,20 +355,17 @@ try:
 
             xp = cp.get_array_module(sendbuf)
 
-            if not self._use_opal and xp == cp:
-                # Move to host for non-GPU aware MPI
-                return cp.asarray(self.Allreduce(cp.asnumpy(sendbuf)))
-
             recvbuf = xp.empty_like(sendbuf)
             cp.cuda.get_current_stream().synchronize()
             self.comm.Allreduce(sendbuf, recvbuf, op=op)
             return recvbuf
 
+        @check_opal
         def Allgather(
             self,
-            sendbuf: np.ndarray | cp.ndarray,
-            axis: int | None = 0,
-        ) -> np.ndarray | cp.ndarray:
+            sendbuf: typing.Union[np.ndarray, cp.ndarray],
+            axis: typing.Union[int, None] = 0,
+        ) -> typing.Union[np.ndarray, cp.ndarray]:
             """Concatenate sendbuf from all ranks on all ranks.
 
             Parameters
@@ -286,21 +380,37 @@ try:
 
             xp = cp.get_array_module(sendbuf)
 
-            if not self._use_opal and xp == cp:
-                # Move to host for non-GPU aware MPI
-                return cp.asarray(self.Allgather(cp.asnumpy(sendbuf)))
-
             assert axis is None or sendbuf.ndim > 0, "Cannot concatenate zero-dimensional arrays; use `axis=None`"
-            recvbuf = xp.empty_like(sendbuf, shape=(self.size, *sendbuf.shape))
+
+            # Gather() doesn't support mixed shapes; we have to use Gatherv()
+            # and keep track of shapes manually
+            shapes = self.comm.allgather(sendbuf.shape)
+            sizes = [np.prod(shape, dtype=int) for shape in shapes]
+            recvbuf = xp.empty_like(
+                sendbuf,
+                shape=sum(sizes),
+            )
             cp.cuda.get_current_stream().synchronize()
-            self.comm.Allgather(sendbuf, recvbuf)
-            if axis is not None:
-                recvbuf = xp.concatenate(recvbuf, axis=axis)
-            return recvbuf
+            self.comm.Allgatherv(sendbuf, (recvbuf, sizes))
+            restored_arrays = [
+                x.reshape(shape) for x, shape in zip(
+                    xp.split(
+                        recvbuf,
+                        np.cumsum(sizes[:-1]),
+                    ),
+                    shapes,
+                )
+            ]
+            if axis is None:
+                merge = xp.stack
+                axis = 0
+            else:
+                merge = xp.concatenate
+            return merge(restored_arrays, axis=axis)
 
-except ModuleNotFoundError:
+except ImportError:
 
-    MPIComm = None
+    MPIComm = NoMPIComm
     warnings.warn(
         "tike was unable to import mpi4py, "
         "so MPI features are unavailable.", UserWarning)

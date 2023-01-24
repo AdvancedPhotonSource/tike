@@ -112,6 +112,8 @@ class ThreadPool(ThreadPoolExecutor):
             workers[1::2].
 
         """
+        assert stride >= 1, f"Stride cannot be less than 1; it is {stride}."
+        assert stride <= len(x), f"Stride cannot be greater than {len(x)}; it is {stride}."
 
         def f(worker):
             idx = self.workers.index(worker) % stride
@@ -123,7 +125,7 @@ class ThreadPool(ThreadPoolExecutor):
         self,
         x: typing.List[cp.array],
         worker: int = None,
-        axis: int | None = 0,
+        axis: typing.Union[int, None] = 0,
     ) -> cp.array:
         """Concatenate x on a single worker along the given axis.
 
@@ -133,7 +135,6 @@ class ThreadPool(ThreadPoolExecutor):
             Concatenate the gathered arrays long this existing axis; a new
             leading axis is created if axis is None.
         """
-        assert isinstance(x, list), f"x should be list not {type(x)}"
         worker = self.workers[0] if worker is None else worker
         if axis is None:
             merge = self.xp.stack
@@ -150,7 +151,7 @@ class ThreadPool(ThreadPoolExecutor):
     def gather_host(
         self,
         x: typing.List[cp.array],
-        axis: int | None = 0,
+        axis: typing.Union[int, None] = 0,
     ) -> np.array:
         """Concatenate x on host along the given axis.
 
@@ -178,7 +179,7 @@ class ThreadPool(ThreadPoolExecutor):
     def all_gather(
         self,
         x: typing.List[cp.array],
-        axis: int | None = 0,
+        axis: typing.Union[int, None] = 0,
     ) -> typing.List[cp.array]:
         """Concatenate x on all workers along the given axis.
 
@@ -216,6 +217,8 @@ class ThreadPool(ThreadPoolExecutor):
             workers[4:].
 
         """
+        assert stride >= 1, f"Stride cannot be less than 1; it is {stride}."
+        assert stride <= len(x), f"Stride cannot be greater than {len(x)}; it is {stride}."
 
         def f(worker):
             idx = self.workers.index(worker) // stride
@@ -246,6 +249,8 @@ class ThreadPool(ThreadPoolExecutor):
             workers[4:].
 
         """
+        assert stride >= 1, f"Stride cannot be less than 1; it is {stride}."
+        assert stride <= len(x), f"Stride cannot be greater than {len(x)}; it is {stride}."
 
         def s(bworkers, chunk):
 
@@ -280,7 +285,7 @@ class ThreadPool(ThreadPoolExecutor):
         self,
         x: typing.List[cp.array],
         stride: int = 1,
-        workers: typing.List[int] | None = None,
+        workers: typing.Union[typing.List[int], None] = None,
     ) -> typing.List[cp.array]:
         """Reduce x by addition to a device group from all other devices.
 
@@ -296,6 +301,8 @@ class ThreadPool(ThreadPoolExecutor):
             to workers[1].
 
         """
+        assert stride >= 1, f"Stride cannot be less than 1; it is {stride}."
+        assert stride <= len(x), f"Stride cannot be greater than {len(x)}; it is {stride}."
 
         # if self.num_workers == 1:
         #     return x
@@ -319,8 +326,8 @@ class ThreadPool(ThreadPoolExecutor):
     def reduce_mean(
         self,
         x: typing.List[cp.array],
-        axis: int | typing.List[int] = 0,
-        worker: int | None = None,
+        axis: typing.Union[int, typing.List[int]] = 0,
+        worker: typing.Union[int, None] = None,
     ) -> cp.array:
         """Reduce x by addition to one GPU from all other GPUs."""
         worker = self.workers[0] if worker is None else worker
@@ -333,7 +340,7 @@ class ThreadPool(ThreadPoolExecutor):
     def allreduce(
         self,
         x: typing.List[cp.array],
-        stride: int | None = None,
+        stride: typing.Union[int, None] = None,
     ) -> typing.List[cp.array]:
         """All-reduce x by addition within device groups.
 
@@ -353,7 +360,8 @@ class ThreadPool(ThreadPoolExecutor):
             return x
 
         stride = len(x) if stride is None else stride
-        assert stride >= 1, "Stride cannot be less than 1; it is {stride}."
+        assert stride >= 1, f"Stride cannot be less than 1; it is {stride}."
+        assert stride <= len(x), f"Stride cannot be greater than {len(x)}; it is {stride}."
 
         def f(worker):
             group_start = stride * (self.workers.index(worker) // stride)
@@ -371,7 +379,7 @@ class ThreadPool(ThreadPoolExecutor):
         self,
         func,
         *iterables,
-        workers: typing.List[int] | None = None,
+        workers: typing.Union[typing.List[int], None] = None,
         **kwargs,
     ) -> list:
         """ThreadPoolExecutor.map, but wraps call in a cuda.Device context."""

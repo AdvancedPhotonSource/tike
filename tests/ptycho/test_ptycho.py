@@ -246,7 +246,7 @@ class PtychoRecon(
         params.object_options = ObjectOptions()
         _save_ptycho_result(
             params,
-            f"{'mpi-' if self.mpi_size > 1 else ''}init{self.post_name}",
+            f"mpi{self.mpi_size}-init{self.post_name}",
         )
 
     def test_consistent_adam_grad(self):
@@ -267,7 +267,7 @@ class PtychoRecon(
                 data=self.data,
                 params=params,
             ),
-            f"{'mpi-' if self.mpi_size > 1 else ''}adam_grad{self.post_name}",
+            f"mpi{self.mpi_size}-adam_grad{self.post_name}",
         )
 
     def test_consistent_cgrad(self):
@@ -288,7 +288,7 @@ class PtychoRecon(
                 data=self.data,
                 params=params,
             ),
-            f"{'mpi-' if self.mpi_size > 1 else ''}cgrad{self.post_name}",
+            f"mpi{self.mpi_size}-cgrad{self.post_name}",
         )
 
     def test_consistent_lstsq_grad(self):
@@ -309,7 +309,7 @@ class PtychoRecon(
                 data=self.data,
                 params=params,
             ),
-            f"{'mpi-' if self.mpi_size > 1 else ''}lstsq_grad{self.post_name}")
+            f"mpi{self.mpi_size}-lstsq_grad{self.post_name}")
 
     def test_consistent_lstsq_grad_compact(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
@@ -330,7 +330,7 @@ class PtychoRecon(
                 data=self.data,
                 params=params,
             ),
-            f"{'mpi-' if self.mpi_size > 1 else ''}lstsq_grad-compact{self.post_name}"
+            f"mpi{self.mpi_size}-lstsq_grad-compact{self.post_name}"
         )
 
     def test_consistent_lstsq_grad_variable_probe(self):
@@ -359,7 +359,7 @@ class PtychoRecon(
         )
         _save_ptycho_result(
             result,
-            f"{'mpi-' if self.mpi_size > 1 else ''}lstsq_grad-variable-probe{self.post_name}",
+            f"mpi{self.mpi_size}-lstsq_grad-variable-probe{self.post_name}",
         )
         assert np.all(result.eigen_weights[..., 1:, probes_with_modes:] == 0), (
             "These weights should be unused/untouched "
@@ -383,7 +383,7 @@ class PtychoRecon(
                 data=self.data,
                 params=params,
             ),
-            f"{'mpi-' if self.mpi_size > 1 else ''}rpie{self.post_name}",
+            f"mpi{self.mpi_size}-rpie{self.post_name}",
         )
 
     def test_consistent_dm(self):
@@ -404,7 +404,7 @@ class PtychoRecon(
                 data=self.data,
                 params=params,
             ),
-            f"{'mpi-' if self.mpi_size > 1 else ''}dm{self.post_name}",
+            f"mpi{self.mpi_size}-dm{self.post_name}",
         )
 
 

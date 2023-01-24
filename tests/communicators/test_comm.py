@@ -9,7 +9,7 @@ try:
     from mpi4py import MPI
     _mpi_size = MPI.COMM_WORLD.Get_size()
     _mpi_rank = MPI.COMM_WORLD.Get_rank()
-except ModuleNotFoundError:
+except ImportError:
     _mpi_size = 1
     _mpi_rank = 0
 

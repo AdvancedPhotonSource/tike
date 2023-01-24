@@ -95,10 +95,9 @@ class Comm:
     def Allreduce_mean(
         self,
         x: typing.List[cp.ndarray],
-        axis: int | typing.List[int] = 0,
+        axis: typing.Union[int, typing.List[int]] = 0,
     ) -> cp.ndarray:
         """Multi-process multi-GPU based mean."""
-        assert isinstance(x, list), f"x should be list not {type(x)}"
         with cp.cuda.Device(self.pool.workers[0]):
             counts_local = np.array(
                 [1 if x0.ndim == 0 else x0.shape[axis] for x0 in x],

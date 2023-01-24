@@ -196,7 +196,7 @@ def _update_object(
 
     def cost_function_multi(psi, **kwargs):
         cost_out = comm.pool.map(op.cost, data, psi, scan, probe)
-        return comm.Allreduce_reduce_cpu(cost_out)
+        return comm.Allreduce_mean(cost_out, axis=None).get()
 
     def grad_multi(psi):
         grad_list = comm.pool.map(op.grad_psi, data, psi, scan, probe)

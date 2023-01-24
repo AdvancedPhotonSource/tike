@@ -47,6 +47,7 @@ class TestThreadPool(unittest.TestCase):
         np.testing.assert_array_equal(result, truth)
 
     def test_scatter(self, stride=3):
+        stride = min(self.pool.num_workers, stride)
         a = [self.xp.ones(3) * i for i in range(self.pool.num_workers)]
         truth = [
             self.xp.ones(3) * i // stride for i in range(self.pool.num_workers)
@@ -60,6 +61,7 @@ class TestThreadPool(unittest.TestCase):
             self.xp.testing.assert_array_equal(a, b)
 
     def test_scatter_bcast(self, stride=3):
+        stride = min(self.pool.num_workers, stride)
         a = [self.xp.ones(3) * i for i in range(self.pool.num_workers)]
         truth = [
             self.xp.ones(3) * i // stride for i in range(self.pool.num_workers)
@@ -73,6 +75,7 @@ class TestThreadPool(unittest.TestCase):
             self.xp.testing.assert_array_equal(a, b)
 
     def test_reduce_gpu(self, stride=3):
+        stride = min(self.pool.num_workers, stride)
         a = [self.xp.ones(3) * i for i in range(self.pool.num_workers)]
         if self.pool.num_workers > 1:
             truth = [
@@ -98,6 +101,7 @@ class TestThreadPool(unittest.TestCase):
         )
 
     def test_allreduce(self, stride=3):
+        stride = min(self.pool.num_workers, stride)
         a = [self.xp.ones(3) * i for i in range(self.pool.num_workers)]
         if self.pool.num_workers > 1:
             truth = [

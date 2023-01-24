@@ -1,4 +1,4 @@
-cupy>=8,!=10.3.0
+cupy>=10,!=10.3.0
 importlib_metadata # backport for python<3.8
 importlib_resources # backport for python<3.9
 matplotlib-base=3.*
