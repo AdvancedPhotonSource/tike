@@ -174,6 +174,21 @@ class NoMPIComm(MPIio):
         return sendbuf
 
 
+def check_opal(func):
+    """Move sendbuf to host before the function if opal is not avaiable."""
+
+    def wrapper(self, sendbuf, *args, **kwargs):
+        xp = cp.get_array_module(sendbuf)
+
+        if not self._use_opal and xp.__name__ == cp.__name__:
+            return cp.asarray(
+                func(self, cp.asnumpy(sendbuf), *args, **kwargs))
+
+        return func(self, sendbuf, *args, **kwargs)
+
+    return wrapper
+
+
 try:
     from mpi4py import MPI
 
@@ -213,21 +228,6 @@ try:
 
         def __exit__(self, type, value, traceback):
             pass
-
-        @staticmethod
-        def check_opal(func):
-            """Move sendbuf to host before the function if opal is not avaiable."""
-
-            def wrapper(self, sendbuf, *args, **kwargs):
-                xp = cp.get_array_module(sendbuf)
-
-                if not self._use_opal and xp.__name__ == cp.__name__:
-                    return cp.asarray(
-                        func(self, cp.asnumpy(sendbuf), *args, **kwargs))
-
-                return func(self, sendbuf, *args, **kwargs)
-
-            return wrapper
 
         # def p2p(self, sendbuf, src=0, dest=1, tg=0, **kwargs):
         #     """Send data from a source to a designated destination."""
