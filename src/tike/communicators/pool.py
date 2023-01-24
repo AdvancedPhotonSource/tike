@@ -112,6 +112,8 @@ class ThreadPool(ThreadPoolExecutor):
             workers[1::2].
 
         """
+        assert stride >= 1, f"Stride cannot be less than 1; it is {stride}."
+        assert stride <= len(x), f"Stride cannot be greater than {len(x)}; it is {stride}."
 
         def f(worker):
             idx = self.workers.index(worker) % stride
@@ -215,6 +217,8 @@ class ThreadPool(ThreadPoolExecutor):
             workers[4:].
 
         """
+        assert stride >= 1, f"Stride cannot be less than 1; it is {stride}."
+        assert stride <= len(x), f"Stride cannot be greater than {len(x)}; it is {stride}."
 
         def f(worker):
             idx = self.workers.index(worker) // stride
@@ -245,6 +249,8 @@ class ThreadPool(ThreadPoolExecutor):
             workers[4:].
 
         """
+        assert stride >= 1, f"Stride cannot be less than 1; it is {stride}."
+        assert stride <= len(x), f"Stride cannot be greater than {len(x)}; it is {stride}."
 
         def s(bworkers, chunk):
 
@@ -295,6 +301,8 @@ class ThreadPool(ThreadPoolExecutor):
             to workers[1].
 
         """
+        assert stride >= 1, f"Stride cannot be less than 1; it is {stride}."
+        assert stride <= len(x), f"Stride cannot be greater than {len(x)}; it is {stride}."
 
         # if self.num_workers == 1:
         #     return x
@@ -352,7 +360,8 @@ class ThreadPool(ThreadPoolExecutor):
             return x
 
         stride = len(x) if stride is None else stride
-        assert stride >= 1, "Stride cannot be less than 1; it is {stride}."
+        assert stride >= 1, f"Stride cannot be less than 1; it is {stride}."
+        assert stride <= len(x), f"Stride cannot be greater than {len(x)}; it is {stride}."
 
         def f(worker):
             group_start = stride * (self.workers.index(worker) // stride)
