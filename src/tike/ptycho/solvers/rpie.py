@@ -141,7 +141,7 @@ def rpie(
             n=n,
         )
 
-    if probe_options and probe_options.orthogonality_constraint:
+    if probe_options and probe_options.force_orthogonality:
         probe = comm.pool.map(tike.ptycho.probe.orthogonalize_eig, probe)
 
     if object_options:

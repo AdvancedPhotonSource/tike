@@ -72,7 +72,7 @@ def adam_grad(
         )
         batch_cost.append(cost)
 
-    if probe_options and probe_options.orthogonality_constraint:
+    if probe_options and probe_options.force_orthogonality:
         probe = comm.pool.map(orthogonalize_eig, probe)
 
     if object_options:

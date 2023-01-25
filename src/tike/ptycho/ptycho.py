@@ -412,17 +412,17 @@ class Reconstruction():
                 f"{len(self._device_parameters.algorithm_options.times):,d}")
 
             if self._device_parameters.probe_options is not None:
-                if self._device_parameters.probe_options.centered_intensity_constraint:
+                if self._device_parameters.probe_options.force_centered_intensity:
                     self._device_parameters.probe = self.comm.pool.map(
                         constrain_center_peak,
                         self._device_parameters.probe,
                     )
-                if self._device_parameters.probe_options.sparsity_constraint < 1:
+                if self._device_parameters.probe_options.force_sparsity < 1:
                     self._device_parameters.probe = self.comm.pool.map(
                         constrain_probe_sparsity,
                         self._device_parameters.probe,
                         f=self._device_parameters.probe_options
-                        .sparsity_constraint,
+                        .force_sparsity,
                     )
 
             self._device_parameters = getattr(

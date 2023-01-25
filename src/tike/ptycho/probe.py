@@ -53,14 +53,14 @@ logger = logging.getLogger(__name__)
 class ProbeOptions:
     """Manage data and setting related to probe correction."""
 
-    orthogonality_constraint: bool = False
+    force_orthogonality: bool = False
     """Forces probes to be orthogonal each iteration."""
 
-    centered_intensity_constraint: bool = False
+    force_centered_intensity: bool = False
     """Forces the probe intensity to be centered."""
 
-    sparsity_constraint: float = 0.0
-    """Forces a maximum proportion of non-zero elements."""
+    force_sparsity: float = 0.0
+    """Forces this proportion of zero elements."""
 
     use_adaptive_moment: bool = False
     """Whether or not to use adaptive moment."""
@@ -105,7 +105,7 @@ class ProbeOptions:
     linearly to this value. For example, for three probes, the penalties aplied
     are [0.0, 0.5, 1.0].
 
-    This is a soft constraint as opposed to `sparsity_constraint` which is a
+    This is a soft constraint as opposed to `force_sparsity` which is a
     hard constraint.
     """
 
@@ -128,9 +128,9 @@ class ProbeOptions:
     def resample(self, factor: float) -> ProbeOptions:
         """Return a new `ProbeOptions` with the parameters rescaled."""
         return ProbeOptions(
-            orthogonality_constraint=self.orthogonality_constraint,
-            centered_intensity_constraint=self.centered_intensity_constraint,
-            sparsity_constraint=self.sparsity_constraint,
+            force_orthogonality=self.force_orthogonality,
+            force_centered_intensity=self.force_centered_intensity,
+            force_sparsity=self.force_sparsity,
             use_adaptive_moment=self.use_adaptive_moment,
             vdecay=self.vdecay,
             mdecay=self.mdecay,
