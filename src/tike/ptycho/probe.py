@@ -53,13 +53,13 @@ logger = logging.getLogger(__name__)
 class ProbeOptions:
     """Manage data and setting related to probe correction."""
 
-    orthogonality_constraint: bool = True
+    orthogonality_constraint: bool = False
     """Forces probes to be orthogonal each iteration."""
 
     centered_intensity_constraint: bool = False
     """Forces the probe intensity to be centered."""
 
-    sparsity_constraint: float = 1
+    sparsity_constraint: float = 0.0
     """Forces a maximum proportion of non-zero elements."""
 
     use_adaptive_moment: bool = False
@@ -761,10 +761,10 @@ def constrain_center_peak(probe):
 
 
 def constrain_probe_sparsity(probe, f):
-    """Constrain the probe intensity so no more than f/1 elements are nonzero."""
-    if f == 1:
+    """Constrain the probe intensity so at least `f` fraction elements are zero."""
+    if f == 0:
         return probe
-    logger.info("Constrained probe intensity spasity to %.3e", f)
+    logger.info("Constrained probe intensity so %.3e percent are zero", f * 100)
     # First reshape the probe to 3D so it is a single stack of 2D images.
     stack = probe.reshape((-1, *probe.shape[-2:]))
     intensity = np.sum(np.square(np.abs(stack)), axis=0)
@@ -775,7 +775,7 @@ def constrain_probe_sparsity(probe, f):
         mode='wrap',
     )
     # Get the coordinates of the smallest k values
-    k = int((1 - f) * probe.shape[-1] * probe.shape[-2])
+    k = int(f * probe.shape[-1] * probe.shape[-2])
     smallest = np.argpartition(intensity, k, axis=None)[:k]
     coords = cp.unravel_index(smallest, dims=probe.shape[-2:])
     # Set these k smallest values to zero in all probes
