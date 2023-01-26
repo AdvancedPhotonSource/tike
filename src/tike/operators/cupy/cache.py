@@ -1,8 +1,13 @@
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
+import typing
+
 from cupyx.scipy.fft import fftn, ifftn, get_fft_plan
+import cupy.cuda.cufft
 import cupy.cuda.runtime
+import cupy.typing as cpt
+import numpy as np
 
 
 class CachedFFT():
@@ -24,9 +29,14 @@ class CachedFFT():
         self.plan_cache.clear()
         del self.plan_cache
 
-    def _get_fft_plan(self, a, axes=None, **kwargs):
+    def _get_fft_plan(
+        self,
+        a: cpt.NDArray,
+        axes: typing.Tuple[int, ...] = (),
+        **kwargs,
+    ) -> typing.Union[cupy.cuda.cufft.Plan1d, cupy.cuda.cufft.PlanNd]:
         """Cache multiple FFT plans at the same time."""
-        axes = tuple(range(a.ndim)) if axes is None else axes
+        axes = tuple(range(a.ndim)) if axes is () else axes
         key = (*a.shape, *axes, cupy.cuda.runtime.getDevice())
         if key in self.plan_cache:
             plan = self.plan_cache[key]
@@ -35,16 +45,38 @@ class CachedFFT():
             self.plan_cache[key] = plan
         return plan
 
-    def _fft2(self, a, *args, axes=(-2, -1), **kwargs):
+    def _fft2(
+        self,
+        a: cpt.NDArray,
+        *args,
+        axes: typing.Tuple[int, int] = (-2, -1),
+        **kwargs,
+    ) -> cpt.NDArray[np.csingle]:
         return self._fftn(a, *args, axes=axes, **kwargs)
 
-    def _ifft2(self, a, *args, axes=(-2, -1), **kwargs):
+    def _ifft2(
+        self,
+        a: cpt.NDArray,
+        *args,
+        axes: typing.Tuple[int, int] = (-2, -1),
+        **kwargs,
+    ) -> cpt.NDArray[np.csingle]:
         return self._ifftn(a, *args, axes=axes, **kwargs)
 
-    def _ifftn(self, a, *args, **kwargs):
+    def _ifftn(
+        self,
+        a: cpt.NDArray,
+        *args,
+        **kwargs,
+    ) -> cpt.NDArray[np.csingle]:
         with self._get_fft_plan(a, **kwargs):
             return ifftn(a, *args, **kwargs)
 
-    def _fftn(self, a, *args, **kwargs):
+    def _fftn(
+        self,
+        a: cpt.NDArray,
+        *args,
+        **kwargs,
+    ) -> cpt.NDArray[np.csingle]:
         with self._get_fft_plan(a, **kwargs):
             return fftn(a, *args, **kwargs)

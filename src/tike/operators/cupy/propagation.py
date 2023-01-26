@@ -3,6 +3,9 @@
 __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
+import cupy.typing as cpt
+import numpy as np
+
 import tike.operators.cupy.objective as objective
 
 from .cache import CachedFFT
@@ -34,19 +37,21 @@ class Propagation(CachedFFT, Operator):
         The wavefronts hitting the detector respectively.
         Shape for cost functions and gradients is
         (nscan, 1, 1, detector_shape, detector_shape).
-    data, intensity : (nscan, detector_shape, detector_shape) complex64
-        data is the square of the absolute value of `farplane`. `data` is the
-        intensity of the `farplane`.
 
     """
 
-    def __init__(self, detector_shape, model='gaussian', **kwargs):
+    def __init__(self, detector_shape: int, model: str = 'gaussian', **kwargs):
         self.detector_shape = detector_shape
         self.cost = getattr(objective, f'{model}')
         self.grad = getattr(objective, f'{model}_grad')
         self.model = model
 
-    def fwd(self, nearplane, overwrite=False, **kwargs):
+    def fwd(
+        self,
+        nearplane: cpt.NDArray[np.csingle],
+        overwrite: bool = False,
+        **kwargs,
+    ) -> cpt.NDArray[np.csingle]:
         """Forward Fourier-based free-space propagation operator."""
         self._check_shape(nearplane)
         shape = nearplane.shape
@@ -57,7 +62,12 @@ class Propagation(CachedFFT, Operator):
             overwrite_x=overwrite,
         ).reshape(shape)
 
-    def adj(self, farplane, overwrite=False, **kwargs):
+    def adj(
+        self,
+        farplane: cpt.NDArray[np.csingle],
+        overwrite: bool = False,
+        **kwargs,
+    ) -> cpt.NDArray[np.csingle]:
         """Adjoint Fourier-based free-space propagation operator."""
         self._check_shape(farplane)
         shape = farplane.shape
@@ -68,7 +78,7 @@ class Propagation(CachedFFT, Operator):
             overwrite_x=overwrite,
         ).reshape(shape)
 
-    def _check_shape(self, x):
+    def _check_shape(self, x: cpt.NDArray) -> None:
         assert type(x) is self.xp.ndarray, type(x)
         shape = (-1, self.detector_shape, self.detector_shape)
         if (__debug__ and x.shape[-2:] != shape[-2:]):
