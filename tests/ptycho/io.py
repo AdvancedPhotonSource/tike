@@ -67,7 +67,7 @@ def _save_probe(output_folder, probe, algorithm):
     tike.view.plot_probe_power(probe)
     plt.semilogy()
     plt.title(algorithm)
-    plt.savefig(f'{output_folder}/probe-power.svg')
+    plt.savefig(f'{output_folder}/probe-power.png')
     plt.close(f)
 
 
@@ -91,7 +91,7 @@ def _save_ptycho_result(result, algorithm):
         ax1.set_ylim(10**(-1), 10**2)
         fig.suptitle(algorithm)
         fig.tight_layout()
-        plt.savefig(os.path.join(fname, 'convergence.svg'))
+        plt.savefig(os.path.join(fname, 'convergence.png'))
         plt.close(fig)
         plt.imsave(
             f'{fname}/{0}-phase.png',
@@ -104,11 +104,7 @@ def _save_ptycho_result(result, algorithm):
         plt.imsave(
             f'{fname}/{0}-ampli.png',
             np.abs(result.psi).astype('float32'),
-        )
-        import tifffile
-        tifffile.imwrite(
-            f'{fname}/{0}-ampli.tiff',
-            np.abs(result.psi).astype('float32'),
+            cmap=plt.cm.gray,
         )
         _save_probe(fname, result.probe, algorithm)
         if result.eigen_weights is not None:
@@ -127,4 +123,4 @@ def _save_eigen_weights(fname, weights):
     tike.view.plot_eigen_weights(weights)
     plt.suptitle('weights')
     plt.tight_layout()
-    plt.savefig(f'{fname}/weights.svg')
+    plt.savefig(f'{fname}/weights.png')
