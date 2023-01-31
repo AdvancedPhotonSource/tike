@@ -222,8 +222,6 @@ class ThreadPool(ThreadPoolExecutor):
 
         """
         assert stride >= 1, f"Stride cannot be less than 1; it is {stride}."
-        assert stride <= len(
-            x), f"Stride cannot be greater than {len(x)}; it is {stride}."
 
         def f(worker):
             idx = self.workers.index(worker) // stride
@@ -255,8 +253,6 @@ class ThreadPool(ThreadPoolExecutor):
 
         """
         assert stride >= 1, f"Stride cannot be less than 1; it is {stride}."
-        assert stride <= len(
-            x), f"Stride cannot be greater than {len(x)}; it is {stride}."
 
         # First, scatter to leader of each group
         leaders = self.workers[::stride]
