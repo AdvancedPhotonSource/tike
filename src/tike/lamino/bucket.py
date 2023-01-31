@@ -178,11 +178,11 @@ def reconstruct(
                         "iterations.", rtol, i)
                     break
 
-        result['cost'] = operator.asarray(costs)
-        result['cost'] = operator.asnumpy(result['cost'])
-        result['obj'] = comm.pool.gather_host(result['obj'][:obj_split])
-        result['step_length'] = operator.asnumpy(result['step_length'])
-        return result
+            result['cost'] = operator.asarray(costs)
+            result['cost'] = operator.asnumpy(result['cost'])
+            result['obj'] = comm.pool.gather_host(result['obj'][:obj_split])
+            result['step_length'] = operator.asnumpy(result['step_length'])
+            return result
     else:
         raise ValueError(
             "The '{}' algorithm is not an available.".format(algorithm))
