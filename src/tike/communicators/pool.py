@@ -390,5 +390,4 @@ class ThreadPool(ThreadPoolExecutor):
 
         workers = self.workers if workers is None else workers
 
-        # return list(super().map(f, workers, *iterables))
-        return list(map(f, workers, *iterables))
+        return list(super().map(f, workers, *iterables))
