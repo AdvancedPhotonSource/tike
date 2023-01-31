@@ -136,7 +136,7 @@ def smoothness_constraint(x, a):
             f"Smoothness constraint must be in range [0, 1/8) not {a}.")
 
 
-def get_padded_object(scan, probe):
+def get_padded_object(scan, probe, extra:int=0):
     """Return a ones-initialized object and shifted scan positions.
 
     An complex object array is initialized with shape such that the area
@@ -147,12 +147,12 @@ def get_padded_object(scan, probe):
     int_scan = scan // 1
     min_corner = np.min(int_scan, axis=-2)
     max_corner = np.max(int_scan, axis=-2)
-    span = max_corner - min_corner + probe.shape[-1] + 2
+    span = max_corner - min_corner + probe.shape[-1] + 2 + 2 * extra
     return np.full(
         shape=span.astype('int'),
         dtype='complex64',
         fill_value=np.complex64(0.5 + 0j),
-    ), scan + 1 - min_corner
+    ), scan + 1 - min_corner + extra
 
 
 def _int_min_max(x):
