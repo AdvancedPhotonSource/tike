@@ -1,25 +1,29 @@
 import logging
+import typing
 
 import cupy as cp
+import cupy.typing
 
+import tike.communicators
 import tike.linalg
+import tike.operators
 import tike.opt
-import tike.ptycho.probe
-import tike.ptycho.position
 
-from ..position import PositionOptions
-from ..object import positivity_constraint, smoothness_constraint
+from ..object import *
+from ..position import *
+from ..probe import *
+from .options import *
 
 logger = logging.getLogger(__name__)
 
 
 def lstsq_grad(
-    op,
-    comm,
-    data,
-    batches,
+    op: tike.operators.Ptycho,
+    comm: tike.communicators.Comm,
+    data: typing.List[cupy.typing.NDArray],
+    batches: typing.List[cupy.typing.NDArray[int]],
     *,
-    parameters,
+    parameters: PtychoParameters,
 ):
     """Solve the ptychography problem using Odstrcil et al's approach.
 
@@ -132,7 +136,7 @@ def lstsq_grad(
                 n=n,
             )
             unique_probe = comm.pool.map(
-                tike.ptycho.probe.get_varying_probe,
+                get_varying_probe,
                 probe,
                 beigen_probe,
                 beigen_weights,
@@ -220,7 +224,7 @@ def lstsq_grad(
         psi = comm.pool.bcast([psi[0]])
 
     if probe_options and probe_options.orthogonality_constraint:
-        probe = comm.pool.map(tike.ptycho.probe.orthogonalize_eig, probe)
+        probe = comm.pool.map(orthogonalize_eig, probe)
 
     if object_options:
         psi = comm.pool.map(positivity_constraint,
@@ -232,7 +236,7 @@ def lstsq_grad(
                             a=object_options.smoothness_constraint)
 
     if eigen_probe is not None:
-        eigen_probe, eigen_weights = tike.ptycho.probe.constrain_variable_probe(
+        eigen_probe, eigen_weights = constrain_variable_probe(
             comm,
             beigen_probe,
             eigen_weights,
@@ -251,13 +255,15 @@ def lstsq_grad(
     return parameters
 
 
-def _psi_preconditioner(psi_update_denominator,
-                        unique_probe,
-                        scan_,
-                        psi,
-                        *,
-                        op,
-                        m=0):
+def _psi_preconditioner(
+    psi_update_denominator,
+    unique_probe,
+    scan_,
+    psi,
+    *,
+    op,
+    m=0,
+):
     # Sum of the probe amplitude over field of view for preconditioning the
     # object update.
     probe_amp = (unique_probe[..., 0, m, :, :] *
@@ -265,7 +271,7 @@ def _psi_preconditioner(psi_update_denominator,
     if psi_update_denominator is None:
         psi_update_denominator = cp.zeros(
             shape=psi.shape,
-            dtype='complex64',
+            dtype=cp.csingle,
         )
     psi_update_denominator = op.diffraction.patch.adj(
         patches=probe_amp,
@@ -275,7 +281,13 @@ def _psi_preconditioner(psi_update_denominator,
     return psi_update_denominator
 
 
-def _update_wavefront(data, varying_probe, scan, psi, op):
+def _update_wavefront(
+    data: cupy.typing.NDArray,
+    varying_probe: cupy.typing.NDArray[cp.csingle],
+    scan: cupy.typing.NDArray[cp.single],
+    psi: cupy.typing.NDArray[cp.csingle],
+    op: tike.operators.Ptycho,
+) -> typing.Tuple[cupy.typing.NDArray[cp.csingle], float]:
 
     farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
     intensity = cp.sum(
@@ -293,24 +305,24 @@ def _update_wavefront(data, varying_probe, scan, psi, op):
 
 
 def _update_nearplane(
-    op,
-    comm,
-    nearplane,
-    psi,
-    scan_,
-    probe,
-    unique_probe,
-    eigen_probe,
-    eigen_weights,
-    recover_psi,
-    recover_probe,
-    position_options,
-    num_batch,
-    psi_update_denominator,
+    op: tike.operators.Ptycho,
+    comm: tike.communicators.Comm,
+    nearplane: typing.List[cupy.typing.NDArray[cp.csingle]],
+    psi: typing.List[cupy.typing.NDArray[cp.csingle]],
+    scan_: typing.List[cupy.typing.NDArray[cp.single]],
+    probe: typing.List[cupy.typing.NDArray[cp.csingle]],
+    unique_probe: typing.List[cupy.typing.NDArray[cp.csingle]],
+    eigen_probe: typing.List[cupy.typing.NDArray[cp.csingle]],
+    eigen_weights: typing.List[cupy.typing.NDArray[cp.single]],
+    recover_psi: bool,
+    recover_probe: bool,
+    position_options: typing.Union[PositionOptions, None],
+    num_batch: int,
+    psi_update_denominator: cupy.typing.NDArray[cp.csingle],
     *,
-    object_options,
-    probe_options,
-    algorithm_options,
+    object_options: typing.Union[ObjectOptions, None],
+    probe_options: typing.Union[ProbeOptions, None],
+    algorithm_options: LstsqOptions,
 ):
 
     patches = comm.pool.map(_get_patches, nearplane, psi, scan_, op=op)
@@ -432,7 +444,7 @@ def _update_nearplane(
                     (
                         eigen_probe,
                         eigen_weights,
-                    ) = tike.ptycho.probe.update_eigen_probe(
+                    ) = update_eigen_probe(
                         comm,
                         R,
                         eigen_probe,
@@ -517,11 +529,17 @@ def _update_nearplane(
     return psi, probe, eigen_probe, eigen_weights, scan_, position_options
 
 
-def _get_patches(nearplane, psi, scan, *, op):
+def _get_patches(
+    nearplane: cupy.typing.NDArray[cp.csingle],
+    psi: cupy.typing.NDArray[cp.csingle],
+    scan: cupy.typing.NDArray[cp.single],
+    *,
+    op: tike.operators.Ptycho,
+) -> cupy.typing.NDArray[cp.csingle]:
     patches = op.diffraction.patch.fwd(
         patches=cp.zeros(
             nearplane[..., 0, 0, :, :].shape,
-            dtype='complex64',
+            dtype=cp.csingle,
         ),
         images=psi,
         positions=scan,
@@ -530,16 +548,16 @@ def _get_patches(nearplane, psi, scan, *, op):
 
 
 def _get_nearplane_gradients(
-    nearplane,
-    psi,
-    scan_,
-    unique_probe,
-    patches,
+    nearplane: cupy.typing.NDArray[cp.csingle],
+    psi: cupy.typing.NDArray[cp.csingle],
+    scan_: cupy.typing.NDArray[cp.single],
+    unique_probe: cupy.typing.NDArray[cp.csingle],
+    patches: cupy.typing.NDArray[cp.csingle],
     *,
-    op,
-    m,
-    recover_psi,
-    recover_probe,
+    op: tike.operators.Ptycho,
+    m: int,
+    recover_psi: bool,
+    recover_probe: bool,
 ):
 
     diff = nearplane[..., [m], :, :]
@@ -636,7 +654,7 @@ def _precondition_nearplane_gradients(
 
     if recover_probe:
 
-        b0 = tike.ptycho.probe.finite_probe_support(
+        b0 = finite_probe_support(
             unique_probe[..., [m], :, :],
             p=probe_options.probe_support,
             radius=probe_options.probe_support_radius,
@@ -644,7 +662,11 @@ def _precondition_nearplane_gradients(
         )
 
         b1 = probe_options.additional_probe_penalty * cp.linspace(
-            0, 1, probe[0].shape[-3], dtype='float32')[..., [m], None, None]
+            0,
+            1,
+            probe[0].shape[-3],
+            dtype='float32',
+        )[..., [m], None, None]
 
         common_grad_probe = (common_grad_probe -
                              (b0 + b1) * probe[..., [m], :, :]) / (
@@ -747,7 +769,7 @@ def _update_position(
     # According to the manuscript, we can either shift the probe or the object
     # and they are equivalent (in theory). Here we shift the object because
     # that is what ptychoshelves does.
-    grad_x, grad_y = tike.ptycho.position.gaussian_gradient(patches)
+    grad_x, grad_y = gaussian_gradient(patches)
 
     numerator = cp.sum(cp.real(diff * cp.conj(grad_x * main_probe)),
                        axis=(-2, -1))
