@@ -4,7 +4,7 @@ import dataclasses
 import typing
 
 import numpy as np
-import numpy.typing
+import numpy.typing as npt
 import scipy.ndimage
 
 from tike.ptycho.object import ObjectOptions
@@ -104,24 +104,24 @@ class PtychoParameters():
 
     .. versionadded:: 0.22.0
     """
-    probe: numpy.typing.NDArray[np.csingle]
+    probe: npt.NDArray[np.csingle]
     """(1, 1, SHARED, WIDE, HIGH) complex64 The shared illumination function
     amongst all positions."""
 
-    psi: numpy.typing.NDArray[np.csingle]
+    psi: npt.NDArray[np.csingle]
     """(WIDE, HIGH) complex64 The wavefront modulation coefficients of
     the object."""
 
-    scan: numpy.typing.NDArray[np.single]
+    scan: npt.NDArray[np.single]
     """(POSI, 2) float32 Coordinates of the minimum corner of the probe
     grid for each measurement in the coordinate system of psi. Coordinate order
     consistent with WIDE, HIGH order."""
 
-    eigen_probe: typing.Union[numpy.typing.NDArray[np.csingle], None] = None
+    eigen_probe: typing.Union[npt.NDArray[np.csingle], None] = None
     """(EIGEN, SHARED, WIDE, HIGH) complex64
     The eigen probes for all positions."""
 
-    eigen_weights: typing.Union[numpy.typing.NDArray[np.single], None] = None
+    eigen_weights: typing.Union[npt.NDArray[np.single], None] = None
     """(POSI, EIGEN, SHARED) float32
     The relative intensity of the eigen probes at each position."""
 
