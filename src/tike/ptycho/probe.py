@@ -38,10 +38,12 @@ allowed to vary.
 from __future__ import annotations
 import dataclasses
 import logging
+import typing
 
 import cupy as cp
 import cupyx.scipy.ndimage
 import numpy as np
+import numpy.typing as npt
 
 import tike.linalg
 import tike.random
@@ -71,10 +73,16 @@ class ProbeOptions:
     mdecay: float = 0.9
     """The proportion of the first moment that is previous first moments."""
 
-    v: np.array = dataclasses.field(init=False, default_factory=lambda: None)
+    v: typing.Union[npt.NDArray, None] = dataclasses.field(
+        init=False,
+        default_factory=lambda: None,
+    )
     """The second moment for adaptive moment."""
 
-    m: np.array = dataclasses.field(init=False, default_factory=lambda: None)
+    m: typing.Union[npt.NDArray, None] = dataclasses.field(
+        init=False,
+        default_factory=lambda: None,
+    )
     """The first moment for adaptive moment."""
 
     probe_support: float = 0.0

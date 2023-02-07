@@ -8,6 +8,7 @@ except ImportError:
     from importlib_resources import files
 
 import cupy as cp
+import numpy.typing as npt
 import numpy as np
 
 from .operator import Operator
@@ -17,7 +18,7 @@ _fwd_patch = cp.RawKernel(_cu_source, "fwd_patch")
 _adj_patch = cp.RawKernel(_cu_source, "adj_patch")
 
 
-def _next_power_two(v):
+def _next_power_two(v: int) -> int:
     """Return the next highest power of 2 of 32-bit v.
 
     https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
@@ -49,20 +50,20 @@ class Patch(Operator):
 
     def fwd(
         self,
-        images,
-        positions,
-        patches=None,
-        patch_width=None,
-        height=None,
-        width=None,
-        nrepeat=1,
+        images: npt.NDArray[np.csingle],
+        positions: npt.NDArray[np.single],
+        patches: npt.NDArray[np.csingle] = None,
+        patch_width: int = 0,
+        height: int = 0,
+        width: int = 0,
+        nrepeat: int = 1,
     ):
-        patch_width = patches.shape[-1] if patch_width is None else patch_width
+        patch_width = patches.shape[-1] if patch_width == 0 else patch_width
         if patches is None:
             patches = cp.zeros(
-                (*positions.shape[:-2], positions.shape[-2] * nrepeat,
-                 patch_width, patch_width),
-                dtype='complex64',
+                shape=(*positions.shape[:-2], positions.shape[-2] * nrepeat,
+                       patch_width, patch_width),
+                dtype=np.csingle,
             )
         assert patch_width <= patches.shape[-1]
         assert images.shape[:-2] == positions.shape[:-2]
@@ -70,9 +71,9 @@ class Patch(Operator):
                                                             patches.shape)
         assert positions.shape[-2] * nrepeat == patches.shape[-3]
         assert positions.shape[-1] == 2, positions.shape
-        assert images.dtype == 'complex64', f"{images.dtype}"
-        assert patches.dtype == 'complex64', f"{patches.dtype}"
-        assert positions.dtype == 'float32', f"{positions.dtype}"
+        assert images.dtype == np.csingle, f"{images.dtype}"
+        assert patches.dtype == np.csingle, f"{patches.dtype}"
+        assert positions.dtype == np.single, f"{positions.dtype}"
         nimage = int(np.prod(images.shape[:-2]))
         grids = (
             positions.shape[-2],
@@ -100,20 +101,20 @@ class Patch(Operator):
 
     def adj(
         self,
-        positions,
-        patches,
-        images=None,
-        patch_width=None,
-        height=None,
-        width=None,
-        nrepeat=1,
+        positions: npt.NDArray[np.single],
+        patches: npt.NDArray[np.csingle],
+        images: npt.NDArray[np.csingle] = None,
+        patch_width: int = 0,
+        height: int = 0,
+        width: int = 0,
+        nrepeat: int = 1,
     ):
-        patch_width = patches.shape[-1] if patch_width is None else patch_width
+        patch_width = patches.shape[-1] if patch_width == 0 else patch_width
         assert patch_width <= patches.shape[-1]
         if images is None:
             images = cp.zeros(
                 (*positions.shape[:-2], height, width),
-                dtype='complex64',
+                dtype=cp.csingle,
             )
         leading = images.shape[:-2]
         height, width = images.shape[-2:]
@@ -124,9 +125,9 @@ class Patch(Operator):
         K = patches.shape[-3]
         assert (N * nrepeat) % K == 0 and K >= nrepeat
         assert patches.shape[-1] == patches.shape[-2]
-        assert images.dtype == 'complex64'
-        assert patches.dtype == 'complex64'
-        assert positions.dtype == 'float32'
+        assert images.dtype == np.csingle
+        assert patches.dtype == np.csingle
+        assert positions.dtype == np.single
         nimage = int(np.prod(images.shape[:-2]))
         grids = (
             positions.shape[-2],

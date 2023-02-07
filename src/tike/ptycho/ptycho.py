@@ -63,6 +63,7 @@ import typing
 import warnings
 
 import numpy as np
+import numpy.typing as npt
 import cupy as cp
 
 import tike.operators
@@ -174,7 +175,7 @@ def simulate(
 
 
 def reconstruct(
-    data: np.typing.NDArray,
+    data: npt.NDArray,
     parameters: solvers.PtychoParameters,
     model: str = 'gaussian',
     num_gpu: typing.Union[int, typing.Tuple[int, ...]] = 1,
@@ -216,7 +217,7 @@ def reconstruct(
 
     .. seealso:: :py:func:`tike.ptycho.ptycho.reconstruct_multigrid`, :py:func:`tike.ptycho.ptycho.Reconstruction`
     """
-    with tike.ptycho.Reconstruction(
+    with Reconstruction(
             data,
             parameters,
             model,
@@ -272,7 +273,7 @@ class Reconstruction():
 
     def __init__(
         self,
-        data: np.typing.NDArray,
+        data: npt.NDArray,
         parameters: solvers.PtychoParameters,
         model: str = 'gaussian',
         num_gpu: typing.Union[int, typing.Tuple[int, ...]] = 1,
@@ -554,8 +555,8 @@ class Reconstruction():
 
     def append_new_data(
         self,
-        new_data: np.typing.NDArray,
-        new_scan: np.typing.NDArray,
+        new_data: npt.NDArray,
+        new_scan: npt.NDArray,
     ) -> None:
         """Append new diffraction patterns and positions to existing result."""
         # Assign positions and data to correct devices.
@@ -686,7 +687,7 @@ def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
 
 
 def reconstruct_multigrid(
-    data: np.typing.NDArray,
+    data: npt.NDArray,
     parameters: solvers.PtychoParameters,
     model: str = 'gaussian',
     num_gpu: typing.Union[int, typing.Tuple[int, ...]] = 1,
