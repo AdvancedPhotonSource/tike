@@ -125,10 +125,10 @@ class ThreadPool(ThreadPoolExecutor):
 
     def gather(
         self,
-        x: typing.List[cp.array],
-        worker: int = None,
+        x: typing.List[npt.NDArray],
+        worker: typing.Union[int, None] = None,
         axis: typing.Union[int, None] = 0,
-    ) -> cp.array:
+    ) -> npt.NDArray:
         """Concatenate x on a single worker along the given axis.
 
         Parameters
@@ -311,10 +311,10 @@ class ThreadPool(ThreadPoolExecutor):
 
     def reduce_mean(
         self,
-        x: typing.List[cp.array],
-        axis: typing.Union[int, typing.List[int]] = 0,
+        x: typing.List[npt.NDArray],
+        axis: typing.Union[int, None] = 0,
         worker: typing.Union[int, None] = None,
-    ) -> cp.array:
+    ) -> npt.NDArray:
         """Reduce x by addition to one GPU from all other GPUs."""
         worker = self.workers[0] if worker is None else worker
         return cp.mean(

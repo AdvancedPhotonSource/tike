@@ -96,7 +96,7 @@ class Comm:
     def Allreduce_mean(
         self,
         x: typing.List[cp.ndarray],
-        axis: typing.Union[int, typing.List[int]] = 0,
+        axis: typing.Union[int, None] = 0,
     ) -> cp.ndarray:
         """Multi-process multi-GPU based mean."""
         with cp.cuda.Device(self.pool.workers[0]):
