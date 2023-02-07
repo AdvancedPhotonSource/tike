@@ -571,7 +571,7 @@ def _get_nearplane_gradients(
         # (25b) Common object gradient.
         common_grad_psi = op.diffraction.patch.adj(
             patches=grad_psi[..., 0, 0, :, :],
-            images=cp.zeros(psi.shape, dtype=cp.cfloat),
+            images=cp.zeros(psi.shape, dtype=cp.csingle),
             positions=scan_,
         )
     else:

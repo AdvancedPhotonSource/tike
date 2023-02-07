@@ -114,7 +114,7 @@ class Patch(Operator):
         if images is None:
             images = cp.zeros(
                 (*positions.shape[:-2], height, width),
-                dtype=np.csingle,
+                dtype=cp.csingle,
             )
         leading = images.shape[:-2]
         height, width = images.shape[-2:]
