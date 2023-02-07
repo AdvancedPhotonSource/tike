@@ -3,7 +3,7 @@
 __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
-import cupy.typing as cpt
+import numpy.typing as npt
 import numpy as np
 
 import tike.operators.cupy.objective as objective
@@ -48,10 +48,10 @@ class Propagation(CachedFFT, Operator):
 
     def fwd(
         self,
-        nearplane: cpt.NDArray[np.csingle],
+        nearplane: npt.NDArray[np.csingle],
         overwrite: bool = False,
         **kwargs,
-    ) -> cpt.NDArray[np.csingle]:
+    ) -> npt.NDArray[np.csingle]:
         """Forward Fourier-based free-space propagation operator."""
         self._check_shape(nearplane)
         shape = nearplane.shape
@@ -64,10 +64,10 @@ class Propagation(CachedFFT, Operator):
 
     def adj(
         self,
-        farplane: cpt.NDArray[np.csingle],
+        farplane: npt.NDArray[np.csingle],
         overwrite: bool = False,
         **kwargs,
-    ) -> cpt.NDArray[np.csingle]:
+    ) -> npt.NDArray[np.csingle]:
         """Adjoint Fourier-based free-space propagation operator."""
         self._check_shape(farplane)
         shape = farplane.shape
@@ -78,7 +78,7 @@ class Propagation(CachedFFT, Operator):
             overwrite_x=overwrite,
         ).reshape(shape)
 
-    def _check_shape(self, x: cpt.NDArray) -> None:
+    def _check_shape(self, x: npt.NDArray) -> None:
         assert type(x) is self.xp.ndarray, type(x)
         shape = (-1, self.detector_shape, self.detector_shape)
         if (__debug__ and x.shape[-2:] != shape[-2:]):

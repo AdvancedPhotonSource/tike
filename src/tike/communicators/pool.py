@@ -9,7 +9,7 @@ import typing
 import warnings
 
 import cupy as cp
-import cupy.typing as cpt
+import numpy.typing as npt
 import numpy as np
 
 
@@ -201,9 +201,9 @@ class ThreadPool(ThreadPoolExecutor):
 
     def scatter(
         self,
-        x: typing.List[cpt.NDArray],
+        x: typing.List[npt.NDArray],
         stride: int = 1,
-    ) -> typing.List[cpt.NDArray]:
+    ) -> typing.List[npt.NDArray]:
         """Scatter each x with given stride.
 
         scatter_bcast(x=[0, 1], stride=3) -> [0, 0, 0, 1, 1, 1]
@@ -231,9 +231,9 @@ class ThreadPool(ThreadPoolExecutor):
 
     def scatter_bcast(
         self,
-        x: typing.List[cpt.NDArray],
+        x: typing.List[npt.NDArray],
         stride: int = 1,
-    ) -> typing.List[cpt.NDArray]:
+    ) -> typing.List[npt.NDArray]:
         """Scatter each x with given stride and then broadcast nearby.
 
         scatter_bcast(x=[0, 1], stride=3) -> [0, 0, 0, 1, 1, 1]

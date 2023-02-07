@@ -5,7 +5,7 @@ __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
 import typing
 
-import cupy.typing as cpt
+import numpy.typing as npt
 import numpy as np
 
 from .operator import Operator
@@ -94,11 +94,11 @@ class Ptycho(Operator):
 
     def fwd(
         self,
-        probe: cpt.NDArray[np.csingle],
-        scan: cpt.NDArray[np.single],
-        psi: cpt.NDArray[np.csingle],
+        probe: npt.NDArray[np.csingle],
+        scan: npt.NDArray[np.single],
+        psi: npt.NDArray[np.csingle],
         **kwargs,
-    ) -> cpt.NDArray[np.csingle]:
+    ) -> npt.NDArray[np.csingle]:
         """Please see help(Ptycho) for more info."""
         return self.propagation.fwd(
             self.diffraction.fwd(
@@ -111,13 +111,13 @@ class Ptycho(Operator):
 
     def adj(
         self,
-        farplane: cpt.NDArray[np.csingle],
-        probe: cpt.NDArray[np.csingle],
-        scan: cpt.NDArray[np.single],
-        psi: cpt.NDArray[np.csingle] = None,
+        farplane: npt.NDArray[np.csingle],
+        probe: npt.NDArray[np.csingle],
+        scan: npt.NDArray[np.single],
+        psi: npt.NDArray[np.csingle] = None,
         overwrite: bool = False,
         **kwargs,
-    ) -> cpt.NDArray[np.csingle]:
+    ) -> npt.NDArray[np.csingle]:
         """Please see help(Ptycho) for more info."""
         return self.diffraction.adj(
             nearplane=self.propagation.adj(
@@ -132,12 +132,12 @@ class Ptycho(Operator):
 
     def adj_probe(
         self,
-        farplane: cpt.NDArray[np.csingle],
-        scan: cpt.NDArray[np.single],
-        psi: cpt.NDArray[np.csingle],
+        farplane: npt.NDArray[np.csingle],
+        scan: npt.NDArray[np.single],
+        psi: npt.NDArray[np.csingle],
         overwrite: bool = False,
         **kwargs,
-    ) -> cpt.NDArray[np.csingle]:
+    ) -> npt.NDArray[np.csingle]:
         """Please see help(Ptycho) for more info."""
         return self.diffraction.adj_probe(
             psi=psi,
@@ -151,11 +151,11 @@ class Ptycho(Operator):
 
     def _compute_intensity(
         self,
-        data: cpt.NDArray,
-        psi: cpt.NDArray[np.csingle],
-        scan: cpt.NDArray[np.single],
-        probe: cpt.NDArray[np.csingle],
-    ) -> cpt.NDArray[np.single]:
+        data: npt.NDArray,
+        psi: npt.NDArray[np.csingle],
+        scan: npt.NDArray[np.single],
+        probe: npt.NDArray[np.csingle],
+    ) -> npt.NDArray[np.single]:
         """Compute detector intensities replacing the nth probe mode"""
         farplane = self.fwd(
             psi=psi,
@@ -169,10 +169,10 @@ class Ptycho(Operator):
 
     def cost(
         self,
-        data: cpt.NDArray,
-        psi: cpt.NDArray[np.csingle],
-        scan: cpt.NDArray[np.single],
-        probe: cpt.NDArray[np.csingle],
+        data: npt.NDArray,
+        psi: npt.NDArray[np.csingle],
+        scan: npt.NDArray[np.single],
+        probe: npt.NDArray[np.csingle],
     ) -> float:
         """Please see help(Ptycho) for more info."""
         intensity, _ = self._compute_intensity(data, psi, scan, probe)
@@ -180,11 +180,11 @@ class Ptycho(Operator):
 
     def grad_psi(
         self,
-        data: cpt.NDArray,
-        psi: cpt.NDArray[np.csingle],
-        scan: cpt.NDArray[np.single],
-        probe: cpt.NDArray[np.csingle],
-    ) -> cpt.NDArray[np.csingle]:
+        data: npt.NDArray,
+        psi: npt.NDArray[np.csingle],
+        scan: npt.NDArray[np.single],
+        probe: npt.NDArray[np.csingle],
+    ) -> npt.NDArray[np.csingle]:
         """Please see help(Ptycho) for more info."""
         intensity, farplane = self._compute_intensity(data, psi, scan, probe)
         grad_obj = self.xp.zeros_like(psi)
@@ -203,12 +203,12 @@ class Ptycho(Operator):
 
     def grad_probe(
         self,
-        data: cpt.NDArray,
-        psi: cpt.NDArray[np.csingle],
-        scan: cpt.NDArray[np.single],
-        probe: cpt.NDArray[np.csingle],
+        data: npt.NDArray,
+        psi: npt.NDArray[np.csingle],
+        scan: npt.NDArray[np.single],
+        probe: npt.NDArray[np.csingle],
         mode: typing.List[int] = None,
-    ) -> cpt.NDArray[np.csingle]:
+    ) -> npt.NDArray[np.csingle]:
         """Compute the gradient with respect to the probe(s).
 
         Parameters
@@ -237,13 +237,13 @@ class Ptycho(Operator):
 
     def adj_all(
         self,
-        farplane: cpt.NDArray[np.csingle],
-        probe: cpt.NDArray[np.csingle],
-        scan: cpt.NDArray[np.single],
-        psi: cpt.NDArray[np.csingle],
+        farplane: npt.NDArray[np.csingle],
+        probe: npt.NDArray[np.csingle],
+        scan: npt.NDArray[np.single],
+        psi: npt.NDArray[np.csingle],
         overwrite: bool = False,
         rpie: bool = False,
-    ) -> typing.Tuple[cpt.NDArray, ...]:
+    ) -> typing.Tuple[npt.NDArray, ...]:
         """Please see help(Ptycho) for more info."""
         result = self.diffraction.adj_all(
             nearplane=self.propagation.adj(

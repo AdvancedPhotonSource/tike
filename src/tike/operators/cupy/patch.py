@@ -8,7 +8,7 @@ except ImportError:
     from importlib_resources import files
 
 import cupy as cp
-import cupy.typing as cpt
+import numpy.typing as npt
 import numpy as np
 
 from .operator import Operator
@@ -50,9 +50,9 @@ class Patch(Operator):
 
     def fwd(
         self,
-        images: cpt.NDArray[np.csingle],
-        positions: cpt.NDArray[np.single],
-        patches: cpt.NDArray[np.csingle] = None,
+        images: npt.NDArray[np.csingle],
+        positions: npt.NDArray[np.single],
+        patches: npt.NDArray[np.csingle] = None,
         patch_width: int = 0,
         height: int = 0,
         width: int = 0,
@@ -101,9 +101,9 @@ class Patch(Operator):
 
     def adj(
         self,
-        positions: cpt.NDArray[np.single],
-        patches: cpt.NDArray[np.csingle],
-        images: cpt.NDArray[np.csingle] = None,
+        positions: npt.NDArray[np.single],
+        patches: npt.NDArray[np.csingle],
+        images: npt.NDArray[np.csingle] = None,
         patch_width: int = 0,
         height: int = 0,
         width: int = 0,

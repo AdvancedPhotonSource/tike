@@ -6,7 +6,7 @@ import typing
 from cupyx.scipy.fft import fftn, ifftn, get_fft_plan
 import cupy.cuda.cufft
 import cupy.cuda.runtime
-import cupy.typing as cpt
+import numpy.typing as npt
 import numpy as np
 
 
@@ -31,7 +31,7 @@ class CachedFFT():
 
     def _get_fft_plan(
         self,
-        a: cpt.NDArray,
+        a: npt.NDArray,
         axes: typing.Tuple[int, ...] = (),
         **kwargs,
     ) -> typing.Union[cupy.cuda.cufft.Plan1d, cupy.cuda.cufft.PlanNd]:
@@ -47,36 +47,36 @@ class CachedFFT():
 
     def _fft2(
         self,
-        a: cpt.NDArray,
+        a: npt.NDArray,
         *args,
         axes: typing.Tuple[int, int] = (-2, -1),
         **kwargs,
-    ) -> cpt.NDArray[np.csingle]:
+    ) -> npt.NDArray[np.csingle]:
         return self._fftn(a, *args, axes=axes, **kwargs)
 
     def _ifft2(
         self,
-        a: cpt.NDArray,
+        a: npt.NDArray,
         *args,
         axes: typing.Tuple[int, int] = (-2, -1),
         **kwargs,
-    ) -> cpt.NDArray[np.csingle]:
+    ) -> npt.NDArray[np.csingle]:
         return self._ifftn(a, *args, axes=axes, **kwargs)
 
     def _ifftn(
         self,
-        a: cpt.NDArray,
+        a: npt.NDArray,
         *args,
         **kwargs,
-    ) -> cpt.NDArray[np.csingle]:
+    ) -> npt.NDArray[np.csingle]:
         with self._get_fft_plan(a, **kwargs):
             return ifftn(a, *args, **kwargs)
 
     def _fftn(
         self,
-        a: cpt.NDArray,
+        a: npt.NDArray,
         *args,
         **kwargs,
-    ) -> cpt.NDArray[np.csingle]:
+    ) -> npt.NDArray[np.csingle]:
         with self._get_fft_plan(a, **kwargs):
             return fftn(a, *args, **kwargs)
