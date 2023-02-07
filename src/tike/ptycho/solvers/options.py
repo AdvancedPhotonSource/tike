@@ -18,10 +18,10 @@ class IterativeOptions(abc.ABC):
 
     .. versionadded:: 0.20.0
     """
-    name: str = dataclasses.field(default=None, init=False)
+    name: str = dataclasses.field(default='', init=False)
     """The name of the algorithm."""
 
-    num_batch: int = None
+    num_batch: int = 1
     """The dataset is divided into this number of groups where each group is
     processed sequentially."""
 

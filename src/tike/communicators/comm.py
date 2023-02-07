@@ -33,8 +33,8 @@ class Comm:
     def __init__(
         self,
         gpu_count,
-        mpi=NoMPIComm,
-        pool=ThreadPool,
+        mpi: typing.Union[typing.Type[MPIComm], typing.Type[NoMPIComm]] = NoMPIComm,
+        pool: typing.Type[ThreadPool] = ThreadPool,
     ):
         if isinstance(mpi, NoMPIComm):
             self.use_mpi = False

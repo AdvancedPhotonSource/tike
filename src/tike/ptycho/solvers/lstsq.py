@@ -20,7 +20,7 @@ def lstsq_grad(
     op: tike.operators.Ptycho,
     comm: tike.communicators.Comm,
     data: typing.List[npt.NDArray],
-    batches: typing.List[npt.NDArray[int]],
+    batches: typing.List[npt.NDArray[cp.intc]],
     *,
     parameters: PtychoParameters,
 ):
@@ -150,7 +150,7 @@ def lstsq_grad(
             op=op,
         ))
 
-        batch_cost.append(comm.Allreduce_mean(cost, axis=None).get())
+        batch_cost.append(comm.Allreduce_mean(cost).get())
 
         (
             psi,
@@ -467,7 +467,7 @@ def _update_nearplane(
                         )
 
         # Update each direction
-        if recover_psi:
+        if object_options is not None:
             # (27b) Object update
             dpsi = (weighted_step_psi[0] /
                     probe[0].shape[-3]) * common_grad_psi[0]
@@ -490,7 +490,7 @@ def _update_nearplane(
             else:
                 object_options.combined_update += dpsi
 
-        if recover_probe:
+        if probe_options is not None:
             dprobe = weighted_step_probe[0] * common_grad_probe[0]
             if algorithm_options.batch_method == 'compact':
                 dprobe /= len(scan_)
@@ -571,7 +571,7 @@ def _get_nearplane_gradients(
         # (25b) Common object gradient.
         common_grad_psi = op.diffraction.patch.adj(
             patches=grad_psi[..., 0, 0, :, :],
-            images=cp.zeros(psi.shape, dtype='complex64'),
+            images=cp.zeros(psi.shape, dtype=cp.cfloat),
             positions=scan_,
         )
     else:

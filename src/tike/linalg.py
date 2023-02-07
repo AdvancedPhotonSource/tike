@@ -3,6 +3,7 @@
 This module exists because support for broadcasting and complex values is
 spotty in the NumPy and CuPy libraries.
 """
+import typing
 
 import numpy as np
 
@@ -56,7 +57,11 @@ def lstsq(a, b, weights=None):
     return x
 
 
-def orthogonalize_gs(x, axis=-1, N=None):
+def orthogonalize_gs(
+    x,
+    axis: typing.Union[int, typing.Tuple[int, ...]] = -1,
+    N: typing.Union[int, None] = None,
+):
     """Gram-schmidt orthogonalization for complex arrays.
 
     Parameters
