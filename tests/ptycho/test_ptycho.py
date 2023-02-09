@@ -222,6 +222,20 @@ class TestPtychoAbsorption(SiemensStarSetup, unittest.TestCase):
         except ImportError:
             pass
 
+    def test_initial_guess(self):
+        params = tike.ptycho.PtychoParameters(
+            psi=self.psi,
+            probe=self.probe,
+            scan=self.scan,
+            algorithm_options=tike.ptycho.AdamOptions(),
+            probe_options=ProbeOptions(),
+            object_options=ObjectOptions(),
+        )
+        _save_ptycho_result(
+            params,
+            "initial-guess",
+        )
+
 
 class PtychoRecon(
         ReconstructTwice,
