@@ -37,7 +37,7 @@ class CachedFFT():
     ) -> typing.Union[cupy.cuda.cufft.Plan1d, cupy.cuda.cufft.PlanNd]:
         """Cache multiple FFT plans at the same time."""
         axes = tuple(range(a.ndim)) if axes == () else axes
-        key = (*a.shape, *axes, cupy.cuda.runtime.getDevice())
+        key = (*a.shape, *axes, a.dtype, cupy.cuda.runtime.getDevice())
         if key in self.plan_cache:
             plan = self.plan_cache[key]
         else:
