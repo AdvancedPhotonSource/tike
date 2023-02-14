@@ -125,9 +125,9 @@ class Patch(Operator):
         K = patches.shape[-3]
         assert (N * nrepeat) % K == 0 and K >= nrepeat
         assert patches.shape[-1] == patches.shape[-2]
-        assert images.dtype == np.csingle
-        assert patches.dtype == np.csingle
-        assert positions.dtype == np.single
+        assert images.dtype == np.csingle, images.dtype
+        assert patches.dtype == np.csingle, patches.dtype
+        assert positions.dtype == np.single, positions.dtype
         nimage = int(np.prod(images.shape[:-2]))
         grids = (
             positions.shape[-2],

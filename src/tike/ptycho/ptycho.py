@@ -351,7 +351,7 @@ class Reconstruction():
                 if odd_pool else self.comm.pool.num_workers // 2,
                 1 if odd_pool else 2,
             ),
-            ('float32', 'uint16', 'float32'),
+            (np.float32, np.float32 if self.data.itemsize > 2 else self.data.dtype, np.float32),
             self._device_parameters.scan,
             self.data,
             self._device_parameters.eigen_weights,
@@ -576,7 +576,7 @@ class Reconstruction():
                 if odd_pool else self.comm.pool.num_workers // 2,
                 1 if odd_pool else 2,
             ),
-            ('float32', 'uint16'),
+            (self._device_parameters.scan[0].dtype, self.data[0].dtype),
             new_scan,
             new_data,
         )

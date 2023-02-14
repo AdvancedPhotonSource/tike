@@ -248,6 +248,18 @@ class PtychoRecon(
             params,
             f"mpi{self.mpi_size}-init{self.post_name}",
         )
+        try:
+            import matplotlib.pyplot as plt
+            plt.imsave(
+                os.path.join(
+                    result_dir,
+                    f"mpi{self.mpi_size}-init{self.post_name}",
+                    'diffraction.png',
+                ),
+                self.data[len(self.data) // 2],
+            )
+        except ImportError:
+            pass
 
     def test_consistent_adam_grad(self):
         """Check ptycho.solver.adam_grad for consistency."""
