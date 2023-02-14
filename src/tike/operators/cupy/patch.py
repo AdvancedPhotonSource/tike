@@ -13,10 +13,29 @@ import numpy as np
 
 from .operator import Operator
 
-_cu_source = files('tike.operators.cupy').joinpath('convolution.cu').read_text()
-_fwd_patch = cp.RawKernel(_cu_source, "fwd_patch")
-_adj_patch = cp.RawKernel(_cu_source, "adj_patch")
+kernels = [
+    'fwd_patch<float2,float2>',
+    'adj_patch<float2,float2>',
+    'fwd_patch<double2,double2>',
+    'adj_patch<double2,double2>',
+    'fwd_patch<float2,double2>',
+    'adj_patch<float2,double2>',
+    'fwd_patch<double2,float2>',
+    'adj_patch<double2,float2>',
+]
 
+_patch_module = cp.RawModule(
+    code=files('tike.operators.cupy').joinpath('convolution.cu').read_text(),
+    name_expressions=kernels,
+    options=('--std=c++11',),
+)
+
+typename = {
+    np.dtype('complex64'): 'float2',
+    np.dtype('float32'): 'float',
+    np.dtype('complex128'): 'double2',
+    np.dtype('float64'): 'double',
+}
 
 def _next_power_two(v: int) -> int:
     """Return the next highest power of 2 of 32-bit v.
@@ -71,10 +90,11 @@ class Patch(Operator):
                                                             patches.shape)
         assert positions.shape[-2] * nrepeat == patches.shape[-3]
         assert positions.shape[-1] == 2, positions.shape
-        assert images.dtype == np.csingle, f"{images.dtype}"
-        assert patches.dtype == np.csingle, f"{patches.dtype}"
         assert positions.dtype == np.single, f"{positions.dtype}"
         nimage = int(np.prod(images.shape[:-2]))
+
+        _fwd_patch = _patch_module.get_function(f'fwd_patch<{typename[patches.dtype]},{typename[images.dtype]}>')
+
         grids = (
             positions.shape[-2],
             nimage,
@@ -129,6 +149,9 @@ class Patch(Operator):
         assert patches.dtype == np.csingle, patches.dtype
         assert positions.dtype == np.single, positions.dtype
         nimage = int(np.prod(images.shape[:-2]))
+
+        _adj_patch = _patch_module.get_function(f'adj_patch<{typename[patches.dtype]},{typename[images.dtype]}>')
+
         grids = (
             positions.shape[-2],
             nimage,

@@ -7,15 +7,13 @@
 // Padding areas are untouched and retain whatever values they had before the
 // kernel was launched.
 
-typedef void
-forwardOrAdjoint(float2 *, float2 *, int, int, int, const float[4]);
-
 // Consider the point 0.0 in 1 dimension. The weight distribution should be
 // 0 [[ w = 1.0 ]] 1 [ w = 0.0 ] 2
 // Consider the point 1.2 in 1 dimension. The weight distribution should be
 // 0 [ ] 1 [ [w = 1 - 0.2] ] 2 [ [w = 0.2] ] 3
+template < typename patchType, typename imageType >
 __device__ void
-_forward(float2 *patches, float2 *images, int nimagex, int pi, int ii,
+_forward(patchType *patches, imageType *images, int nimagex, int pi, int ii,
          const float w[4]) {
   // clang-format off
   patches[pi].x = images[ii              ].x * w[0]
@@ -29,10 +27,11 @@ _forward(float2 *patches, float2 *images, int nimagex, int pi, int ii,
   // clang-format on
 }
 
+template < typename patchType, typename imageType >
 __device__ void
-_adjoint(float2 *patches, float2 *images, int nimagex, int pi, int ii,
+_adjoint(patchType *patches, imageType *images, int nimagex, int pi, int ii,
          const float w[4]) {
-  const float2 tmp = patches[pi];
+  const patchType tmp = patches[pi];
   // clang-format off
   atomicAdd(&images[ii              ].x, tmp.x * w[0]);
   atomicAdd(&images[ii              ].y, tmp.y * w[0]);
@@ -56,11 +55,12 @@ _adjoint(float2 *patches, float2 *images, int nimagex, int pi, int ii,
 // The kernel should be launched with the following maximum shapes:
 // grid shape = (nscan, nimage, patch_size)
 // block shape = (min(max_thread, patch_size), 1, 1)
+template < typename patchType, typename imageType >
 __device__ void
 _loop_over_patches(
-    forwardOrAdjoint operation,
-    float2 *images,      // has shape (nimage, nimagey, nimagex)
-    float2 *patches,     // has shape (nscan, patch_shape, patch_shape)
+    void operation(patchType *, imageType *, int, int, int, const float[4]),
+    imageType *images,      // has shape (nimage, nimagey, nimagex)
+    patchType *patches,     // has shape (nscan, patch_shape, patch_shape)
     const float2 *scan,  // has shape (nimage, nscan)
     int nimage, int nimagey, int nimagex,
     int nscan,         // the number of positions per images
@@ -121,19 +121,21 @@ _loop_over_patches(
   }
 }
 
-extern "C" __global__ void
-fwd_patch(float2 *images, float2 *patches, const float2 *scan, int nimage,
+template < typename patchType, typename imageType >
+__global__ void
+fwd_patch(imageType *images, patchType *patches, const float2 *scan, int nimage,
           int nimagey, int nimagex, int nscan, int nrepeat, int patch_shape,
           int padded_shape) {
-  _loop_over_patches(_forward, images, patches, scan, nimage, nimagey, nimagex,
+  _loop_over_patches<patchType, imageType>(_forward<patchType, imageType>, images, patches, scan, nimage, nimagey, nimagex,
                      nscan, nrepeat, patch_shape, padded_shape,
                      nscan * nrepeat);
 }
 
-extern "C" __global__ void
-adj_patch(float2 *images, float2 *patches, const float2 *scan, int nimage,
+template < typename patchType, typename imageType >
+__global__ void
+adj_patch(imageType *images, patchType *patches, const float2 *scan, int nimage,
           int nimagey, int nimagex, int nscan, int nrepeat, int patch_shape,
           int padded_shape, int npatch) {
-  _loop_over_patches(_adjoint, images, patches, scan, nimage, nimagey, nimagex,
+  _loop_over_patches<patchType, imageType>(_adjoint<patchType, imageType>, images, patches, scan, nimage, nimagey, nimagex,
                      nscan, nrepeat, patch_shape, padded_shape, npatch);
 }
