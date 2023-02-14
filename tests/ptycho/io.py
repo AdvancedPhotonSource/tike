@@ -81,18 +81,19 @@ def _save_ptycho_result(result, algorithm):
         import tike.view
         fname = os.path.join(result_dir, f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
-
-        fig = plt.figure()
-        ax1, ax2 = tike.view.plot_cost_convergence(
-            result.algorithm_options.costs,
-            result.algorithm_options.times,
-        )
-        ax2.set_xlim(0, 20)
-        ax1.set_ylim(10**(-1), 10**2)
-        fig.suptitle(algorithm)
-        fig.tight_layout()
-        plt.savefig(os.path.join(fname, 'convergence.png'))
-        plt.close(fig)
+        if len(result.algorithm_options.costs) > 1:
+            fig = plt.figure()
+            ax1, ax2 = tike.view.plot_cost_convergence(
+                result.algorithm_options.costs,
+                result.algorithm_options.times,
+            )
+            ax2.set_xlim(0, 60)
+            ax1.set_ylim(10**(-1), 10**2)
+            ax1.set_xscale('log', base=10)
+            fig.suptitle(algorithm)
+            fig.tight_layout()
+            plt.savefig(os.path.join(fname, 'convergence.png'))
+            plt.close(fig)
         plt.imsave(
             f'{fname}/{0}-phase.png',
             np.angle(result.psi).astype('float32'),
