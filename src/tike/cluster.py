@@ -223,14 +223,16 @@ def compact(population, num_cluster, max_iter=500):
     Parameters
     ----------
     population : (M, N) array_like
-        The M samples of an N dimensional population that needs to be clustered.
+        The M samples of an N dimensional population that needs to be
+        clustered.
     num_cluster : int (0..M]
         The number of clusters in which to divide M samples.
 
     Returns
     -------
     indicies : (num_cluster,) list of array of integer
-        The indicies of population that belong to each cluster.
+        The indicies of population that belong to each cluster. Clusters are
+        sorted from largest to smallest.
 
     Raises
     ------
@@ -371,7 +373,9 @@ def compact(population, num_cluster, max_iter=500):
     if __debug__:
         for c in range(num_cluster):
             _assert_cluster_is_full(labels, c, max_size[c])
-    return [np.flatnonzero(labels == c) for c in range(num_cluster)]
+    indices = [np.flatnonzero(labels == c) for c in range(num_cluster)]
+    indices.sort(key=len, reverse=True)
+    return indices
 
 
 def _k_means_objective(population, labels, num_cluster):
