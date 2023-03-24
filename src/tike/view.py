@@ -53,6 +53,8 @@ __docformat__ = 'restructuredtext en'
 
 import logging
 import warnings
+import typing
+import itertools
 
 from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
@@ -91,13 +93,17 @@ def complexHSV_to_RGB(img0):
 
     hsv_img = np.ones((*sz, 3), 'float32')
 
-    hsv_img[ ..., 0 ] = np.angle( img0 )    # always scaled between +/- pi
-    hsv_img[ ..., 2 ] = np.abs( img0 )      # always scaled between 0 and +inf
+    hsv_img[..., 0] = np.angle(img0)  # always scaled between +/- pi
+    hsv_img[..., 2] = np.abs(img0)  # always scaled between 0 and +inf
+
+    if hsv_img[..., 2].max() > 1.0:
+        raise ValueError('The maximum amplitude of `img0` must be <= 1.0; '
+                         'rescale your image before converting to RGB.')
 
     #================================
     # Rescale hue to the range [0, 1]
 
-    hsv_img[ ..., 0 ] = ( hsv_img[ ..., 0 ] + np.pi ) / ( 2 * np.pi )
+    hsv_img[..., 0] = (hsv_img[..., 0] + np.pi) / (2 * np.pi)
 
     #==================================
     # convert HSV representation to RGB
@@ -157,11 +163,11 @@ def plot_probe_power(probe):
     probe : (..., 1, 1, SHARED, WIDE, HIGH) complex64
         The probes to be analyzed.
     """
-    power = np.square(tike.linalg.norm(
-        probe,
+    power = np.sum(
+        np.square(np.abs(probe)),
         axis=(-2, -1),
         keepdims=False,
-    )).flatten()
+    ).flatten()
     axes = plt.gca()
     axes.bar(
         range(len(power)),
@@ -573,7 +579,10 @@ def plot_trajectories(theta, v, h, t):
     return ax1a, ax1b
 
 
-def plot_cost_convergence(costs, times):
+def plot_cost_convergence(
+    costs: typing.Union[typing.List[float], typing.List[typing.List[float]]],
+    times: typing.List[float],
+):
     """Plot a twined plot of cost vs iteration/cumulative-time
 
     The plot is a semi-log line plot with two lines. One line shows cost as a
@@ -582,7 +591,7 @@ def plot_cost_convergence(costs, times):
 
     Parameters
     ----------
-    costs : (NUM_ITER, ) array-like
+    costs : (NUM_ITER, ), (NUM_ITER, NUM_BATCH, ) array-like
         The objective cost at each iteration.
     times : (NUM_ITER, ) array-like
         The wall-time for each iteration in seconds.
@@ -594,21 +603,30 @@ def plot_cost_convergence(costs, times):
     """
     ax1 = plt.subplot()
 
-    costs = np.asarray(costs)
-    alpha = 1.0 / costs.shape[1] if costs.ndim > 1 else 1.0
+    cost_summary = [np.mean(x) for x in costs]
+    num_iter = np.arange(1, len(times) + 1)
+    # Must handle the case in which the number of batches changes over time.
+    if isinstance(costs[0], list):
+        batches = list(itertools.zip_longest(*costs, fillvalue=None))
+    else:
+        batches = [costs]
+
+    alpha = max(0.05, 1.0 / len(batches[0]))
 
     color = 'black'
     ax1.semilogy()
     ax1.set_xlabel('iteration', color=color)
     ax1.set_ylabel('objective')
-    ax1.plot(costs, linestyle='--', color=color, alpha=alpha)
+    for batch in batches:
+        ax1.plot(num_iter, batch, linestyle='--', color=color, alpha=alpha)
     ax1.tick_params(axis='x', labelcolor=color)
+    ax1.set_xscale('log', base=10)
 
     ax2 = ax1.twiny()
 
     color = 'red'
     ax2.set_xlabel('wall-time [s]', color=color)
-    ax2.plot(np.cumsum(times), costs, color=color, alpha=alpha)
+    ax2.plot(np.cumsum(times), cost_summary, color=color, alpha=1.0)
     ax2.tick_params(axis='x', labelcolor=color)
 
     return ax1, ax2

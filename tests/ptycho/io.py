@@ -49,25 +49,30 @@ def _save_probe(output_folder, probe, algorithm):
         probe.reshape((-1, *probe.shape[-2:])),
         axis=1,
     )
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=UserWarning)
-        plt.imsave(
-            f'{output_folder}/probe-phase.png',
-            np.angle(flattened),
-            # The output of np.angle is locked to (-pi, pi]
-            cmap=plt.cm.twilight,
-            vmin=-np.pi,
-            vmax=np.pi,
-        )
-        plt.imsave(
-            f'{output_folder}/probe-ampli.png',
-            np.abs(flattened),
-        )
+    flattened /= (np.abs(flattened).max() * 1.001)
+    plt.imsave(
+        f'{output_folder}/probe.png',
+        tike.view.complexHSV_to_RGB(flattened),
+    )
     f = plt.figure()
     tike.view.plot_probe_power(probe)
     plt.semilogy()
     plt.title(algorithm)
     plt.savefig(f'{output_folder}/probe-power.png')
+    plt.close(f)
+    nmodes = probe.shape[-3]
+    probe_orthogonality_matrix = np.zeros((nmodes, nmodes))
+    for i in range(nmodes):
+        for j in range(nmodes):
+            probe_orthogonality_matrix[i, j] = np.abs(tike.linalg.inner(
+                probe[..., i, :, :],
+                probe[..., j, :, :]
+            ))
+    f = plt.figure()
+    plt.imshow(probe_orthogonality_matrix, interpolation='nearest')
+    plt.colorbar()
+    plt.tight_layout()
+    plt.savefig(f'{output_folder}/probe-orthogonality.png')
     plt.close(f)
 
 
@@ -89,7 +94,6 @@ def _save_ptycho_result(result, algorithm):
             )
             ax2.set_xlim(0, 60)
             ax1.set_ylim(10**(-1), 10**2)
-            ax1.set_xscale('log', base=10)
             fig.suptitle(algorithm)
             fig.tight_layout()
             plt.savefig(os.path.join(fname, 'convergence.png'))
