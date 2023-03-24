@@ -377,3 +377,23 @@ def conjugate_gradient(
         cost = cost_function(x)
 
     return x, cost
+
+
+def fit_line_least_squares(
+    y: typing.List[float],
+    x: typing.List[float],
+) -> typing.Tuple[float, float]:
+    """Return the `slope`, `intercept` pair that best fits `y`, `x` to a line.
+
+    y = slope * x + intercept
+
+    """
+    assert len(x) == len(y)
+    count = len(x)
+    assert count > 0
+    sum_x = np.sum(x)
+    sum_y = np.sum(y)
+    slope = (count * np.sum(x * y) - (sum_x * sum_y)) / (count * np.sum(x * x) -
+                                                         (sum_x * sum_x))
+    intercept = (sum_y - slope * sum_x) / count
+    return slope, intercept
