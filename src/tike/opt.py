@@ -6,11 +6,12 @@ this module may be replaced by Operator Discretization Library (ODL) solvers
 library.
 
 """
-
+import typing
 import logging
 import warnings
 
 import numpy as np
+import numpy.typing as npt
 
 logger = logging.getLogger(__name__)
 randomizer = np.random.default_rng()
@@ -80,7 +81,12 @@ def momentum(g, v, m, vdecay=None, mdecay=0.9):
     return m, None, m
 
 
-def adagrad(g, v=None, eps=1e-6):
+def adagrad(
+    g: npt.NDArray,
+    v: typing.Union[None, npt.NDArray] = None,
+    m: typing.Union[None, npt.NDArray] = None,
+    eps: float = 1e-6,
+):
     """Return the adaptive gradient algorithm direction.
 
     Used to provide a better search direction to stochastic gradient
@@ -109,10 +115,10 @@ def adagrad(g, v=None, eps=1e-6):
     learning research 12, no. 7 (2011).
     """
     if v is None:
-        return g, (g * g.conj()).real
+        return g, (g * g.conj()).real, m
     v += (g * g.conj()).real
     d = g / np.sqrt(v + eps)
-    return d, v
+    return d, v, m
 
 
 def adadelta(g, d0=None, v=None, m=None, decay=0.9, eps=1e-6):
@@ -155,7 +161,14 @@ def adadelta(g, d0=None, v=None, m=None, decay=0.9, eps=1e-6):
     return d, v, m
 
 
-def adam(g, v=None, m=None, vdecay=0.999, mdecay=0.9, eps=1e-8):
+def adam(
+    g: npt.NDArray,
+    v: typing.Union[None, npt.NDArray] = None,
+    m: typing.Union[None, npt.NDArray] = None,
+    vdecay: float = 0.999,
+    mdecay: float = 0.9,
+    eps: float = 1e-8,
+) -> typing.Tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
     """Return the adaptive moment estimation direction.
 
     Used to provide a better search direction to stochastic gradient
@@ -190,8 +203,8 @@ def adam(g, v=None, m=None, vdecay=0.999, mdecay=0.9, eps=1e-8):
     optimization." arXiv preprint arXiv:1412.6980 (2014).
     """
     logger.info("ADAM decay m=%+.3e, v=%+.3e; eps=%+.3e", mdecay, vdecay, eps)
-    v = 0 if v is None else v
-    m = 0 if m is None else m
+    v = np.zeros_like(g.real) if v is None else v
+    m = np.zeros_like(g) if m is None else m
     m = mdecay * m + (1 - mdecay) * g
     v = vdecay * v + (1 - vdecay) * (g * g.conj()).real
     m_ = m / (1 - mdecay)
