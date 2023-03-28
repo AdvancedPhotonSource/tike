@@ -62,10 +62,10 @@ class Convolution(Operator):
         assert psi.shape[:-2] == scan.shape[:-2], (psi.shape, scan.shape)
         assert probe.shape[:-4] == scan.shape[:-2]
         assert probe.shape[-4] == 1 or probe.shape[-4] == scan.shape[-2]
-        patches = self.xp.zeros(
-            (*scan.shape[:-2], scan.shape[-2] * probe.shape[-3],
-             self.detector_shape, self.detector_shape),
-            dtype='complex64',
+        patches = self.xp.zeros_like(
+            psi,
+            shape=(*scan.shape[:-2], scan.shape[-2] * probe.shape[-3],
+                   self.detector_shape, self.detector_shape),
         )
         patches = self.patch.fwd(
             patches=patches,
@@ -88,8 +88,10 @@ class Convolution(Operator):
             nearplane = nearplane.copy()
         nearplane[..., self.pad:self.end, self.pad:self.end] *= probe.conj()
         if psi is None:
-            psi = self.xp.zeros((*scan.shape[:-2], self.nz, self.n),
-                                dtype='complex64')
+            psi = self.xp.zeros_like(
+                nearplane,
+                shape=(*scan.shape[:-2], self.nz, self.n),
+            )
         assert psi.shape[:-2] == scan.shape[:-2]
         return self.patch.adj(
             patches=nearplane.reshape(
@@ -106,10 +108,10 @@ class Convolution(Operator):
         assert nearplane.shape[:-3] == scan.shape[:-1], (nearplane.shape,
                                                          scan.shape)
         assert psi.shape[:-2] == scan.shape[:-2], (psi.shape, scan.shape)
-        patches = self.xp.zeros(
-            (*scan.shape[:-2], scan.shape[-2] * nearplane.shape[-3],
-             self.probe_shape, self.probe_shape),
-            dtype='complex64',
+        patches = self.xp.zeros_like(
+            psi,
+            shape=(*scan.shape[:-2], scan.shape[-2] * nearplane.shape[-3],
+                   self.probe_shape, self.probe_shape),
         )
         patches = self.patch.fwd(
             patches=patches,
@@ -134,10 +136,10 @@ class Convolution(Operator):
 
         patches = self.patch.fwd(
             # Could be xp.empty if scan positions are all in bounds
-            patches=self.xp.zeros(
-                (*scan.shape[:-2], scan.shape[-2] * nearplane.shape[-3],
-                 self.probe_shape, self.probe_shape),
-                dtype='complex64',
+            patches=self.xp.zeros_like(
+                psi,
+                shape=(*scan.shape[:-2], scan.shape[-2] * nearplane.shape[-3],
+                       self.probe_shape, self.probe_shape),
             ),
             images=psi,
             positions=scan,
@@ -167,8 +169,10 @@ class Convolution(Operator):
             )
             probe_amp = self.patch.adj(
                 patches=probe_amp,
-                images=self.xp.zeros((*scan.shape[:-2], self.nz, self.n),
-                                     dtype='complex64'),
+                images=self.xp.zeros_like(
+                    psi,
+                    shape=(*scan.shape[:-2], self.nz, self.n),
+                ),
                 positions=scan,
                 patch_width=self.probe_shape,
                 nrepeat=nearplane.shape[-3],
@@ -178,8 +182,10 @@ class Convolution(Operator):
             patches=nearplane.reshape(
                 (*scan.shape[:-2], scan.shape[-2] * nearplane.shape[-3],
                  *nearplane.shape[-2:])),
-            images=self.xp.zeros((*scan.shape[:-2], self.nz, self.n),
-                                 dtype='complex64'),
+            images=self.xp.zeros_like(
+                psi,
+                shape=(*scan.shape[:-2], self.nz, self.n),
+            ),
             positions=scan,
             patch_width=self.probe_shape,
             nrepeat=nearplane.shape[-3],
