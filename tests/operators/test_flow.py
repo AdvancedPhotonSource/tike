@@ -6,7 +6,7 @@ import unittest
 import numpy as np
 from tike.operators import Flow
 
-from .util import random_complex, OperatorTests
+from .util import random_complex, random_floating, OperatorTests
 
 __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
@@ -24,16 +24,12 @@ class TestFlow(unittest.TestCase, OperatorTests):
         self.xp = self.operator.xp
 
         np.random.seed(0)
-        self.m = self.xp.asarray(random_complex(ntheta, nz, n),
-                                 dtype='complex64')
+        self.m = self.xp.asarray(random_complex(ntheta, nz, n))
         self.m_name = 'f'
-        self.d = self.xp.asarray(random_complex(*self.m.shape),
-                                 dtype='complex64')
+        self.d = self.xp.asarray(random_complex(*self.m.shape))
         self.d_name = 'g'
         self.kwargs = {
-            'flow':
-                self.xp.asarray((np.random.rand(*self.m.shape, 2) - 0.5) * 16,
-                                dtype='float32'),
+            'flow': self.xp.asarray(random_floating(*self.m.shape, 2) * 16),
         }
         print(self.operator)
 

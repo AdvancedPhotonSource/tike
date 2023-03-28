@@ -5,6 +5,7 @@ import unittest
 
 import numpy as np
 from tike.operators import Alignment
+import tike.precision
 
 from .util import random_complex, OperatorTests
 
@@ -24,22 +25,22 @@ class TestAlignment(unittest.TestCase, OperatorTests):
         self.xp = self.operator.xp
 
         padded_shape = shape + np.asarray((0, 41, 32))
-        flow = (self.xp.random.rand(*padded_shape, 2, dtype='float32') -
-                0.5) * 9
-        shift = self.xp.random.rand(*shape[:-2], 2) - 0.5
+        flow = (self.xp.random.rand(
+            *padded_shape, 2, dtype=tike.precision.floating) - 0.5) * 9
+        shift = self.xp.random.rand(
+            *shape[:-2], 2, dtype=tike.precision.floating) - 0.5
 
         np.random.seed(0)
-        self.m = self.xp.asarray(random_complex(*shape), dtype='complex64')
+        self.m = self.xp.asarray(random_complex(*shape))
         self.m_name = 'unpadded'
-        self.d = self.xp.asarray(random_complex(*padded_shape),
-                                 dtype='complex64')
+        self.d = self.xp.asarray(random_complex(*padded_shape))
         self.d_name = 'rotated'
         self.kwargs = {
             'flow': flow,
             'shift': shift,
             'padded_shape': padded_shape,
             'unpadded_shape': shape,
-            'angle': np.random.rand() * 2 * np.pi,
+            'angle': tike.precision.floating(np.random.rand() * 2 * np.pi),
             'cval': 0,
         }
         print(self.operator)

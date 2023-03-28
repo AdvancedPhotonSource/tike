@@ -6,8 +6,10 @@ import unittest
 
 import numpy as np
 from tike.operators import Ptycho
+import tike.precision
+import tike.linalg
 
-from .util import random_complex, inner_complex, OperatorTests
+from .util import random_complex, OperatorTests
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
@@ -29,7 +31,8 @@ class TestPtycho(unittest.TestCase, OperatorTests):
         print(Ptycho)
 
         np.random.seed(0)
-        scan = np.random.rand(*self.scan_shape).astype('float32') * (127 - 16)
+        scan = np.random.rand(*self.scan_shape).astype(
+            tike.precision.floating) * (127 - 16)
         probe = random_complex(*self.probe_shape)
         original = random_complex(*self.original_shape)
         farplane = random_complex(*self.probe_shape[:-2], *self.detector_shape)
@@ -45,29 +48,24 @@ class TestPtycho(unittest.TestCase, OperatorTests):
         self.operator.__enter__()
         self.xp = self.operator.xp
 
-        probe = self.xp.asarray(probe.astype('complex64'))
-        original = self.xp.asarray(original.astype('complex64'))
-        farplane = self.xp.asarray(farplane.astype('complex64'))
-        scan = self.xp.asarray(scan.astype('float32'))
-
-        self.m = self.xp.asarray(original, dtype='complex64')
+        self.m = self.xp.asarray(original)
         self.m_name = 'psi'
         self.kwargs = {
-            'scan': self.xp.asarray(scan, dtype='float32'),
-            'probe': self.xp.asarray(probe, dtype='complex64')
+            'scan': self.xp.asarray(scan),
+            'probe': self.xp.asarray(probe)
         }
 
-        self.m1 = self.xp.asarray(probe, dtype='complex64')
+        self.m1 = self.xp.asarray(probe)
         self.m1_name = 'probe'
         self.kwargs1 = {
-            'scan': self.xp.asarray(scan, dtype='float32'),
-            'psi': self.xp.asarray(original, dtype='complex64')
+            'scan': self.xp.asarray(scan),
+            'psi': self.xp.asarray(original)
         }
         self.kwargs2 = {
-            'scan': self.xp.asarray(scan, dtype='float32'),
+            'scan': self.xp.asarray(scan),
         }
 
-        self.d = self.xp.asarray(farplane, dtype='complex64')
+        self.d = self.xp.asarray(farplane)
         self.d_name = 'farplane'
 
     def test_adjoint_probe(self):
@@ -76,8 +74,8 @@ class TestPtycho(unittest.TestCase, OperatorTests):
         assert d.shape == self.d.shape
         m = self.operator.adj_probe(**{self.d_name: self.d}, **self.kwargs1)
         assert m.shape == self.m1.shape
-        a = inner_complex(d, self.d)
-        b = inner_complex(self.m1, m)
+        a = tike.linalg.inner(d, self.d)
+        b = tike.linalg.inner(self.m1, m)
         print()
         print('<Fm,   m> = {:.5g}{:+.5g}j'.format(a.real.item(), a.imag.item()))
         print('< d, F*d> = {:.5g}{:+.5g}j'.format(b.real.item(), b.imag.item()))
@@ -115,9 +113,9 @@ class TestPtycho(unittest.TestCase, OperatorTests):
         )
         assert m.shape == self.m.shape
         assert m1.shape == self.m1.shape
-        a = inner_complex(d, self.d)
-        b = inner_complex(self.m, m)
-        c = inner_complex(self.m1, m1)
+        a = tike.linalg.inner(d, self.d)
+        b = tike.linalg.inner(self.m, m)
+        c = tike.linalg.inner(self.m1, m1)
         print()
         print('< Fm,    m> = {:.5g}{:+.5g}j'.format(a.real.item(),
                                                     a.imag.item()))

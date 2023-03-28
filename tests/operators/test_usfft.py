@@ -7,6 +7,7 @@ import numpy as np
 from tike.operators.cupy.usfft import (eq2us, us2eq, vector_gather,
                                        vector_scatter)
 from tike.operators import Operator
+import tike.precision
 
 from .util import random_complex, OperatorTests
 
@@ -37,14 +38,14 @@ class TestInterp(unittest.TestCase, OperatorTests):
         self.operator.__enter__()
         self.xp = self.operator.xp
         np.random.seed(0)
-        self.m = self.xp.asarray(random_complex(n, n, n), dtype='complex64')
+        self.m = self.xp.asarray(random_complex(n, n, n))
         self.m_name = 'f'
-        self.d = self.xp.asarray(random_complex(ntheta), dtype='complex64')
+        self.d = self.xp.asarray(random_complex(ntheta))
         self.d_name = 'F'
         self.kwargs = {
             'x':
-                self.xp.asarray(np.random.rand(ntheta, 3) -
-                                0.5).astype('float32'),
+                self.xp.asarray(np.random.rand(ntheta, 3) - 0.5,
+                                dtype=tike.precision.floating),
             'n':
                 n,
         }
@@ -75,14 +76,14 @@ class TestUSFFT(unittest.TestCase, OperatorTests):
         self.operator.__enter__()
         self.xp = self.operator.xp
         np.random.seed(1)
-        self.m = self.xp.asarray(random_complex(n, n, n), dtype='complex64')
+        self.m = self.xp.asarray(random_complex(n, n, n))
         self.m_name = 'f'
-        self.d = self.xp.asarray(random_complex(ntheta), dtype='complex64')
+        self.d = self.xp.asarray(random_complex(ntheta))
         self.d_name = 'F'
         self.kwargs = {
             'x':
-                self.xp.asarray(np.random.rand(ntheta, 3) -
-                                0.5).astype('float32'),
+                self.xp.asarray(np.random.rand(ntheta, 3) - 0.5).astype(
+                    tike.precision.floating),
             'n':
                 n,
         }
@@ -93,7 +94,7 @@ class TestUSFFT(unittest.TestCase, OperatorTests):
         pass
 
     @unittest.skip('For debugging only.')
-    def test_image(self, s=32, ntheta=16 * 16 * 16):
+    def test_image(self, s=64, ntheta=16 * 16 * 16):
         import libimage
         import matplotlib
         matplotlib.use('Agg')
@@ -101,7 +102,7 @@ class TestUSFFT(unittest.TestCase, OperatorTests):
 
         f = libimage.load('satyre', s)
         f = np.tile(f, (s, 1, 1))
-        f = self.xp.asarray(f, dtype='complex64')
+        f = self.xp.asarray(f, dtype=tike.precision.cfloating)
 
         x = [
             g.ravel() for g in np.meshgrid(
@@ -115,16 +116,14 @@ class TestUSFFT(unittest.TestCase, OperatorTests):
 
         print(x.shape)
 
-        x = self.xp.asarray(x, dtype='float32')
+        x = self.xp.asarray(x, dtype=tike.precision.floating)
 
         d = self.operator.fwd(f, x, s)
         m = self.operator.adj(d, x, s)
 
         plt.figure()
         plt.imshow(m[s // 2].real.get())
-        plt.figure()
-        plt.imshow(f[s // 2].real.get())
-        plt.show()
+        plt.savefig('usfft-real.png')
 
 
 if __name__ == '__main__':

@@ -6,8 +6,11 @@ import unittest
 
 import numpy as np
 from tike.operators import Convolution
+import tike.precision
+import tike.linalg
+import tike.random
 
-from .util import random_complex, inner_complex, OperatorTests
+from .util import OperatorTests
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
@@ -40,30 +43,31 @@ class TestConvolution(unittest.TestCase, OperatorTests):
 
         np.random.seed(0)
         scan = np.random.rand(self.ntheta, self.nscan, 2) * (127 - 15 - 1)
-        original = random_complex(*self.original_shape)
-        nearplane = random_complex(self.ntheta, self.nscan, self.nprobe,
-                                   self.detector_shape, self.detector_shape)
-        kernel = random_complex(self.ntheta, self.nscan, self.nprobe,
-                                self.probe_shape, self.probe_shape)
+        original = tike.random.numpy_complex(*self.original_shape)
+        nearplane = tike.random.numpy_complex(self.ntheta, self.nscan,
+                                              self.nprobe, self.detector_shape,
+                                              self.detector_shape)
+        kernel = tike.random.numpy_complex(self.ntheta, self.nscan, self.nprobe,
+                                           self.probe_shape, self.probe_shape)
 
-        self.m = self.xp.asarray(original, dtype='complex64')
+        self.m = self.xp.asarray(original)
         self.m_name = 'psi'
         self.kwargs = {
-            'scan': self.xp.asarray(scan, dtype='float32'),
-            'probe': self.xp.asarray(kernel, dtype='complex64')
+            'scan': self.xp.asarray(scan, dtype=tike.precision.floating),
+            'probe': self.xp.asarray(kernel)
         }
 
-        self.m1 = self.xp.asarray(kernel, dtype='complex64')
+        self.m1 = self.xp.asarray(kernel)
         self.m1_name = 'probe'
         self.kwargs1 = {
-            'scan': self.xp.asarray(scan, dtype='float32'),
-            'psi': self.xp.asarray(original, dtype='complex64')
+            'scan': self.xp.asarray(scan, dtype=tike.precision.floating),
+            'psi': self.xp.asarray(original)
         }
         self.kwargs2 = {
-            'scan': self.xp.asarray(scan, dtype='float32'),
+            'scan': self.xp.asarray(scan, dtype=tike.precision.floating),
         }
 
-        self.d = self.xp.asarray(nearplane, dtype='complex64')
+        self.d = self.xp.asarray(nearplane)
         self.d_name = 'nearplane'
 
         print(self.operator)
@@ -74,8 +78,8 @@ class TestConvolution(unittest.TestCase, OperatorTests):
         assert d.shape == self.d.shape
         m = self.operator.adj_probe(**{self.d_name: self.d}, **self.kwargs1)
         assert m.shape == self.m1.shape
-        a = inner_complex(d, self.d)
-        b = inner_complex(self.m1, m)
+        a = tike.linalg.inner(d, self.d)
+        b = tike.linalg.inner(self.m1, m)
         print()
         print('<Fm,   m> = {:.6f}{:+.6f}j'.format(a.real.item(), a.imag.item()))
         print('< d, F*d> = {:.6f}{:+.6f}j'.format(b.real.item(), b.imag.item()))
@@ -113,9 +117,9 @@ class TestConvolution(unittest.TestCase, OperatorTests):
         )
         assert m.shape == self.m.shape
         assert m1.shape == self.m1.shape
-        a = inner_complex(d, self.d)
-        b = inner_complex(self.m, m)
-        c = inner_complex(self.m1, m1)
+        a = tike.linalg.inner(d, self.d)
+        b = tike.linalg.inner(self.m, m)
+        c = tike.linalg.inner(self.m1, m1)
         print()
         print('< Fm,    m> = {:.6f}{:+.6f}j'.format(a.real.item(),
                                                     a.imag.item()))
