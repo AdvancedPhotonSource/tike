@@ -5,17 +5,26 @@ import logging
 import cupy as cp
 import numpy as np
 
+import tike.precision
+
+randomizer_np = np.random.default_rng()
+randomizer_cp = cp.random.default_rng()
+
 logger = logging.getLogger(__name__)
 
 
 def numpy_complex(*shape):
     """Return a complex random array in the range [-0.5, 0.5)."""
-    return (np.random.rand(*shape, 2) - 0.5).view('complex')[..., 0]
+    return (
+        randomizer_np.random(size=(*shape, 2), dtype=tike.precision.floating) -
+        0.5).view(tike.precision.cfloating)[..., 0]
 
 
 def cupy_complex(*shape):
     """Return a complex random array in the range [-0.5, 0.5)."""
-    return (cp.random.rand(*shape, 2) - 0.5).view('complex')[..., 0]
+    return (
+        randomizer_cp.random(size=(*shape, 2), dtype=tike.precision.floating) -
+        0.5).view(tike.precision.cfloating)[..., 0]
 
 
 def cluster_wobbly_center(*args, **kwargs):
