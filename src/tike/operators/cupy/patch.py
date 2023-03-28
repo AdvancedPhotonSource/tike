@@ -14,15 +14,24 @@ import numpy as np
 from .operator import Operator
 
 kernels = [
-    'fwd_patch<float2,float2>',
-    'adj_patch<float2,float2>',
-    'fwd_patch<double2,double2>',
-    'adj_patch<double2,double2>',
-    'fwd_patch<float2,double2>',
-    'adj_patch<float2,double2>',
-    'fwd_patch<double2,float2>',
-    'adj_patch<double2,float2>',
+    'fwd_patch<float2,float2,float>',
+    'adj_patch<float2,float2,float>',
+    'fwd_patch<double2,double2,float>',
+    'adj_patch<double2,double2,float>',
+    'fwd_patch<float2,double2,float>',
+    'adj_patch<float2,double2,float>',
+    'fwd_patch<double2,float2,float>',
+    'adj_patch<double2,float2,float>',
+    'fwd_patch<float2,float2,double>',
+    'adj_patch<float2,float2,double>',
+    'fwd_patch<double2,double2,double>',
+    'adj_patch<double2,double2,double>',
+    'fwd_patch<float2,double2,double>',
+    'adj_patch<float2,double2,double>',
+    'fwd_patch<double2,float2,double>',
+    'adj_patch<double2,float2,double>',
 ]
+
 
 _patch_module = cp.RawModule(
     code=files('tike.operators.cupy').joinpath('convolution.cu').read_text(),
@@ -36,6 +45,7 @@ typename = {
     np.dtype('complex128'): 'double2',
     np.dtype('float64'): 'double',
 }
+
 
 def _next_power_two(v: int) -> int:
     """Return the next highest power of 2 of 32-bit v.
@@ -79,10 +89,10 @@ class Patch(Operator):
     ):
         patch_width = patches.shape[-1] if patch_width == 0 else patch_width
         if patches is None:
-            patches = cp.zeros(
+            patches = cp.zeros_like(
+                images,
                 shape=(*positions.shape[:-2], positions.shape[-2] * nrepeat,
                        patch_width, patch_width),
-                dtype=np.csingle,
             )
         assert patch_width <= patches.shape[-1]
         assert images.shape[:-2] == positions.shape[:-2]
@@ -93,7 +103,8 @@ class Patch(Operator):
         assert positions.dtype == np.single, f"{positions.dtype}"
         nimage = int(np.prod(images.shape[:-2]))
 
-        _fwd_patch = _patch_module.get_function(f'fwd_patch<{typename[patches.dtype]},{typename[images.dtype]}>')
+        _fwd_patch = _patch_module.get_function(
+            f'fwd_patch<{typename[patches.dtype]},{typename[images.dtype]},{typename[positions.dtype]}>')
 
         grids = (
             positions.shape[-2],
@@ -132,9 +143,9 @@ class Patch(Operator):
         patch_width = patches.shape[-1] if patch_width == 0 else patch_width
         assert patch_width <= patches.shape[-1]
         if images is None:
-            images = cp.zeros(
-                (*positions.shape[:-2], height, width),
-                dtype=cp.csingle,
+            images = cp.zeros_like(
+                patches,
+                shape=(*positions.shape[:-2], height, width),
             )
         leading = images.shape[:-2]
         height, width = images.shape[-2:]
@@ -150,7 +161,8 @@ class Patch(Operator):
         assert positions.dtype == np.single, positions.dtype
         nimage = int(np.prod(images.shape[:-2]))
 
-        _adj_patch = _patch_module.get_function(f'adj_patch<{typename[patches.dtype]},{typename[images.dtype]}>')
+        _adj_patch = _patch_module.get_function(
+            f'adj_patch<{typename[patches.dtype]},{typename[images.dtype]},{typename[positions.dtype]}>')
 
         grids = (
             positions.shape[-2],
