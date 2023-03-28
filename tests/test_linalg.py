@@ -26,7 +26,7 @@ def test_lstsq():
     )
     b = a @ x
     x1 = tike.linalg.lstsq(a, b, weights=w)
-    cp.testing.assert_allclose(x1, x, atol=1e-3)
+    cp.testing.assert_allclose(x1, x, rtol=1e-2, atol=0)
 
 
 def test_projection():
