@@ -3,6 +3,7 @@ __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 import numpy as np
+import tike.precision
 
 from .flow import _remap_lanczos
 from .operator import Operator
@@ -27,7 +28,8 @@ class Rotate(Operator):
         shiftj = (unrotated.shape[-1] - 1) / 2.0
 
         i, j = self.xp.mgrid[0:unrotated.shape[-2],
-                             0:unrotated.shape[-1]].astype('float32')
+                             0:unrotated.shape[-1]].astype(
+                                 tike.precision.floating)
 
         i -= shifti
         j -= shiftj

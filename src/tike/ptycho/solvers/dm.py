@@ -308,10 +308,7 @@ def _apply_update(
 
 def _get_patches(nearplane, psi, scan, op=None):
     patches = op.diffraction.patch.fwd(
-        patches=cp.zeros(
-            nearplane[..., 0, 0, :, :].shape,
-            dtype='complex64',
-        ),
+        patches=cp.zeros_like(nearplane[..., 0, 0, :, :]),
         images=psi,
         positions=scan,
     )[..., None, None, :, :]
@@ -329,11 +326,9 @@ def _get_nearplane_gradients(
     recover_positions=True,
     op=None,
 ):
-    psi_update_numerator = cp.zeros(psi.shape, dtype='complex64')
-    psi_update_denominator = cp.zeros(psi.shape, dtype='complex64')
-    probe_update_numerator = cp.zeros(probe.shape, dtype='complex64')
-    # position_update_numerator = cp.zeros(scan.shape, dtype='float32')
-    # position_update_denominator = cp.zeros(scan.shape, dtype='float32')
+    psi_update_numerator = cp.zeros_like(psi)
+    psi_update_denominator = cp.zeros_like(psi)
+    probe_update_numerator = cp.zeros_like(probe)
 
     for m in range(probe.shape[-3]):
 
@@ -374,6 +369,4 @@ def _get_nearplane_gradients(
         psi_update_denominator,
         probe_update_numerator,
         probe_update_denominator,
-        # position_update_numerator,
-        # position_update_denominator,
     )

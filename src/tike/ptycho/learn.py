@@ -28,8 +28,8 @@ def extract_patches(psi, scan, patch_width):
     """
     check_allowed_positions(scan, psi, (patch_width, patch_width))
     with Patch() as operator:
-        psi = operator.asarray(psi, dtype='complex64')
-        scan = operator.asarray(scan, dtype='float32')
+        psi = operator.asarray(psi)
+        scan = operator.asarray(scan)
         patches = operator.fwd(
             images=psi,
             positions=scan,

@@ -10,6 +10,7 @@ import tike.opt
 import tike.ptycho.position
 import tike.ptycho.probe
 import tike.ptycho.object
+import tike.precision
 
 from .options import *
 
@@ -268,10 +269,7 @@ def _psi_preconditioner(
     probe_amp = (unique_probe[..., 0, m, :, :] *
                  unique_probe[..., 0, m, :, :].conj())
     if psi_update_denominator is None:
-        psi_update_denominator = cp.zeros(
-            shape=psi.shape,
-            dtype=cp.csingle,
-        )
+        psi_update_denominator = cp.zeros_like(psi)
     psi_update_denominator = op.diffraction.patch.adj(
         patches=probe_amp,
         images=psi_update_denominator,
@@ -353,8 +351,7 @@ def _update_nearplane(
 
         if recover_probe:
             common_grad_probe = comm.Allreduce(common_grad_probe)
-            probe_update_denominator = comm.Allreduce(
-                probe_update_denominator)
+            probe_update_denominator = comm.Allreduce(probe_update_denominator)
 
         (
             common_grad_psi,
@@ -536,10 +533,7 @@ def _get_patches(
     op: tike.operators.Ptycho,
 ) -> npt.NDArray[cp.csingle]:
     patches = op.diffraction.patch.fwd(
-        patches=cp.zeros(
-            nearplane[..., 0, 0, :, :].shape,
-            dtype=cp.csingle,
-        ),
+        patches=cp.zeros_like(nearplane[..., 0, 0, :, :]),
         images=psi,
         positions=scan,
     )[..., None, None, :, :]
@@ -571,7 +565,7 @@ def _get_nearplane_gradients(
         # (25b) Common object gradient.
         common_grad_psi = op.diffraction.patch.adj(
             patches=grad_psi[..., 0, 0, :, :],
-            images=cp.zeros(psi.shape, dtype=cp.csingle),
+            images=cp.zeros_like(psi),
             positions=scan_,
         )
     else:
@@ -641,7 +635,7 @@ def _precondition_nearplane_gradients(
                                 keepdims=True,
                             ))
         dOP = op.diffraction.patch.fwd(
-            patches=cp.zeros(patches.shape, dtype='complex64')[..., 0, 0, :, :],
+            patches=cp.zeros_like(patches[..., 0, 0, :, :]),
             images=common_grad_psi,
             positions=scan_,
         )[..., None, None, :, :] * unique_probe[..., [m], :, :]
@@ -664,7 +658,7 @@ def _precondition_nearplane_gradients(
             0,
             1,
             probe[0].shape[-3],
-            dtype='float32',
+            dtype=tike.precision.floating,
         )[..., [m], None, None]
 
         common_grad_probe = (common_grad_probe -

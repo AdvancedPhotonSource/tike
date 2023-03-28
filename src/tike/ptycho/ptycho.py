@@ -71,6 +71,7 @@ import tike.communicators
 import tike.opt
 from tike.ptycho import solvers
 import tike.cluster
+import tike.precision
 
 from .position import (
     PositionOptions,
@@ -164,11 +165,12 @@ def simulate(
             n=psi.shape[-1],
             **kwargs,
     ) as operator:
-        scan = operator.asarray(scan, dtype='float32')
-        psi = operator.asarray(psi, dtype='complex64')
-        probe = operator.asarray(probe, dtype='complex64')
+        scan = operator.asarray(scan, dtype=tike.precision.floating)
+        psi = operator.asarray(psi, dtype=tike.precision.cfloating)
+        probe = operator.asarray(probe, dtype=tike.precision.cfloating)
         if eigen_weights is not None:
-            eigen_weights = operator.asarray(eigen_weights, dtype='float32')
+            eigen_weights = operator.asarray(eigen_weights,
+                                             dtype=tike.precision.floating)
         data = _compute_intensity(operator, psi, scan, probe, eigen_weights,
                                   eigen_probe, fly)
         return operator.asnumpy(data.real)
@@ -351,17 +353,19 @@ class Reconstruction():
                 if odd_pool else self.comm.pool.num_workers // 2,
                 1 if odd_pool else 2,
             ),
-            (np.float32, np.float32 if self.data.itemsize > 2 else self.data.dtype, np.float32),
+            (tike.precision.floating, tike.precision.floating
+             if self.data.itemsize > 2 else self.data.dtype,
+             tike.precision.floating),
             self._device_parameters.scan,
             self.data,
             self._device_parameters.eigen_weights,
         )
 
         self._device_parameters.psi = self.comm.pool.bcast(
-            [self._device_parameters.psi.astype('complex64')])
+            [self._device_parameters.psi.astype(tike.precision.cfloating)])
 
         self._device_parameters.probe = self.comm.pool.bcast(
-            [self._device_parameters.probe.astype('complex64')])
+            [self._device_parameters.probe.astype(tike.precision.cfloating)])
 
         if self._device_parameters.probe_options is not None:
             self._device_parameters.probe_options = self._device_parameters.probe_options.copy_to_device(
@@ -372,8 +376,10 @@ class Reconstruction():
                 self.comm,)
 
         if self._device_parameters.eigen_probe is not None:
-            self._device_parameters.eigen_probe = self.comm.pool.bcast(
-                [self._device_parameters.eigen_probe.astype('complex64')])
+            self._device_parameters.eigen_probe = self.comm.pool.bcast([
+                self._device_parameters.eigen_probe.astype(
+                    tike.precision.cfloating)
+            ])
 
         if self._device_parameters.position_options is not None:
             # TODO: Consider combining put/split, get/join operations?
@@ -634,7 +640,7 @@ def _order_join(a, b):
 
 def _get_rescale(data, psi, scan, probe, num_batch, operator):
 
-    n = cp.zeros(2, dtype='float64')
+    n = cp.zeros(2, dtype=np.double)
 
     for b in tike.opt.batch_indicies(data.shape[-3],
                                      num_batch,

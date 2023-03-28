@@ -32,7 +32,6 @@ kernels = [
     'adj_patch<double2,float2,double>',
 ]
 
-
 _patch_module = cp.RawModule(
     code=files('tike.operators.cupy').joinpath('convolution.cu').read_text(),
     name_expressions=kernels,
@@ -100,11 +99,11 @@ class Patch(Operator):
                                                             patches.shape)
         assert positions.shape[-2] * nrepeat == patches.shape[-3]
         assert positions.shape[-1] == 2, positions.shape
-        assert positions.dtype == np.single, f"{positions.dtype}"
         nimage = int(np.prod(images.shape[:-2]))
 
         _fwd_patch = _patch_module.get_function(
-            f'fwd_patch<{typename[patches.dtype]},{typename[images.dtype]},{typename[positions.dtype]}>')
+            f'fwd_patch<{typename[patches.dtype]},{typename[images.dtype]},{typename[positions.dtype]}>'
+        )
 
         grids = (
             positions.shape[-2],
@@ -156,13 +155,11 @@ class Patch(Operator):
         K = patches.shape[-3]
         assert (N * nrepeat) % K == 0 and K >= nrepeat
         assert patches.shape[-1] == patches.shape[-2]
-        assert images.dtype == np.csingle, images.dtype
-        assert patches.dtype == np.csingle, patches.dtype
-        assert positions.dtype == np.single, positions.dtype
         nimage = int(np.prod(images.shape[:-2]))
 
         _adj_patch = _patch_module.get_function(
-            f'adj_patch<{typename[patches.dtype]},{typename[images.dtype]},{typename[positions.dtype]}>')
+            f'adj_patch<{typename[patches.dtype]},{typename[images.dtype]},{typename[positions.dtype]}>'
+        )
 
         grids = (
             positions.shape[-2],
