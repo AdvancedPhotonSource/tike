@@ -8,15 +8,31 @@ except ImportError:
     from importlib_resources import files
 
 import cupy as cp
-import cupyx.scipy.fft
 import numpy as np
 
 from .cache import CachedFFT
 from .usfft import eq2us, us2eq, checkerboard
 from .operator import Operator
 
-_cu_source = files('tike.operators.cupy').joinpath('grid.cu').read_text()
-_make_grids_kernel = cp.RawKernel(_cu_source, "make_grids")
+kernels = [
+    'make_grids<float,float>',
+    'make_grids<float,double>',
+    'make_grids<double,float>',
+    'make_grids<double,double>',
+]
+
+typename = {
+    np.dtype('complex64'): 'float2',
+    np.dtype('float32'): 'float',
+    np.dtype('complex128'): 'double2',
+    np.dtype('float64'): 'double',
+}
+
+_grid_module = cp.RawModule(
+    code=files('tike.operators.cupy').joinpath('grid.cu').read_text(),
+    name_expressions=kernels,
+    options=('--std=c++11',),
+)
 
 
 class Lamino(CachedFFT, Operator):
@@ -50,8 +66,8 @@ class Lamino(CachedFFT, Operator):
     def __init__(self, n, tilt, eps=1e-3, upsample=1, **kwargs):
         """Please see help(Lamino) for more info."""
         self.n = n
-        self.tilt = np.float32(tilt)
-        self.eps = np.float32(eps)
+        self.tilt = np.single(tilt)
+        self.eps = np.single(eps)
         self.upsample = upsample
 
     def fwd(self, u, theta, **kwargs):
@@ -150,10 +166,15 @@ class Lamino(CachedFFT, Operator):
     def _make_grids(self, theta):
         """Return (ntheta*n*n, 3) unequally-spaced frequencies for the USFFT."""
 
-        assert self.tilt.dtype == np.float32
-        assert theta.dtype == cp.float32, theta.dtype
+        assert self.tilt.dtype == np.single
 
-        xi = cp.empty((theta.shape[-1] * self.n * self.n, 3), dtype="float32")
+        xi = cp.empty_like(
+            theta,
+            shape=(theta.shape[-1] * self.n * self.n, 3),
+        )
+
+        _make_grids_kernel = _grid_module.get_function(
+            f'make_grids<{typename[xi.dtype]},{typename[theta.dtype]}>')
 
         grid = (
             -(-self.n // _make_grids_kernel.max_threads_per_block),

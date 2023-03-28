@@ -11,17 +11,34 @@ import logging
 
 import cupy as cp
 import numpy as np
+import tike.precision
 
-from .operator import Operator
 from .lamino import Lamino
 
-_cu_source = files('tike.operators.cupy').joinpath('bucket.cu').read_text()
-_coords_weights_kernel = cp.RawKernel(_cu_source, 'coordinates_and_weights')
-_bucket_fwd = cp.RawKernel(_cu_source, 'fwd')
-_bucket_adj = cp.RawKernel(_cu_source, 'adj')
+kernels = [
+    'coordinates_and_weights<float,float3>',
+    'coordinates_and_weights<double,double3>',
+    'fwd<float2>',
+    'adj<float2>',
+    'fwd<double2>',
+    'adj<double2>',
+]
 
+_bucket_module = cp.RawModule(
+    code=files('tike.operators.cupy').joinpath('bucket.cu').read_text(),
+    name_expressions=kernels,
+    options=('--std=c++11',),
+)
+
+typename = {
+    np.dtype('complex64'): 'float2',
+    np.dtype('float32'): 'float',
+    np.dtype('complex128'): 'double2',
+    np.dtype('float64'): 'double',
+}
 
 logger = logging.getLogger(__name__)
+
 
 class Bucket(Lamino):
     """A Laminography operator.
@@ -54,7 +71,7 @@ class Bucket(Lamino):
     def __init__(self, n, tilt, eps=1, **kwargs):
         """Please see help(Lamino) for more info."""
         self.n = n
-        self.tilt = np.float32(tilt)
+        self.tilt = np.single(tilt)
         # Increase precision until weights are less than eps
         precision = 1
         while (1 / precision**3) > eps:
@@ -62,7 +79,7 @@ class Bucket(Lamino):
         logger.info("Bucket operator using %d precision to reach %f eps.",
                     precision, eps)
         self.precision = np.int16(precision)
-        self.weight = np.float32(1.0 / self.precision**3)
+        self.weight = np.double(1.0 / self.precision**3)
 
     def __enter__(self):
         return self
@@ -88,15 +105,19 @@ class Bucket(Lamino):
             The complex projection data of the object.
 
         """
-        data = cp.zeros((len(theta), self.n, self.n), dtype='complex64')
+        data = cp.zeros_like(u, shape=(len(theta), self.n, self.n))
         plane_coords = cp.zeros((len(grid), self.precision**3, 2),
                                 dtype='int16')
 
+        _coords_weights_kernel = _bucket_module.get_function(
+            f'coordinates_and_weights<{typename[theta.dtype]},{typename[theta.dtype]}3>'
+        )
+
+        _bucket_fwd = _bucket_module.get_function(f'fwd<{typename[u.dtype]}>')
+
         for t in range(len(theta)):
             assert grid.dtype == 'int16'
-            assert self.tilt.dtype == 'float32'
-            assert theta.dtype == 'float32'
-            # assert type(t) == 'int'
+            assert self.tilt.dtype == np.single
             assert self.precision.dtype == 'int16'
             assert plane_coords.dtype == 'int16'
             _coords_weights_kernel(
@@ -121,9 +142,8 @@ class Bucket(Lamino):
                  (grid[:, 1:] + self.n // 2) % self.n],
                 axis=-1,
             )
-            assert data.dtype == 'complex64'
-            assert self.weight.dtype == 'float32'
-            assert u.dtype == 'complex64', u.dtype
+            assert data.dtype == u.dtype
+            assert self.weight.dtype == np.double
             assert grid_index.dtype == 'int16'
             assert plane_index.dtype == 'int16'
             assert self.precision.dtype == 'int16'
@@ -166,12 +186,19 @@ class Bucket(Lamino):
             corresponding to the rotation axis.
 
         """
-        u = cp.zeros(
-            (len(grid) // (self.n**2), self.n, self.n),
-            dtype='complex64',
+        u = cp.zeros_like(
+            data,
+            shape=(len(grid) // (self.n**2), self.n, self.n),
         )
         plane_coords = cp.zeros((len(grid), self.precision**3, 2),
                                 dtype='int16')
+
+        _coords_weights_kernel = _bucket_module.get_function(
+            f'coordinates_and_weights<{typename[theta.dtype]},{typename[theta.dtype]}3>'
+        )
+
+        _bucket_adj = _bucket_module.get_function(
+            f'adj<{typename[data.dtype]}>')
 
         for t in range(len(theta)):
             _coords_weights_kernel(
@@ -196,9 +223,8 @@ class Bucket(Lamino):
                  (grid[:, 1:] + self.n // 2) % self.n],
                 axis=-1,
             )
-            assert data.dtype == 'complex64'
-            assert self.weight.dtype == 'float32'
-            assert u.dtype == 'complex64'
+            assert data.dtype == u.dtype
+            assert self.weight.dtype == np.double
             assert grid_index.dtype == 'int16'
             assert plane_index.dtype == 'int16'
             assert self.precision.dtype == 'int16'
@@ -289,7 +315,7 @@ def _get_coordinates_and_weights(
         plane_coords = cp.zeros((N, precision**3, 2), dtype='int')
 
     transformation = compute_transformation(tilt, theta)
-    normal = transformation @ cp.array((1, 0, 0), dtype='float32')
+    normal = transformation @ cp.array((1, 0, 0), dtype=tike.precision.floating)
     # print(f'python normal is {normal}')
 
     for cell in range(N):
@@ -314,7 +340,7 @@ def _get_coordinates_and_weights(
 
 def _compute_transformation(tilt, theta):
     """Return a transformation which aligns [1, 0, 0] with the plane normal."""
-    transformation = cp.zeros((3, 3), dtype='float32')
+    transformation = cp.zeros((3, 3), dtype=tike.precision.floating)
     transformation[0, 0] = cp.cos(tilt)
     transformation[0, 1] = cp.sin(tilt)
     transformation[1, 0] = -cp.cos(theta) * cp.sin(tilt)

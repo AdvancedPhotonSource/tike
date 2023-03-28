@@ -72,16 +72,14 @@ _nd_to_1d(int ndim, const int* nd, const int* shape) {
   return linear;
 }
 
-typedef float
-kernel_function(int ndim, const float* center, const int* point);
-
-__device__ float
-_lanczos(float x, float nlobes) {
+template <typename coordType>
+__device__ coordType
+_lanczos(coordType x, coordType nlobes) {
   if (x == 0.0f) {
     return 1.0f;
   } else if (fabsf(x) <= nlobes) {
     // printf("distance: %f\n", x);
-    const float pix = x * 3.141592653589793238462643383279502884f;
+    const coordType pix = x * 3.141592653589793238462643383279502884f;
     return nlobes * sin(pix) * sin(pix / nlobes) / (pix * pix);
   } else {
     return 0.0f;
@@ -89,11 +87,12 @@ _lanczos(float x, float nlobes) {
 }
 
 // Return the lanczos kernel weight for the given kernel center and point.
-__device__ float
-lanczos_kernel(int ndim, const float* center, const int* point) {
-  float weight = 1.0f;
+template <typename coordType>
+__device__ coordType
+lanczos_kernel(int ndim, const coordType* center, const int* point) {
+  coordType weight = 1.0f;
   for (int dim = 0; dim < ndim; dim++) {
-    weight *= _lanczos(center[dim] - (float)point[dim], 2.0f);
+    weight *= _lanczos<coordType>(center[dim] - (coordType)point[dim], 2.0f);
   }
   return weight;
 }
@@ -111,14 +110,12 @@ gaussian_kernel(int ndim, const float* center, const int* point) {
   return expf(-weight / two_sigma2) / (pi * two_sigma2);
 }
 
-typedef void
-scatterOrGather(float2*, int, float2*, int, float, float2);
-
 // Many uniform grid points are collected to one nonuniform point. This is
 // linear interpolation, smoothing, etc.
+template <typename valueType, typename coordType>
 __device__ void
-gather(float2* grid, int gi, float2* points, int pi, float weight,
-       float2 cval) {
+gather(valueType* grid, int gi, valueType* points, int pi,
+       const coordType weight, float2 cval) {
   if (gi >= 0) {
     points[pi].x += grid[gi].x * weight;
     points[pi].y += grid[gi].y * weight;
@@ -130,9 +127,10 @@ gather(float2* grid, int gi, float2* points, int pi, float weight,
 
 // One nonuniform point is spread to many uniform grid points. This is the
 // adjoint operation.
+template <typename valueType, typename coordType>
 __device__ void
-scatter(float2* grid, int gi, float2* points, int pi, float weight,
-        float2 cval) {
+scatter(valueType* grid, int gi, valueType* points, int pi,
+        const coordType weight, float2 cval) {
   if (gi >= 0) {
     atomicAdd(&grid[gi].x, points[pi].x * weight);
     atomicAdd(&grid[gi].y, points[pi].y * weight);
@@ -141,13 +139,16 @@ scatter(float2* grid, int gi, float2* points, int pi, float weight,
 
 // grid shape (-(-nx // max_threads), 0, 0)
 // block shape (min(nx, max_threads), 0, 0)
+template <typename valueType, typename coordType>
 __device__ void
 _loop_over_kernels(int ndim,  // number of dimensions
-                   kernel_function get_weight, scatterOrGather operation,
-                   float2* grid,        // values on uniform grid
+                   coordType get_weight(int, const coordType*, const int*),
+                   void operation(valueType*, int, valueType*, int, coordType,
+                                  float2),
+                   valueType* grid,     // values on uniform grid
                    const int* gshape,   // dimensions of uniform grid
-                   float2* points,      // values at nonuniform points
-                   const float* x,      // coordinates of nonuniform points
+                   valueType* points,   // values at nonuniform points
+                   const coordType* x,  // coordinates of nonuniform points
                    const int nx,        // the number of nonuniform points
                    const int diameter,  // kernel diameter, should be odd?
                    const float2 cval    // value to use for off-grid points
@@ -178,7 +179,7 @@ _loop_over_kernels(int ndim,  // number of dimensions
       _1d_to_nd(knd, ndim, ki, nk, diameter, center);
 
       // Weights are computed from correct distance...
-      const float weight = get_weight(ndim, &x[ndim * xi], knd);
+      const coordType weight = get_weight(ndim, &x[ndim * xi], knd);
 
       if (inside_bounds(ndim, knd, gshape)) {
         // For values inside the grid we set weight
@@ -192,19 +193,24 @@ _loop_over_kernels(int ndim,  // number of dimensions
   }
 }
 
-extern "C" __global__ void
-fwd_lanczos_interp2D(float2* grid, const int* grid_shape, float2* points,
-                     const float* x, int num_points, int diameter, float2 cval
+template <typename valueType, typename coordType>
+__global__ void
+fwd_lanczos_interp2D(valueType* grid, const int* grid_shape, valueType* points,
+                     const coordType* x, int num_points, int diameter,
+                     float2 cval
 
 ) {
-  _loop_over_kernels(2, lanczos_kernel, gather, grid, grid_shape, points, x,
-                     num_points, diameter, cval);
+  _loop_over_kernels<valueType, coordType>(
+      2, lanczos_kernel<coordType>, gather<valueType, coordType>, grid,
+      grid_shape, points, x, num_points, diameter, cval);
 }
 
-extern "C" __global__ void
-adj_lanczos_interp2D(float2* grid, const int* grid_shape, float2* points,
-                     const float* x, int num_points, int diameter,
+template <typename valueType, typename coordType>
+__global__ void
+adj_lanczos_interp2D(valueType* grid, const int* grid_shape, valueType* points,
+                     const coordType* x, int num_points, int diameter,
                      float2 cval) {
-  _loop_over_kernels(2, lanczos_kernel, scatter, grid, grid_shape, points, x,
-                     num_points, diameter, cval);
+  _loop_over_kernels<valueType, coordType>(
+      2, lanczos_kernel<coordType>, scatter<valueType, coordType>, grid,
+      grid_shape, points, x, num_points, diameter, cval);
 }

@@ -1,5 +1,6 @@
 """Functions for probe initialization using a model of Fresnel optics."""
 import numpy as np
+import tike.precision
 
 
 def single_probe(
@@ -60,7 +61,8 @@ def single_probe(
 
     probe = probe / (np.sqrt(np.sum(np.abs(probe)**2)))
 
-    return probe[np.newaxis, np.newaxis, np.newaxis].astype(np.complex64)
+    return probe[np.newaxis, np.newaxis,
+                 np.newaxis].astype(tike.precision.cfloating)
 
 
 def MW_probe(
@@ -153,7 +155,7 @@ def MW_probe(
         probe.append(nprobe * (np.sqrt(spectrum[i, 1])))
 
     probe = np.stack(probe, axis=0)
-    return probe[np.newaxis, np.newaxis].astype('complex64')
+    return probe[np.newaxis, np.newaxis].astype(tike.precision.cfloating)
 
 
 def _gaussian_spectrum(lambda0, bandwidth, energy):

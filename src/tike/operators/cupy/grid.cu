@@ -10,21 +10,23 @@
 // Each thread gets one frequency.
 // grid shape (-(-N // max_threads), N, R)
 // block shape (min(N, max_threads), 0, 0)
-extern "C" __global__ void
-make_grids(float* frequency, const float* rotation, int R, int N, float tilt) {
-  float ctilt = cosf(tilt);
-  float stilt = sinf(tilt);
+template <typename frequencyType, typename rotationType>
+__global__ void
+make_grids(frequencyType* frequency, const rotationType* rotation, int R, int N,
+           float tilt) {
+  frequencyType ctilt = cosf(tilt);
+  frequencyType stilt = sinf(tilt);
 
   for (int p = blockIdx.z; p < R; p += gridDim.z) {
-    float ctheta = cosf(rotation[p]);
-    float stheta = sinf(rotation[p]);
+    frequencyType ctheta = cosf(rotation[p]);
+    frequencyType stheta = sinf(rotation[p]);
     // NOTE: Use pointer arithmetic to avoid indexing overflows without using
     // size_t.
-    float* plane = 3 * N * N * p + frequency;
+    frequencyType* plane = 3 * N * N * p + frequency;
 
     for (int y = blockIdx.y; y < N; y += gridDim.y) {
-      float kv = (float)(y - N / 2) / N;
-      float* height = 3 * N * y + plane;
+      frequencyType kv = (frequencyType)(y - N / 2) / N;
+      frequencyType* height = 3 * N * y + plane;
 
       // clang-format off
       for (
@@ -33,8 +35,8 @@ make_grids(float* frequency, const float* rotation, int R, int N, float tilt) {
         x += blockDim.x * gridDim.x
       ) {
         // clang-format on
-        float ku = (float)(x - N / 2) / N;
-        float* f = 3 * x + height;
+        frequencyType ku = (frequencyType)(x - N / 2) / N;
+        frequencyType* f = 3 * x + height;
 
         f[0] = +kv * stilt;
         f[1] = -ku * stheta + kv * ctheta * ctilt;

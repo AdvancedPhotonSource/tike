@@ -7,6 +7,7 @@ import tike.opt
 import tike.ptycho.position
 import tike.ptycho.probe
 import tike.operators.cupy.objective as objective
+import tike.precision
 
 from ..object import positivity_constraint, smoothness_constraint
 
@@ -280,7 +281,8 @@ def _update_nearplane(
         )
 
         b1 = probe_options.additional_probe_penalty * cp.linspace(
-            0, 1, probe[0].shape[-3], dtype='float32')[..., None, None]
+            0, 1, probe[0].shape[-3], dtype=tike.precision.floating)[..., None,
+                                                                     None]
 
         probe[0] += step_length * (probe_update_numerator -
                                    (b1 + b0) * probe[0]) / (
@@ -311,10 +313,7 @@ def _update_nearplane(
 
 def _get_patches(nearplane, psi, scan, op=None):
     patches = op.diffraction.patch.fwd(
-        patches=cp.zeros(
-            nearplane[..., 0, 0, :, :].shape,
-            dtype='complex64',
-        ),
+        patches=cp.zeros_like(nearplane[..., 0, 0, :, :]),
         images=psi,
         positions=scan,
     )[..., None, None, :, :]
@@ -332,11 +331,11 @@ def _get_nearplane_gradients(
     recover_positions=True,
     op=None,
 ):
-    psi_update_numerator = cp.zeros(psi.shape, dtype='complex64')
-    psi_update_denominator = cp.zeros(psi.shape, dtype='complex64')
-    probe_update_numerator = cp.zeros(probe.shape, dtype='complex64')
-    position_update_numerator = cp.zeros(scan.shape, dtype='float32')
-    position_update_denominator = cp.zeros(scan.shape, dtype='float32')
+    psi_update_numerator = cp.zeros_like(psi)
+    psi_update_denominator = cp.zeros_like(psi)
+    probe_update_numerator = cp.zeros_like(probe)
+    position_update_numerator = cp.zeros_like(scan)
+    position_update_denominator = cp.zeros_like(scan)
 
     grad_x, grad_y = tike.ptycho.position.gaussian_gradient(patches)
 

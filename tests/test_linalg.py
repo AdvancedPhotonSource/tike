@@ -4,6 +4,7 @@ import cupy as cp
 
 import tike.linalg
 import tike.random
+import tike.precision
 
 
 def test_norm():
@@ -19,10 +20,13 @@ def test_norm():
 def test_lstsq():
     a = tike.random.cupy_complex(5, 1, 4, 3, 3)
     x = tike.random.cupy_complex(5, 1, 4, 3, 1)
-    w = cp.random.rand(5, 1, 4, 3)
+    w = tike.random.randomizer_cp.random(
+        size=(5, 1, 4, 3),
+        dtype=tike.precision.floating,
+    )
     b = a @ x
     x1 = tike.linalg.lstsq(a, b, weights=w)
-    cp.testing.assert_allclose(x1, x)
+    cp.testing.assert_allclose(x1, x, rtol=1e-2, atol=0)
 
 
 def test_projection():
@@ -31,8 +35,8 @@ def test_projection():
     b = tike.random.cupy_complex(5)
     pab = tike.linalg.projection(a, b)
     pba = tike.linalg.projection(b, a)
-    assert abs(tike.linalg.inner(a - pab, b)) < 1e-12
-    assert abs(tike.linalg.inner(a, b - pba)) < 1e-12
+    assert abs(tike.linalg.inner(a - pab, b)) < 1e-6
+    assert abs(tike.linalg.inner(a, b - pba)) < 1e-6
 
 
 class Orthogonal(unittest.TestCase):
@@ -62,4 +66,4 @@ class Orthogonal(unittest.TestCase):
                         u[:, j:j + 1],
                         axis=axis,
                     ))
-                assert cp.all(error < 1e-12)
+                assert cp.all(error < 1e-6)

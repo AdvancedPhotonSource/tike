@@ -31,15 +31,15 @@ _1d_to_nd(int d, int s, int* nd, int ndim, int diameter, int radius) {
   }
 }
 
-typedef void
-scatterOrGather(float2*, int, const float2*, int, float);
-
 // grid shape (-(-kernel_size // max_threads), 0, nf)
 // block shape (min(kernel_size, max_threads), 0, 0)
+template <typename complexType, typename xType>
 __device__ void
-_loop_over_kernels(scatterOrGather operation, float2* gathered,
-                   const float2* scattered, int nf, const float* x, int n,
-                   int radius, const float* cons, int ndim) {
+_loop_over_kernels(void operation(complexType*, int, const complexType*, int,
+                                  xType),
+                   complexType* gathered, const complexType* scattered, int nf,
+                   const xType* x, int n, int radius, const xType* cons,
+                   int ndim) {
   const int diameter = 2 * radius;  // kernel width
   const int nk = pow(diameter, ndim);
   const int half = n / 2;  // shifts frequency coordinates to center
@@ -67,17 +67,17 @@ _loop_over_kernels(scatterOrGather operation, float2* gathered,
       _1d_to_nd(ki, nk, k, ndim, diameter, radius);
 
       // Compute sum square value for kernel and equally-spaced grid index (gi)
-      float ssdelta = 0;
-      float delta;
+      xType ssdelta = 0;
+      xType delta;
       int gi = 0;
       int stride = 1;
       for (int dim = ndim - 1; dim >= 0; dim--) {
-        delta = (float)(center[dim] + k[dim]) / n - x[ndim * fi + dim];
+        delta = (xType)(center[dim] + k[dim]) / n - x[ndim * fi + dim];
         ssdelta += delta * delta;
         gi += mod((half + center[dim] + k[dim]), n) * stride;
         stride *= n;
       }
-      const float kernel = cons[0] * exp(cons[1] * ssdelta);
+      const xType kernel = cons[0] * exp(cons[1] * ssdelta);
 
       operation(gathered, fi, scattered, gi, kernel);
     }
@@ -86,26 +86,34 @@ _loop_over_kernels(scatterOrGather operation, float2* gathered,
 
 // Helper functions _gather and _scatter let us switch the index variables
 // (si, gi) without an if statement.
+template <typename complexType, typename xType>
 __device__ void
-_gather(float2* gather, int gi, const float2* scatter, int si, float kernel) {
+_gather(complexType* gather, int gi, const complexType* scatter, int si,
+        xType kernel) {
   atomicAdd(&gather[gi].x, scatter[si].x * kernel);
   atomicAdd(&gather[gi].y, scatter[si].y * kernel);
 }
 
-extern "C" __global__ void
-gather(float2* F, const float2* Fe, int nf, const float* x, int n, int radius,
-       const float* cons) {
-  _loop_over_kernels(_gather, F, Fe, nf, x, n, radius, cons, 3);
+template <typename complexType, typename xType>
+__global__ void
+gather(complexType* F, const complexType* Fe, int nf, const xType* x, int n,
+       int radius, const xType* cons) {
+  _loop_over_kernels(_gather<complexType, xType>, F, Fe, nf, x, n, radius, cons,
+                     3);
 }
 
+template <typename complexType, typename xType>
 __device__ void
-_scatter(float2* gather, int si, const float2* scatter, int gi, float kernel) {
+_scatter(complexType* gather, int si, const complexType* scatter, int gi,
+         xType kernel) {
   atomicAdd(&gather[gi].x, scatter[si].x * kernel);
   atomicAdd(&gather[gi].y, scatter[si].y * kernel);
 }
 
-extern "C" __global__ void
-scatter(float2* G, const float2* f, int nf, const float* x, int n, int radius,
-        const float* cons) {
-  _loop_over_kernels(_scatter, G, f, nf, x, n, radius, cons, 3);
+template <typename complexType, typename xType>
+__global__ void
+scatter(complexType* G, const complexType* f, int nf, const xType* x, int n,
+        int radius, const xType* cons) {
+  _loop_over_kernels(_scatter<complexType, xType>, G, f, nf, x, n, radius, cons,
+                     3);
 }

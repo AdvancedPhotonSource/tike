@@ -10,25 +10,45 @@ operations: zero-padding, interpolation-kernel-correction, FFT, and
 linear-interpolation.
 """
 import cupy as cp
+import numpy as np
 try:
     from importlib.resources import files
 except ImportError:
     # Backport for python<3.9 available as importlib_resources package
     from importlib_resources import files
 
-_cu_source = files('tike.operators.cupy').joinpath('usfft.cu').read_text()
+kernels = [
+    'scatter<float2,float>',
+    'scatter<float2,double>',
+    'gather<float2,float>',
+    'gather<float2,double>',
+    'scatter<double2,float>',
+    'scatter<double2,double>',
+    'gather<double2,float>',
+    'gather<double2,double>',
+]
 
-_scatter_kernel = cp.RawKernel(_cu_source, "scatter")
-_gather_kernel = cp.RawKernel(_cu_source, "gather")
+typename = {
+    np.dtype('complex64'): 'float2',
+    np.dtype('float32'): 'float',
+    np.dtype('complex128'): 'double2',
+    np.dtype('float64'): 'double',
+}
+
+_usfft_module = cp.RawModule(
+    code=files('tike.operators.cupy').joinpath('usfft.cu').read_text(),
+    name_expressions=kernels,
+    options=('--std=c++11',),
+)
 
 
-def _get_kernel(xp, n, mu):
+def _get_kernel(xp, n, mu, dtype):
     """Return the interpolation kernel for the USFFT."""
     pad = n // 2
     end = n - pad
-    u = -mu * xp.arange(-pad, end, dtype='float32')**2
+    u = -mu * xp.arange(-pad, end, dtype=dtype)**2
     kernel_shape = (len(u), len(u), len(u))
-    norm = xp.zeros(kernel_shape, dtype='float32')
+    norm = xp.zeros(kernel_shape, dtype=dtype)
     norm += u
     norm += u[:, None]
     norm += u[:, None, None]
@@ -78,13 +98,11 @@ def vector_gather(xp, Fe, x, n, m, mu):
 
 def gather(_, Fe, x, n, m, mu):
     """See vector_gather documenation."""
-    F = cp.zeros(x.shape[0], dtype="complex64")
-    const = cp.array([cp.sqrt(cp.pi / mu)**3, -cp.pi**2 / mu], dtype='float32')
-    assert F.dtype == cp.complex64
-    assert Fe.dtype == cp.complex64
-    assert x.dtype == cp.float32
-    assert const.dtype == cp.float32
-    block = (min(_scatter_kernel.max_threads_per_block, (2 * m)**3),)
+    F = cp.zeros_like(Fe, shape=x.shape[0])
+    const = cp.array([cp.sqrt(cp.pi / mu)**3, -cp.pi**2 / mu], dtype=x.dtype)
+    _gather_kernel = _usfft_module.get_function(
+        f'gather<{typename[Fe.dtype]},{typename[x.dtype]}>')
+    block = (min(_gather_kernel.max_threads_per_block, (2 * m)**3),)
     grid = (1, 0, min(x.shape[0], 65535))
     _gather_kernel(grid, block, (
         F,
@@ -132,11 +150,11 @@ def eq2us(f, x, n, eps, xp, gather=gather, fftn=None, upsample=2):
     m = int(xp.ceil(upsampled * Te))
 
     # smearing kernel (ker)
-    kernel = _get_kernel(xp, n, mu)
+    kernel = _get_kernel(xp, n, mu, f.dtype)
     kernel *= upsampled**3
 
     # FFT and compesantion for smearing
-    fe = xp.zeros([upsampled] * 3, dtype="complex64")
+    fe = xp.zeros([upsampled] * 3, dtype=f.dtype)
 
     fe[pad:end, pad:end, pad:end] = f / kernel
     Fe = checkerboard(xp, fftn(checkerboard(xp, fe)), inverse=True)
@@ -197,12 +215,10 @@ def vector_scatter(xp, f, x, n, m, mu, ndim=3):
 
 def scatter(_, f, x, n, m, mu):
     """See vector_scatter documenation"""
-    G = cp.zeros([n] * 3, dtype="complex64")
-    const = cp.array([cp.sqrt(cp.pi / mu)**3, -cp.pi**2 / mu], dtype='float32')
-    assert G.dtype == cp.complex64
-    assert f.dtype == cp.complex64
-    assert x.dtype == cp.float32
-    assert const.dtype == cp.float32
+    G = cp.zeros_like(f, shape=[n] * 3)
+    const = cp.array([cp.sqrt(cp.pi / mu)**3, -cp.pi**2 / mu], dtype=x.dtype)
+    _scatter_kernel = _usfft_module.get_function(
+        f'scatter<{typename[f.dtype]},{typename[x.dtype]}>')
     block = (min(_scatter_kernel.max_threads_per_block, (2 * m)**3),)
     grid = (1, 0, min(f.shape[0], 65535))
     _scatter_kernel(grid, block, (
@@ -252,7 +268,7 @@ def us2eq(f, x, n, eps, xp, scatter=scatter, fftn=None, upsample=2):
     m = int(xp.ceil(upsampled * Te))
 
     # smearing kernel (ker)
-    kernel = _get_kernel(xp, n, mu)
+    kernel = _get_kernel(xp, n, mu, f.dtype)
     kernel *= upsampled**3
 
     G = scatter(xp, f, x, upsampled, m, mu)

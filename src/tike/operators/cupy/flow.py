@@ -2,6 +2,7 @@ __author__ = "Daniel Ching, Viktor Nikitin"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 
 import cupy as cp
+import numpy as np
 try:
     from importlib.resources import files
 except ImportError:
@@ -10,7 +11,29 @@ except ImportError:
 
 from .operator import Operator
 
-_cu_source = files('tike.operators.cupy').joinpath('interp.cu').read_text()
+kernels = [
+    'fwd_lanczos_interp2D<float2,float>',
+    'adj_lanczos_interp2D<float2,float>',
+    'fwd_lanczos_interp2D<double2,float>',
+    'adj_lanczos_interp2D<double2,float>',
+    'fwd_lanczos_interp2D<float2,double>',
+    'adj_lanczos_interp2D<float2,double>',
+    'fwd_lanczos_interp2D<double2,double>',
+    'adj_lanczos_interp2D<double2,double>',
+]
+
+_interp_module = cp.RawModule(
+    code=files('tike.operators.cupy').joinpath('interp.cu').read_text(),
+    name_expressions=kernels,
+    options=('--std=c++11',),
+)
+
+typename = {
+    np.dtype('complex64'): 'float2',
+    np.dtype('float32'): 'float',
+    np.dtype('complex128'): 'double2',
+    np.dtype('float64'): 'double',
+}
 
 
 def _remap_lanczos(Fe, x, m, F, fwd=True, cval=0.0):
@@ -33,15 +56,12 @@ def _remap_lanczos(Fe, x, m, F, fwd=True, cval=0.0):
     assert x.ndim == 2 and x.shape[-1] == 2
     assert m > 0
     assert F.shape == x.shape[:-1], F.dtype == Fe.dtype
-    assert Fe.dtype == 'complex64'
-    assert F.dtype == 'complex64'
-    assert x.dtype == 'float32'
+    assert Fe.dtype == F.dtype
     lanczos_width = 2 * m + 1
 
-    if fwd:
-        kernel = cp.RawKernel(_cu_source, "fwd_lanczos_interp2D")
-    else:
-        kernel = cp.RawKernel(_cu_source, "adj_lanczos_interp2D")
+    kernel = _interp_module.get_function(
+        f"{'fwd' if fwd else 'adj'}_lanczos_interp2D<{typename[Fe.dtype]},{typename[x.dtype]}>"
+    )
 
     grid = (-(-x.shape[0] // kernel.max_threads_per_block), 0, 0)
     block = (min(x.shape[0], kernel.max_threads_per_block), 0, 0)

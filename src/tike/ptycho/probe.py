@@ -47,6 +47,7 @@ import numpy.typing as npt
 
 import tike.linalg
 import tike.random
+import tike.precision
 
 logger = logging.getLogger(__name__)
 
@@ -455,8 +456,10 @@ def add_modes_random_phase(probe, nmodes):
     Brocklesby, "Ptychographic coherent diffractive imaging with orthogonal
     probe relaxation." Opt. Express 24, 8360 (2016). doi: 10.1364/OE.24.008360
     """
-    all_modes = np.empty((*probe.shape[:-3], nmodes, *probe.shape[-2:]),
-                         dtype='complex64')
+    all_modes = np.empty_like(
+        probe,
+        shape=(*probe.shape[:-3], nmodes, *probe.shape[-2:]),
+    )
     pw = probe.shape[-1]
     for m in range(nmodes):
         if m < probe.shape[-3]:
@@ -641,7 +644,7 @@ def init_varying_probe(
         *scan.shape[:-1],
         num_eigen_probes,
         shared_probe.shape[-3],
-    ).astype('float32')
+    ).astype(tike.precision.floating)
     weights -= np.mean(weights, axis=-3, keepdims=True)
     # The weight of the first eigen probe is non-zero.
     weights[..., 0, :] = 1.0
@@ -656,7 +659,7 @@ def init_varying_probe(
         num_eigen_probes - 1,
         probes_with_modes,
         *shared_probe.shape[-2:],
-    ).astype('complex64')
+    )
     # The eigen probes are mean normalized.
     eigen_probe /= tike.linalg.mnorm(eigen_probe, axis=(-2, -1), keepdims=True)
 
@@ -682,7 +685,7 @@ def orthogonalize_eig(x):
     # 'A' holds the dot product of all possible mode pairs. This is equivalent
     # to x^H @ x. We only fill the upper half of `A` because it is
     # conjugate-symmetric.
-    A = xp.empty((*x.shape[:-3], nmodes, nmodes), dtype='complex64')
+    A = xp.empty_like(x, shape=(*x.shape[:-3], nmodes, nmodes))
     for i in range(nmodes):
         for j in range(i, nmodes):
             A[..., i, j] = xp.sum(
@@ -729,7 +732,7 @@ def gaussian(size, rin=0.8, rout=1.0):
     rs = np.sqrt((r - size / 2)**2 + (c - size / 2)**2)
     rmax = np.sqrt(2) * 0.5 * rout * rs.max() + 1.0
     rmin = np.sqrt(2) * 0.5 * rin * rs.max()
-    img = np.zeros((size, size), dtype='float32')
+    img = np.zeros((size, size), dtype=tike.precision.floating)
     img[rs < rmin] = 1.0
     img[rs > rmax] = 0.0
     zone = np.logical_and(rs > rmin, rs < rmax)
@@ -827,13 +830,13 @@ def finite_probe_support(probe, *, radius=0.5, degree=5, p=1.0):
     centers = cp.linspace(-0.5, 0.5, num=N, endpoint=False) + 0.5 / N
     i, j = cp.meshgrid(centers, centers)
     mask = 1 - cp.exp(-(cp.square(i / radius) + cp.square(j / radius))**degree)
-    return p * mask.astype('float32')
+    return p * mask.astype(tike.precision.floating)
 
 
 if __name__ == "__main__":
     cp.random.seed()
     x = (cp.random.rand(7, 1, 9, 3, 3) +
-         1j * cp.random.rand(7, 1, 9, 3, 3)).astype('complex64')
+         1j * cp.random.rand(7, 1, 9, 3, 3)).astype(tike.precision.cfloating)
     x1 = orthogonalize_eig(x)
     assert x1.shape == x.shape, x1.shape
 

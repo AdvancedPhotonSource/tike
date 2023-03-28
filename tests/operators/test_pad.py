@@ -27,10 +27,9 @@ class TestPad(unittest.TestCase, OperatorTests):
         corner = self.xp.asarray(np.random.randint(0, 32, size=(shape[0], 2)))
 
         np.random.seed(0)
-        self.m = self.xp.asarray(random_complex(*shape), dtype='complex64')
+        self.m = self.xp.asarray(random_complex(*shape))
         self.m_name = 'unpadded'
-        self.d = self.xp.asarray(random_complex(*padded_shape),
-                                 dtype='complex64')
+        self.d = self.xp.asarray(random_complex(*padded_shape))
         self.d_name = 'padded'
         self.kwargs = {
             'corner': corner,
@@ -53,10 +52,9 @@ class TestPadDefaults(unittest.TestCase, OperatorTests):
         padded_shape = shape
 
         np.random.seed(0)
-        self.m = self.xp.asarray(random_complex(*shape), dtype='complex64')
+        self.m = self.xp.asarray(random_complex(*shape))
         self.m_name = 'unpadded'
-        self.d = self.xp.asarray(random_complex(*padded_shape),
-                                 dtype='complex64')
+        self.d = self.xp.asarray(random_complex(*padded_shape))
         self.d_name = 'padded'
         self.kwargs = {
             'corner': None,

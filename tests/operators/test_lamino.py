@@ -5,6 +5,7 @@ import unittest
 
 import numpy as np
 from tike.operators import Lamino, Bucket
+import tike.precision
 
 from .util import random_complex, OperatorTests
 
@@ -25,13 +26,14 @@ class TestLaminoFourier(unittest.TestCase, OperatorTests):
         self.operator.__enter__()
         self.xp = self.operator.xp
         np.random.seed(0)
-        self.m = self.xp.asarray(random_complex(n, n, n), dtype='complex64')
+        self.m = self.xp.asarray(random_complex(n, n, n))
         self.m_name = 'u'
-        self.d = self.xp.asarray(random_complex(ntheta, n, n),
-                                 dtype='complex64')
+        self.d = self.xp.asarray(random_complex(ntheta, n, n))
         self.d_name = 'data'
         self.kwargs = {
-            'theta': self.xp.linspace(0, 2 * np.pi, ntheta).astype('float32')
+            'theta':
+                self.xp.linspace(0, 2 * np.pi,
+                                 ntheta).astype(tike.precision.floating)
         }
         print(self.operator)
 
@@ -52,14 +54,16 @@ class TestLaminoBucket(unittest.TestCase, OperatorTests):
         self.operator.__enter__()
         self.xp = self.operator.xp
         np.random.seed(0)
-        self.m = self.xp.asarray(random_complex(n, n, n), dtype='complex64')
+        self.m = self.xp.asarray(random_complex(n, n, n),
+                                 dtype=tike.precision.cfloating)
         self.m_name = 'u'
         self.d = self.xp.asarray(random_complex(ntheta, n, n),
-                                 dtype='complex64')
+                                 dtype=tike.precision.cfloating)
         self.d_name = 'data'
         self.kwargs = {
             'theta':
-                self.xp.linspace(0, 2 * np.pi, ntheta).astype('float32'),
+                self.xp.linspace(0, 2 * np.pi,
+                                 ntheta).astype(tike.precision.floating),
             'grid':
                 self.xp.asarray(self.operator._make_grid().reshape(n**3, 3),
                                 dtype='int16'),

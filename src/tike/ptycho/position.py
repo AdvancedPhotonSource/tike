@@ -12,6 +12,7 @@ import numpy as np
 import tike.communicators
 import tike.linalg
 import tike.opt
+import tike.precision
 
 logger = logging.getLogger(__name__)
 
@@ -68,19 +69,19 @@ class AffineTransform:
                 [self.scale0, 0.0],
                 [0.0, self.scale1],
             ],
-            dtype='float32',
+            dtype=tike.precision.floating,
         ) @ xp.array(
             [
                 [1.0, 0.0],
                 [self.shear1, 1.0],
             ],
-            dtype='float32',
+            dtype=tike.precision.floating,
         ) @ xp.array(
             [
                 [+cosx, -sinx],
                 [+sinx, +cosx],
             ],
-            dtype='float32',
+            dtype=tike.precision.floating,
         )
 
     def asarray3(self, xp=np) -> np.ndarray:
@@ -89,7 +90,7 @@ class AffineTransform:
         This matrix is scale @ shear @ rotate from left to right. Expects a
         homogenous (z) coordinate of 1.
         """
-        T = xp.empty((3, 2), dtype='float32')
+        T = xp.empty((3, 2), dtype=tike.precision.floating)
         T[2] = (self.t0, self.t1)
         T[:2, :2] = self.asarray(xp)
         return T
@@ -222,16 +223,16 @@ class PositionOptions:
     """A rating of the confidence of position information around each position."""
 
     def __post_init__(self):
-        self.initial_scan = self.initial_scan.astype('float32')
+        self.initial_scan = self.initial_scan.astype(tike.precision.floating)
         if self.confidence is None:
             self.confidence = np.ones(
                 shape=(*self.initial_scan.shape[:-1], 1),
-                dtype='float32',
+                dtype=tike.precision.floating,
             )
         if self.use_adaptive_moment:
             self._momentum = np.zeros(
                 (*self.initial_scan.shape[:-1], 4),
-                dtype='float32',
+                dtype=tike.precision.floating,
             )
 
     def append(self, new_scan):
@@ -471,12 +472,14 @@ def update_positions_pd(operator, data, psi, probe, scan,
         dfarplane_dx = (farplane - operator.fwd(
             psi=psi,
             probe=probe[..., m:m + 1, :, :],
-            scan=scan + operator.xp.array((0, dx), dtype='float32'),
+            scan=scan + operator.xp.array(
+                (0, dx), dtype=tike.precision.floating),
         )) / dx
         dfarplane_dy = (farplane - operator.fwd(
             psi=psi,
             probe=probe[..., m:m + 1, :, :],
-            scan=scan + operator.xp.array((dx, 0), dtype='float32'),
+            scan=scan + operator.xp.array(
+                (dx, 0), dtype=tike.precision.floating),
         )) / dx
 
         # step 3: the partial derivatives of intensity respect to position
