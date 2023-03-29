@@ -10,10 +10,15 @@ import tike.precision
 def test_norm():
     # Complex inner product is equal to square of complex norm
     a = tike.random.cupy_complex(5)
-    cp.testing.assert_allclose(1.0, cp.linalg.norm(a / cp.linalg.norm(a)))
+    cp.testing.assert_allclose(
+        tike.precision.floating(1.0),
+        cp.linalg.norm(a / cp.linalg.norm(a)),
+        rtol=1e-6,
+    )
     cp.testing.assert_allclose(
         cp.sqrt(tike.linalg.inner(a, a)),
         cp.linalg.norm(a),
+        rtol=1e-6,
     )
 
 
