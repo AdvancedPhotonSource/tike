@@ -24,9 +24,9 @@ view.
     [ 0 | 1 | 2 | 3 | 4 | .... ]
       ^           ^
       |           |
-      -- This is the minimum corner of the field of view. It's coordinate is 0.
+      -- This is the minimum corner of the field of view. Its coordinate is 0.
                   |
-                  -- This is the 3rd pixel. It's coordinate is 3.
+                  -- This is the 3rd pixel. Its coordinate is 3.
 
 Because the coordinate system includes zero, a field of view with width `w`
 will include coordinates 0, 1, 2, ..., (w-1). By extension, a probe located at
