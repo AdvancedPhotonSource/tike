@@ -28,7 +28,6 @@ classifiers = [
 dependencies = [
   "cupy >=10.0, !=10.3.0",
   'importlib_resources; python_version<"3.9"',
-  'importlib_metadata; python_version<"3.8"',
   "matplotlib ==3.*",
   "numpy ~=1.17",
   "opencv-python >=3.4, <5.0",
@@ -36,7 +35,7 @@ dependencies = [
 ]
 license = {text = "BSD 3-Clause License"}
 name = "tike"
-requires-python = "~=3.6"
+requires-python = "~=3.8"
 dynamic = ["version", "readme"]
 optional-dependencies = {mpi = [
       "mpi4py ==3.*"

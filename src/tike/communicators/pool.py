@@ -35,6 +35,7 @@ class ThreadPool(ThreadPoolExecutor):
         When invalid GPU device ids are provided.
         When the current CUDA device does not match the first GPU id in the
         list of workers.
+
     """
 
     Device = cp.cuda.Device

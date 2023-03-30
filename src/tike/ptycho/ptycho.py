@@ -369,7 +369,7 @@ class Reconstruction():
 
         if self._device_parameters.probe_options is not None:
             self._device_parameters.probe_options = self._device_parameters.probe_options.copy_to_device(
-            )
+                self.comm,)
 
         if self._device_parameters.object_options is not None:
             self._device_parameters.object_options = self._device_parameters.object_options.copy_to_device(

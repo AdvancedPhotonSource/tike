@@ -118,12 +118,25 @@ class ProbeOptions:
     hard constraint.
     """
 
-    def copy_to_device(self):
+    probe_update_sum: typing.Union[npt.NDArray, None] = dataclasses.field(
+        init=False,
+        default_factory=lambda: None,
+    )
+    """Used for momentum updates."""
+
+    preconditioner: typing.Union[npt.NDArray, None] = dataclasses.field(
+        init=False,
+        default_factory=lambda: None,
+    )
+
+    def copy_to_device(self, comm):
         """Copy to the current GPU memory."""
         if self.v is not None:
             self.v = cp.asarray(self.v)
         if self.m is not None:
             self.m = cp.asarray(self.m)
+        if self.preconditioner is not None:
+            self.preconditioner = comm.pool.bcast([self.preconditioner])
         return self
 
     def copy_to_host(self):
@@ -132,6 +145,8 @@ class ProbeOptions:
             self.v = cp.asnumpy(self.v)
         if self.m is not None:
             self.m = cp.asnumpy(self.m)
+        if self.preconditioner is not None:
+            self.preconditioner = cp.asnumpy(self.preconditioner[0])
         return self
 
     def resample(self, factor: float) -> ProbeOptions:
@@ -580,7 +595,7 @@ def add_modes_cartesian_hermite(probe, nmodes: int):
             new_probes.append(basis)
 
             if len(new_probes) == nmodes:
-                return np.concatenate(new_probes, axis=-3)
+                return np.concatenate(new_probes, axis=-3)[..., :nmodes, :, :]
 
     raise RuntimeError(
         "`add_modes_cartesian_hermite` never reached a return statement."
@@ -695,15 +710,11 @@ def orthogonalize_eig(x):
     # We find the eigen vectors of x^H @ x in order to get v^H from SVD of x
     # without computing u, s.
     val, vectors = xp.linalg.eigh(A, UPLO='U')
-    # np.linalg.eigh guarantees that the eigen values are returned in ascending
-    # order, so we just reverse the order of modes to have them sorted in
-    # descending order.
-    vectors = vectors[..., ::-1].swapaxes(-1, -2)
-    result = (vectors @ x.reshape(*x.shape[:-2], -1)).reshape(*x.shape)
-    assert np.all(
-        np.diff(tike.linalg.norm(result, axis=(-2, -1), keepdims=False),
-                axis=-1) <= 0
-    ), f"Power of the orthogonalized probes should be monotonically decreasing! {val}"
+    result = (vectors.swapaxes(-1, -2) @ x.reshape(*x.shape[:-2], -1)).reshape(
+        *x.shape)
+    power = tike.linalg.norm(result, axis=(-2, -1), keepdims=False)
+    result = result[...,
+                    np.argsort(power, axis=None, kind='stable')[::-1], :, :]
     return result
 
 

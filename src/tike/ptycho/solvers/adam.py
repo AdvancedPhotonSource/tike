@@ -1,21 +1,28 @@
 import logging
+import typing
 
-from tike.opt import get_batch, adam, randomizer
+import cupy as cp
+import numpy.typing as npt
 
-from ..object import positivity_constraint, smoothness_constraint
-from ..probe import orthogonalize_eig
+import tike.communicators
+import tike.operators
+import tike.opt
+import tike.ptycho.object
+import tike.ptycho.probe
+
+from .options import *
 
 logger = logging.getLogger(__name__)
 
 
 def adam_grad(
-    op,
-    comm,
-    data,
-    batches,
+    op: tike.operators.Ptycho,
+    comm: tike.communicators.Comm,
+    data: typing.List[npt.NDArray],
+    batches: typing.List[npt.NDArray[cp.intc]],
     *,
-    parameters,
-):
+    parameters: PtychoParameters,
+) -> PtychoParameters:
     """Solve the ptychography problem using ADAptive Moment gradient descent.
 
     Parameters
@@ -45,57 +52,116 @@ def adam_grad(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
-    probe = parameters.probe
-    scan = parameters.scan
-    psi = parameters.psi
-    algorithm_options = parameters.algorithm_options
-    probe_options = parameters.probe_options
-    position_options = parameters.position_options
-    object_options = parameters.object_options
+    if parameters.algorithm_options.batch_method == 'compact':
+        order = range
+    else:
+        order = tike.opt.randomizer.permutation
+
     batch_cost = []
+    sum_grad_object = 0
+    sum_grad_probe = 0
+    sum_amp_psi = 0
+    sum_amp_probe = 0
+    for n in order(parameters.algorithm_options.num_batch):
 
-    for n in randomizer.permutation(len(batches[0])):
+        bdata = comm.pool.map(tike.opt.get_batch, data, batches, n=n)
+        bscan = comm.pool.map(tike.opt.get_batch, parameters.scan, batches, n=n)
 
-        bdata = comm.pool.map(get_batch, data, batches, n=n)
-        bscan = comm.pool.map(get_batch, scan, batches, n=n)
-
-        cost, psi, probe = _update_all(
-            op,
-            comm,
+        (
+            cost,
+            grad_psi,
+            grad_probe,
+            amp_psi,
+            amp_probe,
+        ) = (list(a) for a in zip(*comm.pool.map(
+            _grad_all,
             bdata,
-            psi,
+            parameters.psi,
             bscan,
-            probe,
-            object_options,
-            probe_options,
-            algorithm_options,
-        )
+            parameters.probe,
+            op=op,
+        )))
+
+        cost = comm.Allreduce_mean(cost, axis=None).get()
+        logger.info('%10s cost is %+12.5e', 'farplane', cost)
         batch_cost.append(cost)
 
-    if probe_options and probe_options.orthogonality_constraint:
-        probe = comm.pool.map(orthogonalize_eig, probe)
+        sum_grad_object += comm.Allreduce_reduce_gpu(grad_psi)[0]
+        sum_amp_probe += comm.Allreduce_reduce_gpu(amp_probe)[0]
+        sum_grad_probe += comm.Allreduce_reduce_gpu(grad_probe)[0]
+        sum_amp_psi += comm.Allreduce_reduce_gpu(amp_psi)[0]
 
-    if object_options:
-        psi = comm.pool.map(positivity_constraint,
-                            psi,
-                            r=object_options.positivity_constraint)
+        if parameters.algorithm_options.batch_method != 'compact':
+            (
+                parameters.psi,
+                parameters.probe,
+            ) = _update_all(
+                comm,
+                parameters.psi,
+                parameters.probe,
+                sum_grad_object,
+                sum_grad_probe,
+                sum_amp_psi,
+                sum_amp_probe,
+                parameters.object_options,
+                parameters.probe_options,
+                parameters.algorithm_options,
+            )
+            sum_grad_object = 0
+            sum_grad_probe = 0
+            sum_amp_psi = 0
+            sum_amp_probe = 0
 
-        psi = comm.pool.map(smoothness_constraint,
-                            psi,
-                            a=object_options.smoothness_constraint)
+    if parameters.algorithm_options.batch_method == 'compact':
+        (
+            parameters.psi,
+            parameters.probe,
+        ) = _update_all(
+            comm,
+            parameters.psi,
+            parameters.probe,
+            sum_grad_object,
+            sum_grad_probe,
+            sum_amp_psi,
+            sum_amp_probe,
+            parameters.object_options,
+            parameters.probe_options,
+            parameters.algorithm_options,
+        )
 
-    algorithm_options.costs.append(batch_cost)
-    parameters.probe = probe
-    parameters.psi = psi
-    parameters.scan = scan
-    parameters.algorithm_options = algorithm_options
-    parameters.probe_options = probe_options
-    parameters.object_options = object_options
-    parameters.position_options = position_options
+    if (parameters.probe_options
+            and parameters.probe_options.orthogonality_constraint):
+        parameters.probe = comm.pool.map(
+            tike.ptycho.probe.orthogonalize_eig,
+            parameters.probe,
+        )
+
+    if parameters.object_options:
+        parameters.psi = comm.pool.map(
+            tike.ptycho.object.positivity_constraint,
+            parameters.psi,
+            r=parameters.object_options.positivity_constraint,
+        )
+
+        parameters.psi = comm.pool.map(
+            tike.ptycho.object.smoothness_constraint,
+            parameters.psi,
+            a=parameters.object_options.smoothness_constraint,
+        )
+
+    parameters.algorithm_options.costs.append(batch_cost)
     return parameters
 
 
-def _grad_all(data, psi, scan, probe, mode=None, op=None):
+def _grad_all(
+    data: npt.NDArray,
+    psi: npt.NDArray,
+    scan: npt.NDArray,
+    probe: npt.NDArray,
+    *,
+    mode: typing.Union[None, typing.List[int]] = None,
+    op: tike.operators.Ptycho,
+) -> typing.Tuple[npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray]:
     """Compute the gradient with respect to probe(s) and object.
 
     Parameters
@@ -104,17 +170,16 @@ def _grad_all(data, psi, scan, probe, mode=None, op=None):
         Only return the gradient with resepect to these probes.
 
     """
-    self = op
     mode = list(range(probe.shape[-3])) if mode is None else mode
-    intensity, farplane = self._compute_intensity(
+    intensity, farplane = op._compute_intensity(
         data,
         psi,
         scan,
         probe,
     )
-    cost = self.propagation.cost(data, intensity)
-    grad_psi, grad_probe, psi_amp, probe_amp = self.adj_all(
-        farplane=self.propagation.grad(
+    cost = op.propagation.cost(data, intensity)
+    grad_psi, grad_probe, amp_psi, amp_probe = op.adj_all(
+        farplane=op.propagation.grad(
             data,
             farplane[..., mode, :, :],
             intensity,
@@ -125,91 +190,70 @@ def _grad_all(data, psi, scan, probe, mode=None, op=None):
         overwrite=True,
         rpie=True,
     )
-    grad_probe = self.xp.sum(
+    grad_probe = op.xp.sum(
         grad_probe,
         axis=0,
         keepdims=True,
     )
-    return cost, grad_psi, grad_probe, psi_amp, probe_amp
+    return cost, grad_psi, grad_probe, amp_psi, amp_probe
 
 
 def _update_all(
-    op,
-    comm,
-    data,
-    psi,
-    scan,
-    probe,
-    object_options,
-    probe_options,
-    algorithm_options,
-):
-    (
-        cost,
-        grad_psi,
-        grad_probe,
-        psi_amp,
-        probe_amp,
-    ) = (list(a) for a in zip(*comm.pool.map(
-        _grad_all,
-        data,
-        psi,
-        scan,
-        probe,
-        op=op,
-    )))
+    comm: tike.communicators.Comm,
+    psi: typing.List[npt.NDArray],
+    probe: typing.List[npt.NDArray],
+    dpsi: npt.NDArray,
+    dprobe: npt.NDArray,
+    amp_psi: npt.NDArray,
+    amp_probe: npt.NDArray,
+    object_options: ObjectOptions,
+    probe_options: ProbeOptions,
+    algorithm_options: AdamOptions,
+) -> typing.Tuple[typing.List[npt.NDArray], typing.List[npt.NDArray]]:
+    if object_options:
 
-    cost = comm.Allreduce_mean(cost, axis=None).get()
-    logger.info('%10s cost is %+12.5e', 'farplane', cost)
+        deno = (1 - algorithm_options.alpha
+               ) * amp_probe + algorithm_options.alpha * amp_probe.max(
+                   keepdims=True,
+                   axis=(-1, -2),
+               )
+        dpsi = dpsi / deno
 
-    if object_options is not None:
-        dpsi = comm.Allreduce_reduce_gpu(grad_psi)[0]
-        probe_amp = comm.Allreduce_reduce_gpu(probe_amp)[0]
-
-        dpsi /= (1 - algorithm_options.alpha
-                ) * probe_amp + algorithm_options.alpha * probe_amp.max(
-                    keepdims=True,
-                    axis=(-1, -2),
-                )
-
-        object_options.use_adaptive_moment = True
         (
             dpsi,
             object_options.v,
             object_options.m,
-        ) = adam(
+        ) = tike.opt.adam(
             g=dpsi,
             v=object_options.v,
             m=object_options.m,
             vdecay=object_options.vdecay,
             mdecay=object_options.mdecay,
         )
-        psi[0] = psi[0] - algorithm_options.step_length * dpsi
+        psi[0] = psi[0] - algorithm_options.step_length * dpsi / deno
         psi = comm.pool.bcast([psi[0]])
 
-    if probe_options is not None:
-        dprobe = comm.Allreduce_reduce_gpu(grad_probe)[0]
-        psi_amp = comm.Allreduce_reduce_gpu(psi_amp)[0]
+    if probe_options:
 
-        dprobe /= (1 - algorithm_options.alpha
-                  ) * psi_amp + algorithm_options.alpha * psi_amp.max(
-                      keepdims=True,
-                      axis=(-1, -2),
-                  )
+        deno = (1 - algorithm_options.alpha
+               ) * amp_psi + algorithm_options.alpha * amp_psi.max(
+                   keepdims=True,
+                   axis=(-1, -2),
+               )
+        dprobe = dprobe / deno
 
-        probe_options.use_adaptive_moment = True
         (
             dprobe,
             probe_options.v,
             probe_options.m,
-        ) = adam(
+        ) = tike.opt.adam(
             g=dprobe,
             v=probe_options.v,
             m=probe_options.m,
-            vdecay=probe_options.vdecay,
-            mdecay=probe_options.mdecay,
+            vdecay=object_options.vdecay,
+            mdecay=object_options.mdecay,
         )
         probe[0] = probe[0] - algorithm_options.step_length * dprobe
         probe = comm.pool.bcast([probe[0]])
 
-    return cost, psi, probe
+    return psi, probe
