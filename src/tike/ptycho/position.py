@@ -1,4 +1,119 @@
-"""Functions for manipulating and updating scanning positions."""
+"""Functions for manipulating and updating scanning positions.
+
+Tike coordinate system conventions explanation in one dimension
+===============================================================
+
+Minimum corner coordinates
+--------------------------
+
+Tike uses an origin-at-minimum-corner coordinate system. This means that
+location of every object is described by its minimum corner (the corner closest
+to negative infinity). It also means that valid coordinates (coordinates within
+the field of view) are strictly non-negative because the field of view has its
+origin at the minimum corner of the field of view, so none of the coordinates
+within the field of view will be negative.
+
+Tike uses pixel units for scan positions, so that there is a one-to-one-to-one
+corespondence between scan positions, coordinates, and pixels in the field of
+view.
+
+::
+
+    Figure 1: The coordinate system in the field of view
+
+    [ 0 | 1 | 2 | 3 | 4 | .... ]
+      ^           ^
+      |           |
+      -- This is the minimum corner of the field of view. It's coordinate is 0.
+                  |
+                  -- This is the 3rd pixel. It's coordinate is 3.
+
+Because the coordinate system includes zero, a field of view with width `w`
+will include coordinates 0, 1, 2, ..., (w-1). By extension, a probe located at
+position 7 with a width 4 would cover coordinates 7, 8, 9, 10. The center of a
+probe is located at its position plus half its width.
+
+::
+
+    Figure 2: A probe located at position 7
+
+    ... | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | ...
+                    [ p | p | p | p  ]
+                      ^   ^   ^   ^
+                      |   | ^ |   |
+                      ------|------- A probe located at 7 with width 4 is placed here.
+                            |
+                            -- The center of the probe is located at 7 + (4 / 2).
+
+Conversion to and from real units
+---------------------------------
+
+Conversion from pixel units to real units (e.g. meters) is a scalar
+multiplication by the real width of a pixel.
+
+::
+
+    Equation 1: Conversion from pixels to real units
+
+    (distance in pixels) (real units)  = (distance in real units)
+                         -------------
+                        (per one pixel)
+
+The forbidden edge and minimum field of view width
+--------------------------------------------------
+
+Tike does not allow probes to occupy pixels within 1 pixel of the edge of the
+field of view. This is to prevent accidentally accessing pixels out of the
+field of view (where the values are undefined) when scan positions are
+non-integer coordinates. In other words, the minimum coordinate (floor) must be
+>= 1 and the maximum coordinate must be <= field of view width - probe width -
+1.
+
+::
+
+    Figure 3: The minimum field of view width
+
+    [ x | 1 | 2 | 3 | 4 | x ]
+      ^ [ p | p | p | p ] ^
+      |   ^   ^   ^   ^   |
+      ----|---|---|---|----- These pixels are forbidden because they are the edge pixel
+          |   |   |   |
+          -------------- These pixels are occupied by a probe of width 4
+
+Thus for a probe with of 4, the smallest field of view is 6 pixels wide and the
+only valid probe position is 1. The minimum valid coordinate is 1, and the
+maximum valid coordinate is 6 - 4 - 1 = 1. In practice, this means that you
+will shift your scan positions so the minimum position is 1. And the minimum
+field of view width is the span of the scan positions + probe width + 2.
+
+::
+
+    Equation 2: Minimum field of view width equation
+
+    (minimum field of view width) = (maximum scan position) - (minimum scan position) + (probe width) + 2
+
+Example in one dimension
+------------------------
+
+The following python pseudo code would prepare you scan positions for tike and
+initialize the minimum-size field of view
+
+.. code-block:: python
+    :linenos:
+
+    import numpy as np
+
+    scan_in_pixels = scan_in_meters * pixels_per_meter
+
+    minimum_fov_width = np.amax(scan_in_pixels) - np.amin(scan_in_pixels) +
+    probe_width + 2 field_of_view = np.zeros(shape=(minimum_fov_width),
+    dtype=np.cfloat)
+
+    scan_in_pixels = scan_in_pixels - np.amin(scan_in_pixels) + 1
+
+Note that :py:func:`tike.ptycho.object.get_padded_object` will do lines 5-8 for you.
+
+"""
 
 from __future__ import annotations
 import dataclasses
