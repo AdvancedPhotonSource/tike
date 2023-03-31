@@ -100,6 +100,12 @@ def complexHSV_to_RGB(img0):
         raise ValueError('The maximum amplitude of `img0` must be <= 1.0; '
                          'rescale your image before converting to RGB.')
 
+    if hsv_img[..., 2].max() > 1.0:
+        raise ValueError(
+            'The maximum amplitude of `img0` must be <= 1.0; '
+            'rescale your image before converting to RGB.'
+        )
+
     #================================
     # Rescale hue to the range [0, 1]
 

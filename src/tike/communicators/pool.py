@@ -35,6 +35,7 @@ class ThreadPool(ThreadPoolExecutor):
         When invalid GPU device ids are provided.
         When the current CUDA device does not match the first GPU id in the
         list of workers.
+
     """
 
     Device = cp.cuda.Device
@@ -316,11 +317,12 @@ class ThreadPool(ThreadPoolExecutor):
     ) -> cp.ndarray:
         """Reduce x by addition to one GPU from all other GPUs."""
         worker = self.workers[0] if worker is None else worker
-        return cp.mean(
-            self.gather(x, worker=worker, axis=axis),
-            keepdims=x[0].ndim > 0,
-            axis=axis,
-        )
+        with self.Device(worker):
+            return cp.mean(
+                self.gather(x, worker=worker, axis=axis),
+                keepdims=x[0].ndim > 0,
+                axis=axis,
+            )
 
     def allreduce(
         self,

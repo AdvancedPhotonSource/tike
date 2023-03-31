@@ -7,10 +7,12 @@ the complex refractive indices in the field of view.
 from __future__ import annotations
 import dataclasses
 import logging
+import typing
 
 import cupy as cp
 import cupyx.scipy.ndimage
 import numpy as np
+import numpy.typing as npt
 import scipy.interpolate
 
 import tike.linalg
@@ -40,18 +42,28 @@ class ObjectOptions:
     mdecay: float = 0.9
     """The proportion of the first moment that is previous first moments."""
 
-    v: np.array = dataclasses.field(init=False, default_factory=lambda: None)
+    v: typing.Union[npt.NDArray, None] = dataclasses.field(
+        init=False,
+        default_factory=lambda: None,
+    )
     """The second moment for adaptive moment."""
 
-    m: np.array = dataclasses.field(init=False, default_factory=lambda: None)
+    m: typing.Union[npt.NDArray, None] = dataclasses.field(
+        init=False,
+        default_factory=lambda: None,
+    )
     """The first moment for adaptive moment."""
 
-    preconditioner: np.array = dataclasses.field(init=False,
-                                                 default_factory=lambda: None)
+    preconditioner: typing.Union[npt.NDArray, None] = dataclasses.field(
+        init=False,
+        default_factory=lambda: None,
+    )
     """The magnitude of the illumination used for conditioning the object updates."""
 
-    combined_update: np.array = dataclasses.field(init=False,
-                                                  default_factory=lambda: None)
+    combined_update: typing.Union[npt.NDArray, None] = dataclasses.field(
+        init=False,
+        default_factory=lambda: None,
+    )
     """Used for compact batch updates."""
 
     clip_magnitude: bool = True
@@ -174,7 +186,7 @@ def get_absorbtion_image(data, scan, *, rescale=1.0, method='cubic'):
     ----------
     data : (FRAME, WIDE, HIGH)
         The intensity (square of the absolute value) of the propagated
-        wavefront; i.e. what the detector records. FFT-shifted so the
+        wavefront i.e. what the detector records. FFT-shifted so the
         diffraction peak is at the corners.
     scan : (POSI, 2) float32
         Coordinates of the minimum corner of the probe grid for each
@@ -203,3 +215,17 @@ def get_absorbtion_image(data, scan, *, rescale=1.0, method='cubic'):
         fill_value=np.amax(values),
     )
     return np.reshape(absorption_image, coord0.shape)
+
+
+def remove_object_ambiguity(
+    psi: npt.NDArray[cp.complex64],
+    probe: npt.NDArray[cp.complex64],
+    preconditioner: npt.NDArray[cp.complex64],
+) -> typing.Tuple[npt.NDArray[cp.complex64], npt.NDArray[cp.complex64]]:
+    """Remove normalization ambiguity between probe and psi"""
+    W = preconditioner.real
+    W = W / tike.linalg.mnorm(W)
+    object_norm = 2 * np.sqrt(np.mean(np.square(np.abs(psi)) * W))
+    psi = psi / object_norm
+    probe = probe * object_norm
+    return psi, probe
