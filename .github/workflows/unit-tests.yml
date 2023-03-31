@@ -56,7 +56,7 @@ jobs:
 
       - run: |
           source activate tike
-          pip install . --no-deps
+          pip install . --no-deps --no-build-isolation
         name: Setup and install
 
       - run: |
@@ -116,7 +116,7 @@ jobs:
 
       - run: |
           source activate tike
-          pip install . --no-deps
+          pip install . --no-deps --no-build-isolation
         name: Setup and install
 
       - run: |
