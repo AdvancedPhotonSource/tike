@@ -129,6 +129,12 @@ class ProbeOptions:
         default_factory=lambda: None,
     )
 
+    power: typing.List[typing.List[float]] = dataclasses.field(
+        init=False,
+        default_factory=list,
+    )
+    """The power of the primary probe modes at each iteration."""
+
     def copy_to_device(self, comm):
         """Copy to the current GPU memory."""
         if self.v is not None:
@@ -681,13 +687,20 @@ def init_varying_probe(
     return eigen_probe, weights
 
 
-def orthogonalize_eig(x):
+def orthogonalize_eig(x: npt.NDArray,) -> typing.Tuple[npt.NDArray, npt.NDArray]:
     """Orthogonalize modes of x using eigenvectors of the pairwise dot product.
 
     Parameters
     ----------
     x : (..., nmodes, :, :) array_like complex64
         An array of the probe modes vectorized
+
+    Returns
+    -------
+    x : array_like
+        The orthogonalized probes
+    power : array_like
+        The power of each probe
 
     References
     ----------
@@ -712,10 +725,11 @@ def orthogonalize_eig(x):
     val, vectors = xp.linalg.eigh(A, UPLO='U')
     result = (vectors.swapaxes(-1, -2) @ x.reshape(*x.shape[:-2], -1)).reshape(
         *x.shape)
-    power = tike.linalg.norm(result, axis=(-2, -1), keepdims=False)
-    result = result[...,
-                    np.argsort(power, axis=None, kind='stable')[::-1], :, :]
-    return result
+    power = np.square(tike.linalg.norm(result, axis=(-2, -1), keepdims=False)).flatten()
+    order = np.argsort(power, axis=None, kind='stable')[::-1]
+    result = result[..., order, :, :]
+    power = power[order]
+    return result, power
 
 
 def gaussian(size, rin=0.8, rout=1.0):
@@ -848,7 +862,7 @@ if __name__ == "__main__":
     cp.random.seed()
     x = (cp.random.rand(7, 1, 9, 3, 3) +
          1j * cp.random.rand(7, 1, 9, 3, 3)).astype(tike.precision.cfloating)
-    x1 = orthogonalize_eig(x)
+    x1, _ = orthogonalize_eig(x)
     assert x1.shape == x.shape, x1.shape
 
     p = (cp.random.rand(3, 7, 7) * 100).astype(int)

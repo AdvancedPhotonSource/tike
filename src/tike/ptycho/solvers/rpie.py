@@ -262,9 +262,6 @@ def rpie(
             errors=list(np.mean(x) for x in algorithm_options.costs[-3:]),
         )
 
-    if probe_options and probe_options.orthogonality_constraint:
-        probe = comm.pool.map(tike.ptycho.probe.orthogonalize_eig, probe)
-
     if eigen_weights is not None:
         eigen_weights = comm.pool.map(
             _normalize_eigen_weights,

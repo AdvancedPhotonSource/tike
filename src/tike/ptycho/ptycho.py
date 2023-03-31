@@ -432,6 +432,16 @@ class Reconstruction():
                         .sparsity_constraint,
                     )
 
+                if self._device_parameters.probe_options.orthogonality_constraint:
+                    (
+                        self._device_parameters.probe,
+                        power,
+                    ) = (list(a) for a in zip(*self.comm.pool.map(
+                        tike.ptycho.probe.orthogonalize_eig,
+                        self._device_parameters.probe,
+                    )))
+                    self._device_parameters.probe_options.power.append(power[0].get())
+
             self._device_parameters = getattr(
                 solvers,
                 self._device_parameters.algorithm_options.name,

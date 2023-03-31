@@ -26,7 +26,7 @@ class SiemensStarSetup():
         self.probe = tike.ptycho.probe.add_modes_cartesian_hermite(
             self.probe, 5)
         self.probe = tike.ptycho.probe.adjust_probe_power(self.probe)
-        self.probe = tike.ptycho.probe.orthogonalize_eig(self.probe)
+        self.probe, _ = tike.ptycho.probe.orthogonalize_eig(self.probe)
 
         with tike.communicators.Comm(1, mpi=tike.communicators.MPIComm) as comm:
             mask = tike.cluster.by_scan_stripes(
