@@ -159,7 +159,7 @@ def resize_complex_image(img0,
 
 
 def plot_probe_power(probe):
-    """Draw a bar chart of relative power of each probe to the current axes.
+    """Draw a pie chart of relative power of each probe to the current axes.
 
     The power of the probe is computed as the sum of absolute squares over all
     pixels in the probe.
@@ -175,12 +175,26 @@ def plot_probe_power(probe):
         keepdims=False,
     ).flatten()
     axes = plt.gca()
-    axes.bar(
-        range(len(power)),
-        height=power / np.sum(power),
+    axes.pie(
+        x=power / np.sum(power),
+        labels=range(len(power)),
+        autopct='%1.0f%%',
     )
-    axes.set_xlabel('Probe index')
-    axes.set_ylabel('Relative probe power')
+
+
+def plot_probe_power_series(power):
+    """Draw a stacked area chart of the probe power to the current axis.
+
+    Parameters
+    ----------
+    power (N, M)
+        The power of M probes over N iterations.
+    """
+    power = np.array(power)
+    axes = plt.gca()
+    axes.stackplot(np.arange(0, len(power)), *zip(*power))
+    axes.set_xlabel('Iteration')
+    axes.set_ylabel('Probe power')
 
 
 def plot_position_error(true, *args, indices=None):

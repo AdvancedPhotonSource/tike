@@ -41,7 +41,7 @@ def _save_eigen_probe(output_folder, eigen_probe):
         )
 
 
-def _save_probe(output_folder, probe, algorithm):
+def _save_probe(output_folder, probe, probe_options, algorithm):
     import matplotlib
     matplotlib.use('Agg')
     from matplotlib import pyplot as plt
@@ -54,12 +54,12 @@ def _save_probe(output_folder, probe, algorithm):
         f'{output_folder}/probe.png',
         tike.view.complexHSV_to_RGB(flattened),
     )
-    f = plt.figure()
-    tike.view.plot_probe_power(probe)
-    plt.semilogy()
-    plt.title(algorithm)
-    plt.savefig(f'{output_folder}/probe-power.png')
-    plt.close(f)
+    if len(probe_options.power) > 0:
+        f = plt.figure()
+        tike.view.plot_probe_power_series(probe_options.power)
+        plt.title(algorithm)
+        plt.savefig(f'{output_folder}/probe-power.png')
+        plt.close(f)
     nmodes = probe.shape[-3]
     probe_orthogonality_matrix = np.zeros((nmodes, nmodes))
     for i in range(nmodes):
@@ -111,7 +111,7 @@ def _save_ptycho_result(result, algorithm):
             np.abs(result.psi).astype('float32'),
             cmap=plt.cm.gray,
         )
-        _save_probe(fname, result.probe, algorithm)
+        _save_probe(fname, result.probe, result.probe_options, algorithm)
         if result.eigen_weights is not None:
             _save_eigen_weights(fname, result.eigen_weights)
             if result.eigen_weights.shape[-2] > 1:

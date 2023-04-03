@@ -287,9 +287,6 @@ def lstsq_grad(
             probe[0][..., mode, :, :] = probe[0][..., mode, :, :] + d
             probe = comm.pool.bcast([probe[0]])
 
-    if probe_options and probe_options.orthogonality_constraint:
-        probe = comm.pool.map(tike.ptycho.probe.orthogonalize_eig, probe)
-
     if object_options:
         psi = comm.pool.map(tike.ptycho.object.positivity_constraint,
                             psi,

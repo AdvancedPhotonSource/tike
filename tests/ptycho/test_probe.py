@@ -148,7 +148,8 @@ def test_orthogonalize_eig():
 
     probe = np.rollaxis(input['modes'], -1, 0)
 
-    final1 = cp.asnumpy(tike.ptycho.probe.orthogonalize_eig(cp.asarray(probe)))
+    final1, _ = tike.ptycho.probe.orthogonalize_eig(cp.asarray(probe))
+    final1 = cp.asnumpy(final1)
     final0 = np.rollaxis(output['pr'], -1, 0)
 
     # The phases are not correct because some are out of sync by 180 degrees

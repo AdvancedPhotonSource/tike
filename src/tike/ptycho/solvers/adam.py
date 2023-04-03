@@ -129,13 +129,6 @@ def adam_grad(
             parameters.algorithm_options,
         )
 
-    if (parameters.probe_options
-            and parameters.probe_options.orthogonality_constraint):
-        parameters.probe = comm.pool.map(
-            tike.ptycho.probe.orthogonalize_eig,
-            parameters.probe,
-        )
-
     if parameters.object_options:
         parameters.psi = comm.pool.map(
             tike.ptycho.object.positivity_constraint,
