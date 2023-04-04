@@ -66,7 +66,7 @@ class ObjectOptions:
     )
     """Used for compact batch updates."""
 
-    clip_magnitude: bool = True
+    clip_magnitude: bool = False
     """Whether to force the object magnitude to remain <= 1."""
 
     def copy_to_device(self, comm):

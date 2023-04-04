@@ -56,14 +56,14 @@ logger = logging.getLogger(__name__)
 class ProbeOptions:
     """Manage data and setting related to probe correction."""
 
-    orthogonality_constraint: bool = True
+    force_orthogonality: bool = False
     """Forces probes to be orthogonal each iteration."""
 
-    centered_intensity_constraint: bool = False
+    force_centered_intensity: bool = False
     """Forces the probe intensity to be centered."""
 
-    sparsity_constraint: float = 1
-    """Forces a maximum proportion of non-zero elements."""
+    force_sparsity: float = 0.0
+    """Forces this proportion of zero elements."""
 
     use_adaptive_moment: bool = False
     """Whether or not to use adaptive moment."""
@@ -114,7 +114,7 @@ class ProbeOptions:
     linearly to this value. For example, for three probes, the penalties aplied
     are [0.0, 0.5, 1.0].
 
-    This is a soft constraint as opposed to `sparsity_constraint` which is a
+    This is a soft constraint as opposed to `force_sparsity` which is a
     hard constraint.
     """
 
@@ -158,9 +158,9 @@ class ProbeOptions:
     def resample(self, factor: float) -> ProbeOptions:
         """Return a new `ProbeOptions` with the parameters rescaled."""
         return ProbeOptions(
-            orthogonality_constraint=self.orthogonality_constraint,
-            centered_intensity_constraint=self.centered_intensity_constraint,
-            sparsity_constraint=self.sparsity_constraint,
+            force_orthogonality=self.force_orthogonality,
+            force_centered_intensity=self.force_centered_intensity,
+            force_sparsity=self.force_sparsity,
             use_adaptive_moment=self.use_adaptive_moment,
             vdecay=self.vdecay,
             mdecay=self.mdecay,
@@ -797,10 +797,10 @@ def constrain_center_peak(probe):
 
 
 def constrain_probe_sparsity(probe, f):
-    """Constrain the probe intensity so no more than f/1 elements are nonzero."""
-    if f == 1:
+    """Constrain the probe intensity so at least `f` fraction elements are zero."""
+    if f == 0:
         return probe
-    logger.info("Constrained probe intensity spasity to %.3e", f)
+    logger.info("Constrained probe intensity so %.3e percent are zero", f * 100)
     # First reshape the probe to 3D so it is a single stack of 2D images.
     stack = probe.reshape((-1, *probe.shape[-2:]))
     intensity = np.sum(np.square(np.abs(stack)), axis=0)
@@ -811,7 +811,7 @@ def constrain_probe_sparsity(probe, f):
         mode='wrap',
     )
     # Get the coordinates of the smallest k values
-    k = int((1 - f) * probe.shape[-1] * probe.shape[-2])
+    k = int(f * probe.shape[-1] * probe.shape[-2])
     smallest = np.argpartition(intensity, k, axis=None)[:k]
     coords = cp.unravel_index(smallest, dims=probe.shape[-2:])
     # Set these k smallest values to zero in all probes

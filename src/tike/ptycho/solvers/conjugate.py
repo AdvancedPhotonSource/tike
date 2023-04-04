@@ -174,7 +174,7 @@ def _update_probe(
         step_length=step_length,
     )
 
-    if probe[0].shape[-3] > 1 and probe_options.orthogonality_constraint:
+    if probe[0].shape[-3] > 1 and probe_options.force_orthogonality:
         probe = comm.pool.map(orthogonalize_gs, probe, axis=(-2, -1))
 
     logger.info('%10s cost is %+12.5e', 'probe', cost)
