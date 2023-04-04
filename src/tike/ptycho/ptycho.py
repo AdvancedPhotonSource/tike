@@ -432,7 +432,7 @@ class Reconstruction():
                         .force_sparsity,
                     )
 
-                if self._device_parameters.probe_options.orthogonality_constraint:
+                if self._device_parameters.probe_options.force_orthogonality:
                     (
                         self._device_parameters.probe,
                         power,
