@@ -248,6 +248,18 @@ class PtychoRecon(
             params,
             f"mpi{self.mpi_size}-init{self.post_name}",
         )
+        try:
+            import matplotlib.pyplot as plt
+            plt.imsave(
+                os.path.join(
+                    result_dir,
+                    f"mpi{self.mpi_size}-init{self.post_name}",
+                    'diffraction.png',
+                ),
+                self.data[len(self.data) // 2],
+            )
+        except ImportError:
+            pass
 
     def test_consistent_adam_grad(self):
         """Check ptycho.solver.adam_grad for consistency."""
@@ -268,6 +280,28 @@ class PtychoRecon(
                 params=params,
             ),
             f"mpi{self.mpi_size}-adam_grad{self.post_name}",
+        )
+
+    def test_consistent_adam_grad_compact(self):
+        """Check ptycho.solver.adam_grad for consistency."""
+        params = tike.ptycho.PtychoParameters(
+            psi=self.psi,
+            probe=self.probe,
+            scan=self.scan,
+            algorithm_options=tike.ptycho.AdamOptions(
+                num_batch=5,
+                num_iter=16,
+                batch_method='compact',
+            ),
+            probe_options=ProbeOptions(),
+            object_options=ObjectOptions(),
+        )
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                data=self.data,
+                params=params,
+            ),
+            f"mpi{self.mpi_size}-adam_grad-compact{self.post_name}",
         )
 
     def test_consistent_cgrad(self):
@@ -385,6 +419,60 @@ class PtychoRecon(
             ),
             f"mpi{self.mpi_size}-rpie{self.post_name}",
         )
+
+    def test_consistent_rpie_compact(self):
+        """Check ptycho.solver.rpie for consistency."""
+        params = tike.ptycho.PtychoParameters(
+            psi=self.psi,
+            probe=self.probe,
+            scan=self.scan,
+            algorithm_options=tike.ptycho.RpieOptions(
+                num_batch=5,
+                num_iter=16,
+                batch_method='compact',
+            ),
+            probe_options=ProbeOptions(use_adaptive_moment=True,),
+            object_options=ObjectOptions(use_adaptive_moment=True,),
+        )
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                data=self.data,
+                params=params,
+            ),
+            f"mpi{self.mpi_size}-rpie-compact{self.post_name}"
+        )
+
+    def test_consistent_rpie_variable_probe(self):
+        """Check ptycho.solver.lstsq_grad for consistency."""
+        params = tike.ptycho.PtychoParameters(
+            psi=self.psi,
+            probe=self.probe,
+            scan=self.scan,
+            algorithm_options=tike.ptycho.RpieOptions(
+                num_batch=5,
+                num_iter=16,
+            ),
+            probe_options=ProbeOptions(),
+            object_options=ObjectOptions(),
+        )
+        probes_with_modes = min(1, params.probe.shape[-3])
+        params.eigen_probe, params.eigen_weights = tike.ptycho.probe.init_varying_probe(
+            params.scan,
+            params.probe,
+            num_eigen_probes=1,
+            probes_with_modes=probes_with_modes,
+        )
+        result = self.template_consistent_algorithm(
+            data=self.data,
+            params=params,
+        )
+        _save_ptycho_result(
+            result,
+            f"mpi{self.mpi_size}-rpie-variable-probe{self.post_name}",
+        )
+        assert np.all(result.eigen_weights[..., 1:, probes_with_modes:] == 0), (
+            "These weights should be unused/untouched "
+            "and should have been initialized to zero.")
 
     def test_consistent_dm(self):
         """Check ptycho.solver.dm for consistency."""

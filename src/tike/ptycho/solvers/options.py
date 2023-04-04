@@ -4,6 +4,7 @@ import dataclasses
 import typing
 
 import numpy as np
+import numpy.typing as npt
 import scipy.ndimage
 
 from tike.ptycho.object import ObjectOptions
@@ -17,10 +18,10 @@ class IterativeOptions(abc.ABC):
 
     .. versionadded:: 0.20.0
     """
-    name: str = dataclasses.field(default=None, init=False)
+    name: str = dataclasses.field(default='', init=False)
     """The name of the algorithm."""
 
-    num_batch: int = None
+    num_batch: int = 1
     """The dataset is divided into this number of groups where each group is
     processed sequentially."""
 
@@ -47,7 +48,6 @@ class IterativeOptions(abc.ABC):
     convergence_window: int = 0
     """The number of epochs to consider for convergence monitoring. Set to
     any value less than 2 to disable."""
-
 
 @dataclasses.dataclass
 class AdamOptions(IterativeOptions):
@@ -103,24 +103,24 @@ class PtychoParameters():
 
     .. versionadded:: 0.22.0
     """
-    probe: np.array
+    probe: npt.NDArray[np.csingle]
     """(1, 1, SHARED, WIDE, HIGH) complex64 The shared illumination function
     amongst all positions."""
 
-    psi: np.array
+    psi: npt.NDArray[np.csingle]
     """(WIDE, HIGH) complex64 The wavefront modulation coefficients of
     the object."""
 
-    scan: np.array
+    scan: npt.NDArray[np.single]
     """(POSI, 2) float32 Coordinates of the minimum corner of the probe
     grid for each measurement in the coordinate system of psi. Coordinate order
     consistent with WIDE, HIGH order."""
 
-    eigen_probe: np.array = None
+    eigen_probe: typing.Union[npt.NDArray[np.csingle], None] = None
     """(EIGEN, SHARED, WIDE, HIGH) complex64
     The eigen probes for all positions."""
 
-    eigen_weights: np.array = None
+    eigen_weights: typing.Union[npt.NDArray[np.single], None] = None
     """(POSI, EIGEN, SHARED) float32
     The relative intensity of the eigen probes at each position."""
 
@@ -128,13 +128,13 @@ class PtychoParameters():
         default_factory=RpieOptions,)
     """A class containing algorithm specific parameters"""
 
-    probe_options: ProbeOptions = None
+    probe_options: typing.Union[ProbeOptions, None] = None
     """A class containing settings related to probe updates."""
 
-    object_options: ObjectOptions = None
+    object_options: typing.Union[ObjectOptions, None] = None
     """A class containing settings related to object updates."""
 
-    position_options: PositionOptions = None
+    position_options: typing.Union[PositionOptions, None] = None
     """A class containing settings related to position correction."""
 
     def __post_init__(self):

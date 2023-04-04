@@ -41,7 +41,7 @@ def _save_eigen_probe(output_folder, eigen_probe):
         )
 
 
-def _save_probe(output_folder, probe, algorithm):
+def _save_probe(output_folder, probe, probe_options, algorithm):
     import matplotlib
     matplotlib.use('Agg')
     from matplotlib import pyplot as plt
@@ -49,25 +49,30 @@ def _save_probe(output_folder, probe, algorithm):
         probe.reshape((-1, *probe.shape[-2:])),
         axis=1,
     )
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=UserWarning)
-        plt.imsave(
-            f'{output_folder}/probe-phase.png',
-            np.angle(flattened),
-            # The output of np.angle is locked to (-pi, pi]
-            cmap=plt.cm.twilight,
-            vmin=-np.pi,
-            vmax=np.pi,
-        )
-        plt.imsave(
-            f'{output_folder}/probe-ampli.png',
-            np.abs(flattened),
-        )
+    flattened /= (np.abs(flattened).max() * 1.001)
+    plt.imsave(
+        f'{output_folder}/probe.png',
+        tike.view.complexHSV_to_RGB(flattened),
+    )
+    if len(probe_options.power) > 0:
+        f = plt.figure()
+        tike.view.plot_probe_power_series(probe_options.power)
+        plt.title(algorithm)
+        plt.savefig(f'{output_folder}/probe-power.png')
+        plt.close(f)
+    nmodes = probe.shape[-3]
+    probe_orthogonality_matrix = np.zeros((nmodes, nmodes))
+    for i in range(nmodes):
+        for j in range(nmodes):
+            probe_orthogonality_matrix[i, j] = np.abs(tike.linalg.inner(
+                probe[..., i, :, :],
+                probe[..., j, :, :]
+            ))
     f = plt.figure()
-    tike.view.plot_probe_power(probe)
-    plt.semilogy()
-    plt.title(algorithm)
-    plt.savefig(f'{output_folder}/probe-power.svg')
+    plt.imshow(probe_orthogonality_matrix, interpolation='nearest')
+    plt.colorbar()
+    plt.tight_layout()
+    plt.savefig(f'{output_folder}/probe-orthogonality.png')
     plt.close(f)
 
 
@@ -81,18 +86,18 @@ def _save_ptycho_result(result, algorithm):
         import tike.view
         fname = os.path.join(result_dir, f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
-
-        fig = plt.figure()
-        ax1, ax2 = tike.view.plot_cost_convergence(
-            result.algorithm_options.costs,
-            result.algorithm_options.times,
-        )
-        ax2.set_xlim(0, 20)
-        ax1.set_ylim(10**(-1), 10**2)
-        fig.suptitle(algorithm)
-        fig.tight_layout()
-        plt.savefig(os.path.join(fname, 'convergence.svg'))
-        plt.close(fig)
+        if len(result.algorithm_options.costs) > 1:
+            fig = plt.figure()
+            ax1, ax2 = tike.view.plot_cost_convergence(
+                result.algorithm_options.costs,
+                result.algorithm_options.times,
+            )
+            ax2.set_xlim(0, 60)
+            ax1.set_ylim(10**(-1), 10**2)
+            fig.suptitle(algorithm)
+            fig.tight_layout()
+            plt.savefig(os.path.join(fname, 'convergence.png'))
+            plt.close(fig)
         plt.imsave(
             f'{fname}/{0}-phase.png',
             np.angle(result.psi).astype('float32'),
@@ -104,13 +109,9 @@ def _save_ptycho_result(result, algorithm):
         plt.imsave(
             f'{fname}/{0}-ampli.png',
             np.abs(result.psi).astype('float32'),
+            cmap=plt.cm.gray,
         )
-        import tifffile
-        tifffile.imwrite(
-            f'{fname}/{0}-ampli.tiff',
-            np.abs(result.psi).astype('float32'),
-        )
-        _save_probe(fname, result.probe, algorithm)
+        _save_probe(fname, result.probe, result.probe_options, algorithm)
         if result.eigen_weights is not None:
             _save_eigen_weights(fname, result.eigen_weights)
             if result.eigen_weights.shape[-2] > 1:
@@ -127,4 +128,4 @@ def _save_eigen_weights(fname, weights):
     tike.view.plot_eigen_weights(weights)
     plt.suptitle('weights')
     plt.tight_layout()
-    plt.savefig(f'{fname}/weights.svg')
+    plt.savefig(f'{fname}/weights.png')

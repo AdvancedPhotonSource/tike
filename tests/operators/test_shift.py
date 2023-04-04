@@ -5,6 +5,7 @@ import unittest
 
 import numpy as np
 from tike.operators import Shift
+import tike.precision
 
 from .util import random_complex, OperatorTests
 
@@ -21,16 +22,14 @@ class TestShift(unittest.TestCase, OperatorTests):
         self.operator.__enter__()
         self.xp = self.operator.xp
         np.random.seed(0)
-        self.m = self.xp.asarray(random_complex(ntheta, nz, n),
-                                 dtype='complex64')
+        self.m = self.xp.asarray(random_complex(ntheta, nz, n))
         self.m_name = 'a'
-        self.d = self.xp.asarray(random_complex(*self.m.shape),
-                                 dtype='complex64')
+        self.d = self.xp.asarray(random_complex(*self.m.shape))
         self.d_name = 'a'
         self.kwargs = {
             'shift':
                 self.xp.asarray((np.random.random([ntheta, 2]) - 0.5) * 7,
-                                dtype='float32')
+                                dtype=tike.precision.floating)
         }
         print(self.operator)
 

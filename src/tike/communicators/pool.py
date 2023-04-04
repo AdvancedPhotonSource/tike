@@ -35,19 +35,20 @@ class ThreadPool(ThreadPoolExecutor):
         When invalid GPU device ids are provided.
         When the current CUDA device does not match the first GPU id in the
         list of workers.
+
     """
 
     Device = cp.cuda.Device
 
     def __init__(
         self,
-        workers,
+        workers: typing.Union[int, typing.Tuple[int, ...]],
         xp=cp,
-        device_count=None,
+        device_count: typing.Union[int, None] = None,
     ):
         self.device_count = cp.cuda.runtime.getDeviceCount(
         ) if device_count is None else device_count
-        if type(workers) is int:
+        if isinstance(workers, int):
             if workers < 1:
                 raise ValueError(f"Provide workers > 0, not {workers}.")
             if workers > self.device_count:
@@ -57,7 +58,7 @@ class ThreadPool(ThreadPoolExecutor):
                 workers = min(workers, self.device_count)
             if workers == 1:
                 # Respect "with cp.cuda.Device()" blocks for single thread
-                workers = (cp.cuda.Device().id,)
+                workers = (int(cp.cuda.Device().id),)
             else:
                 workers = tuple(range(workers))
         for w in workers:
@@ -81,25 +82,25 @@ class ThreadPool(ThreadPoolExecutor):
 
     def _copy_to(
         self,
-        x: typing.Union[cp.array, np.array],
+        x: typing.Union[cp.ndarray, np.ndarray],
         worker: int,
-    ) -> cp.array:
+    ) -> cp.ndarray:
         with self.Device(worker):
             return self.xp.asarray(x)
 
     def _copy_host(
         self,
-        x: cp.array,
+        x: cp.ndarray,
         worker: int,
-    ) -> np.array:
+    ) -> np.ndarray:
         with self.Device(worker):
             return self.xp.asnumpy(x)
 
     def bcast(
         self,
-        x: typing.List[typing.Union[cp.array, np.array]],
+        x: typing.List[typing.Union[cp.ndarray, np.ndarray]],
         stride: int = 1,
-    ) -> typing.List[cp.array]:
+    ) -> typing.List[cp.ndarray]:
         """Send each x to all device groups.
 
         Parameters
@@ -113,7 +114,8 @@ class ThreadPool(ThreadPoolExecutor):
 
         """
         assert stride >= 1, f"Stride cannot be less than 1; it is {stride}."
-        assert stride <= len(x), f"Stride cannot be greater than {len(x)}; it is {stride}."
+        assert stride <= len(
+            x), f"Stride cannot be greater than {len(x)}; it is {stride}."
 
         def f(worker):
             idx = self.workers.index(worker) % stride
@@ -123,10 +125,10 @@ class ThreadPool(ThreadPoolExecutor):
 
     def gather(
         self,
-        x: typing.List[cp.array],
-        worker: int = None,
+        x: typing.List[cp.ndarray],
+        worker: typing.Union[int, None] = None,
         axis: typing.Union[int, None] = 0,
-    ) -> cp.array:
+    ) -> cp.ndarray:
         """Concatenate x on a single worker along the given axis.
 
         Parameters
@@ -140,7 +142,8 @@ class ThreadPool(ThreadPoolExecutor):
             merge = self.xp.stack
             axis = 0
         else:
-            assert x[0].ndim > 0, "Cannot concatenate zero-dimensional arrays; use `axis=None`"
+            assert x[
+                0].ndim > 0, "Cannot concatenate zero-dimensional arrays; use `axis=None`"
             merge = self.xp.concatenate
         with self.Device(worker):
             return merge(
@@ -150,9 +153,9 @@ class ThreadPool(ThreadPoolExecutor):
 
     def gather_host(
         self,
-        x: typing.List[cp.array],
+        x: typing.List[cp.ndarray],
         axis: typing.Union[int, None] = 0,
-    ) -> np.array:
+    ) -> np.ndarray:
         """Concatenate x on host along the given axis.
 
         Parameters
@@ -169,7 +172,8 @@ class ThreadPool(ThreadPoolExecutor):
             merge = np.stack
             axis = 0
         else:
-            assert x[0].ndim > 0, "Cannot concatenate zero-dimensional arrays; use `axis=None`"
+            assert x[
+                0].ndim > 0, "Cannot concatenate zero-dimensional arrays; use `axis=None`"
             merge = np.concatenate
         return merge(
             self.map(f, x, self.workers),
@@ -178,9 +182,9 @@ class ThreadPool(ThreadPoolExecutor):
 
     def all_gather(
         self,
-        x: typing.List[cp.array],
+        x: typing.List[cp.ndarray],
         axis: typing.Union[int, None] = 0,
-    ) -> typing.List[cp.array]:
+    ) -> typing.List[cp.ndarray]:
         """Concatenate x on all workers along the given axis.
 
         Parameters
@@ -197,9 +201,9 @@ class ThreadPool(ThreadPoolExecutor):
 
     def scatter(
         self,
-        x: typing.List[cp.array],
+        x: typing.List[cp.ndarray],
         stride: int = 1,
-    ) -> typing.List[cp.array]:
+    ) -> typing.List[cp.ndarray]:
         """Scatter each x with given stride.
 
         scatter_bcast(x=[0, 1], stride=3) -> [0, 0, 0, 1, 1, 1]
@@ -218,7 +222,6 @@ class ThreadPool(ThreadPoolExecutor):
 
         """
         assert stride >= 1, f"Stride cannot be less than 1; it is {stride}."
-        assert stride <= len(x), f"Stride cannot be greater than {len(x)}; it is {stride}."
 
         def f(worker):
             idx = self.workers.index(worker) // stride
@@ -228,9 +231,9 @@ class ThreadPool(ThreadPoolExecutor):
 
     def scatter_bcast(
         self,
-        x: typing.List[cp.array],
+        x: typing.List[cp.ndarray],
         stride: int = 1,
-    ) -> typing.List[cp.array]:
+    ) -> typing.List[cp.ndarray]:
         """Scatter each x with given stride and then broadcast nearby.
 
         scatter_bcast(x=[0, 1], stride=3) -> [0, 0, 0, 1, 1, 1]
@@ -250,43 +253,25 @@ class ThreadPool(ThreadPoolExecutor):
 
         """
         assert stride >= 1, f"Stride cannot be less than 1; it is {stride}."
-        assert stride <= len(x), f"Stride cannot be greater than {len(x)}; it is {stride}."
 
-        def s(bworkers, chunk):
+        # First, scatter to leader of each group
+        leaders = self.workers[::stride]
 
-            def b(worker):
-                return self._copy_to(chunk, worker)
+        def f(worker):
+            idx = leaders.index(worker)
+            return self._copy_to(x[idx], worker)
 
-            return list(self.map(b, bworkers, workers=bworkers))
+        scattered = self.map(f, leaders)
 
-        bworkers = []
-        if stride == 1:
-            sworkers = self.workers[:len(x)]
-            for i in range(len(x)):
-                bworkers.append(self.workers[i::len(x)])
-        else:
-            sworkers = self.workers[::stride]
-            for i in sworkers:
-                bworkers.append(self.workers[i:(i + stride)])
-
-        a = self.map(s, bworkers, x, workers=sworkers)
-        output = [None] * self.num_workers
-        i, j = 0, 0
-        for si in bworkers:
-            for bi in si:
-                output[bi] = a[i][j]
-                j += 1
-            i += 1
-            j = 0
-
-        return output
+        # Then, broadcast within each group
+        return self.scatter(scattered, stride=stride)
 
     def reduce_gpu(
         self,
-        x: typing.List[cp.array],
+        x: typing.List[cp.ndarray],
         stride: int = 1,
-        workers: typing.Union[typing.List[int], None] = None,
-    ) -> typing.List[cp.array]:
+        workers: typing.Union[typing.Tuple[int, ...], None] = None,
+    ) -> typing.List[cp.ndarray]:
         """Reduce x by addition to a device group from all other devices.
 
         reduce_gpu([0, 1, 2, 3, 4], stride=2) -> [6, 4]
@@ -302,7 +287,8 @@ class ThreadPool(ThreadPoolExecutor):
 
         """
         assert stride >= 1, f"Stride cannot be less than 1; it is {stride}."
-        assert stride <= len(x), f"Stride cannot be greater than {len(x)}; it is {stride}."
+        assert stride <= len(
+            x), f"Stride cannot be greater than {len(x)}; it is {stride}."
 
         # if self.num_workers == 1:
         #     return x
@@ -317,7 +303,7 @@ class ThreadPool(ThreadPoolExecutor):
         workers = self.workers[:stride] if workers is None else workers
         return self.map(f, workers, workers=workers)
 
-    def reduce_cpu(self, x: typing.List[cp.array]) -> np.array:
+    def reduce_cpu(self, x: typing.List[cp.ndarray]) -> np.ndarray:
         """Reduce x by addition from all GPUs to a CPU buffer."""
         assert len(x) <= self.num_workers, (
             f"{len(x)} work is more than {self.num_workers} workers")
@@ -325,23 +311,24 @@ class ThreadPool(ThreadPoolExecutor):
 
     def reduce_mean(
         self,
-        x: typing.List[cp.array],
-        axis: typing.Union[int, typing.List[int]] = 0,
+        x: typing.List[cp.ndarray],
+        axis: typing.Union[int, None] = 0,
         worker: typing.Union[int, None] = None,
-    ) -> cp.array:
+    ) -> cp.ndarray:
         """Reduce x by addition to one GPU from all other GPUs."""
         worker = self.workers[0] if worker is None else worker
-        return cp.mean(
-            self.gather(x, worker=worker, axis=axis),
-            keepdims=x[0].ndim > 0,
-            axis=axis,
-        )
+        with self.Device(worker):
+            return cp.mean(
+                self.gather(x, worker=worker, axis=axis),
+                keepdims=x[0].ndim > 0,
+                axis=axis,
+            )
 
     def allreduce(
         self,
-        x: typing.List[cp.array],
+        x: typing.List[cp.ndarray],
         stride: typing.Union[int, None] = None,
-    ) -> typing.List[cp.array]:
+    ) -> typing.List[cp.ndarray]:
         """All-reduce x by addition within device groups.
 
         allreduce([0, 1, 2, 3, 4, 5, 6], stride=2) -> [1, 1, 5, 5, 9, 9, 6]
@@ -361,7 +348,8 @@ class ThreadPool(ThreadPoolExecutor):
 
         stride = len(x) if stride is None else stride
         assert stride >= 1, f"Stride cannot be less than 1; it is {stride}."
-        assert stride <= len(x), f"Stride cannot be greater than {len(x)}; it is {stride}."
+        assert stride <= len(
+            x), f"Stride cannot be greater than {len(x)}; it is {stride}."
 
         def f(worker):
             group_start = stride * (self.workers.index(worker) // stride)
@@ -379,7 +367,7 @@ class ThreadPool(ThreadPoolExecutor):
         self,
         func,
         *iterables,
-        workers: typing.Union[typing.List[int], None] = None,
+        workers: typing.Union[typing.Tuple[int, ...], None] = None,
         **kwargs,
     ) -> list:
         """ThreadPoolExecutor.map, but wraps call in a cuda.Device context."""
@@ -390,5 +378,4 @@ class ThreadPool(ThreadPoolExecutor):
 
         workers = self.workers if workers is None else workers
 
-        # return list(super().map(f, workers, *iterables))
-        return list(map(f, workers, *iterables))
+        return list(super().map(f, workers, *iterables))

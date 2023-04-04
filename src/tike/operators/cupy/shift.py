@@ -29,8 +29,8 @@ class Shift(CachedFFT, Operator):
             overwrite_x=overwrite,
         )
         x, y = self.xp.meshgrid(
-            self.xp.fft.fftfreq(padded.shape[-1]).astype('float32'),
-            self.xp.fft.fftfreq(padded.shape[-2]).astype('float32'),
+            self.xp.fft.fftfreq(padded.shape[-1]).astype(shift.dtype),
+            self.xp.fft.fftfreq(padded.shape[-2]).astype(shift.dtype),
         )
         padded *= self.xp.exp(
             -2j * self.xp.pi *

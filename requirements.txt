@@ -1,11 +1,10 @@
 cupy>=10,!=10.3.0
-importlib_metadata # backport for python<3.8
 importlib_resources # backport for python<3.9
 matplotlib-base=3.*
 mpi4py>=3.*
 numpy>=1.17
 py-opencv>=3.4,<5.0
-python>=3.6
+python>=3.8
 scipy>=1.6.0
 setuptools_scm>=7
 setuptools>=45

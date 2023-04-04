@@ -1,5 +1,6 @@
 """Check whether the checkerboard algorithm is equivalent to fftshift."""
 import numpy as xp
+import tike.precision
 
 from tike.operators.cupy.usfft import checkerboard
 
@@ -25,7 +26,7 @@ def shifted_fft_ref(a, xp):
 def test_checkerboard_correctness():
     shape = xp.random.randint(1, 32, 3) * 2
     a = xp.random.rand(*shape) + 1j * xp.random.rand(*shape)
-    a = a.astype('complex64')
+    a = a.astype(tike.precision.cfloating)
     b = a.copy()
     a = shifted_fft_ref(a, xp)
     b = shifted_fft_two(b, xp)

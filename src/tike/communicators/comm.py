@@ -33,8 +33,9 @@ class Comm:
     def __init__(
         self,
         gpu_count,
-        mpi=NoMPIComm,
-        pool=ThreadPool,
+        mpi: typing.Union[typing.Type[MPIComm],
+                          typing.Type[NoMPIComm]] = NoMPIComm,
+        pool: typing.Type[ThreadPool] = ThreadPool,
     ):
         if isinstance(mpi, NoMPIComm):
             self.use_mpi = False
@@ -95,7 +96,7 @@ class Comm:
     def Allreduce_mean(
         self,
         x: typing.List[cp.ndarray],
-        axis: typing.Union[int, typing.List[int]] = 0,
+        axis: typing.Union[int, None] = 0,
     ) -> cp.ndarray:
         """Multi-process multi-GPU based mean."""
         with cp.cuda.Device(self.pool.workers[0]):

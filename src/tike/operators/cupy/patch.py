@@ -8,16 +8,45 @@ except ImportError:
     from importlib_resources import files
 
 import cupy as cp
+import numpy.typing as npt
 import numpy as np
 
 from .operator import Operator
 
-_cu_source = files('tike.operators.cupy').joinpath('convolution.cu').read_text()
-_fwd_patch = cp.RawKernel(_cu_source, "fwd_patch")
-_adj_patch = cp.RawKernel(_cu_source, "adj_patch")
+kernels = [
+    'fwd_patch<float2,float2,float>',
+    'adj_patch<float2,float2,float>',
+    'fwd_patch<double2,double2,float>',
+    'adj_patch<double2,double2,float>',
+    'fwd_patch<float2,double2,float>',
+    'adj_patch<float2,double2,float>',
+    'fwd_patch<double2,float2,float>',
+    'adj_patch<double2,float2,float>',
+    'fwd_patch<float2,float2,double>',
+    'adj_patch<float2,float2,double>',
+    'fwd_patch<double2,double2,double>',
+    'adj_patch<double2,double2,double>',
+    'fwd_patch<float2,double2,double>',
+    'adj_patch<float2,double2,double>',
+    'fwd_patch<double2,float2,double>',
+    'adj_patch<double2,float2,double>',
+]
+
+_patch_module = cp.RawModule(
+    code=files('tike.operators.cupy').joinpath('convolution.cu').read_text(),
+    name_expressions=kernels,
+    options=('--std=c++11',),
+)
+
+typename = {
+    np.dtype('complex64'): 'float2',
+    np.dtype('float32'): 'float',
+    np.dtype('complex128'): 'double2',
+    np.dtype('float64'): 'double',
+}
 
 
-def _next_power_two(v):
+def _next_power_two(v: int) -> int:
     """Return the next highest power of 2 of 32-bit v.
 
     https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
@@ -49,20 +78,20 @@ class Patch(Operator):
 
     def fwd(
         self,
-        images,
-        positions,
-        patches=None,
-        patch_width=None,
-        height=None,
-        width=None,
-        nrepeat=1,
+        images: npt.NDArray[np.csingle],
+        positions: npt.NDArray[np.single],
+        patches: npt.NDArray[np.csingle] = None,
+        patch_width: int = 0,
+        height: int = 0,
+        width: int = 0,
+        nrepeat: int = 1,
     ):
-        patch_width = patches.shape[-1] if patch_width is None else patch_width
+        patch_width = patches.shape[-1] if patch_width == 0 else patch_width
         if patches is None:
-            patches = cp.zeros(
-                (*positions.shape[:-2], positions.shape[-2] * nrepeat,
-                 patch_width, patch_width),
-                dtype='complex64',
+            patches = cp.zeros_like(
+                images,
+                shape=(*positions.shape[:-2], positions.shape[-2] * nrepeat,
+                       patch_width, patch_width),
             )
         assert patch_width <= patches.shape[-1]
         assert images.shape[:-2] == positions.shape[:-2]
@@ -70,10 +99,12 @@ class Patch(Operator):
                                                             patches.shape)
         assert positions.shape[-2] * nrepeat == patches.shape[-3]
         assert positions.shape[-1] == 2, positions.shape
-        assert images.dtype == 'complex64', f"{images.dtype}"
-        assert patches.dtype == 'complex64', f"{patches.dtype}"
-        assert positions.dtype == 'float32', f"{positions.dtype}"
         nimage = int(np.prod(images.shape[:-2]))
+
+        _fwd_patch = _patch_module.get_function(
+            f'fwd_patch<{typename[patches.dtype]},{typename[images.dtype]},{typename[positions.dtype]}>'
+        )
+
         grids = (
             positions.shape[-2],
             nimage,
@@ -100,20 +131,20 @@ class Patch(Operator):
 
     def adj(
         self,
-        positions,
-        patches,
-        images=None,
-        patch_width=None,
-        height=None,
-        width=None,
-        nrepeat=1,
+        positions: npt.NDArray[np.single],
+        patches: npt.NDArray[np.csingle],
+        images: npt.NDArray[np.csingle] = None,
+        patch_width: int = 0,
+        height: int = 0,
+        width: int = 0,
+        nrepeat: int = 1,
     ):
-        patch_width = patches.shape[-1] if patch_width is None else patch_width
+        patch_width = patches.shape[-1] if patch_width == 0 else patch_width
         assert patch_width <= patches.shape[-1]
         if images is None:
-            images = cp.zeros(
-                (*positions.shape[:-2], height, width),
-                dtype='complex64',
+            images = cp.zeros_like(
+                patches,
+                shape=(*positions.shape[:-2], height, width),
             )
         leading = images.shape[:-2]
         height, width = images.shape[-2:]
@@ -124,10 +155,12 @@ class Patch(Operator):
         K = patches.shape[-3]
         assert (N * nrepeat) % K == 0 and K >= nrepeat
         assert patches.shape[-1] == patches.shape[-2]
-        assert images.dtype == 'complex64'
-        assert patches.dtype == 'complex64'
-        assert positions.dtype == 'float32'
         nimage = int(np.prod(images.shape[:-2]))
+
+        _adj_patch = _patch_module.get_function(
+            f'adj_patch<{typename[patches.dtype]},{typename[images.dtype]},{typename[positions.dtype]}>'
+        )
+
         grids = (
             positions.shape[-2],
             nimage,

@@ -38,13 +38,16 @@ allowed to vary.
 from __future__ import annotations
 import dataclasses
 import logging
+import typing
 
 import cupy as cp
 import cupyx.scipy.ndimage
 import numpy as np
+import numpy.typing as npt
 
 import tike.linalg
 import tike.random
+import tike.precision
 
 logger = logging.getLogger(__name__)
 
@@ -71,10 +74,16 @@ class ProbeOptions:
     mdecay: float = 0.9
     """The proportion of the first moment that is previous first moments."""
 
-    v: np.array = dataclasses.field(init=False, default_factory=lambda: None)
+    v: typing.Union[npt.NDArray, None] = dataclasses.field(
+        init=False,
+        default_factory=lambda: None,
+    )
     """The second moment for adaptive moment."""
 
-    m: np.array = dataclasses.field(init=False, default_factory=lambda: None)
+    m: typing.Union[npt.NDArray, None] = dataclasses.field(
+        init=False,
+        default_factory=lambda: None,
+    )
     """The first moment for adaptive moment."""
 
     probe_support: float = 0.0
@@ -109,12 +118,31 @@ class ProbeOptions:
     hard constraint.
     """
 
-    def copy_to_device(self):
+    probe_update_sum: typing.Union[npt.NDArray, None] = dataclasses.field(
+        init=False,
+        default_factory=lambda: None,
+    )
+    """Used for momentum updates."""
+
+    preconditioner: typing.Union[npt.NDArray, None] = dataclasses.field(
+        init=False,
+        default_factory=lambda: None,
+    )
+
+    power: typing.List[typing.List[float]] = dataclasses.field(
+        init=False,
+        default_factory=list,
+    )
+    """The power of the primary probe modes at each iteration."""
+
+    def copy_to_device(self, comm):
         """Copy to the current GPU memory."""
         if self.v is not None:
             self.v = cp.asarray(self.v)
         if self.m is not None:
             self.m = cp.asarray(self.m)
+        if self.preconditioner is not None:
+            self.preconditioner = comm.pool.bcast([self.preconditioner])
         return self
 
     def copy_to_host(self):
@@ -123,6 +151,8 @@ class ProbeOptions:
             self.v = cp.asnumpy(self.v)
         if self.m is not None:
             self.m = cp.asnumpy(self.m)
+        if self.preconditioner is not None:
+            self.preconditioner = cp.asnumpy(self.preconditioner[0])
         return self
 
     def resample(self, factor: float) -> ProbeOptions:
@@ -447,8 +477,10 @@ def add_modes_random_phase(probe, nmodes):
     Brocklesby, "Ptychographic coherent diffractive imaging with orthogonal
     probe relaxation." Opt. Express 24, 8360 (2016). doi: 10.1364/OE.24.008360
     """
-    all_modes = np.empty((*probe.shape[:-3], nmodes, *probe.shape[-2:]),
-                         dtype='complex64')
+    all_modes = np.empty_like(
+        probe,
+        shape=(*probe.shape[:-3], nmodes, *probe.shape[-2:]),
+    )
     pw = probe.shape[-1]
     for m in range(nmodes):
         if m < probe.shape[-3]:
@@ -569,7 +601,7 @@ def add_modes_cartesian_hermite(probe, nmodes: int):
             new_probes.append(basis)
 
             if len(new_probes) == nmodes:
-                return np.concatenate(new_probes, axis=-3)
+                return np.concatenate(new_probes, axis=-3)[..., :nmodes, :, :]
 
     raise RuntimeError(
         "`add_modes_cartesian_hermite` never reached a return statement."
@@ -633,7 +665,7 @@ def init_varying_probe(
         *scan.shape[:-1],
         num_eigen_probes,
         shared_probe.shape[-3],
-    ).astype('float32')
+    ).astype(tike.precision.floating)
     weights -= np.mean(weights, axis=-3, keepdims=True)
     # The weight of the first eigen probe is non-zero.
     weights[..., 0, :] = 1.0
@@ -648,20 +680,27 @@ def init_varying_probe(
         num_eigen_probes - 1,
         probes_with_modes,
         *shared_probe.shape[-2:],
-    ).astype('complex64')
+    )
     # The eigen probes are mean normalized.
     eigen_probe /= tike.linalg.mnorm(eigen_probe, axis=(-2, -1), keepdims=True)
 
     return eigen_probe, weights
 
 
-def orthogonalize_eig(x):
+def orthogonalize_eig(x: npt.NDArray,) -> typing.Tuple[npt.NDArray, npt.NDArray]:
     """Orthogonalize modes of x using eigenvectors of the pairwise dot product.
 
     Parameters
     ----------
     x : (..., nmodes, :, :) array_like complex64
         An array of the probe modes vectorized
+
+    Returns
+    -------
+    x : array_like
+        The orthogonalized probes
+    power : array_like
+        The power of each probe
 
     References
     ----------
@@ -674,7 +713,7 @@ def orthogonalize_eig(x):
     # 'A' holds the dot product of all possible mode pairs. This is equivalent
     # to x^H @ x. We only fill the upper half of `A` because it is
     # conjugate-symmetric.
-    A = xp.empty((*x.shape[:-3], nmodes, nmodes), dtype='complex64')
+    A = xp.empty_like(x, shape=(*x.shape[:-3], nmodes, nmodes))
     for i in range(nmodes):
         for j in range(i, nmodes):
             A[..., i, j] = xp.sum(
@@ -684,16 +723,13 @@ def orthogonalize_eig(x):
     # We find the eigen vectors of x^H @ x in order to get v^H from SVD of x
     # without computing u, s.
     val, vectors = xp.linalg.eigh(A, UPLO='U')
-    # np.linalg.eigh guarantees that the eigen values are returned in ascending
-    # order, so we just reverse the order of modes to have them sorted in
-    # descending order.
-    vectors = vectors[..., ::-1].swapaxes(-1, -2)
-    result = (vectors @ x.reshape(*x.shape[:-2], -1)).reshape(*x.shape)
-    assert np.all(
-        np.diff(tike.linalg.norm(result, axis=(-2, -1), keepdims=False),
-                axis=-1) <= 0
-    ), f"Power of the orthogonalized probes should be monotonically decreasing! {val}"
-    return result
+    result = (vectors.swapaxes(-1, -2) @ x.reshape(*x.shape[:-2], -1)).reshape(
+        *x.shape)
+    power = np.square(tike.linalg.norm(result, axis=(-2, -1), keepdims=False)).flatten()
+    order = np.argsort(power, axis=None, kind='stable')[::-1]
+    result = result[..., order, :, :]
+    power = power[order]
+    return result, power
 
 
 def gaussian(size, rin=0.8, rout=1.0):
@@ -721,7 +757,7 @@ def gaussian(size, rin=0.8, rout=1.0):
     rs = np.sqrt((r - size / 2)**2 + (c - size / 2)**2)
     rmax = np.sqrt(2) * 0.5 * rout * rs.max() + 1.0
     rmin = np.sqrt(2) * 0.5 * rin * rs.max()
-    img = np.zeros((size, size), dtype='float32')
+    img = np.zeros((size, size), dtype=tike.precision.floating)
     img[rs < rmin] = 1.0
     img[rs > rmax] = 0.0
     zone = np.logical_and(rs > rmin, rs < rmax)
@@ -819,14 +855,14 @@ def finite_probe_support(probe, *, radius=0.5, degree=5, p=1.0):
     centers = cp.linspace(-0.5, 0.5, num=N, endpoint=False) + 0.5 / N
     i, j = cp.meshgrid(centers, centers)
     mask = 1 - cp.exp(-(cp.square(i / radius) + cp.square(j / radius))**degree)
-    return p * mask.astype('float32')
+    return p * mask.astype(tike.precision.floating)
 
 
 if __name__ == "__main__":
     cp.random.seed()
     x = (cp.random.rand(7, 1, 9, 3, 3) +
-         1j * cp.random.rand(7, 1, 9, 3, 3)).astype('complex64')
-    x1 = orthogonalize_eig(x)
+         1j * cp.random.rand(7, 1, 9, 3, 3)).astype(tike.precision.cfloating)
+    x1, _ = orthogonalize_eig(x)
     assert x1.shape == x.shape, x1.shape
 
     p = (cp.random.rand(3, 7, 7) * 100).astype(int)

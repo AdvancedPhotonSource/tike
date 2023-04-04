@@ -10,6 +10,7 @@ import h5py
 import numpy as np
 
 from tike.constants import wavelength
+import tike.precision
 
 logger = logging.getLogger(__name__)
 
@@ -184,21 +185,22 @@ def read_aps_velociprobe(
 
     # Load data from six column file
     if isinstance(position_path, list):
-        raw_position = [np.genfromtxt(
-            p,
-            usecols=(*xy_columns, trigger_column),
-            delimiter=',',
-            dtype='int',
-        ) for p in position_path]
+        raw_position = [
+            np.genfromtxt(
+                p,
+                usecols=(*xy_columns, trigger_column),
+                delimiter=',',
+                dtype=tike.precision.integer,
+            ) for p in position_path
+        ]
         raw_position = np.concatenate(raw_position, axis=0)
     else:
         raw_position = np.genfromtxt(
             position_path,
             usecols=(*xy_columns, trigger_column),
             delimiter=',',
-            dtype='int',
+            dtype=tike.precision.integer,
         )
-
 
     # Split positions where trigger number increases by 1. Assumes that
     # positions are ordered by trigger number in file. Shift indices by 1
@@ -250,7 +252,8 @@ def read_aps_velociprobe(
         warnings.warn("Some values in the diffraction data are negative. "
                       "Photon counts must be >= 0 and finite.")
 
-    return data, scan.astype('float32')
+    return data, scan.astype(tike.precision.floating)
+
 
 def read_aps_lynx(
     diffraction_path,
@@ -308,14 +311,14 @@ def read_aps_lynx(
 
     """
     with h5py.File(diffraction_path, 'r') as f:
-        det_pix_width = f['/entry/data/eiger_4'].attrs['Pixel_size'].item()  # meter
+        det_pix_width = f['/entry/data/eiger_4'].attrs['Pixel_size'].item(
+        )  # meter
         _, detect_height, detect_width = f['/entry/data/eiger_4'].shape
         logger.info('Loading 28-ID-C ptychography data:\n'
                     f'\tphoton energy {photon_energy} eV\n'
                     f'\twidth: {detect_width}, center: {beam_center_x}\n'
                     f'\theight: {detect_height}, center: {beam_center_y}\n'
                     f'\tdetector pixel width: {det_pix_width} m\n')
-
 
         # Autodetect the diffraction pattern size by doubling until it
         # doesn't fit on the detector anymore.
@@ -357,7 +360,7 @@ def read_aps_lynx(
         position_path,
         usecols=(*xy_columns, trigger_column),
         delimiter=' ',
-        dtype=np.float32,
+        dtype=tike.precision.floating,
         skip_header=2,
     )
     scan = raw_position[:, :2] * -1e-6
@@ -388,4 +391,4 @@ def read_aps_lynx(
         warnings.warn("Some values in the diffraction data are negative. "
                       "Photon counts must be >= 0 and finite.")
 
-    return data, scan.astype('float32')
+    return data, scan.astype(tike.precision.floating)

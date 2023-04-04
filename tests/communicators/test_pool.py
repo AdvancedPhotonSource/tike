@@ -17,14 +17,21 @@ class TestThreadPool(unittest.TestCase):
         a = self.xp.arange(10)
         result = self.pool.bcast([a])
         for i, x in enumerate(result):
-            self.xp.testing.assert_array_equal(a, x)
-            # should be copies; not the same array
-            if self.xp == np:
-                assert (x.__array_interface__['data'][0] !=
-                        a.__array_interface__['data'][0]) or i == 0
-            else:
-                assert (x.__cuda_array_interface__['data'][0] !=
-                        a.__cuda_array_interface__['data'][0]) or i == 0
+            for j, y in enumerate(result):
+                self.xp.testing.assert_array_equal(x, y)
+                # should be copies; not the same array
+                if self.xp == np:
+                    assert np.logical_xor(
+                        (x.__array_interface__['data'][0]
+                         == y.__array_interface__['data'][0]),
+                        i != j,
+                    )
+                else:
+                    assert np.logical_xor(
+                        (x.__cuda_array_interface__['data'][0]
+                         == y.__cuda_array_interface__['data'][0]),
+                        i != j,
+                    )
 
     def test_gather(self):
         snake = self.xp.arange(1 * 2 * 3 * 4).reshape(1, 2, 3, 4)
