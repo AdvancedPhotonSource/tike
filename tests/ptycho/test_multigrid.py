@@ -14,6 +14,7 @@ from tike.ptycho.solvers.options import (
     _resize_cubic,
     _resize_lanczos,
     _resize_linear,
+    _resize_mean,
 )
 
 from .templates import _mpi_size
@@ -23,12 +24,32 @@ from .test_ptycho import PtychoRecon
 output_folder = os.path.join(result_dir, 'multigrid')
 
 
+def test_resize_mean():
+    x0 = np.array([[
+        [0, 1],
+        [5, 7],
+    ]])
+    x = np.array([[
+        [0, 0, 0, 1, 1, 1],
+        [0, 0, 0, 1, 1, 1],
+        [0, 0, 0, 1, 1, 1],
+        [5, 5, 5, 7, 7, 7],
+        [5, 5, 5, 7, 7, 7],
+        [5, 5, 5, 7, 7, 7],
+    ]])
+    x1 = _resize_mean(x0, 3.0)
+    np.testing.assert_equal(x1, x)
+    x2 = _resize_mean(x, 1.0/3.0)
+    np.testing.assert_equal(x2, x0)
+
+
 @pytest.mark.parametrize("function", [
     _resize_fft,
     _resize_spline,
     _resize_linear,
     _resize_cubic,
     _resize_lanczos,
+    _resize_mean,
 ])
 def test_resample(function, filename='siemens-star-small.npz.bz2'):
 

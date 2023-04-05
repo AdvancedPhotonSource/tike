@@ -49,6 +49,7 @@ class IterativeOptions(abc.ABC):
     """The number of epochs to consider for convergence monitoring. Set to
     any value less than 2 to disable."""
 
+
 @dataclasses.dataclass
 class AdamOptions(IterativeOptions):
     name: str = dataclasses.field(default='adam_grad', init=False)
@@ -264,3 +265,24 @@ def _resize_fft(x: np.ndarray, f: float) -> np.ndarray:
         norm='ortho',
         axes=(-2, -1),
     )
+
+
+def _resize_mean(x: np.ndarray, f: float) -> np.ndarray:
+    """Use an averaging filter to resize/resample the last 2 dimensions of x"""
+    if f == 1:
+        return x
+    if f < 1:
+        new_shape = (
+            *x.shape[:-2],
+            int(x.shape[-2] * f),
+            int(1.0 / f),
+            int(x.shape[-1] * f),
+            int(1.0 / f),
+        )
+        return np.mean(x.reshape(new_shape), axis=(-1, -3))
+    else:
+        return np.repeat(
+            np.repeat(x, repeats=f, axis=-2),
+            repeats=int(f),
+            axis=-1,
+        )
