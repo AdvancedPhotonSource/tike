@@ -477,41 +477,38 @@ class Reconstruction():
             if tike.opt.is_converged(self.parameters.algorithm_options):
                 break
 
-    def _get_result(self):
+    def get_result(self):
         """Return the current parameter estimates."""
-        self.parameters.probe = self.parameters.probe[0].get()
-
-        self.parameters.psi = self.parameters.psi[0].get()
-
         reorder = np.argsort(np.concatenate(self.comm.order))
-        self.parameters.scan = self.comm.pool.gather_host(
-            self.parameters.scan,
-            axis=-2,
-        )[reorder]
+        parameters = solvers.PtychoParameters(
+            probe=self.parameters.probe[0].get(),
+            psi=self.parameters.psi[0].get(),
+            scan=self.comm.pool.gather_host(
+                self.parameters.scan,
+                axis=-2,
+            )[reorder],
+            algorithm_options=self.parameters.algorithm_options,
+        )
 
         if self.parameters.eigen_probe is not None:
-            self.parameters.eigen_probe = self.parameters.eigen_probe[
-                0].get()
+            parameters.eigen_probe = self.parameters.eigen_probe[0].get()
 
         if self.parameters.eigen_weights is not None:
-            self.parameters.eigen_weights = self.comm.pool.gather(
+            parameters.eigen_weights = self.comm.pool.gather(
                 self.parameters.eigen_weights,
                 axis=-3,
             )[reorder].get()
 
-        self.parameters.algorithm_options = self.parameters.algorithm_options
-
         if self.parameters.probe_options is not None:
-            self.parameters.probe_options = self.parameters.probe_options.copy_to_host(
+            parameters.probe_options = self.parameters.probe_options.copy_to_host(
             )
 
         if self.parameters.object_options is not None:
-            self.parameters.object_options = self.parameters.object_options.copy_to_host(
+            parameters.object_options = self.parameters.object_options.copy_to_host(
             )
 
         if self.parameters.position_options is not None:
-            host_position_options = self.parameters.position_options[
-                0].empty()
+            host_position_options = self.parameters.position_options[0].empty()
             for x, o in zip(
                     self.comm.pool.map(
                         PositionOptions.copy_to_host,
@@ -520,10 +517,12 @@ class Reconstruction():
                     self.comm.order,
             ):
                 host_position_options = host_position_options.join(x, o)
-            self.parameters.position_options = host_position_options
+            parameters.position_options = host_position_options
+
+        return parameters
 
     def __exit__(self, type, value, traceback):
-        self._get_result()
+        self.parameters = self.get_result()
         self.comm.__exit__(type, value, traceback)
         self.operator.__exit__(type, value, traceback)
         self.device.__exit__(type, value, traceback)
