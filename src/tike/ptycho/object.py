@@ -67,6 +67,12 @@ class ObjectOptions:
     )
     """Used for compact batch updates."""
 
+    multigrid_update: typing.Union[npt.NDArray, None] = dataclasses.field(
+        init=False,
+        default_factory=lambda: None,
+    )
+    """Used for multigrid updates."""
+
     clip_magnitude: bool = False
     """Whether to force the object magnitude to remain <= 1."""
 
@@ -96,9 +102,9 @@ class ObjectOptions:
             options.multigrid_update = cp.asnumpy(self.multigrid_update)
         return options
 
-    def resample(self, factor: float) -> ObjectOptions:
+    def resample(self, factor: float, interp) -> ObjectOptions:
         """Return a new `ObjectOptions` with the parameters rescaled."""
-        return ObjectOptions(
+        options = ObjectOptions(
             positivity_constraint=self.positivity_constraint,
             smoothness_constraint=self.smoothness_constraint,
             use_adaptive_moment=self.use_adaptive_moment,
@@ -106,6 +112,9 @@ class ObjectOptions:
             mdecay=self.mdecay,
             clip_magnitude=self.clip_magnitude,
         )
+        if self.multigrid_update is not None:
+            options.multigrid_update = interp(self.multigrid_update, factor)
+        return options
         # Momentum reset to zero when grid scale changes
 
 
