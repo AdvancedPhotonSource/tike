@@ -411,11 +411,11 @@ class Reconstruction():
     def iterate(self, num_iter: int) -> None:
         """Advance the reconstruction by num_iter epochs."""
         start = time.perf_counter()
+        psi_previous = None
         for i in range(num_iter):
 
-            logger.info(
-                f"{self.parameters.algorithm_options.name} epoch "
-                f"{len(self.parameters.algorithm_options.times):,d}")
+            logger.info(f"{self.parameters.algorithm_options.name} epoch "
+                        f"{len(self.parameters.algorithm_options.times):,d}")
 
             if self.parameters.probe_options is not None:
                 if self.parameters.probe_options.force_centered_intensity:
@@ -476,6 +476,14 @@ class Reconstruction():
 
             if tike.opt.is_converged(self.parameters.algorithm_options):
                 break
+            if psi_previous is not None:
+                update_norm = tike.linalg.mnorm(self.parameters.psi[0] - psi_previous)
+                self.parameters.object_options.update_mnorm.append(update_norm.get())
+                logger.info(f"The object update mean-norm is {update_norm:.3e}")
+                if update_norm < self.parameters.object_options.convergence_tolerance:
+                    logger.info(f"The object seems converged. {update_norm:.3e} < {self.parameters.object_options.convergence_tolerance:.3e}")
+                    break
+            psi_previous = cp.copy(self.parameters.psi[0])
 
     def get_result(self):
         """Return the current parameter estimates."""

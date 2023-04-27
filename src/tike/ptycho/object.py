@@ -26,6 +26,16 @@ logger = logging.getLogger(__name__)
 class ObjectOptions:
     """Manage data and setting related to object correction."""
 
+    convergence_tolerance: float = 0
+    """Terminate reconstruction early when the mnorm of the object update is
+    less than this value."""
+
+    update_mnorm: typing.List[float] = dataclasses.field(
+        init=False,
+        default_factory=list,
+    )
+    """A record of the previous mnorms of the object update."""
+
     positivity_constraint: float = 0
     """This value is passed to the tike.ptycho.object.positivity_constraint
     function."""
@@ -79,6 +89,7 @@ class ObjectOptions:
     def copy_to_device(self, comm):
         """Copy to the current GPU memory."""
         options = copy.copy(self)
+        options.update_mnorm = copy.copy(self.update_mnorm)
         if self.v is not None:
             options.v = cp.asarray(self.v)
         if self.m is not None:
@@ -92,6 +103,7 @@ class ObjectOptions:
     def copy_to_host(self):
         """Copy to the host CPU memory."""
         options = copy.copy(self)
+        options.update_mnorm = copy.copy(self.update_mnorm)
         if self.v is not None:
             options.v = cp.asnumpy(self.v)
         if self.m is not None:
@@ -112,6 +124,7 @@ class ObjectOptions:
             mdecay=self.mdecay,
             clip_magnitude=self.clip_magnitude,
         )
+        options.update_mnorm = copy.copy(self.update_mnorm)
         if self.multigrid_update is not None:
             options.multigrid_update = interp(self.multigrid_update, factor)
         return options
