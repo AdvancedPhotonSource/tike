@@ -117,6 +117,7 @@ class ObjectOptions:
     def resample(self, factor: float, interp) -> ObjectOptions:
         """Return a new `ObjectOptions` with the parameters rescaled."""
         options = ObjectOptions(
+            convergence_tolerance=self.convergence_tolerance,
             positivity_constraint=self.positivity_constraint,
             smoothness_constraint=self.smoothness_constraint,
             use_adaptive_moment=self.use_adaptive_moment,
