@@ -279,10 +279,10 @@ def _resize_mean(x: np.ndarray, f: float) -> np.ndarray:
             int(x.shape[-1] * f),
             int(1.0 / f),
         )
-        return np.mean(x.reshape(new_shape), axis=(-1, -3))
+        return np.sum(x.reshape(new_shape), axis=(-1, -3)) * (f * f)
     else:
         return np.repeat(
             np.repeat(x, repeats=f, axis=-2),
             repeats=int(f),
             axis=-1,
-        )
+        ) * (f * f)

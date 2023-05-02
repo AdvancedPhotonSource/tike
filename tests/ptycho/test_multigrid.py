@@ -29,6 +29,10 @@ def test_resize_mean():
         [0, 1],
         [5, 7],
     ]])
+    x3 = np.array([[
+        [0, 1*9],
+        [5*9, 7*9],
+    ]])
     x = np.array([[
         [0, 0, 0, 1, 1, 1],
         [0, 0, 0, 1, 1, 1],
@@ -36,11 +40,11 @@ def test_resize_mean():
         [5, 5, 5, 7, 7, 7],
         [5, 5, 5, 7, 7, 7],
         [5, 5, 5, 7, 7, 7],
-    ]])
+    ]]) * 9
     x1 = _resize_mean(x0, 3.0)
     np.testing.assert_equal(x1, x)
     x2 = _resize_mean(x, 1.0/3.0)
-    np.testing.assert_equal(x2, x0)
+    np.testing.assert_equal(x2, x3)
 
 
 @pytest.mark.parametrize("function", [
