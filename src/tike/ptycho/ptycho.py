@@ -412,7 +412,7 @@ class Reconstruction():
     def iterate(self, num_iter: int) -> None:
         """Advance the reconstruction by num_iter epochs."""
         start = time.perf_counter()
-        psi_previous = None
+        psi_previous = self.parameters.psi[0].copy()
         for i in range(num_iter):
 
             logger.info(f"{self.parameters.algorithm_options.name} epoch "
@@ -460,9 +460,8 @@ class Reconstruction():
                     a_max=1.0,
                 )
 
-            if (self.parameters.position_options
-                    and self.parameters.position_options[0]
-                    .use_position_regularization):
+            if (self.parameters.position_options and self.parameters
+                    .position_options[0].use_position_regularization):
 
                 (self.parameters.position_options
                 ) = affine_position_regularization(
@@ -471,20 +470,22 @@ class Reconstruction():
                     position_options=self.parameters.position_options,
                 )
 
-            self.parameters.algorithm_options.times.append(
-                time.perf_counter() - start)
+            self.parameters.algorithm_options.times.append(time.perf_counter() -
+                                                           start)
             start = time.perf_counter()
 
-            if tike.opt.is_converged(self.parameters.algorithm_options):
+            update_norm = tike.linalg.mnorm(self.parameters.psi[0] -
+                                            psi_previous)
+            self.parameters.object_options.update_mnorm.append(
+                update_norm.get())
+            logger.info(f"The object update mean-norm is {update_norm:.3e}")
+            if (np.mean(self.parameters.object_options.update_mnorm[-5:]) <
+                    self.parameters.object_options.convergence_tolerance):
+                logger.info(
+                    f"The object seems converged. {update_norm:.3e} < "
+                    f"{self.parameters.object_options.convergence_tolerance:.3e}"
+                )
                 break
-            if psi_previous is not None:
-                update_norm = tike.linalg.mnorm(self.parameters.psi[0] - psi_previous)
-                self.parameters.object_options.update_mnorm.append(update_norm.get())
-                logger.info(f"The object update mean-norm is {update_norm:.3e}")
-                if update_norm < self.parameters.object_options.convergence_tolerance:
-                    logger.info(f"The object seems converged. {update_norm:.3e} < {self.parameters.object_options.convergence_tolerance:.3e}")
-                    break
-            psi_previous = cp.copy(self.parameters.psi[0])
 
     def get_result(self):
         """Return the current parameter estimates."""
