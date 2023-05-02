@@ -279,6 +279,8 @@ def _apply_update(
                 mdecay=object_options.mdecay,
             )
             new_psi = dpsi + psi[0]
+        if object_options.multigrid_update is not None:
+            new_psi = new_psi + object_options.multigrid_update
         psi = comm.pool.bcast([new_psi])
 
     if recover_probe:
@@ -301,6 +303,8 @@ def _apply_update(
                 mdecay=probe_options.mdecay,
             )
             new_probe = dprobe + probe[0]
+        if probe_options.multigrid_update is not None:
+            new_probe = new_probe + probe_options.multigrid_update
         probe = comm.pool.bcast([new_probe])
 
     return psi, probe

@@ -236,6 +236,9 @@ def lstsq_grad(
         dpsi = beta_object * object_update_precond
         psi[0] = psi[0] + dpsi
 
+        if object_options.multigrid_update is not None:
+            psi[0] = psi[0] + object_options.multigrid_update
+
         if object_options.use_adaptive_moment:
             (
                 dpsi,
@@ -557,6 +560,10 @@ def _update_nearplane(
                         mdecay=object_options.mdecay,
                     )
                 psi[0] = psi[0] + dpsi
+
+                if object_options.multigrid_update is not None:
+                    psi[0] = psi[0] + object_options.multigrid_update
+
                 psi = comm.pool.bcast([psi[0]])
             else:
                 object_options.combined_update += object_upd_sum[0]

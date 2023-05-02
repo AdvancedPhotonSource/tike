@@ -54,6 +54,7 @@ __all__ = [
     "simulate",
     "Reconstruction",
     "reconstruct_multigrid",
+    "reconstruct_multigrid_new",
 ]
 
 import copy
@@ -715,7 +716,7 @@ def reconstruct_multigrid(
     num_gpu: typing.Union[int, typing.Tuple[int, ...]] = 1,
     use_mpi: bool = False,
     num_levels: int = 3,
-    interp=None,
+    interp: typing.Callable = solvers.options._resize_fft,
 ) -> solvers.PtychoParameters:
     """Solve the ptychography problem using a multi-grid method.
 
@@ -764,3 +765,183 @@ def reconstruct_multigrid(
         resampled_parameters = context.parameters.resample(2.0, interp)
 
     raise RuntimeError('This should not happen.')
+
+
+def reconstruct_multigrid_new(
+    data: npt.NDArray,
+    parameters: solvers.PtychoParameters,
+    model: str = 'gaussian',
+    num_gpu: typing.Union[int, typing.Tuple[int, ...]] = 1,
+    use_mpi: bool = False,
+    num_levels: int = 3,
+    level: int = 0,
+    interp: typing.Callable = solvers.options._resize_mean,
+) -> solvers.PtychoParameters:
+    """Solve the ptychography problem using a multi-grid method.
+
+    .. versionadded:: 0.23.2
+
+    Uses the same parameters as the functional reconstruct API. This function
+    applies a multi-grid approach to the problem by downsampling the real-space
+    input parameters and cropping the diffraction patterns to reduce the
+    computational cost of early iterations.
+
+    Parameters
+    ----------
+    num_levels : int > 0
+        The number of times to reduce the problem by a factor of two.
+
+
+    .. seealso:: :py:func:`tike.ptycho.ptycho.reconstruct`
+    """
+
+    if level == 0 and (data.shape[-1] * 0.5**(num_levels - 1) < 64):
+        warnings.warn('Cropping diffraction patterns to less than 64 pixels '
+                      'wide is not recommended because the full doughnut'
+                      ' may not be visible.')
+
+    with tike.ptycho.Reconstruction(
+            data=data,
+            parameters=parameters,
+            model=model,
+            num_gpu=num_gpu,
+            use_mpi=use_mpi,
+    ) as context:
+
+        if context.parameters.object_options.multigrid_update is not None:
+            grad_psi = context.comm.pool.map(
+                context.operator.grad_psi,
+                context.data,
+                context.parameters.psi,
+                context.parameters.scan,
+                context.parameters.probe,
+            )
+            grad_psi = context.comm.Allreduce_reduce_gpu(grad_psi)[0]
+            context.parameters.object_options.multigrid_update += -grad_psi
+
+        if context.parameters.probe_options.multigrid_update is not None:
+            grad_probe = context.comm.pool.map(
+                context.operator.grad_probe,
+                context.data,
+                context.parameters.psi,
+                context.parameters.scan,
+                context.parameters.probe,
+            )
+            grad_probe = context.comm.Allreduce_reduce_gpu(grad_probe)[0]
+            context.parameters.probe_options.multigrid_update += -grad_probe
+
+        logging.info(f'Multigrid level {level} pre-smoothing')
+
+        # pre-smoothing
+        context.iterate(4)
+
+        if level + 1 < num_levels:
+
+            # coarse-grid correction
+            parameters_coarser = context.get_result().resample(0.5, interp)
+            data_coarser = solvers.crop_fourier_space(
+                data,
+                data.shape[-1] // 2,
+            )
+
+            grad_psi = context.comm.pool.map(
+                context.operator.grad_psi,
+                context.data,
+                context.parameters.psi,
+                context.parameters.scan,
+                context.parameters.probe,
+            )
+            grad_psi = context.comm.Allreduce_reduce_cpu(grad_psi)
+            if context.parameters.object_options.multigrid_update is None:
+                parameters_coarser.object_options.multigrid_update  = interp(grad_psi, 0.5)
+            else:
+                parameters_coarser.object_options.multigrid_update += interp(grad_psi, 0.5)
+
+            grad_probe = context.comm.pool.map(
+                context.operator.grad_probe,
+                context.data,
+                context.parameters.psi,
+                context.parameters.scan,
+                context.parameters.probe,
+            )
+            grad_probe = context.comm.Allreduce_reduce_cpu(grad_probe)
+            if context.parameters.probe_options.multigrid_update is None:
+                parameters_coarser.probe_options.multigrid_update = interp(grad_probe, 0.5)
+            else:
+                parameters_coarser.probe_options.multigrid_update += interp(grad_probe, 0.5)
+
+            parameters_coarser_updated = reconstruct_multigrid_new(
+                data=data_coarser,
+                parameters=parameters_coarser,
+                num_gpu=num_gpu,
+                model=model,
+                use_mpi=use_mpi,
+                num_levels=num_levels,
+                level=level + 1,
+                interp=interp,
+            )
+
+            context.parameters.algorithm_options.times = parameters_coarser_updated.algorithm_options.times
+            context.parameters.algorithm_options.costs = parameters_coarser_updated.algorithm_options.costs
+
+            def update_multi(x, gamma, dir):
+
+                def f(x, dir):
+                    return x + gamma * dir
+
+                return list(context.comm.pool.map(f, x, dir))
+
+            def cost_function_psi(psi, **kwargs):
+                cost_out = context.comm.pool.map(
+                    context.operator.cost,
+                    context.data,
+                    psi,
+                    context.parameters.scan,
+                    context.parameters.probe,
+                )
+                return context.comm.Allreduce_mean(cost_out, axis=None).get()
+
+            def cost_function_probe(probe, **kwargs):
+                cost_out = context.comm.pool.map(
+                    context.operator.cost,
+                    context.data,
+                    context.parameters.psi,
+                    context.parameters.scan,
+                    probe,
+                )
+                return context.comm.Allreduce_mean(cost_out, axis=None).get()
+
+            logging.info(f'Multigrid level {level} upsample update')
+
+            _, _, context.parameters.psi = tike.opt.line_search(
+                f=cost_function_psi,
+                x=context.parameters.psi,
+                d=context.comm.pool.bcast([
+                    interp(
+                        parameters_coarser_updated.psi - parameters_coarser.psi,
+                        2.0,
+                    )
+                ]),
+                update_multi=update_multi,
+            )
+
+            _, _, context.parameters.probe = tike.opt.line_search(
+                f=cost_function_probe,
+                x=context.parameters.probe,
+                d=context.comm.pool.bcast([
+                    interp(
+                        parameters_coarser_updated.probe -
+                        parameters_coarser.probe,
+                        2.0,
+                    )
+                ]),
+                update_multi=update_multi,
+            )
+
+        logging.info(f'Multigrid level {level} post-smoothing')
+
+        # post-smoothing
+        context.iterate(parameters.algorithm_options.num_iter)
+
+    print(f"Return level {level}")
+    return context.parameters

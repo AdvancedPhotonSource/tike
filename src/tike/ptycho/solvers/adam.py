@@ -224,6 +224,8 @@ def _update_all(
             mdecay=object_options.mdecay,
         )
         psi[0] = psi[0] - algorithm_options.step_length * dpsi / deno
+        if object_options.multigrid_update is not None:
+            psi[0] = psi[0] + object_options.multigrid_update / deno
         psi = comm.pool.bcast([psi[0]])
 
     if probe_options:
@@ -247,6 +249,8 @@ def _update_all(
             mdecay=object_options.mdecay,
         )
         probe[0] = probe[0] - algorithm_options.step_length * dprobe
+        if probe_options.multigrid_update is not None:
+            probe[0] = probe[0] + probe_options.multigrid_update / deno
         probe = comm.pool.bcast([probe[0]])
 
     return psi, probe
