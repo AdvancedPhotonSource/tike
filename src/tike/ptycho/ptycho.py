@@ -376,10 +376,8 @@ class Reconstruction():
                 self.comm,)
 
         if self.parameters.eigen_probe is not None:
-            self.parameters.eigen_probe = self.comm.pool.bcast([
-                self.parameters.eigen_probe.astype(
-                    tike.precision.cfloating)
-            ])
+            self.parameters.eigen_probe = self.comm.pool.bcast(
+                [self.parameters.eigen_probe.astype(tike.precision.cfloating)])
 
         if self.parameters.position_options is not None:
             # TODO: Consider combining put/split, get/join operations?
@@ -428,8 +426,7 @@ class Reconstruction():
                     self.parameters.probe = self.comm.pool.map(
                         constrain_probe_sparsity,
                         self.parameters.probe,
-                        f=self.parameters.probe_options
-                        .force_sparsity,
+                        f=self.parameters.probe_options.force_sparsity,
                     )
 
                 if self.parameters.probe_options.force_orthogonality:
@@ -810,25 +807,29 @@ def reconstruct_multigrid_new(
     ) as context:
 
         if context.parameters.object_options.multigrid_update is not None:
-            grad_psi = context.comm.pool.map(
-                context.operator.grad_psi,
-                context.data,
-                context.parameters.psi,
-                context.parameters.scan,
-                context.parameters.probe,
-            )
-            grad_psi = context.comm.Allreduce_reduce_gpu(grad_psi)[0]
+            grad_psi = 0
+            for n in range(context.parameters.algorithm_options.num_batch):
+                _grad_psi = context.comm.pool.map(
+                    context.operator.grad_psi,
+                    context.comm.pool.map(tike.opt.get_batch, context.data, context.batches, n=n),
+                    context.parameters.psi,
+                    context.comm.pool.map(tike.opt.get_batch, context.parameters.scan, context.batches, n=n),
+                    context.parameters.probe,
+                )
+                grad_psi += context.comm.Allreduce_reduce_gpu(_grad_psi)[0]
             context.parameters.object_options.multigrid_update += -grad_psi
 
         if context.parameters.probe_options.multigrid_update is not None:
-            grad_probe = context.comm.pool.map(
-                context.operator.grad_probe,
-                context.data,
-                context.parameters.psi,
-                context.parameters.scan,
-                context.parameters.probe,
-            )
-            grad_probe = context.comm.Allreduce_reduce_gpu(grad_probe)[0]
+            grad_probe = 0
+            for n in range(context.parameters.algorithm_options.num_batch):
+                _grad_probe = context.comm.pool.map(
+                    context.operator.grad_probe,
+                    context.comm.pool.map(tike.opt.get_batch, context.data, context.batches, n=n),
+                    context.parameters.psi,
+                    context.comm.pool.map(tike.opt.get_batch, context.parameters.scan, context.batches, n=n),
+                    context.parameters.probe,
+                )
+                grad_probe += context.comm.Allreduce_reduce_gpu(_grad_probe)[0]
             context.parameters.probe_options.multigrid_update += -grad_probe
 
         logging.info(f'Multigrid level {level} pre-smoothing')
@@ -845,31 +846,39 @@ def reconstruct_multigrid_new(
                 data.shape[-1] // 2,
             )
 
-            grad_psi = context.comm.pool.map(
-                context.operator.grad_psi,
-                context.data,
-                context.parameters.psi,
-                context.parameters.scan,
-                context.parameters.probe,
-            )
-            grad_psi = context.comm.Allreduce_reduce_cpu(grad_psi)
+            grad_psi = 0
+            for n in range(context.parameters.algorithm_options.num_batch):
+                _grad_psi = context.comm.pool.map(
+                    context.operator.grad_psi,
+                    context.comm.pool.map(tike.opt.get_batch, context.data, context.batches, n=n),
+                    context.parameters.psi,
+                    context.comm.pool.map(tike.opt.get_batch, context.parameters.scan, context.batches, n=n),
+                    context.parameters.probe,
+                )
+                grad_psi += context.comm.Allreduce_reduce_cpu(_grad_psi)
             if context.parameters.object_options.multigrid_update is None:
-                parameters_coarser.object_options.multigrid_update  = interp(grad_psi, 0.5)
+                parameters_coarser.object_options.multigrid_update = interp(
+                    grad_psi, 0.5)
             else:
-                parameters_coarser.object_options.multigrid_update += interp(grad_psi, 0.5)
+                parameters_coarser.object_options.multigrid_update += interp(
+                    grad_psi, 0.5)
 
-            grad_probe = context.comm.pool.map(
-                context.operator.grad_probe,
-                context.data,
-                context.parameters.psi,
-                context.parameters.scan,
-                context.parameters.probe,
-            )
-            grad_probe = context.comm.Allreduce_reduce_cpu(grad_probe)
+            grad_probe = 0
+            for n in range(context.parameters.algorithm_options.num_batch):
+                _grad_probe = context.comm.pool.map(
+                    context.operator.grad_probe,
+                    context.comm.pool.map(tike.opt.get_batch, context.data, context.batches, n=n),
+                    context.parameters.psi,
+                    context.comm.pool.map(tike.opt.get_batch, context.parameters.scan, context.batches, n=n),
+                    context.parameters.probe,
+                )
+                grad_probe += context.comm.Allreduce_reduce_cpu(_grad_probe)
             if context.parameters.probe_options.multigrid_update is None:
-                parameters_coarser.probe_options.multigrid_update = interp(grad_probe, 0.5)
+                parameters_coarser.probe_options.multigrid_update = interp(
+                    grad_probe, 0.5)
             else:
-                parameters_coarser.probe_options.multigrid_update += interp(grad_probe, 0.5)
+                parameters_coarser.probe_options.multigrid_update += interp(
+                    grad_probe, 0.5)
 
             parameters_coarser_updated = reconstruct_multigrid_new(
                 data=data_coarser,
@@ -884,6 +893,7 @@ def reconstruct_multigrid_new(
 
             context.parameters.algorithm_options.times = parameters_coarser_updated.algorithm_options.times
             context.parameters.algorithm_options.costs = parameters_coarser_updated.algorithm_options.costs
+            context.parameters.object_options.update_mnorm = parameters_coarser_updated.object_options.update_mnorm
 
             def update_multi(x, gamma, dir):
 
