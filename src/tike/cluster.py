@@ -11,14 +11,19 @@ import tike.communicators
 logger = logging.getLogger(__name__)
 
 
-def _split(m, x, dtype):
+def _split_gpu(m, x, dtype):
     return cp.asarray(x[m], dtype=dtype)
+
+
+def _split_host(m, x, dtype):
+    return np.asarray(x[m], dtype=dtype)
 
 
 def by_scan_grid(
     pool: tike.communicators.ThreadPool,
     shape: typing.Tuple[int],
     dtype: typing.List[npt.DTypeLike],
+    destination: typing.List[str],
     scan: npt.NDArray[np.float32],
     *args,
     fly: int = 1,
@@ -62,11 +67,17 @@ def by_scan_grid(
     order = [order[m] for m in mask]
 
     split_args = []
-    for arg, t in zip([scan, *args], dtype):
+    for arg, t, dest in zip([scan, *args], dtype, destination):
         if arg is None:
             split_args.append(None)
         else:
-            split_args.append(pool.map(_split, mask, x=arg, dtype=t))
+            split_args.append(
+                pool.map(
+                    _split_gpu if dest == 'gpu' else _split_host,
+                    mask,
+                    x=arg,
+                    dtype=t,
+                ))
 
     return (order, *split_args)
 

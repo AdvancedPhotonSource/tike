@@ -356,6 +356,7 @@ class Reconstruction():
             (tike.precision.floating, tike.precision.floating
              if self.data.itemsize > 2 else self.data.dtype,
              tike.precision.floating),
+            ('gpu', 'gpu', 'gpu'),
             self._device_parameters.scan,
             self.data,
             self._device_parameters.eigen_weights,
@@ -428,8 +429,7 @@ class Reconstruction():
                     self._device_parameters.probe = self.comm.pool.map(
                         constrain_probe_sparsity,
                         self._device_parameters.probe,
-                        f=self._device_parameters.probe_options
-                        .force_sparsity,
+                        f=self._device_parameters.probe_options.force_sparsity,
                     )
 
                 if self._device_parameters.probe_options.force_orthogonality:
@@ -440,7 +440,8 @@ class Reconstruction():
                         tike.ptycho.probe.orthogonalize_eig,
                         self._device_parameters.probe,
                     )))
-                    self._device_parameters.probe_options.power.append(power[0].get())
+                    self._device_parameters.probe_options.power.append(
+                        power[0].get())
 
             self._device_parameters = getattr(
                 solvers,
