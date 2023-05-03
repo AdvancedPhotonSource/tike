@@ -111,6 +111,49 @@ class ReconMultiGrid():
         return parameters
 
 
+@unittest.skipIf(
+    _mpi_size > 1,
+    reason="MPI not implemented for multi-grid.",
+)
+class ReconMultiGridNew():
+    """Test ptychography multi-grid reconstruction method."""
+
+    def interp(self, x, f):
+        pass
+
+    def template_consistent_algorithm(self, *, data, params):
+        """Check ptycho.solver.algorithm for consistency."""
+        if _mpi_size > 1:
+            raise NotImplementedError()
+
+        with cp.cuda.Device(self.gpu_indices[0]):
+            parameters = tike.ptycho.reconstruct_multigrid_new(
+                parameters=params,
+                data=self.data,
+                num_gpu=self.gpu_indices,
+                use_mpi=self.mpi_size > 1,
+                num_levels=2,
+                interp=self.interp,
+            )
+
+        print()
+        print('\n'.join(
+            f'{c[0]:1.3e}' for c in parameters.algorithm_options.costs))
+        return parameters
+
+
+class TestPtychoReconMultiGridMean(
+        ReconMultiGridNew,
+        PtychoRecon,
+        unittest.TestCase,
+):
+
+    post_name = '-multigrid-mean'
+
+    def interp(self, x, f):
+        return _resize_mean(x, f)
+
+
 class TestPtychoReconMultiGridFFT(
         ReconMultiGrid,
         PtychoRecon,
