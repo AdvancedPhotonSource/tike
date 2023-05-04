@@ -10,6 +10,7 @@ import typing
 import logging
 import warnings
 
+import cupy as cp
 import numpy as np
 import numpy.typing as npt
 
@@ -55,7 +56,7 @@ def batch_indicies(n, m=1, use_random=True):
 
 def get_batch(x, b, n):
     """Returns x[:, b[n]]; for use with map()."""
-    return x[b[n]]
+    return cp.asarray(x[b[n]])
 
 
 def put_batch(y, x, b, n):
