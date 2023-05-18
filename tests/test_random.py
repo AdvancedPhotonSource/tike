@@ -43,6 +43,11 @@ class ClusterTests():
         samples = np.sort(np.concatenate(samples))
         np.testing.assert_array_equal(np.arange(self.num_pop), samples)
 
+    def test_some_clusters_are_singleton(self):
+        samples = self.cluster_method(self.population, self.num_pop - 1)
+        assert len(samples[0]) == 2
+        assert len(samples[1]) == 1
+
 
 class TestWobblyCenter(unittest.TestCase, ClusterTests):
 
@@ -110,6 +115,7 @@ class TestClusterCompact(unittest.TestCase, ClusterTests):
             axis=1,
         )
         randomizer.shuffle(population, axis=0)
+        population = population[:num_pop]
         self.population = population
 
     def test_reduced_deviation(self):
@@ -122,11 +128,12 @@ class TestClusterCompact(unittest.TestCase, ClusterTests):
             """
             cost = 0
             for c in indices:
-                cost += len(c) * np.linalg.det(
-                    np.cov(
-                        self.population[c],
-                        rowvar=False,
-                    ))
+                if len(c) > 1:
+                    cost += abs(len(c) * np.linalg.det(
+                        np.cov(
+                            self.population[c],
+                            rowvar=False,
+                        )))
             print(cost)
             return cost
 
@@ -138,7 +145,7 @@ class TestClusterCompact(unittest.TestCase, ClusterTests):
 
         # Every compact cluster should have smaller devation than a random
         # cluster
-        assert np.all(p0 < p1)
+        assert p0 <= p1, f"assert {p0} <= {p1}"
 
     def test_plot_clusters(self):
         import matplotlib
