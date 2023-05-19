@@ -28,6 +28,7 @@ def cupy_complex(*shape):
 
 
 def cluster_wobbly_center(*args, **kwargs):
+    """Deprecated alias for :py:func:`tike.cluster.wobbly_center`."""
     import warnings
     warnings.warn(
         'tike.random.cluster_wobbly_center is depreacted. '
@@ -39,6 +40,7 @@ def cluster_wobbly_center(*args, **kwargs):
 
 
 def cluster_compact(*args, **kwargs):
+    """Deprecated alias for :py:func:`tike.cluster.compact`."""
     import warnings
     warnings.warn(
         'tike.random.cluster_compact is depreacted. '
