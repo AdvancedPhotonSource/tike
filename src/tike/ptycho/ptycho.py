@@ -649,26 +649,32 @@ def _order_join(a, b):
     return np.append(a, b + len(a))
 
 
-def _get_rescale(data, psi, scan, probe, num_batch, operator):
+def _get_rescale(data, psi, scan, probe, operator, streams,):
 
-    n = cp.zeros(2, dtype=np.double)
 
-    for b in tike.opt.batch_indicies(data.shape[-3],
-                                     num_batch,
-                                     use_random=False):
+    def make_certain_args_constant(
+        data,
+        scan,
+    ):
 
         intensity, _ = operator._compute_intensity(
-            data[..., b, :, :],
-            psi,
-            scan[..., b, :],
-            probe,
+            data, psi, scan, probe,
         )
 
-        n[0] += np.sum(data[..., b, :, :])
-        n[1] += np.sum(intensity)
+        return [
+            cp.sum(data, dtype=np.double),
+            cp.sum(intensity, dtype=np.double),
+        ]
 
-    return n
+    result = tike.communicators.stream.stream_and_reduce(
+        f=make_certain_args_constant,
+        args=[data, scan],
+        y_shapes=[(1,), (1,)],
+        y_dtypes=[np.double, np.double],
+        streams=streams,
+    )
 
+    return cp.concatenate(result)
 
 def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
     """Rescale probe so model and measured intensity are similar magnitude.
@@ -683,8 +689,8 @@ def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
             psi,
             scan,
             probe,
-            num_batch=num_batch,
             operator=operator,
+            streams=comm.streams,
         )
     except cp.cuda.memory.OutOfMemoryError:
         raise ValueError(
