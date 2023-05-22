@@ -29,7 +29,7 @@ def test_stream_reduce_prototype():
 def test_stream_reduce(dtype=np.double, num_streams=2):
 
     def f(a, b, c):
-        return a, b * c, b + c
+        return cp.sum(a), cp.sum(b * c), cp.sum(b + c)
 
     x0 = cupyx.empty_pinned(shape=(4,), dtype=dtype)
     x0[:] = [0, 1, 0, 0]
@@ -52,6 +52,7 @@ def test_stream_reduce(dtype=np.double, num_streams=2):
         y_dtypes=[dtype, dtype, dtype],
         streams=[cp.cuda.Stream() for _ in range(num_streams)]
     )
+    result = [r.get() for r in result]
 
     print(result)
 

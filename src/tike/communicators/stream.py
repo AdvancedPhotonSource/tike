@@ -1,3 +1,4 @@
+import math
 import typing
 
 import cupy as cp
@@ -60,38 +61,47 @@ def stream_and_reduce(
 
     """
     if indices is None:
-        num_slices = len(args[0])
-        indices = range(num_slices)
+        N = len(args[0])
+        indices = range(N)
     else:
-        num_slices = len(indices)
-    num_streams = len(streams)
-    num_buffer = min(num_streams, num_slices)
+        N = len(indices)
+    chunk_size = min(64, N)
+    num_streams = min(len(streams), math.ceil(N / chunk_size))
 
-    args_gpu = [cp.empty_like(x[0:num_buffer]) for x in args]
+    args_gpu = [
+        cp.empty_like(
+            x,
+            shape=(num_streams * chunk_size, *x.shape[1:]),
+        ) for x in args
+    ]
     y_sums = [
-        cp.zeros(dtype=d, shape=(num_buffer, *s))
+        cp.zeros(dtype=d, shape=(num_streams, *s))
         for d, s in zip(y_dtypes, y_shapes)
     ]
 
-    for s, i in enumerate(indices):
+    for s, i in enumerate(range(0, N, chunk_size)):
         stream_index = s % num_streams
+
+        indices_chunk = indices[i:i + chunk_size]
+        buflo = stream_index * chunk_size
+        bufhi = buflo + len(indices_chunk)
+
         with streams[stream_index]:
+
             for x_gpu, x in zip(args_gpu, args):
                 # Use a range because set() needs an array always; never scalar
                 if isinstance(x, cp.ndarray):
-                    x_gpu[stream_index:stream_index + 1] = x[i:i + 1]
-                else: # np.ndarray
-                    x_gpu[stream_index:stream_index + 1].set(x[i:i + 1])
+                    x_gpu[buflo:bufhi] = x[indices_chunk]
+                else:  # np.ndarray
+                    x_gpu[buflo:bufhi].set(x[indices_chunk])
 
-            results = f(
-                *(x_gpu[stream_index:stream_index + 1] for x_gpu in args_gpu))
+            results = f(*(x_gpu[buflo:bufhi] for x_gpu in args_gpu))
 
             for y_sum, y in zip(y_sums, results):
                 y_sum[stream_index] += y
 
     y_sums_pinned = [
-        cp.empty(dtype=d, shape=s)
-        for d, s in zip(y_dtypes, y_shapes)
+        cp.empty(dtype=d, shape=s) for d, s in zip(y_dtypes, y_shapes)
     ]
 
     [stream.synchronize() for stream in streams]
