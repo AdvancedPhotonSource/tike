@@ -261,6 +261,27 @@ class PtychoRecon(
         except ImportError:
             pass
 
+    def test_consistent_grad(self):
+        """Check ptycho.solver.grad for consistency."""
+        params = tike.ptycho.PtychoParameters(
+            psi=self.psi,
+            probe=self.probe,
+            scan=self.scan,
+            algorithm_options=tike.ptycho.GradOptions(
+                num_batch=5,
+                num_iter=16,
+            ),
+            probe_options=ProbeOptions(),
+            object_options=ObjectOptions(),
+        )
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                data=self.data,
+                params=params,
+            ),
+            f"mpi{self.mpi_size}-grad{self.post_name}",
+        )
+
     def test_consistent_adam_grad(self):
         """Check ptycho.solver.adam_grad for consistency."""
         params = tike.ptycho.PtychoParameters(

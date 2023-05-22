@@ -43,6 +43,7 @@ class Comm:
             self.use_mpi = True
         self.mpi = mpi()
         self.pool = pool(gpu_count)
+        self.streams = [cp.cuda.Stream() for _ in range(8)]
 
     def __enter__(self):
         self.mpi.__enter__()

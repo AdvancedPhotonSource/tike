@@ -6,6 +6,7 @@ from .dm import dm
 from .lstsq import lstsq_grad
 from .rpie import rpie
 from .options import *
+from .grad import grad
 
 __all__ = [
     'adam_grad',
@@ -20,4 +21,6 @@ __all__ = [
     'rpie',
     'RpieOptions',
     'crop_fourier_space',
+    'grad',
+    'GradOptions',
 ]
