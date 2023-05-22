@@ -70,18 +70,6 @@ def grad(
     num_batch_combined = 0
     for n in order(parameters.algorithm_options.num_batch):
 
-        # cost = comm.pool.map(
-        #     _cost_function,
-        #     data,
-        #     parameters.psi,
-        #     parameters.scan,
-        #     parameters.probe,
-        #     batches,
-        #     op=op,
-        #     n=n,
-        #     streams=streams,
-        # )
-
         (
             cost,
             grad_psi,
@@ -209,7 +197,7 @@ def _grad_function(
             scan,
             probe,
         )
-        cost = op.propagation.cost(data, intensity)
+        cost = tike.operators.gaussian_each_pattern(data, intensity).sum(axis=0)
         grad_psi, grad_probe, amp_psi, amp_probe = op.adj_all(
             farplane=op.propagation.grad(
                 data,
@@ -229,7 +217,7 @@ def _grad_function(
         )
         return cost, grad_psi, grad_probe, amp_psi, amp_probe
 
-    return tike.communicators.stream.stream_and_reduce(
+    result = tike.communicators.stream.stream_and_reduce(
         f=make_certain_args_constant,
         args=[data, scan],
         y_shapes=[(1,), psi.shape, probe.shape, probe.shape, psi.shape],
@@ -237,6 +225,8 @@ def _grad_function(
         indices=batches[n],
         streams=streams,
     )
+    result[0] = result[0] / len(batches[n])
+    return result
 
 def _update_all(
     comm: tike.communicators.Comm,
