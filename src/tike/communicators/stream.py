@@ -12,7 +12,7 @@ def stream_and_reduce(
     args: typing.List[npt.NDArray],
     y_shapes: typing.List[typing.List[int]],
     y_dtypes: typing.List[npt.DTypeLike],
-    streams: typing.List[cp.cuda.Stream] = [cp.cuda.Stream()],
+    streams: typing.List[cp.cuda.Stream] = [cp.cuda.Stream(), cp.cuda.Stream()],
     indices: typing.Union[None, typing.List[int]] = None,
 ) -> npt.NDArray:
     """Use multiple CUDA streams to compute sum(f(x), axis=0).
@@ -36,7 +36,7 @@ def stream_and_reduce(
     y_dtypes:
         The dtypes of the outputs of f(args)
     streams:
-        A list of CUDA streams to use for streaming
+        A list of two CUDA streams to use for streaming
     indices:
         A list of indices to use instead of range(0, N) for slices of args
 
@@ -66,7 +66,7 @@ def stream_and_reduce(
     else:
         N = len(indices)
     chunk_size = min(64, N)
-    num_streams = min(len(streams), math.ceil(N / chunk_size))
+    num_streams = 2
 
     args_gpu = [
         cp.empty_like(
@@ -80,34 +80,27 @@ def stream_and_reduce(
     ]
 
     for s, i in enumerate(range(0, N, chunk_size)):
-        stream_index = s % num_streams
+        buffer_index = s % num_streams
 
         indices_chunk = indices[i:i + chunk_size]
-        buflo = stream_index * chunk_size
+        buflo = buffer_index * chunk_size
         bufhi = buflo + len(indices_chunk)
 
-        with streams[stream_index]:
-
+        with streams[0]:
             for x_gpu, x in zip(args_gpu, args):
                 # Use a range because set() needs an array always; never scalar
                 if isinstance(x, cp.ndarray):
                     x_gpu[buflo:bufhi] = x[indices_chunk]
-                else:  # np.ndarray
+                else:  # x is a pinned np.ndarray
                     x_gpu[buflo:bufhi].set(x[indices_chunk])
 
+        streams[0].synchronize()
+        streams[1].synchronize()
+
+        with streams[1]:
             results = f(*(x_gpu[buflo:bufhi] for x_gpu in args_gpu))
 
             for y_sum, y in zip(y_sums, results):
-                y_sum[stream_index] += y
+                y_sum[buffer_index] += y
 
-    y_sums_pinned = [
-        cp.empty(dtype=d, shape=s) for d, s in zip(y_dtypes, y_shapes)
-    ]
-
-    [stream.synchronize() for stream in streams]
-
-    for y_sum, y_sum_pinned, d in zip(y_sums, y_sums_pinned, y_dtypes):
-        # y_sum.sum(axis=0, dtype=d).get(out=y_sum_pinned)
-        y_sum_pinned[:] = y_sum.sum(axis=0, dtype=d)
-
-    return y_sums_pinned
+    return [y_sum.sum(axis=0, dtype=d) for y_sum, d in zip(y_sums, y_dtypes)]

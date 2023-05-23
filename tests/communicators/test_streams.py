@@ -50,10 +50,36 @@ def test_stream_reduce(dtype=np.double, num_streams=2):
         args,
         y_shapes=[(1,), (1,), (1,)],
         y_dtypes=[dtype, dtype, dtype],
-        streams=[cp.cuda.Stream() for _ in range(num_streams)]
+        streams=[cp.cuda.Stream() for _ in range(num_streams)],
     )
     result = [r.get() for r in result]
 
     print(result)
 
     np.testing.assert_array_equal(truth, result)
+
+
+def test_stream_reduce_benchmark(dtype=np.double, num_streams=4):
+
+    def f(a):
+        return (
+            cp.sum(cp.fft.fft2(a).real, axis=0, keepdims=True),
+            cp.sum(cp.linalg.norm(a, axis=(-1, -2), keepdims=True),  axis=0, keepdims=True),
+            cp.sum(a, keepdims=True),
+        )
+
+    x0 = cupyx.empty_pinned(shape=(1_000, 128, 128), dtype=dtype)
+    x0[:] = 1
+    args = [
+        x0,
+    ]
+
+    result = tike.communicators.stream.stream_and_reduce(
+        f,
+        args,
+        y_shapes=[(1, 128, 128), (1, 1, 1), (1, 1, 1)],
+        y_dtypes=[dtype, dtype, dtype],
+        streams=[cp.cuda.Stream() for _ in range(num_streams)])
+    result = [r.get() for r in result]
+
+    print(result)
