@@ -62,11 +62,18 @@ class Convolution(Operator):
         assert psi.shape[:-2] == scan.shape[:-2], (psi.shape, scan.shape)
         assert probe.shape[:-4] == scan.shape[:-2]
         assert probe.shape[-4] == 1 or probe.shape[-4] == scan.shape[-2]
-        patches = self.xp.zeros_like(
-            psi,
-            shape=(*scan.shape[:-2], scan.shape[-2] * probe.shape[-3],
-                   self.detector_shape, self.detector_shape),
-        )
+        if self.detector_shape == self.probe_shape:
+            patches = self.xp.empty_like(
+                psi,
+                shape=(*scan.shape[:-2], scan.shape[-2] * probe.shape[-3],
+                    self.detector_shape, self.detector_shape),
+            )
+        else:
+            patches = self.xp.zeros_like(
+                psi,
+                shape=(*scan.shape[:-2], scan.shape[-2] * probe.shape[-3],
+                    self.detector_shape, self.detector_shape),
+            )
         patches = self.patch.fwd(
             patches=patches,
             images=psi,
