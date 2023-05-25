@@ -3,6 +3,7 @@ import typing
 import logging
 
 import cupy as cp
+import cupyx
 import numpy as np
 import numpy.typing as npt
 
@@ -18,6 +19,11 @@ def _split_gpu(m, x, dtype):
 def _split_host(m, x, dtype):
     return np.asarray(x[m], dtype=dtype)
 
+def _split_pinned(m, x, dtype):
+    unpinned = x[m]
+    pinned = cupyx.empty_like_pinned(x[m], dtype=dtype)
+    pinned[:] = unpinned
+    return pinned
 
 def by_scan_grid(
     pool: tike.communicators.ThreadPool,
@@ -73,7 +79,7 @@ def by_scan_grid(
         else:
             split_args.append(
                 pool.map(
-                    _split_gpu if dest == 'gpu' else _split_host,
+                    _split_gpu if dest == 'gpu' else _split_pinned,
                     mask,
                     x=arg,
                     dtype=t,

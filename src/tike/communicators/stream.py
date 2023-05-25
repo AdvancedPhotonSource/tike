@@ -103,4 +103,6 @@ def stream_and_reduce(
             for y_sum, y in zip(y_sums, results):
                 y_sum[buffer_index] += y
 
+    streams[1].synchronize()
+
     return [y_sum.sum(axis=0, dtype=d) for y_sum, d in zip(y_sums, y_dtypes)]

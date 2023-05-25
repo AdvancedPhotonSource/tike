@@ -356,7 +356,7 @@ class Reconstruction():
             (tike.precision.floating, tike.precision.floating
              if self.data.itemsize > 2 else self.data.dtype,
              tike.precision.floating),
-            ('gpu', 'cpu', 'gpu'),
+            ('pinned', 'pinned', 'gpu'),
             self._device_parameters.scan,
             self.data,
             self._device_parameters.eigen_weights,
