@@ -1,9 +1,6 @@
-import math
 import typing
 
 import cupy as cp
-import cupyx
-import numpy as np
 import numpy.typing as npt
 
 
@@ -14,6 +11,8 @@ def stream_and_reduce(
     y_dtypes: typing.List[npt.DTypeLike],
     streams: typing.List[cp.cuda.Stream] = [cp.cuda.Stream(), cp.cuda.Stream()],
     indices: typing.Union[None, typing.List[int]] = None,
+    *,
+    chunk_size: int = 64,
 ) -> npt.NDArray:
     """Use multiple CUDA streams to compute sum(f(x), axis=0).
 
@@ -39,6 +38,8 @@ def stream_and_reduce(
         A list of two CUDA streams to use for streaming
     indices:
         A list of indices to use instead of range(0, N) for slices of args
+    chunk_size:
+        The number of slices out of N to process at one time
 
     Example
     -------
@@ -65,7 +66,7 @@ def stream_and_reduce(
         indices = range(N)
     else:
         N = len(indices)
-    chunk_size = min(64, N)
+    chunk_size = min(chunk_size, N)
     num_streams = 2
 
     args_gpu = [

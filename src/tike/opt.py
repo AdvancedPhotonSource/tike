@@ -278,6 +278,77 @@ def line_search(
     return step_length, fxsd, xsd
 
 
+def line_search1(
+    f: typing.Callable[[typing.List[npt.NDArray]], float],
+    u: typing.Callable[
+        [typing.List[npt.NDArray], float, typing.List[npt.NDArray]],
+        typing.List[npt.NDArray]
+    ],
+    args: typing.List[npt.NDArray],
+    dirs: typing.List[npt.NDArray],
+    step_length: float = 1,
+    step_shrink: float = 0.5,
+    cost: typing.Union[None, float] = None,
+) -> typing.Tuple[float, float, typing.List[npt.NDArray]]:
+    """Return a new `step_length` using a backtracking line search.
+
+    Parameters
+    ----------
+    f :
+        The function being optimized. cost = f(args)
+    args :
+        The initial position in parameter space.
+    dirs :
+        The initial search direction.
+    u :
+        Moves the args along the search direction. args = u(args, step_length,
+        dirs). Should do something like arg = arg + step_length * dir
+    step_length :
+        The initial step_length.
+    step_shrink :
+        Decrease the step_length by this fraction at each iteration.
+    cost :
+        f(*args) if it is already known.
+
+    Returns
+    -------
+    step_length : float
+        The optimal step length along dirs.
+    cost : float
+        The new value of the cost function after stepping along dirs.
+    args : float
+        The new value of args after stepping along dirs.
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Backtracking_line_search
+
+    """
+    assert step_shrink > 0 and step_shrink < 1
+    m: float = 0.0  # Some tuning parameter for termination
+    # Save the result of f(x) instead of computing it many times
+    fx: float = f(args) if cost is None else cost
+    # Decrease the step length while the step increases the cost function
+    step_count: int = 0
+    first_step = step_length
+    while True:
+        xsd = u(args, step_length, dirs)
+        fxsd = f(xsd)
+        if fxsd <= fx + step_shrink * m:
+            break
+        step_length *= step_shrink
+        if step_length < 1e-32:
+            warnings.warn("Line search failed for conjugate gradient.")
+            step_length, fxsd, xsd = 0.0, fx, args
+            break
+        step_count += 1
+
+    logger.info("line_search: %d backtracks; %.3e -> %.3e; cost %.6e",
+                step_count, first_step, step_length, fxsd)
+
+    return step_length, fxsd, xsd
+
+
 def direction_dy(xp, grad1, grad0=None, dir_=None):
     """Return the Dai-Yuan search direction.
 
