@@ -259,12 +259,18 @@ def line_search(
     # Decrease the step length while the step increases the cost function
     step_count = 0
     first_step = step_length
+    step_is_decreasing = False
     while True:
         xsd = update_multi(x, step_length, d)
         fxsd = f(xsd)
         if fxsd <= fx + step_shrink * m:
-            break
-        step_length *= step_shrink
+            if step_is_decreasing:
+                break
+            step_length /= step_shrink
+        else:
+            step_length *= step_shrink
+            step_is_decreasing = True
+
         if step_length < 1e-32:
             warnings.warn("Line search failed for conjugate gradient.")
             step_length, fxsd, xsd = 0, fx, x
