@@ -347,19 +347,19 @@ class Reconstruction():
             self.data,
             self._device_parameters.eigen_weights,
         ) = tike.cluster.by_scan_grid(
-            self.comm.pool,
-            (
+            self.data,
+            self._device_parameters.eigen_weights,
+            scan=self._device_parameters.scan,
+            pool=self.comm.pool,
+            shape=(
                 self.comm.pool.num_workers
                 if odd_pool else self.comm.pool.num_workers // 2,
                 1 if odd_pool else 2,
             ),
-            (tike.precision.floating, tike.precision.floating
+            dtype=(tike.precision.floating, tike.precision.floating
              if self.data.itemsize > 2 else self.data.dtype,
              tike.precision.floating),
-            ('gpu', 'gpu', 'gpu'),
-            self._device_parameters.scan,
-            self.data,
-            self._device_parameters.eigen_weights,
+            destination=('gpu', 'gpu', 'gpu'),
         )
 
         self._device_parameters.psi = self.comm.pool.bcast(
@@ -616,15 +616,16 @@ class Reconstruction():
             new_scan,
             new_data,
         ) = tike.cluster.by_scan_grid(
-            self.comm.pool,
-            (
+            new_data,
+            scan=new_scan,
+            pool=self.comm.pool,
+            shape=(
                 self.comm.pool.num_workers
                 if odd_pool else self.comm.pool.num_workers // 2,
                 1 if odd_pool else 2,
             ),
-            (self._device_parameters.scan[0].dtype, self.data[0].dtype),
-            new_scan,
-            new_data,
+            dtype=(self._device_parameters.scan[0].dtype, self.data[0].dtype),
+            destination=('gpu', 'gpu'),
         )
         # TODO: Perform sqrt of data here if gaussian model.
         # FIXME: Append makes a copy of each array!

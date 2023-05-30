@@ -25,13 +25,14 @@ def _split_pinned(m, x, dtype):
     pinned[:] = unpinned
     return pinned
 
+
 def by_scan_grid(
+    *args,
     pool: tike.communicators.ThreadPool,
     shape: typing.Tuple[int],
     dtype: typing.List[npt.DTypeLike],
     destination: typing.List[str],
     scan: npt.NDArray[np.float32],
-    *args,
     fly: int = 1,
 ):
     """Split the field of view into a 2D grid.
