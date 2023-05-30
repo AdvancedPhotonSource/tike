@@ -238,7 +238,7 @@ class PtychoRecon(
             probe=self.probe,
             scan=self.scan,
         )
-        params.algorithm_options = tike.ptycho.AdamOptions(
+        params.algorithm_options = tike.ptycho.GradOptions(
             num_batch=5,
             num_iter=16,
         )
@@ -271,7 +271,7 @@ class PtychoRecon(
                 num_batch=5,
                 num_iter=16,
             ),
-            probe_options=ProbeOptions(),
+            probe_options=ProbeOptions(force_orthogonality=True,),
             object_options=ObjectOptions(),
         )
         _save_ptycho_result(
@@ -282,17 +282,17 @@ class PtychoRecon(
             f"mpi{self.mpi_size}-grad{self.post_name}",
         )
 
-    def test_consistent_adam_grad(self):
-        """Check ptycho.solver.adam_grad for consistency."""
+    def test_consistent_grad(self):
+        """Check ptycho.solver.grad for consistency."""
         params = tike.ptycho.PtychoParameters(
             psi=self.psi,
             probe=self.probe,
             scan=self.scan,
-            algorithm_options=tike.ptycho.AdamOptions(
+            algorithm_options=tike.ptycho.GradOptions(
                 num_batch=5,
                 num_iter=16,
             ),
-            probe_options=ProbeOptions(),
+            probe_options=ProbeOptions(force_orthogonality=True,),
             object_options=ObjectOptions(),
         )
         _save_ptycho_result(
@@ -300,21 +300,21 @@ class PtychoRecon(
                 data=self.data,
                 params=params,
             ),
-            f"mpi{self.mpi_size}-adam_grad{self.post_name}",
+            f"mpi{self.mpi_size}-grad{self.post_name}",
         )
 
-    def test_consistent_adam_grad_compact(self):
-        """Check ptycho.solver.adam_grad for consistency."""
+    def test_consistent_grad_compact(self):
+        """Check ptycho.solver.grad for consistency."""
         params = tike.ptycho.PtychoParameters(
             psi=self.psi,
             probe=self.probe,
             scan=self.scan,
-            algorithm_options=tike.ptycho.AdamOptions(
+            algorithm_options=tike.ptycho.GradOptions(
                 num_batch=5,
                 num_iter=16,
                 batch_method='compact',
             ),
-            probe_options=ProbeOptions(),
+            probe_options=ProbeOptions(force_orthogonality=True,),
             object_options=ObjectOptions(),
         )
         _save_ptycho_result(
@@ -322,28 +322,7 @@ class PtychoRecon(
                 data=self.data,
                 params=params,
             ),
-            f"mpi{self.mpi_size}-adam_grad-compact{self.post_name}",
-        )
-
-    def test_consistent_cgrad(self):
-        """Check ptycho.solver.cgrad for consistency."""
-        params = tike.ptycho.PtychoParameters(
-            psi=self.psi,
-            probe=self.probe,
-            scan=self.scan,
-            algorithm_options=tike.ptycho.CgradOptions(
-                num_batch=5,
-                num_iter=16,
-            ),
-            probe_options=ProbeOptions(),
-            object_options=ObjectOptions(),
-        )
-        _save_ptycho_result(
-            self.template_consistent_algorithm(
-                data=self.data,
-                params=params,
-            ),
-            f"mpi{self.mpi_size}-cgrad{self.post_name}",
+            f"mpi{self.mpi_size}-grad-compact{self.post_name}",
         )
 
     def test_consistent_lstsq_grad(self):
@@ -363,8 +342,7 @@ class PtychoRecon(
             self.template_consistent_algorithm(
                 data=self.data,
                 params=params,
-            ),
-            f"mpi{self.mpi_size}-lstsq_grad{self.post_name}")
+            ), f"mpi{self.mpi_size}-lstsq_grad{self.post_name}")
 
     def test_consistent_lstsq_grad_compact(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
@@ -384,9 +362,7 @@ class PtychoRecon(
             self.template_consistent_algorithm(
                 data=self.data,
                 params=params,
-            ),
-            f"mpi{self.mpi_size}-lstsq_grad-compact{self.post_name}"
-        )
+            ), f"mpi{self.mpi_size}-lstsq_grad-compact{self.post_name}")
 
     def test_consistent_lstsq_grad_variable_probe(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
@@ -459,9 +435,7 @@ class PtychoRecon(
             self.template_consistent_algorithm(
                 data=self.data,
                 params=params,
-            ),
-            f"mpi{self.mpi_size}-rpie-compact{self.post_name}"
-        )
+            ), f"mpi{self.mpi_size}-rpie-compact{self.post_name}")
 
     def test_consistent_rpie_variable_probe(self):
         """Check ptycho.solver.lstsq_grad for consistency."""

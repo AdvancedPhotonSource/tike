@@ -1,7 +1,5 @@
 """Contains different solver implementations."""
 
-from .adam import adam_grad
-from .conjugate import cgrad
 from .dm import dm
 from .lstsq import lstsq_grad
 from .rpie import rpie
@@ -9,18 +7,14 @@ from .options import *
 from .grad import grad
 
 __all__ = [
-    'adam_grad',
-    'AdamOptions',
-    'cgrad',
-    'CgradOptions',
+    'crop_fourier_space',
     'dm',
     'DmOptions',
+    'grad',
+    'GradOptions',
     'lstsq_grad',
     'LstsqOptions',
     'PtychoParameters',
     'rpie',
     'RpieOptions',
-    'crop_fourier_space',
-    'grad',
-    'GradOptions',
 ]

@@ -49,28 +49,6 @@ class IterativeOptions(abc.ABC):
     """The number of epochs to consider for convergence monitoring. Set to
     any value less than 2 to disable."""
 
-@dataclasses.dataclass
-class AdamOptions(IterativeOptions):
-    name: str = dataclasses.field(default='adam_grad', init=False)
-
-    alpha: float = 0.05
-    """A hyper-parameter which controls the type of update regularization.
-    RPIE becomes EPIE when this parameter is 1."""
-
-    step_length: float = 1
-    """Scales the search directions."""
-
-
-@dataclasses.dataclass
-class CgradOptions(IterativeOptions):
-    name: str = dataclasses.field(default='cgrad', init=False)
-
-    cg_iter: int = 2
-    """The number of conjugate directions to search for each update."""
-
-    step_length: float = 1
-    """Scales the inital search directions before the line search."""
-
 
 @dataclasses.dataclass
 class GradOptions(IterativeOptions):

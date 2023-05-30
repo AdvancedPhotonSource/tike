@@ -356,7 +356,7 @@ class Reconstruction():
             (tike.precision.floating, tike.precision.floating
              if self.data.itemsize > 2 else self.data.dtype,
              tike.precision.floating),
-            ('pinned', 'pinned', 'gpu'),
+            ('gpu', 'gpu', 'gpu'),
             self._device_parameters.scan,
             self.data,
             self._device_parameters.eigen_weights,
@@ -454,12 +454,41 @@ class Reconstruction():
                 parameters=self._device_parameters,
             )
 
+            if self._device_parameters.object_options.positivity_constraint:
+                self._device_parameters.psi = self.comm.pool.map(
+                    tike.ptycho.object.positivity_constraint,
+                    self._device_parameters.psi,
+                    r=self._device_parameters.object_options
+                    .positivity_constraint,
+                )
+
+            if self._device_parameters.object_options.smoothness_constraint:
+                self._device_parameters.psi = self.comm.pool.map(
+                    tike.ptycho.object.smoothness_constraint,
+                    self._device_parameters.psi,
+                    r=self._device_parameters.object_options
+                    .smoothness_constraint,
+                )
+
             if self._device_parameters.object_options.clip_magnitude:
                 self._device_parameters.psi = self.comm.pool.map(
                     _clip_magnitude,
                     self._device_parameters.psi,
                     a_max=1.0,
                 )
+
+            if self._device_parameters.object_options.preconditioner is not None and (
+                    len(self._device_parameters.algorithm_options.costs) % 10
+                    == 1):
+                (
+                    self._device_parameters.psi,
+                    self._device_parameters.probe,
+                ) = (list(a) for a in zip(*self.comm.pool.map(
+                    tike.ptycho.object.remove_object_ambiguity,
+                    self._device_parameters.psi,
+                    self._device_parameters.probe,
+                    self._device_parameters.object_options.preconditioner,
+                )))
 
             if (self._device_parameters.position_options
                     and self._device_parameters.position_options[0]
@@ -649,8 +678,14 @@ def _order_join(a, b):
     return np.append(a, b + len(a))
 
 
-def _get_rescale(data, psi, scan, probe, operator, streams,):
-
+def _get_rescale(
+    data,
+    psi,
+    scan,
+    probe,
+    operator,
+    streams,
+):
 
     def make_certain_args_constant(
         data,
@@ -658,7 +693,10 @@ def _get_rescale(data, psi, scan, probe, operator, streams,):
     ):
 
         intensity, _ = operator._compute_intensity(
-            data, psi, scan, probe,
+            data,
+            psi,
+            scan,
+            probe,
         )
 
         return [
@@ -675,6 +713,7 @@ def _get_rescale(data, psi, scan, probe, operator, streams,):
     )
 
     return cp.concatenate(result)
+
 
 def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
     """Rescale probe so model and measured intensity are similar magnitude.

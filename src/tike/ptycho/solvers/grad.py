@@ -61,18 +61,6 @@ def grad(
     batch_cost: typing.List[float] = []
     for n in order(parameters.algorithm_options.num_batch):
 
-        # (
-        #     parameters,
-        #     cost,
-        # ) = _cg(
-        #     op,
-        #     comm,
-        #     data,
-        #     batches,
-        #     parameters=parameters,
-        #     n=n,
-        # )
-
         (
             cost,
             grad_psi,
@@ -116,19 +104,6 @@ def grad(
         )
         parameters.psi = comm.pool.bcast([updated_psi])
         parameters.probe = comm.pool.bcast([updated_probe])
-
-    if parameters.object_options:
-        parameters.psi = comm.pool.map(
-            tike.ptycho.object.positivity_constraint,
-            parameters.psi,
-            r=parameters.object_options.positivity_constraint,
-        )
-
-        parameters.psi = comm.pool.map(
-            tike.ptycho.object.smoothness_constraint,
-            parameters.psi,
-            a=parameters.object_options.smoothness_constraint,
-        )
 
     parameters.algorithm_options.costs.append(batch_cost)
     return parameters
@@ -241,7 +216,7 @@ def _update_all(
     amp_probe: npt.NDArray,
     object_options: ObjectOptions,
     probe_options: ProbeOptions,
-    algorithm_options: AdamOptions,
+    algorithm_options: GradOptions,
 ) -> typing.Tuple[npt.NDArray, npt.NDArray]:
     if object_options:
 
