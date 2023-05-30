@@ -19,13 +19,13 @@ logger = logging.getLogger(__name__)
 
 
 def rpie(
-    op,
-    comm,
-    data,
-    batches,
+    op: tike.operators.Ptycho,
+    comm: tike.communicators.Comm,
+    data: typing.List[npt.NDArray],
+    batches: typing.List[typing.List[npt.NDArray[cp.intc]]],
     *,
-    parameters,
-):
+    parameters: PtychoParameters,
+) -> PtychoParameters:
     """Solve the ptychography problem using regularized ptychographical engine.
 
     Parameters
@@ -48,9 +48,8 @@ def rpie(
 
     Returns
     -------
-    result : dict
-        A dictionary containing the updated keyword-only arguments passed to
-        this function.
+    result : :py:class:`tike.ptycho.solvers.PtychoParameters`
+        An object which contains the updated reconstruction parameters.
 
     References
     ----------
@@ -126,7 +125,7 @@ def rpie(
     else:
         order = tike.opt.randomizer.permutation
 
-    batch_cost = []
+    batch_cost: typing.List[float] = []
     object_update_sum = 0
     probe_update_sum = 0
     for n in order(algorithm_options.num_batch):
@@ -144,7 +143,6 @@ def rpie(
             )
 
         if eigen_weights is None:
-            unique_probe = probe
             beigen_weights = [None] * comm.pool.num_workers
         else:
             beigen_weights = comm.pool.map(
@@ -153,53 +151,51 @@ def rpie(
                 batches,
                 n=n,
             )
-            unique_probe = comm.pool.map(
-                tike.ptycho.probe.get_varying_probe,
-                probe,
-                beigen_probe,
-                beigen_weights,
-            )
 
         (
-            nearplane,
             cost,
-            bposition_options,
-        ) = zip(*comm.pool.map(
-            _update_wavefront,
+            psi_update_numerator,
+            probe_update_numerator,
+            position_update_numerator,
+            position_update_denominator,
+            beigen_weights,
+        ) = (list(a) for a in zip(*comm.pool.map(
+            _get_nearplane_gradients,
             bdata,
-            unique_probe,
             bscan,
             psi,
+            probe,
+            beigen_probe,
+            beigen_weights,
             bposition_options,
             op=op,
-        ))
+            object_options=object_options,
+            probe_options=probe_options,
+        )))
 
         batch_cost.append(comm.Allreduce_mean(cost, axis=None).get())
 
-        (
-            psi_update_numerator,
-            probe_update_numerator,
-            beigen_probe,
-            beigen_weights,
-            bscan,
-            bposition_options,
-        ) = _update_nearplane(
-            op,
-            comm,
-            nearplane,
-            psi,
-            bscan,
-            probe,
-            unique_probe,
-            beigen_probe,
-            beigen_weights,
-            object_options is not None,
-            probe_options is not None,
-            position_options=bposition_options,
-            algorithm_options=algorithm_options,
-            probe_options=probe_options,
-            object_options=object_options,
-        )
+        if object_options:
+            psi_update_numerator = comm.Allreduce_reduce_gpu(
+                psi_update_numerator)[0]
+
+        if probe_options:
+            probe_update_numerator = comm.Allreduce_reduce_gpu(
+                probe_update_numerator)[0]
+
+        if position_options is not None:
+            (
+                bscan,
+                bposition_options,
+            ) = (list(a) for a in zip(*comm.pool.map(
+                _update_position,
+                bscan,
+                bposition_options,
+                position_update_numerator,
+                position_update_denominator,
+                max_shift=probe[0].shape[-1] * 0.1,
+                alpha=algorithm_options.alpha,
+            )))
 
         if algorithm_options.batch_method != 'compact':
             (
@@ -412,36 +408,6 @@ def _rolling_preconditioner(old, new):
     return 0.5 * (new + old)
 
 
-def _update_wavefront(
-    data,
-    varying_probe,
-    scan,
-    psi,
-    position_options,
-    op=None,
-):
-    farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
-    intensity = cp.sum(
-        cp.square(cp.abs(farplane)),
-        axis=list(range(1, farplane.ndim - 2)),
-    )
-    cost = getattr(tike.operators, f'{op.propagation.model}_each_pattern')(
-        data,
-        intensity,
-    )
-    if position_options is not None:
-        position_options.confidence[..., 0] = cost
-    cost = cp.mean(cost)
-    logger.info('%10s cost is %+12.5e', 'farplane', cost)
-
-    farplane *= (cp.sqrt(data) / (cp.sqrt(intensity) + 1e-9))[..., None,
-                                                              None, :, :]
-    farplane = op.propagation.adj(farplane, overwrite=True)
-
-    pad, end = op.diffraction.pad, op.diffraction.end
-    return farplane[..., pad:end, pad:end], cost, position_options
-
-
 def _psi_preconditioner(
     psi_update_denominator,
     unique_probe,
@@ -494,107 +460,54 @@ def _probe_preconditioner(
     return probe_update_denominator
 
 
-def _update_nearplane(
-    op,
-    comm,
-    nearplane_,
-    psi,
-    scan_,
-    probe,
-    unique_probe,
-    eigen_probe,
-    eigen_weights,
-    recover_psi,
-    recover_probe,
-    step_length=1.0,
-    algorithm_options=None,
-    position_options=[None],
+def _get_nearplane_gradients(
+    data: npt.NDArray,
+    scan: npt.NDArray,
+    psi: npt.NDArray,
+    probe: npt.NDArray,
+    eigen_probe: npt.NDArray,
+    eigen_weights: npt.NDArray,
+    position_options: typing.Union[None, PositionOptions] = None,
     *,
-    probe_options=None,
-    object_options=None,
-):
+    op: tike.operators.Ptycho,
+    object_options: typing.Union[None, ObjectOptions] = None,
+    probe_options: typing.Union[None, ProbeOptions] = None,
+) -> typing.List[npt.NDArray]:
 
-    patches = comm.pool.map(_get_patches, nearplane_, psi, scan_, op=op)
-
-    (
-        psi_update_numerator,
-        _,
-        probe_update_numerator,
-        _,
-        position_update_numerator,
-        position_update_denominator,
-        eigen_weights,
-    ) = (list(a) for a in zip(*comm.pool.map(
-        _get_nearplane_gradients,
-        nearplane_,
-        patches,
-        psi,
-        scan_,
+    unique_probe = tike.ptycho.probe.get_varying_probe(
         probe,
-        unique_probe,
-        eigen_weights,
-        recover_psi=recover_psi,
-        recover_probe=recover_probe,
-        recover_positions=position_options[0] is not None,
-        op=op,
-    )))
-
-    alpha = algorithm_options.alpha
-
-    if recover_psi:
-        psi_update_numerator = comm.Allreduce_reduce_gpu(
-            psi_update_numerator)[0]
-
-    if recover_probe:
-        probe_update_numerator = comm.Allreduce_reduce_gpu(
-            probe_update_numerator)[0]
-
-    if position_options[0] is not None:
-        (
-            scan_,
-            position_options,
-        ) = (list(a) for a in zip(*comm.pool.map(
-            _update_position,
-            scan_,
-            position_options,
-            position_update_numerator,
-            position_update_denominator,
-            max_shift=probe[0].shape[-1] * 0.1,
-            alpha=alpha,
-        )))
-
-    return (
-        psi_update_numerator,
-        probe_update_numerator,
         eigen_probe,
         eigen_weights,
-        scan_,
-        position_options,
     )
 
+    farplane = op.fwd(probe=unique_probe, scan=scan, psi=psi)
+    intensity = cp.sum(
+        cp.square(cp.abs(farplane)),
+        axis=list(range(1, farplane.ndim - 2)),
+    )
+    cost = getattr(tike.operators, f'{op.propagation.model}_each_pattern')(
+        data,
+        intensity,
+    )
+    if position_options is not None:
+        position_options.confidence[..., 0] = cost
+    cost = cp.mean(cost)
+    logger.info('%10s cost is %+12.5e', 'farplane', cost)
 
-def _get_patches(nearplane, psi, scan, op=None):
+    pad, end = op.diffraction.pad, op.diffraction.end
+
+    farplane *= (cp.sqrt(data) / (cp.sqrt(intensity) + 1e-9))[..., None,
+                                                              None, :, :]
+
+    nearplane = op.propagation.adj(farplane, overwrite=True)[..., pad:end,
+                                                             pad:end]
+
     patches = op.diffraction.patch.fwd(
         patches=cp.zeros_like(nearplane[..., 0, 0, :, :]),
         images=psi,
         positions=scan,
     )[..., None, None, :, :]
-    return patches
 
-
-def _get_nearplane_gradients(
-    nearplane,
-    patches,
-    psi,
-    scan,
-    probe,
-    unique_probe,
-    eigen_weights,
-    recover_psi=True,
-    recover_probe=True,
-    recover_positions=True,
-    op=None,
-):
     psi_update_numerator = cp.zeros_like(psi)
     probe_update_numerator = cp.zeros_like(probe)
     position_update_numerator = cp.zeros_like(scan)
@@ -607,7 +520,7 @@ def _get_nearplane_gradients(
         diff = (nearplane[..., [m], :, :] -
                 (unique_probe[..., [m], :, :] * patches))
 
-        if recover_psi:
+        if object_options:
             grad_psi = (cp.conj(unique_probe[..., [m], :, :]) * diff /
                         probe.shape[-3])
             psi_update_numerator = op.diffraction.patch.adj(
@@ -616,7 +529,7 @@ def _get_nearplane_gradients(
                 positions=scan,
             )
 
-        if recover_probe:
+        if probe_options:
             probe_update_numerator[..., [m], :, :] = cp.sum(
                 cp.conj(patches) * diff,
                 axis=-5,
@@ -635,7 +548,7 @@ def _get_nearplane_gradients(
                 eigen_weights[..., 0:1, [m]] += 0.1 * (eigen_numerator /
                                                        eigen_denominator)
 
-        if recover_positions:
+        if position_options:
             position_update_numerator[..., 0] += cp.sum(
                 cp.real(cp.conj(grad_x * unique_probe[..., [m], :, :]) * diff),
                 axis=(-2, -1),
@@ -654,10 +567,9 @@ def _get_nearplane_gradients(
             )[..., 0, 0]
 
     return (
+        cost,
         psi_update_numerator,
-        None,
         probe_update_numerator,
-        None,
         position_update_numerator,
         position_update_denominator,
         eigen_weights,
