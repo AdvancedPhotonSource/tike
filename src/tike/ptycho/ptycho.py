@@ -684,8 +684,9 @@ def _get_rescale(
     psi,
     scan,
     probe,
-    operator,
     streams,
+    *,
+    operator,
 ):
 
     def make_certain_args_constant(
@@ -729,8 +730,8 @@ def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
             psi,
             scan,
             probe,
+            comm.streams,
             operator=operator,
-            streams=comm.streams,
         )
     except cp.cuda.memory.OutOfMemoryError:
         raise ValueError(

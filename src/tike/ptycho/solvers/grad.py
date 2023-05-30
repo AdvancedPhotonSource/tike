@@ -74,9 +74,9 @@ def grad(
             parameters.scan,
             parameters.probe,
             batches,
+            comm.streams,
             op=op,
             n=n,
-            streams=comm.streams,
         )))
 
         cost = comm.Allreduce_mean(cost, axis=0).get()[0]
@@ -115,10 +115,10 @@ def _cost_function(
     scan: npt.NDArray[tike.precision.floating],
     probe: npt.NDArray[tike.precision.cfloating],
     batches: typing.List[typing.List[int]],
+    streams,
     *,
     n: int,
     op: tike.operators.Ptycho,
-    streams,
 ) -> typing.Tuple[npt.NDArray]:
 
     def make_certain_args_constant(
@@ -154,10 +154,10 @@ def _grad_function(
     scan: npt.NDArray[tike.precision.floating],
     probe: npt.NDArray[tike.precision.cfloating],
     batches: typing.List[typing.List[int]],
+    streams,
     *,
     n: int,
     op: tike.operators.Ptycho,
-    streams,
 ) -> typing.Tuple[npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray]:
     """Compute the gradient with respect to probe(s) and object."""
 
@@ -292,9 +292,9 @@ def _cg(
             parameters.scan,
             args[1],
             batches,
+            comm.streams,
             op=op,
             n=n,
-            streams=comm.streams,
         )))
         return comm.Allreduce_mean(cost, axis=0).get()[0]
 
@@ -314,9 +314,9 @@ def _cg(
             parameters.scan,
             args[1],
             batches,
+            comm.streams,
             op=op,
             n=n,
-            streams=comm.streams,
         )))
         return [
             grad_psi,

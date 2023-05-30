@@ -13,6 +13,10 @@ from .mpi import MPIComm, NoMPIComm
 from .pool import ThreadPool
 
 
+def _init_streams():
+    return [cp.cuda.Stream() for _ in range(2)]
+
+
 class Comm:
     """A Ptychography communicator.
 
@@ -43,7 +47,7 @@ class Comm:
             self.use_mpi = True
         self.mpi = mpi()
         self.pool = pool(gpu_count)
-        self.streams = [cp.cuda.Stream() for _ in range(4)]
+        self.streams = self.pool.map(_init_streams)
 
     def __enter__(self):
         self.mpi.__enter__()
