@@ -489,62 +489,61 @@ def _get_nearplane_gradients(
     )[..., None, None, :, :]
 
     psi_update_numerator = cp.zeros_like(psi)
-    probe_update_numerator = cp.zeros_like(probe)
-    position_update_numerator = cp.zeros_like(scan)
-    position_update_denominator = cp.zeros_like(scan)
+    # probe_update_numerator = cp.zeros_like(probe)
+    position_update_numerator = cp.empty_like(scan)
+    position_update_denominator = cp.empty_like(scan)
 
     grad_x, grad_y = tike.ptycho.position.gaussian_gradient(patches)
 
-    for m in range(probe.shape[-3]):
+    diff = (nearplane - (unique_probe * patches))
 
-        diff = (nearplane[..., [m], :, :] -
-                (unique_probe[..., [m], :, :] * patches))
+    if object_options:
+        grad_psi = (cp.conj(unique_probe) * diff / probe.shape[-3]).reshape(
+            scan.shape[0] * probe.shape[-3], *probe.shape[-2:])
+        psi_update_numerator = op.diffraction.patch.adj(
+            patches=grad_psi,
+            images=psi_update_numerator,
+            positions=scan,
+            nrepeat=probe.shape[-3],
+        )
 
-        if object_options:
-            grad_psi = (cp.conj(unique_probe[..., [m], :, :]) * diff /
-                        probe.shape[-3])
-            psi_update_numerator = op.diffraction.patch.adj(
-                patches=grad_psi[..., 0, 0, :, :],
-                images=psi_update_numerator,
-                positions=scan,
+    if probe_options:
+        probe_update_numerator = cp.sum(
+            cp.conj(patches) * diff,
+            axis=-5,
+            keepdims=True,
+        )
+        if eigen_weights is not None:
+            m: int = 0
+            OP = patches * probe[..., [m], :, :]
+            eigen_numerator = cp.sum(
+                cp.real(cp.conj(OP) * diff[..., [m], :, :]),
+                axis=(-1, -2),
             )
-
-        if probe_options:
-            probe_update_numerator[..., [m], :, :] = cp.sum(
-                cp.conj(patches) * diff,
-                axis=-5,
-                keepdims=True,
+            eigen_denominator = cp.sum(
+                cp.abs(OP)**2,
+                axis=(-1, -2),
             )
-            if m == 0 and eigen_weights is not None:
-                OP = patches * probe[..., [m], :, :]
-                eigen_numerator = cp.sum(
-                    cp.real(cp.conj(OP) * diff[..., [m], :, :]),
-                    axis=(-1, -2),
-                )
-                eigen_denominator = cp.sum(
-                    cp.abs(OP)**2,
-                    axis=(-1, -2),
-                )
-                eigen_weights[..., 0:1, [m]] += 0.1 * (eigen_numerator /
-                                                       eigen_denominator)
+            eigen_weights[..., 0:1,
+                          [m]] += 0.1 * (eigen_numerator / eigen_denominator)
 
-        if position_options:
-            position_update_numerator[..., 0] += cp.sum(
-                cp.real(cp.conj(grad_x * unique_probe[..., [m], :, :]) * diff),
-                axis=(-2, -1),
-            )[..., 0, 0]
-            position_update_denominator[..., 0] += cp.sum(
-                cp.abs(grad_x * unique_probe[..., [m], :, :])**2,
-                axis=(-2, -1),
-            )[..., 0, 0]
-            position_update_numerator[..., 1] += cp.sum(
-                cp.real(cp.conj(grad_y * unique_probe[..., [m], :, :]) * diff),
-                axis=(-2, -1),
-            )[..., 0, 0]
-            position_update_denominator[..., 1] += cp.sum(
-                cp.abs(grad_y * unique_probe[..., [m], :, :])**2,
-                axis=(-2, -1),
-            )[..., 0, 0]
+    if position_options:
+        position_update_numerator[..., 0] = cp.sum(
+            cp.real(cp.conj(grad_x * unique_probe) * diff),
+            axis=(-4, -3, -2, -1),
+        )
+        position_update_denominator[..., 0] = cp.sum(
+            cp.abs(grad_x * unique_probe)**2,
+            axis=(-4, -3, -2, -1),
+        )
+        position_update_numerator[..., 1] = cp.sum(
+            cp.real(cp.conj(grad_y * unique_probe) * diff),
+            axis=(-4, -3, -2, -1),
+        )
+        position_update_denominator[..., 1] = cp.sum(
+            cp.abs(grad_y * unique_probe)**2,
+            axis=(-4, -3, -2, -1),
+        )
 
     return (
         cost,
