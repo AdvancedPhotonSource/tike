@@ -24,7 +24,7 @@ def _psi_preconditioner(
 
     def make_certain_args_constant(
         scan: npt.NDArray,) -> typing.Tuple[npt.NDArray]:
-        probe_amp = cp.sum(
+        probe_amp = cp.mean(
             probe * probe.conj(),
             axis=-3,
         )[:, 0]

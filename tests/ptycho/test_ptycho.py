@@ -242,7 +242,7 @@ class PtychoRecon(
             num_batch=5,
             num_iter=16,
         )
-        params.probe_options = ProbeOptions()
+        params.probe_options = ProbeOptions(force_orthogonality=True,)
         params.object_options = ObjectOptions()
         _save_ptycho_result(
             params,
@@ -335,7 +335,10 @@ class PtychoRecon(
                 num_batch=5,
                 num_iter=16,
             ),
-            probe_options=ProbeOptions(use_adaptive_moment=True,),
+            probe_options=ProbeOptions(
+                force_orthogonality=True,
+                use_adaptive_moment=True,
+            ),
             object_options=ObjectOptions(use_adaptive_moment=True,),
         )
         _save_ptycho_result(
@@ -355,7 +358,10 @@ class PtychoRecon(
                 num_iter=16,
                 batch_method='compact',
             ),
-            probe_options=ProbeOptions(use_adaptive_moment=True,),
+            probe_options=ProbeOptions(
+                force_orthogonality=True,
+                use_adaptive_moment=True,
+            ),
             object_options=ObjectOptions(use_adaptive_moment=True,),
         )
         _save_ptycho_result(
@@ -374,7 +380,10 @@ class PtychoRecon(
                 num_batch=5,
                 num_iter=16,
             ),
-            probe_options=ProbeOptions(use_adaptive_moment=True,),
+            probe_options=ProbeOptions(
+                force_orthogonality=True,
+                use_adaptive_moment=True,
+            ),
             object_options=ObjectOptions(use_adaptive_moment=True,),
         )
         probes_with_modes = min(3, params.probe.shape[-3])
@@ -406,7 +415,7 @@ class PtychoRecon(
                 num_batch=5,
                 num_iter=16,
             ),
-            probe_options=ProbeOptions(),
+            probe_options=ProbeOptions(force_orthogonality=True,),
             object_options=ObjectOptions(),
         )
         _save_ptycho_result(
@@ -428,7 +437,10 @@ class PtychoRecon(
                 num_iter=16,
                 batch_method='compact',
             ),
-            probe_options=ProbeOptions(use_adaptive_moment=True,),
+            probe_options=ProbeOptions(
+                force_orthogonality=True,
+                use_adaptive_moment=True,
+            ),
             object_options=ObjectOptions(use_adaptive_moment=True,),
         )
         _save_ptycho_result(
@@ -447,7 +459,7 @@ class PtychoRecon(
                 num_batch=5,
                 num_iter=16,
             ),
-            probe_options=ProbeOptions(),
+            probe_options=ProbeOptions(force_orthogonality=True,),
             object_options=ObjectOptions(),
         )
         probes_with_modes = min(1, params.probe.shape[-3])
@@ -479,7 +491,7 @@ class PtychoRecon(
                 num_iter=16,
                 num_batch=5,
             ),
-            probe_options=ProbeOptions(),
+            probe_options=ProbeOptions(force_orthogonality=True,),
             object_options=ObjectOptions(),
         )
         _save_ptycho_result(
