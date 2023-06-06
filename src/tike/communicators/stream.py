@@ -13,7 +13,7 @@ def stream_and_reduce(
     indices: typing.Union[None, typing.List[int]] = None,
     *,
     chunk_size: int = 64,
-) -> npt.NDArray:
+) -> typing.List[npt.NDArray]:
     """Use multiple CUDA streams to compute sum(f(x), axis=0).
 
     Equivalent to the following expression:
@@ -51,11 +51,15 @@ def stream_and_reduce(
         def f(a, b, c):
             return a, b*c, b+c
 
-        x0 = np.array([0, 1, 0, 0]) x1 = np.array([1, 1, 3, 1]) x2 =
-        np.array([2, 2, 7, 2]) args = [x0, x1, x2]
+        x0 = np.array([0, 1, 0, 0])
+        x1 = np.array([1, 1, 3, 1])
+        x2 = np.array([2, 2, 7, 2])
+        args = [x0, x1, x2]
 
         truth = [
-            1, 2 + 2 + 21 + 2, 3 + 3 + 10 + 3,
+            1,
+            2 + 2 + 21 + 2,
+            3 + 3 + 10 + 3,
         ]
 
         result = [np.sum(y, axis=0) for y in zip(*[f(*x) for x in zip(*args)])]

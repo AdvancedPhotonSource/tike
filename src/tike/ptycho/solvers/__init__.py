@@ -5,6 +5,7 @@ from .lstsq import lstsq_grad
 from .rpie import rpie
 from .options import *
 from .grad import grad
+from ._preconditioner import *
 
 __all__ = [
     'crop_fourier_space',
@@ -17,4 +18,5 @@ __all__ = [
     'PtychoParameters',
     'rpie',
     'RpieOptions',
+    'update_preconditioners',
 ]

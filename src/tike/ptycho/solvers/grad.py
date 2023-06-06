@@ -384,9 +384,16 @@ def conjugate_gradient(
     f: typing.Callable[[typing.List[npt.NDArray]], float],
     u: typing.Callable[
         [typing.List[npt.NDArray], float, typing.List[npt.NDArray]],
-        typing.List[npt.NDArray],],
-    g: typing.Callable[[typing.List[npt.NDArray]], typing.List[npt.NDArray],],
-    d: typing.Callable[[typing.List[npt.NDArray]], typing.List[npt.NDArray],],
+        typing.List[npt.NDArray],
+    ],
+    g: typing.Callable[
+        [typing.List[npt.NDArray]],
+        typing.List[npt.NDArray],
+    ],
+    d: typing.Callable[
+        [typing.List[npt.NDArray]],
+        typing.List[npt.NDArray],
+    ],
     args: typing.List[npt.NDArray],
     step_length: float = 1,
     cost: typing.Union[None, float] = None,

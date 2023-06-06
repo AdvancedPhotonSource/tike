@@ -153,7 +153,7 @@ class Patch(Operator):
         assert positions.shape[-1] == 2
         assert patches.shape[:-3] == leading
         K = patches.shape[-3]
-        assert (N * nrepeat) % K == 0 and K >= nrepeat
+        assert (N * nrepeat) % K == 0 and K >= nrepeat, (N, nrepeat, K)
         assert patches.shape[-1] == patches.shape[-2]
         nimage = int(np.prod(images.shape[:-2]))
 

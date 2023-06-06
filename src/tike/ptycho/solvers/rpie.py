@@ -76,50 +76,6 @@ def rpie(
     else:
         beigen_probe = eigen_probe
 
-    if object_options is not None:
-        preconditioner = [None] * comm.pool.num_workers
-        for n in range(algorithm_options.num_batch):
-            bscan = comm.pool.map(tike.opt.get_batch, scan, batches, n=n)
-            preconditioner = comm.pool.map(
-                _psi_preconditioner,
-                preconditioner,
-                probe,
-                bscan,
-                psi,
-                op=op,
-            )
-        preconditioner = comm.Allreduce(preconditioner)
-        if object_options.preconditioner is None:
-            object_options.preconditioner = preconditioner
-        else:
-            object_options.preconditioner = comm.pool.map(
-                _rolling_preconditioner,
-                object_options.preconditioner,
-                preconditioner,
-            )
-
-    if probe_options is not None:
-        preconditioner = [None] * comm.pool.num_workers
-        for n in range(algorithm_options.num_batch):
-            bscan = comm.pool.map(tike.opt.get_batch, scan, batches, n=n)
-            preconditioner = comm.pool.map(
-                _probe_preconditioner,
-                preconditioner,
-                probe,
-                bscan,
-                psi,
-                op=op,
-            )
-        preconditioner = comm.Allreduce(preconditioner)
-        if probe_options.preconditioner is None:
-            probe_options.preconditioner = preconditioner
-        else:
-            probe_options.preconditioner = comm.pool.map(
-                _rolling_preconditioner,
-                probe_options.preconditioner,
-                preconditioner,
-            )
-
     if parameters.algorithm_options.batch_method == 'compact':
         order = range
     else:
@@ -383,61 +339,7 @@ def _update(
     return psi, probe
 
 
-@cp.fuse()
-def _rolling_preconditioner(old, new):
-    return 0.5 * (new + old)
 
-
-def _psi_preconditioner(
-    psi_update_denominator,
-    unique_probe,
-    scan_,
-    psi,
-    *,
-    op,
-    m=0,
-):
-    # Sum of the probe amplitude over field of view for preconditioning the
-    # object update.
-    probe_amp = cp.sum(
-        (unique_probe[..., 0, :, :, :] * unique_probe[..., 0, :, :, :].conj()),
-        axis=-3,
-    )
-    if psi_update_denominator is None:
-        psi_update_denominator = cp.zeros(
-            shape=psi.shape,
-            dtype=cp.csingle,
-        )
-    psi_update_denominator = op.diffraction.patch.adj(
-        patches=probe_amp,
-        images=psi_update_denominator,
-        positions=scan_,
-    )
-    return psi_update_denominator
-
-
-def _probe_preconditioner(
-    probe_update_denominator,
-    probe,
-    scan_,
-    psi,
-    *,
-    op,
-):
-    patches = op.diffraction.patch.fwd(
-        images=psi,
-        positions=scan_,
-        patch_width=probe.shape[-1],
-    )
-    if probe_update_denominator is None:
-        probe_update_denominator = 0
-    probe_update_denominator += cp.sum(
-        patches * patches.conj(),
-        axis=0,
-        keepdims=False,
-    )
-    assert probe_update_denominator.ndim == 2
-    return probe_update_denominator
 
 
 def _get_nearplane_gradients(
