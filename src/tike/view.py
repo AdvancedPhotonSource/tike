@@ -634,13 +634,17 @@ def plot_cost_convergence(
     alpha = max(0.05, 1.0 / len(batches[0]))
 
     color = 'black'
-    ax1.semilogy()
+    is_strictly_positive: bool = True
     ax1.set_xlabel('iteration', color=color)
     ax1.set_ylabel('objective')
     for batch in batches:
+        if np.any(np.asarray(batch) <= 0):
+            is_strictly_positive = False
         ax1.plot(num_iter, batch, linestyle='--', color=color, alpha=alpha)
     ax1.tick_params(axis='x', labelcolor=color)
     ax1.set_xscale('log', base=10)
+    if is_strictly_positive:
+        ax1.semilogy()
 
     ax2 = ax1.twiny()
 
