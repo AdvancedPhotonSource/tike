@@ -111,3 +111,115 @@ def stream_and_reduce(
     streams[1].synchronize()
 
     return [y_sum.sum(axis=0, dtype=d) for y_sum, d in zip(y_sums, y_dtypes)]
+
+
+def stream_and_modify(
+    f: typing.Callable[
+        [typing.List[npt.NDArray], typing.Tuple, typing.List[int]],
+        typing.Tuple
+    ],
+    ind_args: typing.List[npt.NDArray],
+    mod_args: typing.Tuple,
+    streams: typing.List[cp.cuda.Stream] = [cp.cuda.Stream(), cp.cuda.Stream()],
+    indices: typing.Union[None, typing.List[int]] = None,
+    *,
+    chunk_size: int = 64,
+) -> typing.Tuple:
+    """Use multiple CUDA streams to load data for a function.
+
+    The following calls to f should be equivalent.
+
+    mod_args = f(ind_args, mod_args, ind)
+
+    for i in range(N):
+        mod_args = f([x[i:i+1] for x in ind_args], mod_args, [i,])
+
+    Parameters
+    ----------
+    f:
+        A function that takes the ind_args and mod_args as parameters
+    ind_args: [(N, ...) array, (N, ...) array, ...]
+        A list of pinned arrays that can be sliced along the 0-th dimension for
+        work. If you have constant args that are not sliced, Use a wrapper
+        function
+    mod_args:
+        A tuple of args that are modified across calls to f
+    streams:
+        A list of two CUDA streams to use for streaming
+    indices:
+        A list of indices to use instead of range(0, N) for slices of args
+    chunk_size:
+        The number of slices out of N to process at one time
+
+    Example
+    -------
+    .. code-block:: python
+        :linenos:
+
+        import numpy as np
+
+        def f(ind_args, mod_args, _):
+            (a, b), (c,) = ind_args, mod_args
+            return (np.sum(a * b) + c,)
+
+        x0 = np.array([0, 1, 2, 0])
+        x1 = np.array([1, 1, 3, 1])
+        x2 = 0
+        ind_args = (x0, x1)
+        mod_args = (x2,)
+
+        truth = (0*1 + 1*1 + 2*3 + 0*1,)
+
+        for i in range(N):
+            mod_args = f(
+                [x[i:i+1] for x in ind_args],
+                mod_args,
+                [i],
+            )
+
+        assert mod_args == truth
+
+    """
+    if indices is None:
+        N = len(ind_args[0])
+        indices = list(range(N))
+    else:
+        N = len(indices)
+    chunk_size = min(chunk_size, N)
+    num_streams = 2
+
+    ind_args_gpu = [
+        cp.empty_like(
+            x,
+            shape=(num_streams * chunk_size, *x.shape[1:]),
+        ) for x in ind_args
+    ]
+
+    for s, i in enumerate(range(0, N, chunk_size)):
+        buffer_index = s % num_streams
+
+        indices_chunk = indices[i:i + chunk_size]
+        buflo: int = buffer_index * chunk_size
+        bufhi: int = buflo + len(indices_chunk)
+
+        with streams[0]:
+            for x_gpu, x in zip(ind_args_gpu, ind_args):
+                # Use a range because set() needs an array always; never scalar
+                if isinstance(x, cp.ndarray):
+                    x_gpu[buflo:bufhi] = x[indices_chunk]
+                else:  # x is a pinned np.ndarray
+                    x_gpu[buflo:bufhi].set(x[indices_chunk])
+
+        streams[0].synchronize()
+        streams[1].synchronize()
+
+        with streams[1]:
+            mod_args = f(
+                [x_gpu[buflo:bufhi] for x_gpu in ind_args_gpu],
+                mod_args,
+                indices_chunk,
+            )
+
+    streams[1].synchronize()
+
+    return mod_args

@@ -23,15 +23,18 @@ def _psi_preconditioner(
 ) -> npt.NDArray:
 
     def make_certain_args_constant(
-        scan: npt.NDArray,) -> typing.Tuple[npt.NDArray]:
+        ind_args,
+        mod_args,
+        _,
+    ) -> typing.Tuple[npt.NDArray]:
+
+        scan = ind_args[0]
+        psi_update_denominator = mod_args[0]
+
         probe_amp = cp.mean(
             probe * probe.conj(),
             axis=-3,
         )[:, 0]
-        psi_update_denominator = cp.zeros(
-            shape=psi.shape,
-            dtype=tike.precision.cfloating,
-        )
         psi_update_denominator = operator.diffraction.patch.adj(
             patches=probe_amp,
             images=psi_update_denominator,
@@ -39,16 +42,18 @@ def _psi_preconditioner(
         )
         return (psi_update_denominator,)
 
-    return tike.communicators.stream.stream_and_reduce(
+    psi_update_denominator = cp.zeros(
+        shape=psi.shape,
+        dtype=psi.dtype,
+    )
+
+    return tike.communicators.stream.stream_and_modify(
         f=make_certain_args_constant,
-        args=[
+        ind_args=[
             scan,
         ],
-        y_shapes=[
-            psi.shape,
-        ],
-        y_dtypes=[
-            psi.dtype,
+        mod_args=[
+            psi_update_denominator,
         ],
         streams=streams,
     )[0]
@@ -64,13 +69,19 @@ def _probe_preconditioner(
 ) -> npt.NDArray:
 
     def make_certain_args_constant(
-        scan: npt.NDArray,) -> typing.Tuple[npt.NDArray]:
+        ind_args,
+        mod_args,
+        _,
+    ) -> typing.Tuple[npt.NDArray]:
+        scan = ind_args[0]
+        probe_update_denominator = mod_args[0]
+
         patches = operator.diffraction.patch.fwd(
             images=psi,
             positions=scan,
             patch_width=probe.shape[-1],
         )
-        probe_update_denominator = cp.sum(
+        probe_update_denominator += cp.sum(
             patches * patches.conj(),
             axis=0,
             keepdims=False,
@@ -78,16 +89,18 @@ def _probe_preconditioner(
         assert probe_update_denominator.ndim == 2
         return (probe_update_denominator,)
 
-    return tike.communicators.stream.stream_and_reduce(
+    probe_update_denominator = cp.zeros(
+        shape=probe.shape[-2:],
+        dtype=probe.dtype,
+    )
+
+    return tike.communicators.stream.stream_and_modify(
         f=make_certain_args_constant,
-        args=[
+        ind_args=[
             scan,
         ],
-        y_shapes=[
-            probe.shape[-2:],
-        ],
-        y_dtypes=[
-            probe.dtype,
+        mod_args=[
+            probe_update_denominator,
         ],
         streams=streams,
     )[0]

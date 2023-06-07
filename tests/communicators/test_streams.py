@@ -83,3 +83,33 @@ def test_stream_reduce_benchmark(dtype=np.double, num_streams=4):
     result = [r.get() for r in result]
 
     print(result)
+
+
+def test_stream_modify(dtype=np.double, num_streams=2):
+
+    def f(ind_args, mod_args, _):
+        (a, b), (c,) = ind_args, mod_args
+        return (np.sum(a * b) + c,)
+
+    x0 = cupyx.empty_pinned(shape=(4,), dtype=dtype)
+    x0[:] = [0, 1, 2, 0.0]
+    x1 = cupyx.empty_pinned(shape=(4,), dtype=dtype)
+    x1[:] = [1, 1, 3, 1.0]
+    x2 = 0.0
+    ind_args = (x0, x1)
+    mod_args = (x2,)
+
+    truth = cp.array(0*1 + 1*1 + 2*3 + 0*1.0),
+
+    result = tike.communicators.stream.stream_and_modify(
+        f,
+        ind_args,
+        mod_args,
+        streams=[cp.cuda.Stream() for _ in range(num_streams)],
+        chunk_size=2
+    )
+
+    for t, r in zip(truth, result):
+        print(t, type(t))
+        print(r, type(t))
+        cp.testing.assert_array_equal(t, r)
