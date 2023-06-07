@@ -28,6 +28,11 @@ def rpie(
 ) -> PtychoParameters:
     """Solve the ptychography problem using regularized ptychographical engine.
 
+    The rPIE update direction can be shown to be equivalent to a conventional
+    gradient descent direction but rescaled by the preconditioner term. i.e. If
+    the rPIE step size (alpha) is 0 and the preconditioner is zero, we have the
+    vanilla gradient descent direction.
+
     Parameters
     ----------
     op : :py:class:`tike.operators.Ptycho`
@@ -57,6 +62,10 @@ def rpie(
     Ptychographical Phase Retrieval Algorithm for Diffractive Imaging.”
     Ultramicroscopy 109 (10): 1256–62.
     https://doi.org/10.1016/j.ultramic.2009.05.012.
+
+    Andrew Maiden, Daniel Johnson, and Peng Li, "Further improvements to the
+    ptychographical iterative engine," Optica 4, 736-745 (2017)
+    https://doi.org/10.1364/OPTICA.4.000736
 
     .. seealso:: :py:mod:`tike.ptycho`
 
@@ -197,6 +206,8 @@ def rpie(
         )
 
     algorithm_options.costs.append(batch_cost)
+
+# FIXME: Only synchronize object_update_sum right before update
 
     if algorithm_options.batch_method == 'compact':
         (
@@ -339,9 +350,6 @@ def _update(
     return psi, probe
 
 
-
-
-
 def _get_nearplane_gradients(
     data: npt.NDArray,
     scan: npt.NDArray,
@@ -376,28 +384,19 @@ def _get_nearplane_gradients(
     cost = cp.mean(cost)
     logger.info('%10s cost is %+12.5e', 'farplane', cost)
 
+    farplane = -getattr(tike.operators, f'{op.propagation.model}_grad')(
+        data,
+        farplane,
+        intensity,
+    )
+
     pad, end = op.diffraction.pad, op.diffraction.end
-
-    farplane *= (cp.sqrt(data) / (cp.sqrt(intensity) + 1e-9))[..., None,
-                                                              None, :, :]
-
-    nearplane = op.propagation.adj(farplane, overwrite=True)[..., pad:end,
-                                                             pad:end]
-
-    patches = op.diffraction.patch.fwd(
-        patches=cp.zeros_like(nearplane[..., 0, 0, :, :]),
-        images=psi,
-        positions=scan,
-    )[..., None, None, :, :]
+    diff = op.propagation.adj(farplane, overwrite=True)[..., pad:end, pad:end]
 
     psi_update_numerator = cp.zeros_like(psi)
     # probe_update_numerator = cp.zeros_like(probe)
     position_update_numerator = cp.empty_like(scan)
     position_update_denominator = cp.empty_like(scan)
-
-    grad_x, grad_y = tike.ptycho.position.gaussian_gradient(patches)
-
-    diff = (nearplane - (unique_probe * patches))
 
     if object_options:
         grad_psi = (cp.conj(unique_probe) * diff / probe.shape[-3]).reshape(
@@ -408,6 +407,14 @@ def _get_nearplane_gradients(
             positions=scan,
             nrepeat=probe.shape[-3],
         )
+
+    if position_options or probe_options:
+
+        patches = op.diffraction.patch.fwd(
+            patches=cp.zeros_like(diff[..., 0, 0, :, :]),
+            images=psi,
+            positions=scan,
+        )[..., None, None, :, :]
 
     if probe_options:
         probe_update_numerator = cp.sum(
@@ -430,6 +437,9 @@ def _get_nearplane_gradients(
                           [m]] += 0.1 * (eigen_numerator / eigen_denominator)
 
     if position_options:
+
+        grad_x, grad_y = tike.ptycho.position.gaussian_gradient(patches)
+
         position_update_numerator[..., 0] = cp.sum(
             cp.real(cp.conj(grad_x * unique_probe) * diff),
             axis=(-4, -3, -2, -1),
