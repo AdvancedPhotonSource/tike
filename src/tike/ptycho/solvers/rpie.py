@@ -90,9 +90,10 @@ def rpie(
     else:
         order = tike.opt.randomizer.permutation
 
+    psi_update_numerator = [None] * comm.pool.num_workers
+    probe_update_numerator = [None] * comm.pool.num_workers
+
     batch_cost: typing.List[float] = []
-    object_update_sum = 0
-    probe_update_sum = 0
     for n in order(algorithm_options.num_batch):
 
         bdata = comm.pool.map(tike.opt.get_batch, data, batches, n=n)
@@ -130,6 +131,8 @@ def rpie(
             bscan,
             psi,
             probe,
+            psi_update_numerator,
+            probe_update_numerator,
             beigen_probe,
             beigen_weights,
             bposition_options,
@@ -139,14 +142,6 @@ def rpie(
         )))
 
         batch_cost.append(comm.Allreduce_mean(cost, axis=None).get())
-
-        if object_options:
-            psi_update_numerator = comm.Allreduce_reduce_gpu(
-                psi_update_numerator)[0]
-
-        if probe_options:
-            probe_update_numerator = comm.Allreduce_reduce_gpu(
-                probe_update_numerator)[0]
 
         if position_options is not None:
             (
@@ -176,9 +171,8 @@ def rpie(
                 probe_options,
                 algorithm_options,
             )
-        else:
-            object_update_sum += psi_update_numerator
-            probe_update_sum += probe_update_numerator
+            psi_update_numerator = [None] * comm.pool.num_workers
+            probe_update_numerator = [None] * comm.pool.num_workers
 
         if position_options is not None:
             comm.pool.map(
@@ -207,8 +201,6 @@ def rpie(
 
     algorithm_options.costs.append(batch_cost)
 
-# FIXME: Only synchronize object_update_sum right before update
-
     if algorithm_options.batch_method == 'compact':
         (
             psi,
@@ -217,8 +209,8 @@ def rpie(
             comm,
             psi,
             probe,
-            object_update_sum,
-            probe_update_sum,
+            psi_update_numerator,
+            probe_update_numerator,
             object_options,
             probe_options,
             algorithm_options,
@@ -262,6 +254,8 @@ def _update(
     errors: typing.Union[None, typing.List[float]] = None,
 ):
     if object_options:
+        psi_update_numerator = comm.Allreduce_reduce_gpu(
+            psi_update_numerator)[0]
         dpsi = psi_update_numerator
         deno = (
             (1 - algorithm_options.alpha) * object_options.preconditioner[0] +
@@ -300,6 +294,8 @@ def _update(
         psi = comm.pool.bcast([psi[0]])
 
     if probe_options:
+        probe_update_numerator = comm.Allreduce_reduce_gpu(
+            probe_update_numerator)[0]
         b0 = tike.ptycho.probe.finite_probe_support(
             probe[0],
             p=probe_options.probe_support,
@@ -355,6 +351,8 @@ def _get_nearplane_gradients(
     scan: npt.NDArray,
     psi: npt.NDArray,
     probe: npt.NDArray,
+    psi_update_numerator: typing.Union[None, npt.NDArray],
+    probe_update_numerator: typing.Union[None, npt.NDArray],
     eigen_probe: npt.NDArray,
     eigen_weights: npt.NDArray,
     position_options: typing.Union[None, PositionOptions] = None,
@@ -393,8 +391,10 @@ def _get_nearplane_gradients(
     pad, end = op.diffraction.pad, op.diffraction.end
     diff = op.propagation.adj(farplane, overwrite=True)[..., pad:end, pad:end]
 
-    psi_update_numerator = cp.zeros_like(psi)
-    # probe_update_numerator = cp.zeros_like(probe)
+    psi_update_numerator = cp.zeros_like(
+        psi) if psi_update_numerator is None else psi_update_numerator
+    probe_update_numerator = cp.zeros_like(
+        probe) if probe_update_numerator is None else probe_update_numerator
     position_update_numerator = cp.empty_like(scan)
     position_update_denominator = cp.empty_like(scan)
 
@@ -417,7 +417,7 @@ def _get_nearplane_gradients(
         )[..., None, None, :, :]
 
     if probe_options:
-        probe_update_numerator = cp.sum(
+        probe_update_numerator += cp.sum(
             cp.conj(patches) * diff,
             axis=-5,
             keepdims=True,
