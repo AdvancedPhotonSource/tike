@@ -57,15 +57,16 @@ def dm(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
-    psi_update_numerator = [None,] * comm.pool.num_workers
-    probe_update_numerator = [None,] * comm.pool.num_workers
+    psi_update_numerator = [
+        None,
+    ] * comm.pool.num_workers
+    probe_update_numerator = [
+        None,
+    ] * comm.pool.num_workers
 
     # The objective function value for each batch
     batch_cost: typing.List[float] = []
     for n in tike.opt.randomizer.permutation(len(batches[0])):
-
-        bdata = comm.pool.map(tike.opt.get_batch, data, batches, n=n)
-        bscan = comm.pool.map(tike.opt.get_batch, parameters.scan, batches, n=n)
 
         (
             cost,
@@ -73,18 +74,23 @@ def dm(
             probe_update_numerator,
         ) = (list(a) for a in zip(*comm.pool.map(
             _get_nearplane_gradients,
-            bdata,
-            bscan,
+            data,
+            parameters.scan,
             parameters.psi,
             parameters.probe,
             psi_update_numerator,
             probe_update_numerator,
+            batches,
+            comm.streams,
+            n=n,
             op=op,
             object_options=parameters.object_options,
             probe_options=parameters.probe_options,
         )))
 
-        batch_cost.append(comm.Allreduce_mean(cost, axis=None).get())
+        cost = comm.Allreduce_mean(cost, axis=None).get()
+        logger.info('%10s cost is %+12.5e', 'farplane', cost)
+        batch_cost.append(cost)
 
     (
         parameters.psi,
@@ -110,63 +116,91 @@ def _get_nearplane_gradients(
     probe: npt.NDArray,
     psi_update_numerator: typing.Union[None, npt.NDArray],
     probe_update_numerator: typing.Union[None, npt.NDArray],
+    batches: typing.List[typing.List[int]],
+    streams: typing.List[cp.cuda.Stream],
     *,
+    n: int,
     op: tike.operators.Ptycho,
     object_options: typing.Union[None, ObjectOptions] = None,
     probe_options: typing.Union[None, ProbeOptions] = None,
 ) -> typing.List[npt.NDArray]:
 
-    varying_probe = probe
+    def keep_some_args_constant(
+        ind_args,
+        mod_args,
+        _,
+    ):
+        (data, scan) = ind_args
+        (cost, psi_update_numerator, probe_update_numerator) = mod_args
 
-    farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
-    intensity = cp.sum(
-        cp.square(cp.abs(farplane)),
-        axis=list(range(1, farplane.ndim - 2)),
-    )
-    cost = op.propagation.cost(data, intensity)
-    logger.info('%10s cost is %+12.5e', 'farplane', cost)
+        varying_probe = probe
 
-    farplane *= (cp.sqrt(data) / (cp.sqrt(intensity) + 1e-9))[..., None,
-                                                              None, :, :]
+        farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
+        intensity = cp.sum(
+            cp.square(cp.abs(farplane)),
+            axis=list(range(1, farplane.ndim - 2)),
+        )
+        cost += op.propagation.cost(data, intensity)
 
-    pad, end = op.diffraction.pad, op.diffraction.end
-    nearplane = op.propagation.adj(farplane, overwrite=True)[..., pad:end,
-                                                             pad:end]
+        farplane *= (cp.sqrt(data) / (cp.sqrt(intensity) + 1e-9))[..., None,
+                                                                  None, :, :]
 
-    patches = op.diffraction.patch.fwd(
-        patches=cp.zeros_like(nearplane[..., 0, 0, :, :]),
-        images=psi,
-        positions=scan,
-    )[..., None, None, :, :]
+        pad, end = op.diffraction.pad, op.diffraction.end
+        nearplane = op.propagation.adj(farplane, overwrite=True)[..., pad:end,
+                                                                 pad:end]
+
+        patches = op.diffraction.patch.fwd(
+            patches=cp.zeros_like(nearplane[..., 0, 0, :, :]),
+            images=psi,
+            positions=scan,
+        )[..., None, None, :, :]
+
+        if object_options:
+
+            grad_psi = (cp.conj(varying_probe) * nearplane /
+                        probe.shape[-3]).reshape(
+                            scan.shape[0] * probe.shape[-3], *probe.shape[-2:])
+            psi_update_numerator = op.diffraction.patch.adj(
+                patches=grad_psi,
+                images=psi_update_numerator,
+                positions=scan,
+                nrepeat=probe.shape[-3],
+            )
+
+        if probe_options:
+            probe_update_numerator += cp.sum(
+                cp.conj(patches) * nearplane,
+                axis=-5,
+                keepdims=True,
+            )
+
+        return [
+            cost,
+            psi_update_numerator,
+            probe_update_numerator,
+        ]
 
     psi_update_numerator = cp.zeros_like(
-        psi) if psi_update_numerator is None else psi_update_numerator
+        psi,) if psi_update_numerator is None else psi_update_numerator
     probe_update_numerator = cp.zeros_like(
-        probe) if probe_update_numerator is None else probe_update_numerator
+        probe,) if probe_update_numerator is None else probe_update_numerator
 
-    if object_options:
-        grad_psi = (cp.conj(varying_probe) * nearplane /
-                    probe.shape[-3]).reshape(scan.shape[0] * probe.shape[-3],
-                                             *probe.shape[-2:])
-        psi_update_numerator = op.diffraction.patch.adj(
-            patches=grad_psi,
-            images=psi_update_numerator,
-            positions=scan,
-            nrepeat=probe.shape[-3],
-        )
-
-    if probe_options:
-        probe_update_numerator += cp.sum(
-            cp.conj(patches) * nearplane,
-            axis=-5,
-            keepdims=True,
-        )
-
-    return (
-        cost,
-        psi_update_numerator,
-        probe_update_numerator,
+    result = tike.communicators.stream.stream_and_modify(
+        f=keep_some_args_constant,
+        ind_args=[
+            data,
+            scan,
+        ],
+        mod_args=[
+            0.0,
+            psi_update_numerator,
+            probe_update_numerator,
+        ],
+        streams=streams,
+        indices=batches[n],
     )
+    result[0] = result[0] / len(batches[n])
+    return result
 
 
 def _apply_update(
