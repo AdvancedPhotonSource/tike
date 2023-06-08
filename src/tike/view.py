@@ -638,8 +638,8 @@ def plot_cost_convergence(
     ax1.set_xlabel('iteration', color=color)
     ax1.set_ylabel('objective')
     for batch in batches:
-        if np.any(np.asarray(batch) <= 0):
-            is_strictly_positive = False
+        for b in batch:
+            is_strictly_positive = is_strictly_positive and (b is None or b > 0)
         ax1.plot(num_iter, batch, linestyle='--', color=color, alpha=alpha)
     ax1.tick_params(axis='x', labelcolor=color)
     ax1.set_xscale('log', base=10)
