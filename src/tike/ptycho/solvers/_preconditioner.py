@@ -31,7 +31,7 @@ def _psi_preconditioner(
         scan = ind_args[0]
         psi_update_denominator = mod_args[0]
 
-        probe_amp = cp.mean(
+        probe_amp = cp.sum(
             probe * probe.conj(),
             axis=-3,
         )[:, 0]
