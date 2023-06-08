@@ -29,6 +29,8 @@ jobs:
           - "3.10"
           - "3.11"
           - "3.9"
+        cuda-version:
+          - "11"
 
     steps:
       - uses: actions/checkout@v3
@@ -46,6 +48,7 @@ jobs:
           --file requirements.txt
           pytest
           python=${{ matrix.python-version }}
+          cuda-version=${{ matrix.cuda-version }}
         name: Create build environment
 
       - run: conda remove -n tike mpi mpi4py --yes --quiet
@@ -91,6 +94,8 @@ jobs:
       matrix:
         python-version:
           - "3.8"
+        cuda-version:
+          - "11"
 
     steps:
       - uses: actions/checkout@v3
@@ -109,6 +114,7 @@ jobs:
           pytest
           python=${{ matrix.python-version }}
           'openmpi=*=h*'
+          cuda-version=${{ matrix.cuda-version }}
         name: Create build environment
 
       - run: conda list -n tike
