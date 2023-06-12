@@ -5,7 +5,7 @@ import numpy.typing as npt
 
 import tike.communicators
 import tike.linalg
-import tike.operators.cupy.objective as objective
+import tike.operators
 import tike.opt
 import tike.ptycho.object
 import tike.ptycho.position
@@ -384,7 +384,7 @@ def _update_wavefront(
         cp.square(cp.abs(farplane)),
         axis=list(range(1, farplane.ndim - 2)),
     )
-    cost = getattr(objective, f'{op.propagation.model}_each_pattern')(
+    cost = getattr(tike.operators, f'{op.propagation.model}_each_pattern')(
         data,
         intensity,
     )
