@@ -1,8 +1,8 @@
 """Contains different solver implementations."""
 
-from .dm import dm
-from .lstsq import lstsq_grad
-from .rpie import rpie
+from .dm import *
+from .lstsq import *
+from .rpie import *
 from .options import *
 from ._preconditioner import *
 

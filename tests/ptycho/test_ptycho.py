@@ -238,7 +238,7 @@ class PtychoRecon(
             probe=self.probe,
             scan=self.scan,
         )
-        params.algorithm_options = tike.ptycho.GradOptions(
+        params.algorithm_options = tike.ptycho.RpieOptions(
             num_batch=5,
             num_iter=16,
         )
