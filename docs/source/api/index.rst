@@ -65,10 +65,15 @@ The modules in Tike are as follows:
 
    operators
    align
+   cluster
    communicators
+   constants
    lamino
+   linalg
    opt
+   precision
    ptycho
    random
    scan
+   trajectory
    view

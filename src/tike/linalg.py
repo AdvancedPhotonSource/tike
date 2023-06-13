@@ -6,6 +6,7 @@ spotty in the NumPy and CuPy libraries.
 import typing
 
 import numpy as np
+import numpy.typing as npt
 
 
 def mnorm(x, axis=None, keepdims=False):
@@ -58,7 +59,7 @@ def lstsq(a, b, weights=None):
 
 
 def orthogonalize_gs(
-    x,
+    x: npt.NDArray,
     axis: typing.Union[int, typing.Tuple[int, ...]] = -1,
     N: typing.Union[int, None] = None,
 ):
@@ -66,15 +67,16 @@ def orthogonalize_gs(
 
     Parameters
     ----------
-    x : (..., D) array_like
-        Array containing dimensions to be orthogonalized.
-    axis : int or tuple(int)
-        The axis/axes to be orthogonalized. By default only the last axis
-        is orthogonalized. If axis is a tuple, then the number of
-        orthogonal vectors is the length of the last dimension not included in
-        axis. The other dimensions are broadcast.
-    N : int
+    x: (..., D) array
+        containing dimensions to be orthogonalized.
+    axis:
+        The axis/axes to be orthogonalized. By default only the last axis is
+        orthogonalized. If axis is a tuple, then the number of orthogonal
+        vectors is the length of the last dimension not included in axis. The
+        other dimensions are broadcast.
+    N:
         The axis along which to orthogonalize. Other dimensions are broadcast.
+
     """
     # Find N, the last dimension not included in axis; we iterate over N
     # vectors in the Gram-schmidt algorithm. Dimensions that are not N or
@@ -109,20 +111,22 @@ def cov(x):
     return hermitian(x0) @ x0
 
 
-def pca_eig(data, k):
+def pca_eig(data: npt.NDArray, k: int) -> typing.Tuple[npt.NDArray, npt.NDArray]:
     """Return k principal components via Eigen decomposition.
 
     Parameters
     ----------
-    data (..., N, D)
-        Array of N observations of a D dimensional space.
+    data: (..., N, D) array
+        N observations of a D dimensional space.
+    k:
+        The number of principle components.
 
     Returns
     -------
-    S (..., k)
-        The singular values corresponding to the current principal components
-        sorted largest to smallest.
-    U (..., D, k)
+    S: (..., k) array
+        The singular values corresponding to the current principal
+        components sorted largest to smallest.
+    U: (..., D, k) array
         The current best principal components of the population.
     """
     S, U = np.linalg.eigh(cov(data))

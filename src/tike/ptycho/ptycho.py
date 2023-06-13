@@ -318,7 +318,7 @@ class Reconstruction():
 
         self.data = data
         self.parameters = parameters
-        self._device_parameters = copy.deepcopy(parameters)
+        self._device_parameters = None
         self.device = cp.cuda.Device(
             num_gpu[0] if isinstance(num_gpu, tuple) else None)
         self.operator = tike.operators.Ptycho(
@@ -334,6 +334,8 @@ class Reconstruction():
         self.device.__enter__()
         self.operator.__enter__()
         self.comm.__enter__()
+
+        self._device_parameters = copy.deepcopy(self.parameters)
 
         # Divide the inputs into regions
         if (not np.all(np.isfinite(self.data)) or np.any(self.data < 0)):
@@ -568,9 +570,14 @@ class Reconstruction():
 
     def __exit__(self, type, value, traceback):
         self._get_result()
+        self._device_parameters = None
         self.comm.__exit__(type, value, traceback)
         self.operator.__exit__(type, value, traceback)
         self.device.__exit__(type, value, traceback)
+        mempool = cp.get_default_memory_pool()
+        mempool.free_all_blocks()
+        pinned_mempool = cp.get_default_pinned_memory_pool()
+        pinned_mempool.free_all_blocks()
 
     def get_convergence(
         self

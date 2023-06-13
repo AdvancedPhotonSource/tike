@@ -276,6 +276,10 @@ def compact(population, num_cluster, max_iter=500):
     size = np.zeros(num_cluster, dtype='int')
     max_size = np.full(num_cluster, len(population) // num_cluster)
     max_size[:len(population) % num_cluster] += 1
+    assert np.sum(max_size) == len(population), (
+        f"Sum of cluster maximums {np.sum(max_size)} should "
+        f"equal the population size {len(population)}!"
+    )
 
     # Use kmeans++ to choose initial cluster centers
     starting_centroids = np.zeros(num_cluster, dtype='int')
@@ -310,6 +314,9 @@ def compact(population, num_cluster, max_iter=500):
         labels[p] = c
         _unassigned.remove(p)
         size[c] += 1
+    for c in range(num_cluster):
+        if size[c] >= max_size[c]:
+            unfilled_clusters.remove(c)
     while unfilled_clusters:
         nearest = np.array(unfilled_clusters)[np.argmin(
             distances[:, unfilled_clusters],
@@ -326,9 +333,11 @@ def compact(population, num_cluster, max_iter=500):
             assert labels[p] == UNASSIGNED
             labels[p] = nearest[p]
             _unassigned.remove(p)
-            assert size[nearest[p]] < max_size[nearest[p]]
             size[nearest[p]] += 1
-            if size[nearest[p]] == max_size[nearest[p]]:
+            assert size[nearest[p]] <= max_size[nearest[p]], (
+                f"{size[nearest[p]]} !<= {max_size[nearest[p]]}"
+            )
+            if size[nearest[p]] >= max_size[nearest[p]]:
                 unfilled_clusters.remove(nearest[p])
                 # re-start with one less available cluster
                 break
@@ -402,11 +411,13 @@ def _k_means_objective(population, labels, num_cluster):
     xp = cp.get_array_module(population)
     cost = 0
     for c in range(num_cluster):
-        cost += xp.sum(labels == c) * xp.linalg.det(
-            xp.cov(
-                population[labels == c],
-                rowvar=False,
-            ))
+        weight = xp.sum(labels == c)
+        if weight > 1:
+            cost += weight * abs(xp.linalg.det(
+                xp.cov(
+                    population[labels == c],
+                    rowvar=False,
+                )))
     return cost
 
 
