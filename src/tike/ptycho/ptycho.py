@@ -505,6 +505,16 @@ class Reconstruction():
                     self._device_parameters.object_options.preconditioner,
                 )))
 
+            if self._device_parameters.eigen_probe is not None:
+                (
+                    self._device_parameters.eigen_probe,
+                    self._device_parameters.eigen_weights,
+                ) = tike.ptycho.probe.constrain_variable_probe(
+                    self.comm,
+                    self._device_parameters.eigen_probe,
+                    self._device_parameters.eigen_weights,
+                )
+
             if (self._device_parameters.position_options
                     and self._device_parameters.position_options[0]
                     .use_position_regularization):

@@ -256,12 +256,6 @@ def lstsq_grad(
             probe[0][..., mode, :, :] = probe[0][..., mode, :, :] + d
             probe = comm.pool.bcast([probe[0]])
 
-    if eigen_probe is not None:
-        eigen_probe, eigen_weights = tike.ptycho.probe.constrain_variable_probe(
-            comm,
-            beigen_probe,
-            eigen_weights,
-        )
 
     parameters.probe = probe
     parameters.psi = psi
