@@ -467,11 +467,50 @@ class Reconstruction():
                 parameters=self._device_parameters,
             )
 
+            if self._device_parameters.object_options.positivity_constraint:
+                self._device_parameters.psi = self.comm.pool.map(
+                    tike.ptycho.object.positivity_constraint,
+                    self._device_parameters.psi,
+                    r=self._device_parameters.object_options
+                    .positivity_constraint,
+                )
+
+            if self._device_parameters.object_options.smoothness_constraint:
+                self._device_parameters.psi = self.comm.pool.map(
+                    tike.ptycho.object.smoothness_constraint,
+                    self._device_parameters.psi,
+                    r=self._device_parameters.object_options
+                    .smoothness_constraint,
+                )
+
             if self._device_parameters.object_options.clip_magnitude:
                 self._device_parameters.psi = self.comm.pool.map(
                     _clip_magnitude,
                     self._device_parameters.psi,
                     a_max=1.0,
+                )
+
+            if self._device_parameters.object_options.preconditioner is not None and (
+                    len(self._device_parameters.algorithm_options.costs) % 10
+                    == 1):
+                (
+                    self._device_parameters.psi,
+                    self._device_parameters.probe,
+                ) = (list(a) for a in zip(*self.comm.pool.map(
+                    tike.ptycho.object.remove_object_ambiguity,
+                    self._device_parameters.psi,
+                    self._device_parameters.probe,
+                    self._device_parameters.object_options.preconditioner,
+                )))
+
+            if self._device_parameters.eigen_probe is not None:
+                (
+                    self._device_parameters.eigen_probe,
+                    self._device_parameters.eigen_weights,
+                ) = tike.ptycho.probe.constrain_variable_probe(
+                    self.comm,
+                    self._device_parameters.eigen_probe,
+                    self._device_parameters.eigen_weights,
                 )
 
             if (self._device_parameters.position_options
