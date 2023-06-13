@@ -237,7 +237,9 @@ def lstsq_grad(
                     shape=(3, *dprobe.shape),
                 )
             if probe_options.m is None:
-                probe_options.m = np.zeros_like(dprobe,)
+                probe_options.m = np.zeros_like(
+                    dprobe,
+                )
             # ptychoshelves only applies momentum to the main probe
             mode = 0
             (
@@ -255,6 +257,7 @@ def lstsq_grad(
             )
             probe[0][..., mode, :, :] = probe[0][..., mode, :, :] + d
             probe = comm.pool.bcast([probe[0]])
+
 
 
     parameters.probe = probe
@@ -543,7 +546,8 @@ def _get_nearplane_gradients(
     chi = nearplane[..., [m], :, :]
 
     if __debug__:
-        logger.debug('%10s cost is %+12.5e', 'nearplane', tike.linalg.norm(chi))
+        logger.debug('%10s cost is %+12.5e', 'nearplane',
+                     tike.linalg.norm(chi))
 
     # Get update directions for each scan positions
     if recover_psi:
@@ -823,7 +827,9 @@ def _momentum_checked(
     g (WIDTH, HEIGHT)
         The current psi update
     """
-    m = np.zeros_like(g,) if m is None else m
+    m = np.zeros_like(
+        g,
+    ) if m is None else m
     previous_g = np.zeros_like(
         g,
         shape=(memory_length, *g.shape),

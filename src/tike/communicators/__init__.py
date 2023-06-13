@@ -5,12 +5,7 @@ among multiple GPUs and multiple nodes.
 
 """
 
+from .comm import *
 from .mpi import *
 from .pool import *
-from .comm import *
-
-__all__ = (
-    'ThreadPool',
-    'MPIComm',
-    'Comm',
-)
+from .stream import *

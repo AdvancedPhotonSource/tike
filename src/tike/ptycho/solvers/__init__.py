@@ -4,15 +4,12 @@ from .dm import dm
 from .lstsq import lstsq_grad
 from .rpie import rpie
 from .options import *
-from .grad import grad
 from ._preconditioner import *
 
 __all__ = [
     'crop_fourier_space',
     'dm',
     'DmOptions',
-    'grad',
-    'GradOptions',
     'lstsq_grad',
     'LstsqOptions',
     'PtychoParameters',
