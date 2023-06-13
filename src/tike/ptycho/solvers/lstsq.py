@@ -7,7 +7,6 @@ import numpy.typing as npt
 import tike.communicators
 import tike.linalg
 import tike.operators
-import tike.operators.cupy.objective as objective
 import tike.opt
 import tike.ptycho.position
 import tike.ptycho.probe
@@ -81,34 +80,6 @@ def lstsq_grad(
         beigen_probe = eigen_probe
 
     if object_options is not None:
-        preconditioner = [None] * comm.pool.num_workers
-        for n in range(len(batches[0])):
-            bscan = comm.pool.map(tike.opt.get_batch, scan, batches, n=n)
-            preconditioner = comm.pool.map(
-                _psi_preconditioner,
-                preconditioner,
-                probe,
-                bscan,
-                psi,
-                op=op,
-            )
-        preconditioner = comm.Allreduce(preconditioner)
-        # Use a rolling average of this preconditioner and the previous
-        # preconditioner
-        if object_options.preconditioner is None:
-            object_options.preconditioner = preconditioner
-        else:
-            object_options.preconditioner = comm.pool.map(
-                cp.add,
-                object_options.preconditioner,
-                preconditioner,
-            )
-            object_options.preconditioner = comm.pool.map(
-                cp.divide,
-                object_options.preconditioner,
-                [2] * comm.pool.num_workers,
-            )
-
         if algorithm_options.batch_method == 'compact':
             object_options.combined_update = cp.zeros_like(psi[0])
 
@@ -326,29 +297,6 @@ def lstsq_grad(
     return parameters
 
 
-def _psi_preconditioner(
-    psi_update_denominator,
-    unique_probe,
-    scan_,
-    psi,
-    *,
-    op,
-    m=0,
-):
-    # Sum of the probe amplitude over field of view for preconditioning the
-    # object update.
-    probe_amp = (unique_probe[..., 0, m, :, :] *
-                 unique_probe[..., 0, m, :, :].conj())
-    if psi_update_denominator is None:
-        psi_update_denominator = cp.zeros_like(psi)
-    psi_update_denominator = op.diffraction.patch.adj(
-        patches=probe_amp,
-        images=psi_update_denominator,
-        positions=scan_,
-    )
-    return psi_update_denominator
-
-
 def _update_wavefront(
     data: npt.NDArray,
     varying_probe: npt.NDArray[cp.csingle],
@@ -362,7 +310,7 @@ def _update_wavefront(
         cp.square(cp.abs(farplane)),
         axis=list(range(1, farplane.ndim - 2)),
     )
-    costs = getattr(objective,
+    costs = getattr(tike.operators,
                     f'{op.propagation.model}_each_pattern')(data, intensity)
     cost = cp.mean(costs)
     logger.info('%10s cost is %+12.5e', 'farplane', cost)

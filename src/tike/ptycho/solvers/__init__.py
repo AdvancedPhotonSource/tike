@@ -6,6 +6,7 @@ from .dm import dm
 from .lstsq import lstsq_grad
 from .rpie import rpie
 from .options import *
+from ._preconditioner import *
 
 __all__ = [
     'adam_grad',
@@ -19,5 +20,6 @@ __all__ = [
     'PtychoParameters',
     'rpie',
     'RpieOptions',
+    'update_preconditioners',
     'crop_fourier_space',
 ]

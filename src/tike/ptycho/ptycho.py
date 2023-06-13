@@ -442,7 +442,19 @@ class Reconstruction():
                         tike.ptycho.probe.orthogonalize_eig,
                         self._device_parameters.probe,
                     )))
-                    self._device_parameters.probe_options.power.append(power[0].get())
+
+            (
+                self._device_parameters.object_options,
+                self._device_parameters.probe_options,
+            ) = solvers.update_preconditioners(
+                comm=self.comm,
+                operator=self.operator,
+                scan=self._device_parameters.scan,
+                probe=self._device_parameters.probe,
+                psi=self._device_parameters.psi,
+                object_options=self._device_parameters.object_options,
+                probe_options=self._device_parameters.probe_options,
+            )
 
             self._device_parameters = getattr(
                 solvers,

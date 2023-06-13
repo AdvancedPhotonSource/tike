@@ -1,0 +1,181 @@
+import typing
+
+import cupy as cp
+import numpy.typing as npt
+
+import tike.precision
+
+from .options import ObjectOptions, ProbeOptions
+
+
+@cp.fuse()
+def _rolling_average(old, new):
+    return 0.5 * (new + old)
+
+
+def _psi_preconditioner(
+    psi: npt.NDArray[tike.precision.cfloating],
+    scan: npt.NDArray[tike.precision.floating],
+    probe: npt.NDArray[tike.precision.cfloating],
+    streams: typing.List[cp.cuda.Stream],
+    *,
+    operator: tike.operators.Ptycho,
+) -> npt.NDArray:
+
+    def make_certain_args_constant(
+        ind_args,
+        mod_args,
+        _,
+    ) -> typing.Tuple[npt.NDArray]:
+
+        scan = ind_args[0]
+        psi_update_denominator = mod_args[0]
+
+        probe_amp = cp.sum(
+            probe * probe.conj(),
+            axis=-3,
+        )[:, 0]
+        psi_update_denominator = operator.diffraction.patch.adj(
+            patches=probe_amp,
+            images=psi_update_denominator,
+            positions=scan,
+        )
+        return (psi_update_denominator,)
+
+    psi_update_denominator = cp.zeros(
+        shape=psi.shape,
+        dtype=psi.dtype,
+    )
+
+    for s in cp.array_split(scan, max(len(scan) // 64, 1)):
+        (psi_update_denominator,) = make_certain_args_constant(
+            [s],
+            [psi_update_denominator],
+            None,
+        )
+
+    return psi_update_denominator
+
+    # return tike.communicators.stream.stream_and_modify(
+    #     f=make_certain_args_constant,
+    #     ind_args=[
+    #         scan,
+    #     ],
+    #     mod_args=[
+    #         psi_update_denominator,
+    #     ],
+    #     streams=streams,
+    # )[0]
+
+
+def _probe_preconditioner(
+    psi: npt.NDArray[tike.precision.cfloating],
+    scan: npt.NDArray[tike.precision.floating],
+    probe: npt.NDArray[tike.precision.cfloating],
+    streams: typing.List[cp.cuda.Stream],
+    *,
+    operator: tike.operators.Ptycho,
+) -> npt.NDArray:
+
+    def make_certain_args_constant(
+        ind_args,
+        mod_args,
+        _,
+    ) -> typing.Tuple[npt.NDArray]:
+        scan = ind_args[0]
+        probe_update_denominator = mod_args[0]
+
+        patches = operator.diffraction.patch.fwd(
+            images=psi,
+            positions=scan,
+            patch_width=probe.shape[-1],
+        )
+        probe_update_denominator += cp.sum(
+            patches * patches.conj(),
+            axis=0,
+            keepdims=False,
+        )
+        assert probe_update_denominator.ndim == 2
+        return (probe_update_denominator,)
+
+    probe_update_denominator = cp.zeros(
+        shape=probe.shape[-2:],
+        dtype=probe.dtype,
+    )
+
+    for s in cp.array_split(scan, max(len(scan) // 64, 1)):
+        (probe_update_denominator,) = make_certain_args_constant(
+            [s],
+            [probe_update_denominator],
+            None,
+        )
+
+    return probe_update_denominator
+
+    # return tike.communicators.stream.stream_and_modify(
+    #     f=make_certain_args_constant,
+    #     ind_args=[
+    #         scan,
+    #     ],
+    #     mod_args=[
+    #         probe_update_denominator,
+    #     ],
+    #     streams=streams,
+    # )[0]
+
+
+def update_preconditioners(
+    comm: tike.communicators.Comm,
+    operator: tike.operators.Ptycho,
+    scan,
+    probe,
+    psi,
+    object_options: typing.Optional[ObjectOptions] = None,
+    probe_options: typing.Optional[ProbeOptions] = None,
+) -> typing.Tuple[ObjectOptions, ProbeOptions]:
+    """Update the probe and object preconditioners."""
+    if object_options:
+
+        preconditioner = comm.pool.map(
+            _psi_preconditioner,
+            psi,
+            scan,
+            probe,
+            streams=None,  #comm.streams,
+            operator=operator,
+        )
+
+        preconditioner = comm.Allreduce(preconditioner)
+
+        if object_options.preconditioner is None:
+            object_options.preconditioner = preconditioner
+        else:
+            object_options.preconditioner = comm.pool.map(
+                _rolling_average,
+                object_options.preconditioner,
+                preconditioner,
+            )
+
+    if probe_options:
+
+        preconditioner = comm.pool.map(
+            _probe_preconditioner,
+            psi,
+            scan,
+            probe,
+            streams=None,  #comm.streams,
+            operator=operator,
+        )
+
+        preconditioner = comm.Allreduce(preconditioner)
+
+        if probe_options.preconditioner is None:
+            probe_options.preconditioner = preconditioner
+        else:
+            probe_options.preconditioner = comm.pool.map(
+                _rolling_average,
+                probe_options.preconditioner,
+                preconditioner,
+            )
+
+    return object_options, probe_options
