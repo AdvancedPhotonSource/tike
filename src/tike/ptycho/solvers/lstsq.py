@@ -258,32 +258,7 @@ def lstsq_grad(
             probe[0][..., mode, :, :] = probe[0][..., mode, :, :] + d
             probe = comm.pool.bcast([probe[0]])
 
-    if object_options:
-        psi = comm.pool.map(tike.ptycho.object.positivity_constraint,
-                            psi,
-                            r=object_options.positivity_constraint)
 
-        psi = comm.pool.map(tike.ptycho.object.smoothness_constraint,
-                            psi,
-                            a=object_options.smoothness_constraint)
-
-    if eigen_probe is not None:
-        eigen_probe, eigen_weights = tike.ptycho.probe.constrain_variable_probe(
-            comm,
-            beigen_probe,
-            eigen_weights,
-        )
-
-    if object_options is not None and (len(algorithm_options.costs) % 10 == 1):
-        (
-            psi,
-            probe,
-        ) = (list(a) for a in zip(*comm.pool.map(
-            tike.ptycho.object.remove_object_ambiguity,
-            psi,
-            probe,
-            object_options.preconditioner,
-        )))
 
     parameters.probe = probe
     parameters.psi = psi
