@@ -361,7 +361,7 @@ class Reconstruction():
             dtype=(tike.precision.floating, tike.precision.floating
              if self.data.itemsize > 2 else self.data.dtype,
              tike.precision.floating),
-            destination=('gpu', 'gpu', 'gpu'),
+            destination=('gpu', 'pinned', 'gpu'),
         )
 
         self._device_parameters.psi = self.comm.pool.bcast(
@@ -655,7 +655,7 @@ class Reconstruction():
                 1 if odd_pool else 2,
             ),
             dtype=(self._device_parameters.scan[0].dtype, self.data[0].dtype),
-            destination=('gpu', 'gpu'),
+            destination=('gpu', 'pinned'),
         )
         # TODO: Perform sqrt of data here if gaussian model.
         # FIXME: Append makes a copy of each array!
