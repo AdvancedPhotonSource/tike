@@ -57,12 +57,8 @@ def dm(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
-    psi_update_numerator = [
-        None,
-    ] * comm.pool.num_workers
-    probe_update_numerator = [
-        None,
-    ] * comm.pool.num_workers
+    psi_update_numerator = [None] * comm.pool.num_workers
+    probe_update_numerator = [None] * comm.pool.num_workers
 
     # The objective function value for each batch
     batch_cost: typing.List[float] = []
