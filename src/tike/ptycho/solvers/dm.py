@@ -157,9 +157,8 @@ def _get_nearplane_gradients(
 
         if object_options:
 
-            grad_psi = (cp.conj(varying_probe) * nearplane /
-                        probe.shape[-3]).reshape(
-                            scan.shape[0] * probe.shape[-3], *probe.shape[-2:])
+            grad_psi = (cp.conj(varying_probe) * nearplane).reshape(
+                scan.shape[0] * probe.shape[-3], *probe.shape[-2:])
             psi_update_numerator = op.diffraction.patch.adj(
                 patches=grad_psi,
                 images=psi_update_numerator,
