@@ -109,6 +109,62 @@ def dm(
     return parameters
 
 
+def _apply_update(
+    comm,
+    psi_update_numerator,
+    probe_update_numerator,
+    psi,
+    probe,
+    object_options,
+    probe_options,
+):
+
+    if object_options:
+        psi_update_numerator = comm.Allreduce_reduce_gpu(
+            psi_update_numerator)[0]
+
+        new_psi = psi_update_numerator / (object_options.preconditioner[0] +
+                                          1e-9)
+        if object_options.use_adaptive_moment:
+            (
+                dpsi,
+                object_options.v,
+                object_options.m,
+            ) = tike.opt.adam(
+                g=(new_psi - psi[0]),
+                v=object_options.v,
+                m=object_options.m,
+                vdecay=object_options.vdecay,
+                mdecay=object_options.mdecay,
+            )
+            new_psi = dpsi + psi[0]
+        psi = comm.pool.bcast([new_psi])
+
+    if probe_options:
+
+        probe_update_numerator = comm.Allreduce_reduce_gpu(
+            probe_update_numerator)[0]
+
+        new_probe = probe_update_numerator / (probe_options.preconditioner[0] +
+                                              1e-9)
+        if probe_options.use_adaptive_moment:
+            (
+                dprobe,
+                probe_options.v,
+                probe_options.m,
+            ) = tike.opt.adam(
+                g=(new_probe - probe[0]),
+                v=probe_options.v,
+                m=probe_options.m,
+                vdecay=probe_options.vdecay,
+                mdecay=probe_options.mdecay,
+            )
+            new_probe = dprobe + probe[0]
+        probe = comm.pool.bcast([new_probe])
+
+    return psi, probe
+
+
 def _get_nearplane_gradients(
     data: npt.NDArray,
     scan: npt.NDArray,
@@ -200,59 +256,3 @@ def _get_nearplane_gradients(
     )
     result[0] = result[0] / len(batches[n])
     return result
-
-
-def _apply_update(
-    comm,
-    psi_update_numerator,
-    probe_update_numerator,
-    psi,
-    probe,
-    object_options,
-    probe_options,
-):
-
-    if object_options:
-        psi_update_numerator = comm.Allreduce_reduce_gpu(
-            psi_update_numerator)[0]
-
-        new_psi = psi_update_numerator / (object_options.preconditioner[0] +
-                                          1e-9)
-        if object_options.use_adaptive_moment:
-            (
-                dpsi,
-                object_options.v,
-                object_options.m,
-            ) = tike.opt.adam(
-                g=(new_psi - psi[0]),
-                v=object_options.v,
-                m=object_options.m,
-                vdecay=object_options.vdecay,
-                mdecay=object_options.mdecay,
-            )
-            new_psi = dpsi + psi[0]
-        psi = comm.pool.bcast([new_psi])
-
-    if probe_options:
-
-        probe_update_numerator = comm.Allreduce_reduce_gpu(
-            probe_update_numerator)[0]
-
-        new_probe = probe_update_numerator / (probe_options.preconditioner[0] +
-                                              1e-9)
-        if probe_options.use_adaptive_moment:
-            (
-                dprobe,
-                probe_options.v,
-                probe_options.m,
-            ) = tike.opt.adam(
-                g=(new_probe - probe[0]),
-                v=probe_options.v,
-                m=probe_options.m,
-                vdecay=probe_options.vdecay,
-                mdecay=probe_options.mdecay,
-            )
-            new_probe = dprobe + probe[0]
-        probe = comm.pool.bcast([new_probe])
-
-    return psi, probe
