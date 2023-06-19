@@ -359,8 +359,8 @@ class Reconstruction():
                 1 if odd_pool else 2,
             ),
             dtype=(tike.precision.floating, tike.precision.floating
-             if self.data.itemsize > 2 else self.data.dtype,
-             tike.precision.floating),
+                   if self.data.itemsize > 2 else self.data.dtype,
+                   tike.precision.floating),
             destination=('gpu', 'pinned', 'gpu'),
         )
 
@@ -492,9 +492,10 @@ class Reconstruction():
                     a_max=1.0,
                 )
 
-            if self._device_parameters.object_options.preconditioner is not None and (
-                    len(self._device_parameters.algorithm_options.costs) % 10
-                    == 1):
+            if (self._device_parameters.algorithm_options.name != 'dm'
+                    and self._device_parameters.object_options.preconditioner
+                    and (len(self._device_parameters.algorithm_options.costs) %
+                         10 == 1)):
                 (
                     self._device_parameters.psi,
                     self._device_parameters.probe,
