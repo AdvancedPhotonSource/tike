@@ -125,18 +125,6 @@ def lstsq_grad(
                 beigen_weights,
             )
 
-        nearplane, _, costs = zip(*comm.pool.map(
-            _update_wavefront,
-            bdata,
-            unique_probe,
-            bscan,
-            psi,
-            op=op,
-        ))
-
-        for c in costs:
-            batch_cost = batch_cost + c.tolist()
-
         (
             psi,
             probe,
@@ -146,10 +134,11 @@ def lstsq_grad(
             bposition_options,
             bbeta_object,
             bbeta_probe,
+            costs,
         ) = _update_nearplane(
             op,
             comm,
-            nearplane,
+            bdata,
             psi,
             bscan,
             probe,
@@ -165,6 +154,9 @@ def lstsq_grad(
             probe_options=probe_options,
             algorithm_options=algorithm_options,
         )
+
+        for c in costs:
+            batch_cost = batch_cost + c.tolist()
 
         beta_object.append(bbeta_object)
         beta_probe.append(bbeta_probe)
@@ -258,8 +250,6 @@ def lstsq_grad(
             probe[0][..., mode, :, :] = probe[0][..., mode, :, :] + d
             probe = comm.pool.bcast([probe[0]])
 
-
-
     parameters.probe = probe
     parameters.psi = psi
     parameters.scan = scan
@@ -300,7 +290,7 @@ def _update_wavefront(
 def _update_nearplane(
     op: tike.operators.Ptycho,
     comm: tike.communicators.Comm,
-    nearplane: typing.List[npt.NDArray[cp.csingle]],
+    data_: typing.List[npt.NDArray],
     psi: typing.List[npt.NDArray[cp.csingle]],
     scan_: typing.List[npt.NDArray[cp.single]],
     probe: typing.List[npt.NDArray[cp.csingle]],
@@ -317,6 +307,15 @@ def _update_nearplane(
     probe_options: typing.Union[ProbeOptions, None],
     algorithm_options: LstsqOptions,
 ):
+
+    nearplane, _, costs = zip(*comm.pool.map(
+        _update_wavefront,
+        data_,
+        unique_probe,
+        scan_,
+        psi,
+        op=op,
+    ))
 
     patches = comm.pool.map(_get_patches, nearplane, psi, scan_, op=op)
 
@@ -512,6 +511,7 @@ def _update_nearplane(
         position_options,
         weighted_step_psi[0],
         weighted_step_probe[0],
+        costs,
     )
 
 
