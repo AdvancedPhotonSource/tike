@@ -260,31 +260,6 @@ def lstsq_grad(
     return parameters
 
 
-def _update_wavefront(
-    data: npt.NDArray,
-    varying_probe: npt.NDArray[cp.csingle],
-    scan: npt.NDArray[cp.single],
-    psi: npt.NDArray[cp.csingle],
-    op: tike.operators.Ptycho,
-) -> typing.Tuple[npt.NDArray[cp.csingle], float]:
-
-    farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
-    intensity = cp.sum(
-        cp.square(cp.abs(farplane)),
-        axis=list(range(1, farplane.ndim - 2)),
-    )
-    costs = getattr(tike.operators,
-                    f'{op.propagation.model}_each_pattern')(data, intensity)
-    cost = cp.mean(costs)
-    logger.info('%10s cost is %+12.5e', 'farplane', cost)
-    farplane = -op.propagation.grad(data, farplane, intensity)
-
-    farplane = op.propagation.adj(farplane, overwrite=True)
-
-    pad, end = op.diffraction.pad, op.diffraction.end
-    return farplane[..., pad:end, pad:end], cost, costs
-
-
 def _update_nearplane(
     op: tike.operators.Ptycho,
     comm: tike.communicators.Comm,
@@ -306,30 +281,20 @@ def _update_nearplane(
     algorithm_options: LstsqOptions,
 ):
 
-    nearplane, _, costs = zip(*comm.pool.map(
-        _update_wavefront,
-        data_,
-        unique_probe,
-        scan_,
-        psi,
-        op=op,
-    ))
-
-    patches = comm.pool.map(_get_patches, nearplane, psi, scan_, op=op)
-
     if True:
         (
             diff,
             probe_update,
             object_upd_sum,
             m_probe_update,
+            costs,
+            patches,
         ) = (list(a) for a in zip(*comm.pool.map(
             _get_nearplane_gradients,
-            nearplane,
+            data_,
             psi,
             scan_,
             unique_probe,
-            patches,
             op=op,
             recover_psi=recover_psi,
             recover_probe=recover_probe,
@@ -353,7 +318,7 @@ def _update_nearplane(
             A4,
         ) = (list(a) for a in zip(*comm.pool.map(
             _precondition_nearplane_gradients,
-            nearplane,
+            diff,
             scan_,
             unique_probe,
             probe,
@@ -514,32 +479,32 @@ def _update_nearplane(
     )
 
 
-def _get_patches(
-    nearplane: npt.NDArray[cp.csingle],
-    psi: npt.NDArray[cp.csingle],
-    scan: npt.NDArray[cp.single],
-    *,
-    op: tike.operators.Ptycho,
-) -> npt.NDArray[cp.csingle]:
-    patches = op.diffraction.patch.fwd(
-        patches=cp.zeros_like(nearplane[..., 0, 0, :, :]),
-        images=psi,
-        positions=scan,
-    )[..., None, None, :, :]
-    return patches
-
-
 def _get_nearplane_gradients(
-    chi: npt.NDArray[cp.csingle],
+    data: npt.NDArray,
     psi: npt.NDArray[cp.csingle],
     scan_: npt.NDArray[cp.single],
     unique_probe: npt.NDArray[cp.csingle],
-    patches: npt.NDArray[cp.csingle],
     *,
     op: tike.operators.Ptycho,
     recover_psi: bool,
     recover_probe: bool,
 ):
+    farplane = op.fwd(probe=unique_probe, scan=scan_, psi=psi)
+    intensity = cp.sum(
+        cp.square(cp.abs(farplane)),
+        axis=list(range(1, farplane.ndim - 2)),
+    )
+    costs = getattr(tike.operators,
+                    f'{op.propagation.model}_each_pattern')(data, intensity)
+    cost = cp.mean(costs)
+    logger.info('%10s cost is %+12.5e', 'farplane', cost)
+    farplane = -op.propagation.grad(data, farplane, intensity)
+
+    farplane = op.propagation.adj(farplane, overwrite=True)
+
+    pad, end = op.diffraction.pad, op.diffraction.end
+    chi = farplane[..., pad:end, pad:end]
+
     # Get update directions for each scan positions
     if recover_psi:
         # (24b)
@@ -556,6 +521,11 @@ def _get_nearplane_gradients(
         object_upd_sum = None
 
     if recover_probe:
+        patches = op.diffraction.patch.fwd(
+            patches=cp.zeros_like(chi[..., 0, 0, :, :]),
+            images=psi,
+            positions=scan_,
+        )[..., None, None, :, :]
         # (24a)
         probe_update = cp.conj(patches) * chi
         # (25a) Common probe gradient. Use simple average instead of
@@ -569,12 +539,15 @@ def _get_nearplane_gradients(
     else:
         probe_update = None
         m_probe_update = None
+        patches = None
 
     return (
         chi,
         probe_update,
         object_upd_sum,
         m_probe_update,
+        costs,
+        patches,
     )
 
 
@@ -618,7 +591,7 @@ def _precondition_nearplane_gradients(
         )
 
         object_update_proj = op.diffraction.patch.fwd(
-            patches=cp.zeros_like(patches[..., 0, 0, :, :]),
+            patches=cp.zeros_like(nearplane[..., 0, 0, :, :]),
             images=object_update_precond,
             positions=scan_,
         )
