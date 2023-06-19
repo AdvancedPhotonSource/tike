@@ -323,7 +323,7 @@ def _get_d(patches, diff, eigen_probe, update, *, β, c, m):
     # Determine new eigen_weights for the updated eigen probe
     phi = patches * eigen_probe[..., c - 1:c, m:m + 1, :, :]
     n = np.mean(
-        np.real(diff * phi.conj()),
+        np.real(diff[..., m:m + 1, :, :] * phi.conj()),
         axis=(-1, -2),
         keepdims=False,
     )
@@ -371,7 +371,7 @@ def update_eigen_probe(
         Residual probe updates; what's left after subtracting the shared probe
         update from the varying probe updates for each position
     patches : (..., POSI, 1, 1, WIDE, HIGH) complex64
-    diff : (..., POSI, 1, 1, WIDE, HIGH) complex64
+    diff : (..., POSI, 1, SHARED, WIDE, HIGH) complex64
     eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
         The eigen probe being updated.
     β : float

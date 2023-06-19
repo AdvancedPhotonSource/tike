@@ -229,9 +229,7 @@ def lstsq_grad(
                     shape=(3, *dprobe.shape),
                 )
             if probe_options.m is None:
-                probe_options.m = np.zeros_like(
-                    dprobe,
-                )
+                probe_options.m = np.zeros_like(dprobe,)
             # ptychoshelves only applies momentum to the main probe
             mode = 0
             (
@@ -319,8 +317,7 @@ def _update_nearplane(
 
     patches = comm.pool.map(_get_patches, nearplane, psi, scan_, op=op)
 
-    for m in range(probe[0].shape[-3]):
-
+    if True:
         (
             diff,
             probe_update,
@@ -336,7 +333,6 @@ def _update_nearplane(
             unique_probe,
             patches,
             op=op,
-            m=m,
             recover_psi=recover_psi,
             recover_probe=recover_probe,
         )))
@@ -354,6 +350,7 @@ def _update_nearplane(
                 axis=-5,
             )
 
+    for m in range(probe[0].shape[-3]):
         (
             object_update_precond,
             m_probe_update,
@@ -402,6 +399,7 @@ def _update_nearplane(
                 A4,
                 recover_psi=recover_psi,
                 recover_probe=recover_probe,
+                m=m,
             )))
             weighted_step_psi[0] = comm.Allreduce_mean(
                 weighted_step_psi,
@@ -426,7 +424,12 @@ def _update_nearplane(
 
             # (30) residual probe updates
             if eigen_weights[0].shape[-2] > 1:
-                R = comm.pool.map(_get_residuals, probe_update, m_probe_update)
+                R = comm.pool.map(
+                    _get_residuals,
+                    probe_update,
+                    m_probe_update,
+                    m=m,
+                )
 
             if eigen_probe[0] is not None and m < eigen_probe[0].shape[-3]:
                 assert eigen_weights[0].shape[
@@ -484,7 +487,7 @@ def _update_nearplane(
                 object_options.combined_update += object_upd_sum[0]
 
         if probe_options is not None:
-            dprobe = weighted_step_probe[0] * m_probe_update[0]
+            dprobe = weighted_step_probe[0] * m_probe_update[0][..., [m], :, :]
             probe_options.probe_update_sum[..., [m], :, :] += dprobe / num_batch
             # (27a) Probe update
             probe[0][..., [m], :, :] += dprobe
@@ -531,33 +534,27 @@ def _get_patches(
 
 
 def _get_nearplane_gradients(
-    nearplane: npt.NDArray[cp.csingle],
+    chi: npt.NDArray[cp.csingle],
     psi: npt.NDArray[cp.csingle],
     scan_: npt.NDArray[cp.single],
     unique_probe: npt.NDArray[cp.csingle],
     patches: npt.NDArray[cp.csingle],
     *,
     op: tike.operators.Ptycho,
-    m: int,
     recover_psi: bool,
     recover_probe: bool,
 ):
-
-    chi = nearplane[..., [m], :, :]
-
-    if __debug__:
-        logger.debug('%10s cost is %+12.5e', 'nearplane',
-                     tike.linalg.norm(chi))
-
     # Get update directions for each scan positions
     if recover_psi:
         # (24b)
-        object_update_proj = cp.conj(unique_probe[..., [m], :, :]) * chi
+        object_update_proj = cp.conj(unique_probe) * chi
         # (25b) Common object gradient.
         object_upd_sum = op.diffraction.patch.adj(
-            patches=object_update_proj[..., 0, 0, :, :],
+            patches=object_update_proj.reshape(
+                len(scan_) * chi.shape[-3], *chi.shape[-2:]),
             images=cp.zeros_like(psi),
             positions=scan_,
+            nrepeat=chi.shape[-3],
         )
     else:
         object_upd_sum = None
@@ -626,10 +623,8 @@ def _precondition_nearplane_gradients(
     alpha=0.05,
     probe_options,
 ):
-
-    diff = nearplane[..., [m], :, :]
-
-    eps = op.xp.float32(1e-9) / (diff.shape[-2] * diff.shape[-1])
+    eps = op.xp.float32(1e-9) / (nearplane[..., [m], :, :].shape[-2] *
+                                 nearplane[..., [m], :, :].shape[-1])
 
     if recover_psi:
         object_update_precond = _precondition_object_update(
@@ -675,7 +670,7 @@ def _precondition_nearplane_gradients(
         #                           keepdims=True,
         #                       ) + b0 + b1)
 
-        dPO = m_probe_update * patches
+        dPO = m_probe_update[..., [m], :, :] * patches
         A4 = cp.sum((dPO * dPO.conj()).real + eps, axis=(-2, -1))
     else:
         dPO = None
@@ -696,21 +691,21 @@ def _A_diagonal_dominant(A, delta):
     return A
 
 
-def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe):
+def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe, m):
     # (22) Use least-squares to find the optimal step sizes simultaneously
     if recover_psi and recover_probe:
-        b1 = cp.sum((dOP.conj() * diff).real, axis=(-2, -1))
-        b2 = cp.sum((dPO.conj() * diff).real, axis=(-2, -1))
+        b1 = cp.sum((dOP.conj() * diff[..., [m], :, :]).real, axis=(-2, -1))
+        b2 = cp.sum((dPO.conj() * diff[..., [m], :, :]).real, axis=(-2, -1))
         A2 = cp.sum((dOP * dPO.conj()), axis=(-2, -1))
         A3 = A2.conj()
         determinant = A1 * A4 - A2 * A3
         x1 = -cp.conj(A2 * b2 - A4 * b1) / determinant
         x2 = cp.conj(A1 * b2 - A3 * b1) / determinant
     elif recover_psi:
-        b1 = cp.sum((dOP.conj() * diff).real, axis=(-2, -1))
+        b1 = cp.sum((dOP.conj() * diff[..., [m], :, :]).real, axis=(-2, -1))
         x1 = b1 / A1
     elif recover_probe:
-        b2 = cp.sum((dPO.conj() * diff).real, axis=(-2, -1))
+        b2 = cp.sum((dPO.conj() * diff[..., [m], :, :]).real, axis=(-2, -1))
         x2 = b2 / A4
     else:
         x1 = None
@@ -736,14 +731,14 @@ def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe):
 
 def _get_coefs_intensity(weights, xi, P, O, m):
     OP = O * P[..., [m], :, :]
-    num = cp.sum(cp.real(cp.conj(OP) * xi), axis=(-1, -2))
+    num = cp.sum(cp.real(cp.conj(OP) * xi[..., [m], :, :]), axis=(-1, -2))
     den = cp.sum(cp.abs(OP)**2, axis=(-1, -2))
     weights[..., 0:1, [m]] = weights[..., 0:1, [m]] + 0.1 * num / den
     return weights
 
 
-def _get_residuals(grad_probe, grad_probe_mean):
-    return grad_probe - grad_probe_mean
+def _get_residuals(grad_probe, grad_probe_mean, m):
+    return grad_probe[..., [m], :, :] - grad_probe_mean[..., [m], :, :]
 
 
 def _update_residuals(R, eigen_probe, axis, c, m):
@@ -774,13 +769,15 @@ def _update_position(
     # that is what ptychoshelves does.
     grad_x, grad_y = tike.ptycho.position.gaussian_gradient(patches)
 
-    numerator = cp.sum(cp.real(diff * cp.conj(grad_x * main_probe)),
+    numerator = cp.sum(cp.real(diff[..., [m], :, :] *
+                               cp.conj(grad_x * main_probe)),
                        axis=(-2, -1))
     denominator = cp.sum(cp.abs(grad_x * main_probe)**2, axis=(-2, -1))
     step_x = numerator / (
         (1 - alpha) * denominator + alpha * max(denominator.max(), 1e-6))
 
-    numerator = cp.sum(cp.real(diff * cp.conj(grad_y * main_probe)),
+    numerator = cp.sum(cp.real(diff[..., [m], :, :] *
+                               cp.conj(grad_y * main_probe)),
                        axis=(-2, -1))
     denominator = cp.sum(cp.abs(grad_y * main_probe)**2, axis=(-2, -1))
     step_y = numerator / (
@@ -827,9 +824,7 @@ def _momentum_checked(
     g (WIDTH, HEIGHT)
         The current psi update
     """
-    m = np.zeros_like(
-        g,
-    ) if m is None else m
+    m = np.zeros_like(g,) if m is None else m
     previous_g = np.zeros_like(
         g,
         shape=(memory_length, *g.shape),
