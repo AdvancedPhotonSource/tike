@@ -12,6 +12,7 @@ import tike.opt
 import tike.ptycho.position
 import tike.ptycho.probe
 import tike.ptycho.object
+import tike.ptycho.exitwave
 import tike.precision
 
 from .options import *
@@ -68,10 +69,14 @@ def lstsq_grad(
     probe = parameters.probe
     scan = parameters.scan
     psi = parameters.psi
+
     algorithm_options = parameters.algorithm_options
+
     probe_options = parameters.probe_options
     position_options = parameters.position_options
     object_options = parameters.object_options
+    exitwave_options = parameters.exitwave_options
+
     eigen_probe = parameters.eigen_probe
     eigen_weights = parameters.eigen_weights
 
@@ -160,6 +165,7 @@ def lstsq_grad(
             unique_probe,
             bscan,
             psi,
+            [ exitwave_options ],  
             op=op,
         ))
 
@@ -354,24 +360,108 @@ def _update_wavefront(
     varying_probe: npt.NDArray[cp.csingle],
     scan: npt.NDArray[cp.single],
     psi: npt.NDArray[cp.csingle],
+    exitwave_options: ExitWaveOptions,
     op: tike.operators.Ptycho,
 ) -> typing.Tuple[npt.NDArray[cp.csingle], float]:
 
-    farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
-    intensity = cp.sum(
-        cp.square(cp.abs(farplane)),
-        axis=list(range(1, farplane.ndim - 2)),
-    )
-    costs = getattr(objective,
-                    f'{op.propagation.model}_each_pattern')(data, intensity)
-    cost = cp.mean(costs)
-    logger.info('%10s cost is %+12.5e', 'farplane', cost)
-    farplane = -op.propagation.grad(data, farplane, intensity)
+    #==========
 
-    farplane = op.propagation.adj(farplane, overwrite=True)
+    # farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
+
+    # intensity = cp.sum(
+    #     cp.square(cp.abs(farplane)),
+    #     axis=list(range(1, farplane.ndim - 2)),
+    # )
+
+    # costs = getattr(objective,
+    #                 f'{op.propagation.model}_each_pattern')(data, intensity)
+    
+    # cost = cp.mean(costs)
+
+    # logger.info('%10s cost is %+12.5e', 'farplane', cost)
+
+    # # grad_poiss = ( 1 - Im / Ic ) psi_tilde
+    # # grad_gauss = ( 1 - sqrt( Im / Ic )) psi_tilde
+    # farplane = -op.propagation.grad(data, farplane, intensity)   # this is chi from the Odstrcil paper 
+
+    # farplane = op.propagation.adj(farplane, overwrite=True)
+
+    # pad, end = op.diffraction.pad, op.diffraction.end
+
+    #==========
+
+    fft2exitwave = op.fwd( probe = varying_probe, scan = scan, psi = psi )
+
+    Icalc = cp.sum(
+        cp.square(cp.abs( fft2exitwave )),
+        axis=list(range(1, fft2exitwave.ndim - 2)),
+    )
+
+    costs = getattr(objective,
+                    f'{op.propagation.model}_each_pattern')(data, Icalc)
+    
+    cost = cp.mean(costs)
+
+    if exitwave_options.noise_model == 'poisson':
+        
+        xi        = 1 - data / ( Icalc + 1e-9 )
+        grad_cost = fft2exitwave * xi[ :, None, None, :, : ]
+        abs2_Psi  = cp.square( cp.abs( cp.swapaxes( cp.squeeze( fft2exitwave ), 0, 1 )))
+
+        Nspos = fft2exitwave.shape[ 0 ]
+        Nscpm = fft2exitwave.shape[ 2 ]
+        
+        step_length = exitwave_options.step_length_start * cp.ones( ( Nscpm, Nspos ))
+
+        if exitwave_options.step_length_usemodes  == 'dominant_mode':
+                      
+            step_length = tike.ptycho.exitwave.poisson_steplength_ptychoshelves( xi, 
+                                                                                 Icalc, 
+                                                                                 data, 
+                                                                                 exitwave_options.measured_pixels, 
+                                                                                 step_length, 
+                                                                                 exitwave_options.step_length_weight )   
+
+        else:
+               
+            step_length = tike.ptycho.exitwave.poisson_steplength_approx( xi, 
+                                                                          abs2_Psi, 
+                                                                          Icalc, 
+                                                                          data, 
+                                                                          exitwave_options.measured_pixels, 
+                                                                          step_length, 
+                                                                          exitwave_options.step_length_weight )
+ 
+        step_length = cp.swapaxes( step_length, 0, 1 )[ :, None, :, None, None ]
+
+        # grad_cost  = op.propagation.grad( data, fft2exitwave, Icalc )  
+        # grad_poiss = ( 1 - Im / Ic ) fft2exitwave
+
+        chi = ( ( fft2exitwave - step_length * grad_cost )                  * exitwave_options.measured_pixels
+                + fft2exitwave * exitwave_options.unmeasured_pixels_scaling * exitwave_options.unmeasured_pixels )
+
+    else:
+    
+        # grad_cost = fft2exitwave * ( 1 - cp.sqrt( data ) / ( cp.sqrt( Icalc ) + 1e-9 ))[..., None, None, :, :]
+        # grad_cost = -op.propagation.grad( data, fft2exitwave, Icalc ) * exitwave_options.measured_pixels
+
+        # # chi = ( ( fft2exitwave - grad_cost )                                * exitwave_options.measured_pixels
+        # #         + fft2exitwave * exitwave_options.unmeasured_pixels_scaling * exitwave_options.unmeasured_pixels )
+
+        chi = ( fft2exitwave * ( cp.sqrt( data ) / ( cp.sqrt( Icalc ) + 1e-9 ))[..., None, None, :, :] * exitwave_options.measured_pixels
+              + fft2exitwave * exitwave_options.unmeasured_pixels_scaling                              * exitwave_options.unmeasured_pixels )
+
+
+    chi = chi - fft2exitwave
+
+    chi = op.propagation.adj( chi, overwrite=True )
 
     pad, end = op.diffraction.pad, op.diffraction.end
-    return farplane[..., pad:end, pad:end], cost, costs
+
+    #==========
+
+    # return farplane[..., pad:end, pad:end], cost, costs
+    return chi[..., pad:end, pad:end], cost, costs
 
 
 def _update_nearplane(

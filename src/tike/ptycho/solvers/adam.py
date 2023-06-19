@@ -9,6 +9,7 @@ import tike.operators
 import tike.opt
 import tike.ptycho.object
 import tike.ptycho.probe
+# import tike.ptycho.exitwave
 
 from .options import *
 
