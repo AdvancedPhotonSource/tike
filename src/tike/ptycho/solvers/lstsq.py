@@ -323,8 +323,6 @@ def _update_nearplane(
             probe_update,
             object_upd_sum,
             m_probe_update,
-            _,
-            probe_update_denominator,
         ) = (list(a) for a in zip(*comm.pool.map(
             _get_nearplane_gradients,
             nearplane,
@@ -345,12 +343,7 @@ def _update_nearplane(
                 m_probe_update,
                 axis=-5,
             )
-            probe_update_denominator = comm.Allreduce_mean(
-                probe_update_denominator,
-                axis=-5,
-            )
 
-    for m in range(probe[0].shape[-3]):
         (
             object_update_precond,
             m_probe_update,
@@ -367,10 +360,9 @@ def _update_nearplane(
             object_upd_sum,
             m_probe_update,
             psi_update_denominator,
-            probe_update_denominator,
             patches,
             op=op,
-            m=m,
+            m=0,
             recover_psi=recover_psi,
             recover_probe=recover_probe,
             probe_options=probe_options,
@@ -385,6 +377,8 @@ def _update_nearplane(
             delta = comm.Allreduce_mean(A4, axis=-3)
             A4 = comm.pool.map(_A_diagonal_dominant, A4,
                                comm.pool.bcast([delta]))
+
+        m = 0
 
         if m == 0 and (recover_probe or recover_psi):
             (
@@ -461,6 +455,8 @@ def _update_nearplane(
                             c=n - 1,
                             m=m,
                         )
+
+    for m in range(probe[0].shape[-3]):
 
         # Update each direction
         if object_options is not None:
@@ -570,25 +566,15 @@ def _get_nearplane_gradients(
             axis=-5,
             keepdims=True,
         )
-        # Sum the amplitude of all the object patches to precondition the probe
-        # update.
-        probe_update_denominator = cp.mean(
-            patches * patches.conj(),
-            axis=-5,
-            keepdims=True,
-        )
     else:
         probe_update = None
         m_probe_update = None
-        probe_update_denominator = None
 
     return (
         chi,
         probe_update,
         object_upd_sum,
         m_probe_update,
-        None,
-        probe_update_denominator,
     )
 
 
@@ -613,7 +599,6 @@ def _precondition_nearplane_gradients(
     object_upd_sum,
     m_probe_update,
     psi_update_denominator,
-    probe_update_denominator,
     patches,
     *,
     op,
@@ -623,8 +608,8 @@ def _precondition_nearplane_gradients(
     alpha=0.05,
     probe_options,
 ):
-    eps = op.xp.float32(1e-9) / (nearplane[..., [m], :, :].shape[-2] *
-                                 nearplane[..., [m], :, :].shape[-1])
+    eps = op.xp.float32(1e-9) / (nearplane.shape[-2] *
+                                 nearplane.shape[-1])
 
     if recover_psi:
         object_update_precond = _precondition_object_update(
