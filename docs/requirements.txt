@@ -1,4 +1,4 @@
 nbsphinx
-sphinx ==1.*
-sphinx_rtd_theme
+sphinx ==5.*
+sphinx_book_theme
 sphinxcontrib-bibtex

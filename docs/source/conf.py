@@ -60,18 +60,6 @@ extlinks = {
     'doi': ('https://dx.doi.org/%s', 'doi:'),
 }
 
-# Napoleon settings.
-napoleon_google_docstring = True
-napoleon_numpy_docstring = True
-napoleon_include_private_with_doc = False
-napoleon_include_special_with_doc = False
-napoleon_use_admonition_for_examples = False
-napoleon_use_admonition_for_notes = False
-napoleon_use_admonition_for_references = False
-napoleon_use_ivar = False
-napoleon_use_param = False
-napoleon_use_rtype = False
-
 # The suffix(es) of source filenames.
 source_suffix = ['.rst', '.md']
 
@@ -116,7 +104,7 @@ todo_include_todos = True
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'sphinx_book_theme'
 
 html_theme_options = {
     'navigation_depth': 4,
@@ -127,6 +115,9 @@ html_theme_options = {
 htmlhelp_basename = project+'doc'
 
 # -- Options for autodoc output ------------------------------------------
+
+autodoc_typehints = 'description'
+autodoc_class_signature = 'separated'
 
 autodoc_mock_imports = [
     'cupy',
