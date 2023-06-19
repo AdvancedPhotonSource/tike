@@ -10,6 +10,7 @@ import tike.opt
 import tike.ptycho.object
 import tike.ptycho.position
 import tike.ptycho.probe
+import tike.ptycho.exitwave
 import tike.precision
 
 from .options import *
@@ -74,6 +75,7 @@ def rpie(
     scan = parameters.scan
     psi = parameters.psi
     algorithm_options = parameters.algorithm_options
+    exitwave_options = parameters.exitwave_options
     probe_options = parameters.probe_options
     position_options = parameters.position_options
     object_options = parameters.object_options
@@ -134,6 +136,7 @@ def rpie(
             unique_probe,
             bscan,
             psi,
+            [ exitwave_options ],
             bposition_options,
             op=op,
         ))
@@ -356,15 +359,23 @@ def _update_wavefront(
     varying_probe,
     scan,
     psi,
+    exitwave_options,
     position_options,
     op=None,
 ):
+    
+    #=====
+    
     farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
+
     intensity = cp.sum(
         cp.square(cp.abs(farplane)),
         axis=list(range(1, farplane.ndim - 2)),
     )
-    cost = getattr(tike.operators, f'{op.propagation.model}_each_pattern')(
+
+    #=====
+
+    cost = getattr(objective, f'{op.propagation.model}_each_pattern')(
         data,
         intensity,
     )
@@ -373,11 +384,54 @@ def _update_wavefront(
     cost = cp.mean(cost)
     logger.info('%10s cost is %+12.5e', 'farplane', cost)
 
-    farplane *= (cp.sqrt(data) / (cp.sqrt(intensity) + 1e-9))[..., None,
-                                                              None, :, :]
+    #=====
+
+    if exitwave_options.noise_model == 'poisson':
+
+        xi        = 1 - data / intensity
+        grad_cost = farplane * xi[ :, None, None, :, : ]
+
+        Nspos = farplane.shape[ 0 ]
+        Nscpm = farplane.shape[ 2 ]
+
+        step_length = exitwave_options.step_length_start * cp.ones( ( Nscpm, Nspos ))
+
+        if exitwave_options.step_length_usemodes  == 'dominant_mode':
+
+            step_length = tike.ptycho.exitwave.poisson_steplength_ptychoshelves( xi, 
+                                                                                 intensity, 
+                                                                                 data, 
+                                                                                 exitwave_options.measured_pixels, 
+                                                                                 step_length, 
+                                                                                 exitwave_options.step_length_weight )   
+
+        else:
+
+            abs2_Psi  = cp.square( cp.abs( cp.swapaxes( cp.squeeze( farplane ), 0, 1 )))
+
+            step_length = tike.ptycho.exitwave.poisson_steplength_approx( xi, 
+                                                                          abs2_Psi, 
+                                                                          intensity, 
+                                                                          data, 
+                                                                          exitwave_options.measured_pixels, 
+                                                                          step_length, 
+                                                                          exitwave_options.step_length_weight )
+            
+        step_length = cp.swapaxes( step_length, 0, 1 )[ :, None, :, None, None ]
+
+        farplane = ( ( farplane - step_length * grad_cost )                  * exitwave_options.measured_pixels
+                     + farplane * exitwave_options.unmeasured_pixels_scaling * exitwave_options.unmeasured_pixels )
+        
+    else:
+
+        # Gaussian noise model for exitwave updates, steplength = 1
+        farplane *= (( cp.sqrt( data ) / (cp.sqrt( intensity ) + 1e-9 ))[ ..., None, None, :, : ] 
+                        + exitwave_options.unmeasured_pixels * exitwave_options.unmeasured_pixels_scaling )
+    
     farplane = op.propagation.adj(farplane, overwrite=True)
 
     pad, end = op.diffraction.pad, op.diffraction.end
+
     return farplane[..., pad:end, pad:end], cost, position_options
 
 

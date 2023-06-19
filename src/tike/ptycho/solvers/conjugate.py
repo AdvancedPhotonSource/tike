@@ -4,6 +4,7 @@ from tike.linalg import orthogonalize_gs
 from tike.opt import conjugate_gradient, get_batch, randomizer
 from ..position import update_positions_pd, PositionOptions
 from ..object import positivity_constraint, smoothness_constraint
+# from ..exitwave import ExitWaveOptions
 
 logger = logging.getLogger(__name__)
 

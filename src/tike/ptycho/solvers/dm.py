@@ -6,6 +6,7 @@ import tike.linalg
 import tike.opt
 import tike.ptycho.position
 import tike.ptycho.probe
+# import tike.ptycho.exitwave
 
 from tike.ptycho.solvers.rpie import _update_position
 
