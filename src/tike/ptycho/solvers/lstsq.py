@@ -287,32 +287,6 @@ def _update_wavefront(
     op: tike.operators.Ptycho,
 ) -> typing.Tuple[npt.NDArray[cp.csingle], float]:
 
-    #==========
-
-    # farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
-
-    # intensity = cp.sum(
-    #     cp.square(cp.abs(farplane)),
-    #     axis=list(range(1, farplane.ndim - 2)),
-    # )
-
-    # costs = getattr(objective,
-    #                 f'{op.propagation.model}_each_pattern')(data, intensity)
-    
-    # cost = cp.mean(costs)
-
-    # logger.info('%10s cost is %+12.5e', 'farplane', cost)
-
-    # # grad_poiss = ( 1 - Im / Ic ) psi_tilde
-    # # grad_gauss = ( 1 - sqrt( Im / Ic )) psi_tilde
-    # farplane = -op.propagation.grad(data, farplane, intensity)   # this is chi from the Odstrcil paper 
-
-    # farplane = op.propagation.adj(farplane, overwrite=True)
-
-    # pad, end = op.diffraction.pad, op.diffraction.end
-
-    #==========
-
     fft2exitwave = op.fwd( probe = varying_probe, scan = scan, psi = psi )
 
     Icalc = cp.sum(
@@ -320,11 +294,8 @@ def _update_wavefront(
         axis=list(range(1, fft2exitwave.ndim - 2)),
     )
     costs = getattr(tike.operators,
-                    f'{op.propagation.model}_each_pattern')(data, intensity)
-
-    costs = getattr(objective,
                     f'{op.propagation.model}_each_pattern')(data, Icalc)
-    
+
     cost = cp.mean(costs)
 
     if exitwave_options.noise_model == 'poisson':

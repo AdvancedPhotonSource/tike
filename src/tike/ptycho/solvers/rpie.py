@@ -363,9 +363,6 @@ def _update_wavefront(
     position_options,
     op=None,
 ):
-    
-    #=====
-    
     farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
 
     intensity = cp.sum(
@@ -373,9 +370,7 @@ def _update_wavefront(
         axis=list(range(1, farplane.ndim - 2)),
     )
 
-    #=====
-
-    cost = getattr(objective, f'{op.propagation.model}_each_pattern')(
+    cost = getattr(tike.operators, f'{op.propagation.model}_each_pattern')(
         data,
         intensity,
     )
@@ -383,8 +378,6 @@ def _update_wavefront(
         position_options.confidence[..., 0] = cost
     cost = cp.mean(cost)
     logger.info('%10s cost is %+12.5e', 'farplane', cost)
-
-    #=====
 
     if exitwave_options.noise_model == 'poisson':
 
