@@ -287,65 +287,18 @@ def _update_wavefront(
     op: tike.operators.Ptycho,
 ) -> typing.Tuple[npt.NDArray[cp.csingle], float]:
 
-    fft2exitwave = op.fwd( probe = varying_probe, scan = scan, psi = psi )
-
-    Icalc = cp.sum(
-        cp.square(cp.abs( fft2exitwave )),
-        axis=list(range(1, fft2exitwave.ndim - 2)),
+    farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
+    intensity = cp.sum(
+        cp.square(cp.abs(farplane)),
+        axis=list(range(1, farplane.ndim - 2)),
     )
-    costs = getattr(tike.operators,
-                    f'{op.propagation.model}_each_pattern')(data, Icalc)
-
+    costs = getattr(objective,
+                    f'{op.propagation.model}_each_pattern')(data, intensity)
     cost = cp.mean(costs)
 
-    if exitwave_options.noise_model == 'poisson':
-        
-        xi        = 1 - data / ( Icalc + 1e-9 )
-        grad_cost = fft2exitwave * xi[ :, None, None, :, : ]
-        abs2_Psi  = cp.square( cp.abs( cp.swapaxes( cp.squeeze( fft2exitwave ), 0, 1 )))
-
-        Nspos = fft2exitwave.shape[ 0 ]
-        Nscpm = fft2exitwave.shape[ 2 ]
-        
-        step_length = exitwave_options.step_length_start * cp.ones( ( Nscpm, Nspos ))
-
-        if exitwave_options.step_length_usemodes  == 'dominant_mode':
-                      
-            step_length = tike.ptycho.exitwave.poisson_steplength_ptychoshelves( xi, 
-                                                                                 Icalc, 
-                                                                                 data, 
-                                                                                 exitwave_options.measured_pixels, 
-                                                                                 step_length, 
-                                                                                 exitwave_options.step_length_weight )   
-
-        else:
-               
-            step_length = tike.ptycho.exitwave.poisson_steplength_approx( xi, 
-                                                                          abs2_Psi, 
-                                                                          Icalc, 
-                                                                          data, 
-                                                                          exitwave_options.measured_pixels, 
-                                                                          step_length, 
-                                                                          exitwave_options.step_length_weight )
- 
-        step_length = cp.swapaxes( step_length, 0, 1 )[ :, None, :, None, None ]
-
-        chi = ( ( fft2exitwave - step_length * grad_cost )                  * exitwave_options.measured_pixels
-                + fft2exitwave * exitwave_options.unmeasured_pixels_scaling * exitwave_options.unmeasured_pixels )
-
-    else:
-    
-        chi = ( fft2exitwave * ( cp.sqrt( data ) / ( cp.sqrt( Icalc ) + 1e-9 ))[..., None, None, :, :] * exitwave_options.measured_pixels
-              + fft2exitwave * exitwave_options.unmeasured_pixels_scaling                              * exitwave_options.unmeasured_pixels )
-
-
-    chi = chi - fft2exitwave
-
-    chi = op.propagation.adj( chi, overwrite=True )
+    farplane = op.propagation.adj(farplane, overwrite=True)
 
     pad, end = op.diffraction.pad, op.diffraction.end
-
-    return chi[..., pad:end, pad:end], cost, costs
 
 
 def _update_nearplane(
