@@ -330,20 +330,11 @@ def _update_wavefront(
  
         step_length = cp.swapaxes( step_length, 0, 1 )[ :, None, :, None, None ]
 
-        # grad_cost  = op.propagation.grad( data, fft2exitwave, Icalc )  
-        # grad_poiss = ( 1 - Im / Ic ) fft2exitwave
-
         chi = ( ( fft2exitwave - step_length * grad_cost )                  * exitwave_options.measured_pixels
                 + fft2exitwave * exitwave_options.unmeasured_pixels_scaling * exitwave_options.unmeasured_pixels )
 
     else:
     
-        # grad_cost = fft2exitwave * ( 1 - cp.sqrt( data ) / ( cp.sqrt( Icalc ) + 1e-9 ))[..., None, None, :, :]
-        # grad_cost = -op.propagation.grad( data, fft2exitwave, Icalc ) * exitwave_options.measured_pixels
-
-        # # chi = ( ( fft2exitwave - grad_cost )                                * exitwave_options.measured_pixels
-        # #         + fft2exitwave * exitwave_options.unmeasured_pixels_scaling * exitwave_options.unmeasured_pixels )
-
         chi = ( fft2exitwave * ( cp.sqrt( data ) / ( cp.sqrt( Icalc ) + 1e-9 ))[..., None, None, :, :] * exitwave_options.measured_pixels
               + fft2exitwave * exitwave_options.unmeasured_pixels_scaling                              * exitwave_options.unmeasured_pixels )
 
@@ -354,9 +345,6 @@ def _update_wavefront(
 
     pad, end = op.diffraction.pad, op.diffraction.end
 
-    #==========
-
-    # return farplane[..., pad:end, pad:end], cost, costs
     return chi[..., pad:end, pad:end], cost, costs
 
 

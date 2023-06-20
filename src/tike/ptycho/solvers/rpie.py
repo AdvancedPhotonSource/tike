@@ -418,6 +418,7 @@ def _update_wavefront(
     else:
 
         # Gaussian noise model for exitwave updates, steplength = 1
+        # TODO: optimal step lengths using 2nd order taylor expansion
         farplane *= (( cp.sqrt( data ) / (cp.sqrt( intensity ) + 1e-9 ))[ ..., None, None, :, : ] 
                         + exitwave_options.unmeasured_pixels * exitwave_options.unmeasured_pixels_scaling )
     
