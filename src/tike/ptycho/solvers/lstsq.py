@@ -312,10 +312,11 @@ def _update_nearplane(
         (
             object_update_precond,
             m_probe_update,
-            dOP,
-            dPO,
             A1,
+            A2,
             A4,
+            b1,
+            b2,
         ) = (list(a) for a in zip(*comm.pool.map(
             _precondition_nearplane_gradients,
             diff,
@@ -334,14 +335,10 @@ def _update_nearplane(
         )))
 
         if recover_psi:
-            delta = comm.Allreduce_mean(A1, axis=-3)
-            A1 = comm.pool.map(_A_diagonal_dominant, A1,
-                               comm.pool.bcast([delta]))
+            A1_delta = comm.pool.bcast([comm.Allreduce_mean(A1, axis=-3)])
 
         if recover_probe:
-            delta = comm.Allreduce_mean(A4, axis=-3)
-            A4 = comm.pool.map(_A_diagonal_dominant, A4,
-                               comm.pool.bcast([delta]))
+            A4_delta = comm.pool.bcast([comm.Allreduce_mean(A4, axis=-3)])
 
         m = 0
 
@@ -351,11 +348,13 @@ def _update_nearplane(
                 weighted_step_probe,
             ) = (list(a) for a in zip(*comm.pool.map(
                 _get_nearplane_steps,
-                diff,
-                dOP,
-                dPO,
                 A1,
+                A2,
                 A4,
+                b1,
+                b2,
+                A1_delta,
+                A4_delta,
                 recover_psi=recover_psi,
                 recover_probe=recover_probe,
                 m=m,
@@ -578,8 +577,7 @@ def _precondition_nearplane_gradients(
     alpha=0.05,
     probe_options,
 ):
-    eps = op.xp.float32(1e-9) / (nearplane.shape[-2] *
-                                 nearplane.shape[-1])
+    eps = op.xp.float32(1e-9) / (nearplane.shape[-2] * nearplane.shape[-1])
 
     if recover_psi:
         object_update_precond = _precondition_object_update(
@@ -631,36 +629,45 @@ def _precondition_nearplane_gradients(
         dPO = None
         A4 = None
 
+    if recover_psi and recover_probe:
+        b1 = cp.sum((dOP.conj() * nearplane[..., [m], :, :]).real,
+                    axis=(-2, -1))
+        b2 = cp.sum((dPO.conj() * nearplane[..., [m], :, :]).real,
+                    axis=(-2, -1))
+        A2 = cp.sum((dOP * dPO.conj()), axis=(-2, -1))
+    elif recover_psi:
+        b1 = cp.sum((dOP.conj() * nearplane[..., [m], :, :]).real,
+                    axis=(-2, -1))
+    elif recover_probe:
+        b2 = cp.sum((dPO.conj() * nearplane[..., [m], :, :]).real,
+                    axis=(-2, -1))
+
     return (
         object_update_precond,
         m_probe_update,
-        dOP,
-        dPO,
         A1,
+        A2,
         A4,
+        b1,
+        b2,
     )
 
 
-def _A_diagonal_dominant(A, delta):
-    A += 0.5 * delta
-    return A
+def _get_nearplane_steps(A1, A2, A4, b1, b2, A1_delta, A4_delta, recover_psi,
+                         recover_probe, m):
 
+    A1 += 0.5 * A1_delta
+    A4 += 0.5 * A4_delta
 
-def _get_nearplane_steps(diff, dOP, dPO, A1, A4, recover_psi, recover_probe, m):
     # (22) Use least-squares to find the optimal step sizes simultaneously
     if recover_psi and recover_probe:
-        b1 = cp.sum((dOP.conj() * diff[..., [m], :, :]).real, axis=(-2, -1))
-        b2 = cp.sum((dPO.conj() * diff[..., [m], :, :]).real, axis=(-2, -1))
-        A2 = cp.sum((dOP * dPO.conj()), axis=(-2, -1))
         A3 = A2.conj()
         determinant = A1 * A4 - A2 * A3
         x1 = -cp.conj(A2 * b2 - A4 * b1) / determinant
         x2 = cp.conj(A1 * b2 - A3 * b1) / determinant
     elif recover_psi:
-        b1 = cp.sum((dOP.conj() * diff[..., [m], :, :]).real, axis=(-2, -1))
         x1 = b1 / A1
     elif recover_probe:
-        b2 = cp.sum((dPO.conj() * diff[..., [m], :, :]).real, axis=(-2, -1))
         x2 = b2 / A4
     else:
         x1 = None
