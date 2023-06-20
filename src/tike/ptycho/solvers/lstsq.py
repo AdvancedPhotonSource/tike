@@ -195,7 +195,7 @@ def lstsq_grad(
         )
 
         # (27b) Object update
-        beta_object = (cp.mean(cp.stack(beta_object)) / probe[0].shape[-3])
+        beta_object = cp.mean(cp.stack(beta_object))
         dpsi = beta_object * object_update_precond
         psi[0] = psi[0] + dpsi
 
@@ -421,14 +421,11 @@ def _update_nearplane(
                             m=m,
                         )
 
-    for m in range(probe[0].shape[-3]):
-
         # Update each direction
         if object_options is not None:
             if algorithm_options.batch_method != 'compact':
                 # (27b) Object update
-                dpsi = (weighted_step_psi[0] /
-                        probe[0].shape[-3]) * object_update_precond[0]
+                dpsi = weighted_step_psi[0] * object_update_precond[0]
 
                 if object_options.use_adaptive_moment:
                     (
@@ -448,13 +445,13 @@ def _update_nearplane(
                 object_options.combined_update += object_upd_sum[0]
 
         if probe_options is not None:
-            dprobe = weighted_step_probe[0] * m_probe_update[0][..., [m], :, :]
-            probe_options.probe_update_sum[..., [m], :, :] += dprobe / num_batch
+            dprobe = weighted_step_probe[0] * m_probe_update[0]
+            probe_options.probe_update_sum += dprobe / num_batch
             # (27a) Probe update
-            probe[0][..., [m], :, :] += dprobe
+            probe[0] += dprobe
             probe = comm.pool.bcast([probe[0]])
 
-        if position_options and m == 0:
+        if position_options:
             scan_, position_options = zip(*comm.pool.map(
                 _update_position,
                 position_options,
@@ -462,7 +459,7 @@ def _update_nearplane(
                 patches,
                 scan_,
                 unique_probe,
-                m=m,
+                m=0,
                 op=op,
             ))
 
