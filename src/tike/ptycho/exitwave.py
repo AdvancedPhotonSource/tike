@@ -32,8 +32,12 @@ class ExitWaveOptions:
     step_length_start         : float = 0.5
 
     unmeasured_pixels_scaling : float = 0.95            
-    unmeasured_pixels         : np.array = np.zeros( 1, dtype = float )
-    measured_pixels           : np.array = np.ones( 1, dtype = float )
+    # unmeasured_pixels         : np.array = np.zeros( 1, dtype = float )
+    # measured_pixels           : np.array = np.ones( 1, dtype = float )
+    # unmeasured_pixels         : np.array = dataclasses.field( default_factory = lambda: np.zeros( 1, dtype = float ))
+    # measured_pixels           : np.array = dataclasses.field( default_factory = lambda: np.ones(  1, dtype = float ))
+    unmeasured_pixels         : typing.Union[npt.NDArray, None] = dataclasses.field( default_factory = lambda: np.zeros( 1, dtype = float ))
+    measured_pixels           : typing.Union[npt.NDArray, None] = dataclasses.field( default_factory = lambda: np.ones(  1, dtype = float ))
 
     def copy_to_device(self, comm):
         """Copy to the current GPU memory."""

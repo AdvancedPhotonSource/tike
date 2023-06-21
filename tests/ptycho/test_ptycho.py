@@ -53,6 +53,7 @@ import unittest
 
 import numpy as np
 
+from tike.ptycho.exitwave import ExitWaveOptions
 from tike.ptycho.object import ObjectOptions
 from tike.ptycho.probe import ProbeOptions
 import tike.ptycho
@@ -244,6 +245,7 @@ class PtychoRecon(
         )
         params.probe_options = ProbeOptions()
         params.object_options = ObjectOptions()
+        params.exitwave_options=ExitWaveOptions(),
         _save_ptycho_result(
             params,
             f"mpi{self.mpi_size}-init{self.post_name}",
@@ -337,6 +339,7 @@ class PtychoRecon(
             ),
             probe_options=ProbeOptions(use_adaptive_moment=True,),
             object_options=ObjectOptions(use_adaptive_moment=True,),
+            exitwave_options=ExitWaveOptions(),
         )
         _save_ptycho_result(
             self.template_consistent_algorithm(
@@ -358,6 +361,7 @@ class PtychoRecon(
             ),
             probe_options=ProbeOptions(use_adaptive_moment=True,),
             object_options=ObjectOptions(use_adaptive_moment=True,),
+            exitwave_options=ExitWaveOptions(),
         )
         _save_ptycho_result(
             self.template_consistent_algorithm(
@@ -379,6 +383,7 @@ class PtychoRecon(
             ),
             probe_options=ProbeOptions(use_adaptive_moment=True,),
             object_options=ObjectOptions(use_adaptive_moment=True,),
+            exitwave_options=ExitWaveOptions(),
         )
         probes_with_modes = min(3, params.probe.shape[-3])
         params.eigen_probe, params.eigen_weights = tike.ptycho.probe.init_varying_probe(
@@ -411,6 +416,7 @@ class PtychoRecon(
             ),
             probe_options=ProbeOptions(),
             object_options=ObjectOptions(),
+            exitwave_options=ExitWaveOptions(),
         )
         _save_ptycho_result(
             self.template_consistent_algorithm(
@@ -433,6 +439,7 @@ class PtychoRecon(
             ),
             probe_options=ProbeOptions(use_adaptive_moment=True,),
             object_options=ObjectOptions(use_adaptive_moment=True,),
+            exitwave_options=ExitWaveOptions(),
         )
         _save_ptycho_result(
             self.template_consistent_algorithm(
@@ -454,6 +461,7 @@ class PtychoRecon(
             ),
             probe_options=ProbeOptions(),
             object_options=ObjectOptions(),
+            exitwave_options=ExitWaveOptions(),
         )
         probes_with_modes = min(1, params.probe.shape[-3])
         params.eigen_probe, params.eigen_weights = tike.ptycho.probe.init_varying_probe(

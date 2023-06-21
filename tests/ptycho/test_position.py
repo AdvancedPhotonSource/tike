@@ -6,6 +6,7 @@ import numpy as np
 import os.path
 import unittest
 
+from tike.ptycho.exitwave import ExitWaveOptions
 from tike.ptycho.object import ObjectOptions
 from tike.ptycho.position import PositionOptions
 from tike.ptycho.probe import ProbeOptions
@@ -264,6 +265,7 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
             ),
             probe_options=ProbeOptions(),
             object_options=ObjectOptions(),
+            exitwave_options=ExitWaveOptions(),
         )
         result = self.template_consistent_algorithm(
             data=self.data,
@@ -284,6 +286,7 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
             ),
             probe_options=ProbeOptions(),
             object_options=ObjectOptions(),
+            exitwave_options=ExitWaveOptions(),
             position_options=PositionOptions(
                 self.scan,
                 use_adaptive_moment=True,
@@ -310,6 +313,7 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
             ),
             probe_options=ProbeOptions(),
             object_options=ObjectOptions(),
+            exitwave_options=ExitWaveOptions(),
             position_options=PositionOptions(
                 self.scan,
                 use_adaptive_moment=True,
