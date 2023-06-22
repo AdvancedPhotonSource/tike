@@ -243,9 +243,7 @@ def lstsq_grad(
                     shape=(3, *dprobe.shape),
                 )
             if probe_options.m is None:
-                probe_options.m = np.zeros_like(
-                    dprobe,
-                )
+                probe_options.m = np.zeros_like(dprobe,)
             # ptychoshelves only applies momentum to the main probe
             mode = 0
             (
@@ -263,8 +261,6 @@ def lstsq_grad(
             )
             probe[0][..., mode, :, :] = probe[0][..., mode, :, :] + d
             probe = comm.pool.bcast([probe[0]])
-
-
 
     parameters.probe = probe
     parameters.psi = psi
@@ -302,8 +298,7 @@ def _update_wavefront(
 
         xi = 1 - data / (intensity + 1e-9)
         grad_cost = farplane * xi[:, None, None, :, :]
-        abs2_Psi = cp.square(cp.abs(cp.swapaxes(cp.squeeze(farplane), 0,
-                                                1)))
+        abs2_Psi = cp.square(cp.abs(cp.swapaxes(cp.squeeze(farplane), 0, 1)))
 
         Nspos = farplane.shape[0]
         Nscpm = farplane.shape[2]
@@ -314,14 +309,25 @@ def _update_wavefront(
         if exitwave_options.step_length_usemodes == 'dominant_mode':
 
             step_length = tike.ptycho.exitwave.poisson_steplength_ptychoshelves(
-                xi, intensity, data, exitwave_options.measured_pixels, step_length,
-                exitwave_options.step_length_weight)
+                xi,
+                intensity,
+                data,
+                exitwave_options.measured_pixels,
+                step_length,
+                exitwave_options.step_length_weight,
+            )
 
         else:
 
             step_length = tike.ptycho.exitwave.poisson_steplength_approx(
-                xi, abs2_Psi, intensity, data, exitwave_options.measured_pixels,
-                step_length, exitwave_options.step_length_weight)
+                xi,
+                abs2_Psi,
+                intensity,
+                data,
+                exitwave_options.measured_pixels,
+                step_length,
+                exitwave_options.step_length_weight,
+            )
 
         step_length = cp.swapaxes(step_length, 0, 1)[:, None, :, None, None]
 
@@ -333,7 +339,7 @@ def _update_wavefront(
     else:
 
         chi = (farplane * (cp.sqrt(data) /
-                               (cp.sqrt(intensity) + 1e-9))[..., None, None, :, :] *
+                           (cp.sqrt(intensity) + 1e-9))[..., None, None, :, :] *
                exitwave_options.measured_pixels +
                farplane * exitwave_options.unmeasured_pixels_scaling *
                exitwave_options.unmeasured_pixels)
@@ -596,8 +602,7 @@ def _get_nearplane_gradients(
     chi = nearplane[..., [m], :, :]
 
     if __debug__:
-        logger.debug('%10s cost is %+12.5e', 'nearplane',
-                     tike.linalg.norm(chi))
+        logger.debug('%10s cost is %+12.5e', 'nearplane', tike.linalg.norm(chi))
 
     # Get update directions for each scan positions
     if recover_psi:
@@ -877,9 +882,7 @@ def _momentum_checked(
     g (WIDTH, HEIGHT)
         The current psi update
     """
-    m = np.zeros_like(
-        g,
-    ) if m is None else m
+    m = np.zeros_like(g,) if m is None else m
     previous_g = np.zeros_like(
         g,
         shape=(memory_length, *g.shape),
