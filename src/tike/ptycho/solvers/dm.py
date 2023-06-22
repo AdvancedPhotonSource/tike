@@ -9,7 +9,6 @@ import tike.opt
 import tike.ptycho.position
 import tike.ptycho.probe
 
-from tike.ptycho.solvers.rpie import _update_position
 from .options import *
 
 logger = logging.getLogger(__name__)
@@ -236,7 +235,11 @@ def _get_nearplane_gradients(
     probe_update_numerator = cp.zeros_like(
         probe,) if probe_update_numerator is None else probe_update_numerator
 
-    result = tike.communicators.stream.stream_and_modify(
+    (
+        cost,
+        psi_update_numerator,
+        probe_update_numerator,
+    ) = tike.communicators.stream.stream_and_modify(
         f=keep_some_args_constant,
         ind_args=[
             data,
@@ -250,5 +253,8 @@ def _get_nearplane_gradients(
         streams=streams,
         indices=batches[n],
     )
-    result[0] = result[0] / len(batches[n])
-    return result
+    return [
+        cost / len(batches[n]),
+        psi_update_numerator,
+        probe_update_numerator,
+    ]
