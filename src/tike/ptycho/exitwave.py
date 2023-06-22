@@ -58,6 +58,8 @@ class ExitWaveOptions:
 
     def resample(self, factor: float) -> ExitWaveOptions:
         """Return a new `ExitWaveOptions` with the parameters rescaled."""
+        # FIXME: Unmeasured/measured pixels should be cropped/padded during
+        # resampling
         return ExitWaveOptions(
             noise_model=self.noise_model,
             step_length_weight=self.step_length_weight,
