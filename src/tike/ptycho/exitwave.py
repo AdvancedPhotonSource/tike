@@ -85,7 +85,7 @@ def poisson_steplength_approx(
 
     xi_abs_Psi2 = xi * abs2_Psi
 
-    for _ in cp.arange(0, 2):
+    for _ in range(0, 2):
 
         xi_alpha_minus_one = xi * step_length[..., None, None] - 1
 
@@ -119,7 +119,7 @@ def poisson_steplength_ptychoshelves(
 
     sum_denom = cp.sum(denom, axis=(-1, -2))
 
-    for _ in cp.arange(0, 2):
+    for _ in range(0, 2):
 
         nom = measured_pixels * xi * (I_e - I_m /
                                       (1 - step_length[..., None, None] * xi))
@@ -131,6 +131,9 @@ def poisson_steplength_ptychoshelves(
 
         step_length = cp.abs(cp.fmax(cp.fmin(step_length, 1), 0))
 
-    step_length = step_length + cp.random.randn(*step_length.shape) * 1e-2
+    step_length += 1e-2 * tike.random.randomizer_cp.standard_normal(
+        size=step_length.shape,
+        dtype=tike.precision.floating,
+    )
 
     return step_length
