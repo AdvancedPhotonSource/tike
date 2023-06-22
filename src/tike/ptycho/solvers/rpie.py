@@ -136,7 +136,7 @@ def rpie(
             unique_probe,
             bscan,
             psi,
-            [ exitwave_options ],
+            [exitwave_options],
             bposition_options,
             op=op,
         ))
@@ -381,47 +381,46 @@ def _update_wavefront(
 
     if exitwave_options.noise_model == 'poisson':
 
-        xi        = 1 - data / intensity
-        grad_cost = farplane * xi[ :, None, None, :, : ]
+        xi = 1 - data / intensity
+        grad_cost = farplane * xi[:, None, None, :, :]
 
-        Nspos = farplane.shape[ 0 ]
-        Nscpm = farplane.shape[ 2 ]
+        Nspos = farplane.shape[0]
+        Nscpm = farplane.shape[2]
 
-        step_length = exitwave_options.step_length_start * cp.ones( ( Nscpm, Nspos ))
+        step_length = exitwave_options.step_length_start * cp.ones(
+            (Nscpm, Nspos))
 
-        if exitwave_options.step_length_usemodes  == 'dominant_mode':
+        if exitwave_options.step_length_usemodes == 'dominant_mode':
 
-            step_length = tike.ptycho.exitwave.poisson_steplength_ptychoshelves( xi, 
-                                                                                 intensity, 
-                                                                                 data, 
-                                                                                 exitwave_options.measured_pixels, 
-                                                                                 step_length, 
-                                                                                 exitwave_options.step_length_weight )   
+            step_length = tike.ptycho.exitwave.poisson_steplength_ptychoshelves(
+                xi, intensity, data, exitwave_options.measured_pixels,
+                step_length, exitwave_options.step_length_weight)
 
         else:
 
-            abs2_Psi  = cp.square( cp.abs( cp.swapaxes( cp.squeeze( farplane ), 0, 1 )))
+            abs2_Psi = cp.square(cp.abs(cp.swapaxes(cp.squeeze(farplane), 0,
+                                                    1)))
 
-            step_length = tike.ptycho.exitwave.poisson_steplength_approx( xi, 
-                                                                          abs2_Psi, 
-                                                                          intensity, 
-                                                                          data, 
-                                                                          exitwave_options.measured_pixels, 
-                                                                          step_length, 
-                                                                          exitwave_options.step_length_weight )
-            
-        step_length = cp.swapaxes( step_length, 0, 1 )[ :, None, :, None, None ]
+            step_length = tike.ptycho.exitwave.poisson_steplength_approx(
+                xi, abs2_Psi, intensity, data, exitwave_options.measured_pixels,
+                step_length, exitwave_options.step_length_weight)
 
-        farplane = ( ( farplane - step_length * grad_cost )                  * exitwave_options.measured_pixels
-                     + farplane * exitwave_options.unmeasured_pixels_scaling * exitwave_options.unmeasured_pixels )
-        
+        step_length = cp.swapaxes(step_length, 0, 1)[:, None, :, None, None]
+
+        farplane = ((farplane - step_length * grad_cost) *
+                    exitwave_options.measured_pixels +
+                    farplane * exitwave_options.unmeasured_pixels_scaling *
+                    exitwave_options.unmeasured_pixels)
+
     else:
 
         # Gaussian noise model for exitwave updates, steplength = 1
         # TODO: optimal step lengths using 2nd order taylor expansion
-        farplane *= (( cp.sqrt( data ) / (cp.sqrt( intensity ) + 1e-9 ))[ ..., None, None, :, : ] 
-                        + exitwave_options.unmeasured_pixels * exitwave_options.unmeasured_pixels_scaling )
-    
+        farplane *= ((cp.sqrt(data) /
+                      (cp.sqrt(intensity) + 1e-9))[..., None, None, :, :] +
+                     exitwave_options.unmeasured_pixels *
+                     exitwave_options.unmeasured_pixels_scaling)
+
     farplane = op.propagation.adj(farplane, overwrite=True)
 
     pad, end = op.diffraction.pad, op.diffraction.end

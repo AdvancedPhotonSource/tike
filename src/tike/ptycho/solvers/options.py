@@ -12,6 +12,7 @@ from tike.ptycho.position import PositionOptions, check_allowed_positions
 from tike.ptycho.probe import ProbeOptions
 from tike.ptycho.exitwave import ExitWaveOptions
 
+
 @dataclasses.dataclass
 class IterativeOptions(abc.ABC):
     """A base class providing options for iterative algorithms.
@@ -48,6 +49,7 @@ class IterativeOptions(abc.ABC):
     convergence_window: int = 0
     """The number of epochs to consider for convergence monitoring. Set to
     any value less than 2 to disable."""
+
 
 @dataclasses.dataclass
 class AdamOptions(IterativeOptions):
@@ -124,8 +126,6 @@ class PtychoParameters():
     """(POSI, EIGEN, SHARED) float32
     The relative intensity of the eigen probes at each position."""
 
-    #=====
-
     algorithm_options: IterativeOptions = dataclasses.field(
         default_factory=RpieOptions,)
     """A class containing algorithm specific parameters"""
@@ -141,8 +141,6 @@ class PtychoParameters():
 
     position_options: typing.Union[PositionOptions, None] = None
     """A class containing settings related to position correction."""
-
-    #=====
 
     def __post_init__(self):
         if (self.scan.ndim != 2 or self.scan.shape[1] != 2
@@ -175,9 +173,8 @@ class PtychoParameters():
         factor: float,
         interp: None | typing.Callable[[np.ndarray, float], np.array],
     ) -> PtychoParameters:
-        
         """Return a new `PtychoParameter` with the parameters rescaled."""
-        
+
         interp = _resize_fft if interp is None else interp
 
         return PtychoParameters(
