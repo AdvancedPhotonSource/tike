@@ -74,6 +74,9 @@ def lstsq_grad(
     eigen_probe = parameters.eigen_probe
     eigen_weights = parameters.eigen_weights
 
+    position_update_numerator = [None] * comm.pool.num_workers
+    position_update_denominator = [None] * comm.pool.num_workers
+
     if eigen_probe is None:
         beigen_probe = [None] * comm.pool.num_workers
     else:
@@ -97,16 +100,6 @@ def lstsq_grad(
     for n in order(len(batches[0])):
 
         bdata = comm.pool.map(tike.opt.get_batch, data, batches, n=n)
-        bscan = comm.pool.map(tike.opt.get_batch, scan, batches, n=n)
-
-        if position_options is None:
-            bposition_options = None
-        else:
-            bposition_options = comm.pool.map(
-                PositionOptions.split,
-                position_options,
-                [b[n] for b in batches],
-            )
 
         if eigen_weights is None:
             unique_probe = probe
@@ -130,24 +123,29 @@ def lstsq_grad(
             probe,
             beigen_probe,
             beigen_weights,
-            bscan,
-            bposition_options,
+            scan,
             bbeta_object,
             bbeta_probe,
             costs,
+            position_update_numerator,
+            position_update_denominator,
         ) = _update_nearplane(
             op,
             comm,
             bdata,
             psi,
-            bscan,
+            scan,
             probe,
             unique_probe,
             beigen_probe,
             beigen_weights,
-            object_options is not None,
-            probe_options is not None,
-            bposition_options,
+            batches,
+            position_update_numerator,
+            position_update_denominator,
+            recover_psi=object_options is not None,
+            recover_probe=probe_options is not None,
+            recover_positions=position_options is not None,
+            n=n,
             num_batch=algorithm_options.num_batch,
             psi_update_denominator=object_options.preconditioner,
             object_options=object_options,
@@ -161,14 +159,6 @@ def lstsq_grad(
         beta_object.append(bbeta_object)
         beta_probe.append(bbeta_probe)
 
-        if position_options:
-            comm.pool.map(
-                PositionOptions.insert,
-                position_options,
-                bposition_options,
-                [b[n] for b in batches],
-            )
-
         if eigen_weights is not None:
             comm.pool.map(
                 tike.opt.put_batch,
@@ -178,13 +168,14 @@ def lstsq_grad(
                 n=n,
             )
 
-        comm.pool.map(
-            tike.opt.put_batch,
-            bscan,
+    if position_options:
+        scan, position_options = zip(*comm.pool.map(
+            _update_position,
             scan,
-            batches,
-            n=n,
-        )
+            position_options,
+            position_update_numerator,
+            position_update_denominator,
+        ))
 
     algorithm_options.costs.append(batch_cost)
 
@@ -265,17 +256,21 @@ def _update_nearplane(
     comm: tike.communicators.Comm,
     data_: typing.List[npt.NDArray],
     psi: typing.List[npt.NDArray[cp.csingle]],
-    scan_: typing.List[npt.NDArray[cp.single]],
+    scan: typing.List[npt.NDArray[cp.single]],
     probe: typing.List[npt.NDArray[cp.csingle]],
     unique_probe: typing.List[npt.NDArray[cp.csingle]],
     eigen_probe: typing.List[npt.NDArray[cp.csingle]],
     eigen_weights: typing.List[npt.NDArray[cp.single]],
+    batches,
+    position_update_numerator,
+    position_update_denominator,
+    *,
     recover_psi: bool,
     recover_probe: bool,
-    position_options: typing.Union[PositionOptions, None],
-    num_batch: int,
+    recover_positions: bool,
     psi_update_denominator: npt.NDArray[cp.csingle],
-    *,
+    num_batch: int,
+    n: int,
     object_options: typing.Union[ObjectOptions, None],
     probe_options: typing.Union[ProbeOptions, None],
     algorithm_options: LstsqOptions,
@@ -289,15 +284,22 @@ def _update_nearplane(
             m_probe_update,
             costs,
             patches,
+            position_update_numerator,
+            position_update_denominator,
         ) = (list(a) for a in zip(*comm.pool.map(
             _get_nearplane_gradients,
             data_,
             psi,
-            scan_,
+            scan,
             unique_probe,
+            batches,
+            position_update_numerator,
+            position_update_denominator,
+            n=n,
             op=op,
             recover_psi=recover_psi,
             recover_probe=recover_probe,
+            recover_positions=recover_positions,
         )))
 
         if recover_psi:
@@ -320,13 +322,15 @@ def _update_nearplane(
         ) = (list(a) for a in zip(*comm.pool.map(
             _precondition_nearplane_gradients,
             diff,
-            scan_,
+            scan,
             unique_probe,
             probe,
             object_upd_sum,
             m_probe_update,
             psi_update_denominator,
             patches,
+            batches,
+            n=n,
             op=op,
             m=0,
             recover_psi=recover_psi,
@@ -450,42 +454,38 @@ def _update_nearplane(
             probe[0] += dprobe
             probe = comm.pool.bcast([probe[0]])
 
-        if position_options:
-            scan_, position_options = zip(*comm.pool.map(
-                _update_position,
-                position_options,
-                diff,
-                patches,
-                scan_,
-                unique_probe,
-                m=0,
-                op=op,
-            ))
-
     return (
         psi,
         probe,
         eigen_probe,
         eigen_weights,
-        scan_,
-        position_options,
+        scan,
         weighted_step_psi[0],
         weighted_step_probe[0],
         costs,
+        position_update_numerator,
+        position_update_denominator,
     )
 
 
 def _get_nearplane_gradients(
     data: npt.NDArray,
     psi: npt.NDArray[cp.csingle],
-    scan_: npt.NDArray[cp.single],
+    scan: npt.NDArray[cp.single],
     unique_probe: npt.NDArray[cp.csingle],
+    batches,
+    position_update_numerator,
+    position_update_denominator,
     *,
+    n: int,
     op: tike.operators.Ptycho,
     recover_psi: bool,
     recover_probe: bool,
+    recover_positions: bool,
 ):
-    farplane = op.fwd(probe=unique_probe, scan=scan_, psi=psi)
+    indices = batches[n]
+
+    farplane = op.fwd(probe=unique_probe, scan=scan[indices], psi=psi)
     intensity = cp.sum(
         cp.square(cp.abs(farplane)),
         axis=list(range(1, farplane.ndim - 2)),
@@ -508,9 +508,9 @@ def _get_nearplane_gradients(
         # (25b) Common object gradient.
         object_upd_sum = op.diffraction.patch.adj(
             patches=object_update_proj.reshape(
-                len(scan_) * chi.shape[-3], *chi.shape[-2:]),
+                len(scan[indices]) * chi.shape[-3], *chi.shape[-2:]),
             images=cp.zeros_like(psi),
-            positions=scan_,
+            positions=scan[indices],
             nrepeat=chi.shape[-3],
         )
     else:
@@ -520,7 +520,7 @@ def _get_nearplane_gradients(
         patches = op.diffraction.patch.fwd(
             patches=cp.zeros_like(chi[..., 0, 0, :, :]),
             images=psi,
-            positions=scan_,
+            positions=scan[indices],
         )[..., None, None, :, :]
         # (24a)
         probe_update = cp.conj(patches) * chi
@@ -537,6 +537,38 @@ def _get_nearplane_gradients(
         m_probe_update = None
         patches = None
 
+    if recover_positions:
+        m = 0
+        position_update_numerator = cp.empty_like(
+            scan,
+        ) if position_update_numerator is None else position_update_numerator
+        position_update_denominator = cp.empty_like(
+            scan,
+        ) if position_update_denominator is None else position_update_denominator
+
+        grad_x, grad_y = tike.ptycho.position.gaussian_gradient(patches)
+
+        position_update_numerator[indices, ..., 0] = cp.sum(
+            cp.real(
+                cp.conj(grad_x * unique_probe[..., [m], :, :]) *
+                chi[..., [m], :, :]),
+            axis=(-4, -3, -2, -1),
+        )
+        position_update_denominator[indices, ..., 0] = cp.sum(
+            cp.abs(grad_x * unique_probe[..., [m], :, :])**2,
+            axis=(-4, -3, -2, -1),
+        )
+        position_update_numerator[indices, ..., 1] = cp.sum(
+            cp.real(
+                cp.conj(grad_y * unique_probe[..., [m], :, :]) *
+                chi[..., [m], :, :]),
+            axis=(-4, -3, -2, -1),
+        )
+        position_update_denominator[indices, ..., 1] = cp.sum(
+            cp.abs(grad_y * unique_probe[..., [m], :, :])**2,
+            axis=(-4, -3, -2, -1),
+        )
+
     return (
         chi,
         probe_update,
@@ -544,6 +576,8 @@ def _get_nearplane_gradients(
         m_probe_update,
         costs,
         patches,
+        position_update_numerator,
+        position_update_denominator,
     )
 
 
@@ -562,14 +596,16 @@ def _precondition_object_update(
 
 def _precondition_nearplane_gradients(
     nearplane,
-    scan_,
+    scan,
     unique_probe,
     probe,
     object_upd_sum,
     m_probe_update,
     psi_update_denominator,
     patches,
+    batches,
     *,
+    n: int,
     op,
     m,
     recover_psi,
@@ -577,6 +613,8 @@ def _precondition_nearplane_gradients(
     alpha=0.05,
     probe_options,
 ):
+    indices = batches[n]
+
     eps = op.xp.float32(1e-9) / (nearplane.shape[-2] * nearplane.shape[-1])
 
     if recover_psi:
@@ -588,7 +626,7 @@ def _precondition_nearplane_gradients(
         object_update_proj = op.diffraction.patch.fwd(
             patches=cp.zeros_like(nearplane[..., 0, 0, :, :]),
             images=object_update_precond,
-            positions=scan_,
+            positions=scan[indices],
         )
         dOP = object_update_proj[..., None,
                                  None, :, :] * unique_probe[..., [m], :, :]
@@ -713,48 +751,26 @@ def _update_residuals(R, eigen_probe, axis, c, m):
 
 
 def _update_position(
-    position_options,
-    diff,
-    patches,
-    scan,
-    unique_probe,
-    m,
-    op,
+    scan: npt.NDArray,
+    position_options: PositionOptions,
+    position_update_numerator: npt.NDArray,
+    position_update_denominator: npt.NDArray,
     *,
     alpha=0.05,
     max_shift=1,
 ):
-    main_probe = unique_probe[..., m:m + 1, :, :]
+    step = (position_update_numerator) / (
+        (1 - alpha) * position_update_denominator +
+        alpha * max(position_update_denominator.max(), 1e-6))
 
-    # According to the manuscript, we can either shift the probe or the object
-    # and they are equivalent (in theory). Here we shift the object because
-    # that is what ptychoshelves does.
-    grad_x, grad_y = tike.ptycho.position.gaussian_gradient(patches)
-
-    numerator = cp.sum(cp.real(diff[..., [m], :, :] *
-                               cp.conj(grad_x * main_probe)),
-                       axis=(-2, -1))
-    denominator = cp.sum(cp.abs(grad_x * main_probe)**2, axis=(-2, -1))
-    step_x = numerator / (
-        (1 - alpha) * denominator + alpha * max(denominator.max(), 1e-6))
-
-    numerator = cp.sum(cp.real(diff[..., [m], :, :] *
-                               cp.conj(grad_y * main_probe)),
-                       axis=(-2, -1))
-    denominator = cp.sum(cp.abs(grad_y * main_probe)**2, axis=(-2, -1))
-    step_y = numerator / (
-        (1 - alpha) * denominator + alpha * max(denominator.max(), 1e-6))
-
-    step_x = step_x[..., 0, 0]
-    step_y = step_y[..., 0, 0]
-
-    step = cp.stack((step_x, step_y), axis=-1)
-
-    # Momentum
     if position_options.use_adaptive_moment:
         logger.info(
             "position correction with ADAptive Momemtum acceleration enabled.")
-        step, position_options.v, position_options.m = tike.opt.adam(
+        (
+            step,
+            position_options.v,
+            position_options.m,
+        ) = tike.opt.adam(
             step,
             position_options.v,
             position_options.m,
