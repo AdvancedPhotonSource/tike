@@ -291,7 +291,7 @@ def constrain_variable_probe(comm, variable_probe, weights):
 
 def _get_update(R, eigen_probe, weights, batches, *, batch_index, c, m):
     # (..., POSI, 1, 1, 1, 1) to match other arrays
-    weights = weights[batches[batch_index], ..., c:c + 1, m:m + 1, None, None]
+    weights = weights[..., batches[batch_index], c:c + 1, m:m + 1, None, None]
     eigen_probe = eigen_probe[..., c - 1:c, m:m + 1, :, :]
     norm_weights = tike.linalg.norm(weights, axis=-5, keepdims=True)**2
 
@@ -336,12 +336,12 @@ def _get_weights_mean(n, d, d_mean, weights, batches, *, batch_index, c, m):
     # yapf: disable
     weight_update = (
         n / (d + 0.1 * d_mean)
-    ).reshape(*weights[batches[batch_index], ..., c:c + 1, m:m + 1].shape)
+    ).reshape(*weights[..., batches[batch_index], c:c + 1, m:m + 1].shape)
     # yapf: enable
     assert np.all(np.isfinite(weight_update))
 
     # (33) The sum of all previous steps constrained to zero-mean
-    weights[batches[batch_index], ..., c:c + 1, m:m + 1] += weight_update
+    weights[..., batches[batch_index], c:c + 1, m:m + 1] += weight_update
     return weights
 
 
@@ -396,9 +396,8 @@ def update_eigen_probe(
     """
     assert R[0].shape[-3] == R[0].shape[-4] == 1
     assert 1 == eigen_probe[0].shape[-5]
-    assert R[0].shape[:-5] == eigen_probe[0].shape[:-5] == weights[0][
-        batches[0][batch_index]].shape[:-3]
-    assert weights[0][batches[0][batch_index]].shape[-3] == R[0].shape[-5]
+    assert R[0].shape[:-5] == eigen_probe[0].shape[:-5] == weights[0].shape[:-3]
+    assert weights[0][..., batches[0][batch_index], :, :].shape[-3] == R[0].shape[-5]
     assert R[0].shape[-2:] == eigen_probe[0].shape[-2:]
 
     update = comm.pool.map(

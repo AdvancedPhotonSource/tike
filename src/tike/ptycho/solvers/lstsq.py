@@ -592,22 +592,22 @@ def _get_nearplane_gradients(
 
             position_update_numerator[indices, ..., 0] = cp.sum(
                 cp.real(
-                    cp.conj(grad_x * unique_probe[lo:hi, ..., [m], :, :]) *
-                    chi[lo:hi, ..., [m], :, :]),
+                    cp.conj(grad_x * unique_probe[lo:hi, ..., m:m+1, :, :]) *
+                    chi[lo:hi, ..., m:m+1, :, :]),
                 axis=(-4, -3, -2, -1),
             )
             position_update_denominator[indices, ..., 0] = cp.sum(
-                cp.abs(grad_x * unique_probe[lo:hi, ..., [m], :, :])**2,
+                cp.abs(grad_x * unique_probe[lo:hi, ..., m:m+1, :, :])**2,
                 axis=(-4, -3, -2, -1),
             )
             position_update_numerator[indices, ..., 1] = cp.sum(
                 cp.real(
-                    cp.conj(grad_y * unique_probe[lo:hi, ..., [m], :, :]) *
-                    chi[lo:hi, ..., [m], :, :]),
+                    cp.conj(grad_y * unique_probe[lo:hi, ..., m:m+1, :, :]) *
+                    chi[lo:hi, ..., m:m+1, :, :]),
                 axis=(-4, -3, -2, -1),
             )
             position_update_denominator[indices, ..., 1] = cp.sum(
-                cp.abs(grad_y * unique_probe[lo:hi, ..., [m], :, :])**2,
+                cp.abs(grad_y * unique_probe[lo:hi, ..., m:m+1, :, :])**2,
                 axis=(-4, -3, -2, -1),
             )
 
@@ -717,7 +717,7 @@ def _precondition_nearplane_gradients(
             positions=scan[indices],
         )
         dOP = object_update_proj[..., None,
-                                 None, :, :] * unique_probe[..., [m], :, :]
+                                 None, :, :] * unique_probe[..., m:m+1, :, :]
 
         A1 = cp.sum((dOP * dOP.conj()).real + eps, axis=(-2, -1))
     else:
@@ -728,7 +728,7 @@ def _precondition_nearplane_gradients(
     if recover_probe:
 
         # b0 = tike.ptycho.probe.finite_probe_support(
-        #     unique_probe[..., [m], :, :],
+        #     unique_probe[..., m:m+1, :, :],
         #     p=probe_options.probe_support,
         #     radius=probe_options.probe_support_radius,
         #     degree=probe_options.probe_support_degree,
@@ -739,33 +739,33 @@ def _precondition_nearplane_gradients(
         #     1,
         #     probe[0].shape[-3],
         #     dtype=tike.precision.floating,
-        # )[..., [m], None, None]
+        # )[..., m:m+1, None, None]
 
         # m_probe_update = (m_probe_update -
-        #                   (b0 + b1) * probe[..., [m], :, :]) / (
+        #                   (b0 + b1) * probe[..., m:m+1, :, :]) / (
         #                       (1 - alpha) * probe_update_denominator +
         #                       alpha * probe_update_denominator.max(
         #                           axis=(-2, -1),
         #                           keepdims=True,
         #                       ) + b0 + b1)
 
-        dPO = m_probe_update[..., [m], :, :] * patches
+        dPO = m_probe_update[..., m:m+1, :, :] * patches
         A4 = cp.sum((dPO * dPO.conj()).real + eps, axis=(-2, -1))
     else:
         dPO = None
         A4 = None
 
     if recover_psi and recover_probe:
-        b1 = cp.sum((dOP.conj() * nearplane[..., [m], :, :]).real,
+        b1 = cp.sum((dOP.conj() * nearplane[..., m:m+1, :, :]).real,
                     axis=(-2, -1))
-        b2 = cp.sum((dPO.conj() * nearplane[..., [m], :, :]).real,
+        b2 = cp.sum((dPO.conj() * nearplane[..., m:m+1, :, :]).real,
                     axis=(-2, -1))
         A2 = cp.sum((dOP * dPO.conj()), axis=(-2, -1))
     elif recover_psi:
-        b1 = cp.sum((dOP.conj() * nearplane[..., [m], :, :]).real,
+        b1 = cp.sum((dOP.conj() * nearplane[..., m:m+1, :, :]).real,
                     axis=(-2, -1))
     elif recover_probe:
-        b2 = cp.sum((dPO.conj() * nearplane[..., [m], :, :]).real,
+        b2 = cp.sum((dPO.conj() * nearplane[..., m:m+1, :, :]).real,
                     axis=(-2, -1))
 
     return (
@@ -818,8 +818,8 @@ def _get_nearplane_steps(A1, A2, A4, b1, b2, A1_delta, A4_delta, recover_psi,
 
 
 def _get_coefs_intensity(weights, xi, P, O, batches, *, batch_index, m):
-    OP = O * P[..., [m], :, :]
-    num = cp.sum(cp.real(cp.conj(OP) * xi[..., [m], :, :]), axis=(-1, -2))
+    OP = O * P[..., m:m+1, :, :]
+    num = cp.sum(cp.real(cp.conj(OP) * xi[..., m:m+1, :, :]), axis=(-1, -2))
     den = cp.sum(cp.abs(OP)**2, axis=(-1, -2))
     weights[batches[batch_index], ..., 0:1,
             m:m + 1] = weights[batches[batch_index], ..., 0:1,
@@ -828,7 +828,7 @@ def _get_coefs_intensity(weights, xi, P, O, batches, *, batch_index, m):
 
 
 def _get_residuals(grad_probe, grad_probe_mean, m):
-    return grad_probe[..., [m], :, :] - grad_probe_mean[..., [m], :, :]
+    return grad_probe[..., m:m+1, :, :] - grad_probe_mean[..., m:m+1, :, :]
 
 
 def _update_residuals(R, eigen_probe, batches, *, batch_index, axis, c, m):

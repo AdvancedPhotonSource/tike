@@ -411,16 +411,16 @@ def _get_nearplane_gradients(
             )
             if eigen_weights is not None:
                 m: int = 0
-                OP = patches * probe[..., [m], :, :]
+                OP = patches * probe[..., m:m + 1, :, :]
                 eigen_numerator = cp.sum(
-                    cp.real(cp.conj(OP) * diff[..., [m], :, :]),
+                    cp.real(cp.conj(OP) * diff[..., m:m + 1, :, :]),
                     axis=(-1, -2),
                 )
                 eigen_denominator = cp.sum(
                     cp.abs(OP)**2,
                     axis=(-1, -2),
                 )
-                eigen_weights[indices, ..., 0:1, [m]] += (
+                eigen_weights[indices, ..., 0:1, m:m+1] += (
                     0.1 * (eigen_numerator / eigen_denominator)
                 )  # yapf: disable
 

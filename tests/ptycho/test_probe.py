@@ -33,6 +33,9 @@ class TestProbe(unittest.TestCase):
             [np.random.rand(*leading, posi, 1, 1, wide, high)])
         diff = comm.pool.bcast(
             [np.random.rand(*leading, posi, 1, 1, wide, high)])
+        batches = comm.pool.bcast([[
+            np.arange(0, posi, dtype=int)]
+        ])
 
         new_probe, new_weights = tike.ptycho.probe.update_eigen_probe(
             comm=comm,
@@ -41,6 +44,8 @@ class TestProbe(unittest.TestCase):
             weights=weights,
             patches=patches,
             diff=diff,
+            batches=batches,
+            batch_index=0,
             c=1,
             m=0,
         )
