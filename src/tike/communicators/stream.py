@@ -223,3 +223,60 @@ def stream_and_modify(
     streams[1].synchronize()
 
     return mod_args
+
+
+def stream_and_modify_debug(
+    f: typing.Callable[
+        [typing.List[npt.NDArray], typing.Tuple, typing.List[int]],
+        typing.Tuple
+    ],
+    ind_args: typing.List[npt.NDArray],
+    mod_args: typing.Tuple,
+    streams: typing.List[cp.cuda.Stream] = [cp.cuda.Stream(), cp.cuda.Stream()],
+    indices: typing.Union[None, typing.List[int]] = None,
+    *,
+    chunk_size: int = 64,
+) -> typing.Tuple:
+    """Same as stream_and_modify but without CUDA streams
+
+    Parameters
+    ----------
+    f:
+        A function that takes the ind_args and mod_args as parameters
+    ind_args: [(N, ...) array, (N, ...) array, ...]
+        A list of pinned arrays that can be sliced along the 0-th dimension for
+        work. If you have constant args that are not sliced, Use a wrapper
+        function
+    mod_args:
+        A tuple of args that are modified across calls to f
+    streams:
+        A list of two CUDA streams to use for streaming
+    indices:
+        A list of indices to use instead of range(0, N) for slices of args
+    chunk_size:
+        The number of slices out of N to process at one time
+
+    """
+    if indices is None:
+        N = len(ind_args[0])
+        indices = list(range(N))
+    else:
+        N = len(indices)
+    chunk_size = min(chunk_size, N)
+
+    ind_args_gpu = [
+        cp.asarray(
+            x[indices],
+        ) for x in ind_args
+    ]
+
+    for s, i in enumerate(range(0, N, chunk_size)):
+        indices_chunk = indices[i:i + chunk_size]
+
+        mod_args = f(
+            [x_gpu[i:i + chunk_size] for x_gpu in ind_args_gpu],
+            mod_args,
+            indices_chunk,
+        )
+
+    return mod_args

@@ -420,7 +420,7 @@ def _get_nearplane_gradients(
                     cp.abs(OP)**2,
                     axis=(-1, -2),
                 )
-                eigen_weights[indices][..., 0:1, [m]] += (
+                eigen_weights[indices, ..., 0:1, [m]] += (
                     0.1 * (eigen_numerator / eigen_denominator)
                 )  # yapf: disable
 

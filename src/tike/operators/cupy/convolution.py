@@ -60,7 +60,7 @@ class Convolution(Operator):
         indices outside the bounds of psi are not allowed.
         """
         assert psi.shape[:-2] == scan.shape[:-2], (psi.shape, scan.shape)
-        assert probe.shape[:-4] == scan.shape[:-2]
+        assert probe.shape[:-4] == scan.shape[:-2], (probe.shape, scan.shape)
         assert probe.shape[-4] == 1 or probe.shape[-4] == scan.shape[-2]
         if self.detector_shape == self.probe_shape:
             patches = self.xp.empty_like(
