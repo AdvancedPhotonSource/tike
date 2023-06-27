@@ -24,17 +24,35 @@ logger = logging.getLogger(__name__)
 class ExitWaveOptions:
     """Manage data and setting related to exitwave updates."""
 
-    noise_model: str = "gaussian"  # { "gaussian", "poisson" }
+    noise_model: str = "gaussian" 
+    """This string sets which noise model we use for the exitwave updates, 
+    options are = { "gaussian", "poisson" }."""
 
-    step_length_weight: float = 0.5  # 0 <= step_length_weight <= 1
-    step_length_usemodes: str = "all_modes"  # { "dominant_mode", "all_modes" }
+    step_length_weight: float = 0.5 
+    """When computing steplength, we use a weighted average of the previous calculated step 
+    and the current calculated step, options are 0.0 <= step_length_weight <= 1.0."""
+
+    step_length_usemodes: str = "all_modes" 
+    """When computing steplength for exitwave updates, there are two ways we do this:
+    1) use the dominant mode to compute the steplength and use that steplength for the other
+    less dominant modes, and 2) compute the steplength for each mode independently, 
+    options are { "dominant_mode", "all_modes" }."""
+
     step_length_start: float = 0.5
+    """We use an iterative/recursive method for finding the steplengths, 
+    and this is what we use as initialization for that method."""
 
-    unmeasured_pixels_scaling: float = 0.95
+    unmeasured_pixels_scaling: float = 1.00
+    """Depending on how we control scaling for the exitwaves, we might need to scale up or down 
+    the number of photons in the unmeasured regions for the exitwave updates in Fourier space."""
+
     unmeasured_pixels: typing.Union[npt.NDArray, None] = dataclasses.field(
         default_factory=lambda: np.zeros(1, dtype=float))
+    """A binary array that defines spatial regions on the detector where we have unmeasured pixels."""
+
     measured_pixels: typing.Union[npt.NDArray, None] = dataclasses.field(
         default_factory=lambda: np.ones(1, dtype=float))
+    """A binary array that defines spatial regions on the detector where we have measured pixels."""
 
     def copy_to_device(self, comm):
         """Copy to the current GPU memory."""
@@ -70,7 +88,7 @@ class ExitWaveOptions:
             unmeasured_pixels_scaling=self.unmeasured_pixels_scaling)
 
 
-def poisson_steplength_approx(
+def poisson_steplength_all_modes(
     xi,
     abs2_Psi,
     I_e,
@@ -79,6 +97,18 @@ def poisson_steplength_approx(
     step_length,
     weight_avg,
 ):
+    """Compute the optimal steplength for each exitwave mode independently.
+
+    Parameters
+    ----------
+    xi              : ND array ( # scan positions, # rows, # columns ), xi = 1 - I_m / I_e
+    abs2_Psi        : ND array ( # shared probe modes, # scan positions, # rows, # columns ), the squared absolute value of the calulated exitwaves       
+    I_m             : ND array ( # scan positions, # rows, # columns ), measured diffraction intensity
+    I_e             : ND array ( # scan positions, # rows, # columns ), calculated diffraction intensity 
+    measured_pixels : 2D binary array ( # rows, # columns ), the regions on the detector where we have defined measurements
+    step_length     : 2D array ( # shared probe modes, # scan positions), the steplength initializations
+    weight_avg      : float ( 0.0 <= weight_avg <= 1.0  ), the weight we use when computing a weighted average
+    """
 
     if measured_pixels.size == 0:
         measured_pixels = 1
@@ -103,7 +133,7 @@ def poisson_steplength_approx(
     return step_length
 
 
-def poisson_steplength_ptychoshelves(
+def poisson_steplength_dominant_mode(
     xi,
     I_e,
     I_m,
@@ -111,6 +141,17 @@ def poisson_steplength_ptychoshelves(
     step_length,
     weight_avg,
 ):
+    """Compute the optimal steplength for each exitwave mode independently.
+
+    Parameters
+    ----------
+    xi              : ND array ( # scan positions, # rows, # columns ), xi = 1 - I_m / I_e
+    I_m             : ND array ( # scan positions, # rows, # columns ), measured diffraction intensity
+    I_e             : ND array ( # scan positions, # rows, # columns ), calculated diffraction intensity 
+    measured_pixels : 2D binary array ( # rows, # columns ), the regions on the detector where we have defined measurements
+    step_length     : 2D array ( # shared probe modes, # scan positions), the steplength initializations
+    weight_avg      : float ( 0.0 <= weight_avg <= 1.0  ), the weight we use when computing a weighted average
+    """
 
     if measured_pixels.size == 0:
         measured_pixels = 1

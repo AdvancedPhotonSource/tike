@@ -131,7 +131,7 @@ class PtychoParameters():
     """A class containing algorithm specific parameters"""
 
     exitwave_options: typing.Union[ExitWaveOptions, None] = None
-    """A class containing settings related to probe updates."""
+    """A class containing settings related to exitwave updates."""
 
     probe_options: typing.Union[ProbeOptions, None] = None
     """A class containing settings related to probe updates."""

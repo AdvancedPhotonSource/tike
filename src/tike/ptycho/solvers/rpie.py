@@ -384,15 +384,12 @@ def _update_wavefront(
         xi = 1 - data / intensity
         grad_cost = farplane * xi[:, None, None, :, :]
 
-        Nspos = farplane.shape[0]
-        Nscpm = farplane.shape[2]
-
         step_length = exitwave_options.step_length_start * cp.ones(
-            (Nscpm, Nspos))
+            (farplane.shape[2], farplane.shape[0]))
 
         if exitwave_options.step_length_usemodes == 'dominant_mode':
 
-            step_length = tike.ptycho.exitwave.poisson_steplength_ptychoshelves(
+            step_length = tike.ptycho.exitwave.poisson_steplength_dominant_mode(
                 xi, intensity, data, exitwave_options.measured_pixels,
                 step_length, exitwave_options.step_length_weight)
 
@@ -401,7 +398,7 @@ def _update_wavefront(
             abs2_Psi = cp.square(cp.abs(cp.swapaxes(cp.squeeze(farplane), 0,
                                                     1)))
 
-            step_length = tike.ptycho.exitwave.poisson_steplength_approx(
+            step_length = tike.ptycho.exitwave.poisson_steplength_all_modes(
                 xi, abs2_Psi, intensity, data, exitwave_options.measured_pixels,
                 step_length, exitwave_options.step_length_weight)
 

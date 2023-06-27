@@ -300,15 +300,12 @@ def _update_wavefront(
         grad_cost = farplane * xi[:, None, None, :, :]
         abs2_Psi = cp.square(cp.abs(cp.swapaxes(cp.squeeze(farplane), 0, 1)))
 
-        Nspos = farplane.shape[0]
-        Nscpm = farplane.shape[2]
-
         step_length = exitwave_options.step_length_start * cp.ones(
-            (Nscpm, Nspos))
+            ( farplane.shape[2], farplane.shape[0] ))
 
         if exitwave_options.step_length_usemodes == 'dominant_mode':
 
-            step_length = tike.ptycho.exitwave.poisson_steplength_ptychoshelves(
+            step_length = tike.ptycho.exitwave.poisson_steplength_dominant_mode(
                 xi,
                 intensity,
                 data,
