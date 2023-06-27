@@ -141,7 +141,7 @@ def poisson_steplength_dominant_mode(
     step_length,
     weight_avg,
 ):
-    """Compute the optimal steplength for each exitwave mode independently.
+    """Compute the optimal steplength for each exitwave mode using only the dominant mode.
 
     Parameters
     ----------
