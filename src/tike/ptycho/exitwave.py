@@ -47,11 +47,11 @@ class ExitWaveOptions:
     the number of photons in the unmeasured regions for the exitwave updates in Fourier space."""
 
     unmeasured_pixels: typing.Union[npt.NDArray, None] = dataclasses.field(
-        default_factory=lambda: np.zeros(1, dtype=float))
+        default_factory=lambda: np.zeros(1, dtype=bool))
     """A binary array that defines spatial regions on the detector where we have unmeasured pixels."""
 
     measured_pixels: typing.Union[npt.NDArray, None] = dataclasses.field(
-        default_factory=lambda: np.ones(1, dtype=float))
+        default_factory=lambda: np.ones(1, dtype=bool))
     """A binary array that defines spatial regions on the detector where we have measured pixels."""
 
     def copy_to_device(self, comm):
