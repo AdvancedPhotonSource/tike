@@ -316,7 +316,7 @@ def _update_wavefront(
 
         else:
 
-            step_length = tike.ptycho.exitwave.poisson_steplength_approx(
+            step_length = tike.ptycho.exitwave.poisson_steplength_all_modes(
                 xi,
                 abs2_Psi,
                 intensity,
