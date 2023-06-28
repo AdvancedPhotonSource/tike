@@ -327,6 +327,85 @@ class PtychoRecon(
             f"mpi{self.mpi_size}-cgrad{self.post_name}",
         )
 
+    #===============
+    # ML-LSTSQ tests
+    #===============
+
+    def test_consistent_lstsq_poisson_steplength_allmodes(self):
+        """Check ptycho.solver.lstsq_grad for consistency."""
+        params = tike.ptycho.PtychoParameters(
+            psi=self.psi,
+            probe=self.probe,
+            scan=self.scan,
+            algorithm_options=tike.ptycho.LstsqOptions(
+                num_batch=5,
+                num_iter=16,
+            ),
+            probe_options=ProbeOptions(use_adaptive_moment=True,),
+            object_options=ObjectOptions(use_adaptive_moment=True,),
+            exitwave_options=ExitWaveOptions( step_length_usemodes = "all_modes" ),
+        )
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                data=self.data,
+                params=params,
+            ),
+            f"mpi{self.mpi_size}-lstsq_poisson_steplength_allmodes{self.post_name}")
+        
+    def test_consistent_lstsq_poisson_steplength_dominantmode(self):
+        """Check ptycho.solver.lstsq_grad for consistency."""
+        params = tike.ptycho.PtychoParameters(
+            psi=self.psi,
+            probe=self.probe,
+            scan=self.scan,
+            algorithm_options=tike.ptycho.LstsqOptions(
+                num_batch=5,
+                num_iter=16,
+            ),
+            probe_options=ProbeOptions(use_adaptive_moment=True,),
+            object_options=ObjectOptions(use_adaptive_moment=True,),
+            exitwave_options=ExitWaveOptions( step_length_usemodes = "dominant_mode" ),
+        )
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                data=self.data,
+                params=params,
+            ),
+            f"mpi{self.mpi_size}-lstsq_poisson_steplength_dominantmode{self.post_name}")
+        
+    def test_consistent_lstsq_unmeasured_detector_regions(self):
+
+        """Check ptycho.solver.lstsq for consistency."""
+        params = tike.ptycho.PtychoParameters(
+            psi=self.psi,
+            probe=self.probe,
+            scan=self.scan,
+            algorithm_options=tike.ptycho.LstsqOptions(
+                num_batch=5,
+                num_iter=16,
+            ),
+            probe_options=ProbeOptions(use_adaptive_moment=True,),
+            object_options=ObjectOptions(use_adaptive_moment=True,),
+            exitwave_options=ExitWaveOptions( unmeasured_pixels_scaling = 0.90 ),
+        )
+
+        # Define regions where we have missing diffraction measurement data
+        params.exitwave_options.unmeasured_pixels = np.zeros( self.probe.shape[-2:], np.bool_ )
+        params.exitwave_options.unmeasured_pixels[ 100 : 105, : ] = True
+        params.exitwave_options.unmeasured_pixels[ :, 100 : 105 ] = True
+        params.exitwave_options.measured_pixels = np.logical_not( params.exitwave_options.unmeasured_pixels )
+
+        # Zero out these regions on the diffraction measurement data
+        self.data = self.data * params.exitwave_options.measured_pixels
+        
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                data=self.data,
+                params=params,
+            ),
+            f"mpi{self.mpi_size}-lstsq_unmeasured_detector_regions{self.post_name}",
+        )
+
     def test_consistent_lstsq_grad(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
         params = tike.ptycho.PtychoParameters(
@@ -403,6 +482,86 @@ class PtychoRecon(
         assert np.all(result.eigen_weights[..., 1:, probes_with_modes:] == 0), (
             "These weights should be unused/untouched "
             "and should have been initialized to zero.")
+        
+    #===========
+    # rPIE tests
+    #===========
+
+    def test_consistent_rpie_poisson_steplength_dominantmode(self):
+        """Check ptycho.solver.rpie for consistency."""
+        params = tike.ptycho.PtychoParameters(
+            psi=self.psi,
+            probe=self.probe,
+            scan=self.scan,
+            algorithm_options=tike.ptycho.RpieOptions(
+                num_batch=5,
+                num_iter=16,
+            ),
+            probe_options=ProbeOptions(),
+            object_options=ObjectOptions(),
+            exitwave_options=ExitWaveOptions( noise_model = "poisson", step_length_usemodes = "dominant_mode" ),
+        )
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                data=self.data,
+                params=params,
+            ),
+            f"mpi{self.mpi_size}-rpie_poisson_steplength_dominantmode{self.post_name}",
+        )
+
+    def test_consistent_rpie_poisson_steplength_allmodes(self):
+        """Check ptycho.solver.rpie for consistency."""
+        params = tike.ptycho.PtychoParameters(
+            psi=self.psi,
+            probe=self.probe,
+            scan=self.scan,
+            algorithm_options=tike.ptycho.RpieOptions(
+                num_batch=5,
+                num_iter=16,
+            ),
+            probe_options=ProbeOptions(),
+            object_options=ObjectOptions(),
+            exitwave_options=ExitWaveOptions( noise_model = "poisson", step_length_usemodes = "all_modes" ),
+        )
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                data=self.data,
+                params=params,
+            ),
+            f"mpi{self.mpi_size}-rpie_poisson_steplength_allmodes{self.post_name}",
+        )
+
+    def test_consistent_rpie_unmeasured_detector_regions(self):
+        """Check ptycho.solver.rpie for consistency."""
+        params = tike.ptycho.PtychoParameters(
+            psi=self.psi,
+            probe=self.probe,
+            scan=self.scan,
+            algorithm_options=tike.ptycho.RpieOptions(
+                num_batch=5,
+                num_iter=16,
+            ),
+            probe_options=ProbeOptions(),
+            object_options=ObjectOptions(),
+            exitwave_options=ExitWaveOptions( unmeasured_pixels_scaling = 0.90 ),
+        )
+
+        # Define regions where we have missing diffraction measurement data
+        params.exitwave_options.unmeasured_pixels = np.zeros( self.probe.shape[-2:], np.bool_ )
+        params.exitwave_options.unmeasured_pixels[ 100 : 105, : ] = True
+        params.exitwave_options.unmeasured_pixels[ :, 100 : 105 ] = True
+        params.exitwave_options.measured_pixels = np.logical_not( params.exitwave_options.unmeasured_pixels )
+
+        # Zero out these regions on the diffraction measurement data
+        self.data = self.data * params.exitwave_options.measured_pixels
+        
+        _save_ptycho_result(
+            self.template_consistent_algorithm(
+                data=self.data,
+                params=params,
+            ),
+            f"mpi{self.mpi_size}-rpie_unmeasured_detector_regions{self.post_name}",
+        )
 
     def test_consistent_rpie(self):
         """Check ptycho.solver.rpie for consistency."""
@@ -481,6 +640,8 @@ class PtychoRecon(
         assert np.all(result.eigen_weights[..., 1:, probes_with_modes:] == 0), (
             "These weights should be unused/untouched "
             "and should have been initialized to zero.")
+        
+    #=====
 
     def test_consistent_dm(self):
         """Check ptycho.solver.dm for consistency."""

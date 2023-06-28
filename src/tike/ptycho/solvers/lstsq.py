@@ -328,20 +328,20 @@ def _update_wavefront(
 
         step_length = cp.swapaxes(step_length, 0, 1)[:, None, :, None, None]
 
-        chi = ((farplane - step_length * grad_cost) *
-               exitwave_options.measured_pixels +
-               farplane * exitwave_options.unmeasured_pixels_scaling *
-               exitwave_options.unmeasured_pixels)
+        farplane_opt = ((farplane - step_length * grad_cost) *
+                        exitwave_options.measured_pixels +
+                        farplane * exitwave_options.unmeasured_pixels_scaling *
+                        exitwave_options.unmeasured_pixels)
 
     else:
 
-        chi = (farplane * (cp.sqrt(data) /
+        farplane_opt = (farplane * (cp.sqrt(data) /
                            (cp.sqrt(intensity) + 1e-9))[..., None, None, :, :] *
-               exitwave_options.measured_pixels +
-               farplane * exitwave_options.unmeasured_pixels_scaling *
-               exitwave_options.unmeasured_pixels)
+                        exitwave_options.measured_pixels +
+                        farplane * exitwave_options.unmeasured_pixels_scaling *
+                        exitwave_options.unmeasured_pixels)
 
-    farplane = chi - farplane
+    farplane = farplane_opt - farplane
 
     farplane = op.propagation.adj(farplane, overwrite=True)
 
