@@ -343,7 +343,7 @@ class PtychoRecon(
             ),
             probe_options=ProbeOptions(use_adaptive_moment=True,),
             object_options=ObjectOptions(use_adaptive_moment=True,),
-            exitwave_options=ExitWaveOptions( step_length_usemodes = "all_modes" ),
+            exitwave_options=ExitWaveOptions( noise_model = "poisson", step_length_usemodes = "all_modes" ),
         )
         _save_ptycho_result(
             self.template_consistent_algorithm(
@@ -364,7 +364,7 @@ class PtychoRecon(
             ),
             probe_options=ProbeOptions(use_adaptive_moment=True,),
             object_options=ObjectOptions(use_adaptive_moment=True,),
-            exitwave_options=ExitWaveOptions( step_length_usemodes = "dominant_mode" ),
+            exitwave_options=ExitWaveOptions( noise_model = "poisson", step_length_usemodes = "dominant_mode" ),
         )
         _save_ptycho_result(
             self.template_consistent_algorithm(
