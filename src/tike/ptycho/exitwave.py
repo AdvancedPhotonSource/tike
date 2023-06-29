@@ -74,7 +74,10 @@ class ExitWaveOptions:
             step_length_weight=self.step_length_weight,
             step_length_start=self.step_length_start,
             step_length_usemodes=self.step_length_usemodes,
-            measured_pixels=self.measured_pixels,
+            measured_pixels=crop_fourier_space(
+                self.measured_pixels,
+                int(self.measured_pixels.shape[-1] * factor),
+            ),
             unmeasured_pixels_scaling=self.unmeasured_pixels_scaling)
 
 

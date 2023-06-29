@@ -297,8 +297,10 @@ def _update_wavefront(
     if exitwave_options.noise_model == 'poisson':
 
         xi = 1 - data / (intensity + 1e-9)
+
         grad_cost = farplane * xi[:, None, None, :, :]
-        abs2_Psi = cp.square(cp.abs(cp.swapaxes(cp.squeeze(farplane), 0, 1)))
+
+        abs2_Psi = cp.square(cp.abs(cp.swapaxes(farplane, 0, 2)))
 
         step_length = exitwave_options.step_length_start * cp.ones(
             ( farplane.shape[2], farplane.shape[0] ))

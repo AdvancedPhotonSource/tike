@@ -395,7 +395,6 @@ def _update_wavefront(
 
         else:
 
-            # abs2_Psi = cp.square(cp.abs(cp.swapaxes(cp.squeeze(farplane), 0, 1)))
             abs2_Psi = cp.square(cp.abs(cp.swapaxes(farplane, 0, 2)))
 
             step_length = tike.ptycho.exitwave.poisson_steplength_all_modes(
