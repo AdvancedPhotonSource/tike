@@ -95,7 +95,7 @@ def poisson_steplength_all_modes(
     Parameters
     ----------
     xi              : ND array ( # scan positions, # rows, # columns ), xi = 1 - I_m / I_e
-    abs2_Psi        : ND array ( # shared probe modes, # scan positions, # rows, # columns ), the squared absolute value of the calulated exitwaves       
+    abs2_Psi        : ND array ( # shared probe modes, None, # scan positions, # rows, # columns ), the squared absolute value of the calulated exitwaves       
     I_m             : ND array ( # scan positions, # rows, # columns ), measured diffraction intensity
     I_e             : ND array ( # scan positions, # rows, # columns ), calculated diffraction intensity 
     measured_pixels : 2D binary array ( # rows, # columns ), the regions on the detector where we have defined measurements

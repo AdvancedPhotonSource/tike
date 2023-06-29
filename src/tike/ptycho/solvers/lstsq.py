@@ -290,7 +290,7 @@ def _update_wavefront(
         axis=list(range(1, farplane.ndim - 2)),
     )
     costs = getattr(tike.operators,
-                    f'{op.propagation.model}_each_pattern')(data, intensity)
+                    f'{op.propagation.model}_each_pattern')(data, intensity * exitwave_options.measured_pixels )
 
     cost = cp.mean(costs)
 

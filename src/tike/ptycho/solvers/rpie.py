@@ -372,7 +372,7 @@ def _update_wavefront(
 
     cost = getattr(tike.operators, f'{op.propagation.model}_each_pattern')(
         data,
-        intensity,
+        intensity * exitwave_options.measured_pixels,
     )
     if position_options is not None:
         position_options.confidence[..., 0] = cost
