@@ -331,7 +331,7 @@ def _update_wavefront(
         farplane_opt = ((farplane - step_length * grad_cost) *
                         exitwave_options.measured_pixels +
                         farplane * exitwave_options.unmeasured_pixels_scaling *
-                        exitwave_options.unmeasured_pixels)
+                        cp.logical_not(exitwave_options.measured_pixels))
 
     else:
 
@@ -339,7 +339,7 @@ def _update_wavefront(
                            (cp.sqrt(intensity) + 1e-9))[..., None, None, :, :] *
                         exitwave_options.measured_pixels +
                         farplane * exitwave_options.unmeasured_pixels_scaling *
-                        exitwave_options.unmeasured_pixels)
+                        cp.logical_not(exitwave_options.measured_pixels))
 
     farplane = farplane_opt - farplane
 

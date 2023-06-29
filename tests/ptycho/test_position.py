@@ -349,10 +349,10 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
         )
 
         # Define regions where we have missing diffraction measurement data
-        params.exitwave_options.unmeasured_pixels = np.zeros( self.probe.shape[-2:], np.bool_ )
-        params.exitwave_options.unmeasured_pixels[ 100 : 105, : ] = True
-        params.exitwave_options.unmeasured_pixels[ :, 100 : 105 ] = True
-        params.exitwave_options.measured_pixels = np.logical_not( params.exitwave_options.unmeasured_pixels )
+        unmeasured_pixels = np.zeros( self.probe.shape[-2:], np.bool_ )
+        unmeasured_pixels[ 100 : 105, : ] = True
+        unmeasured_pixels[ :, 100 : 105 ] = True
+        params.exitwave_options.measured_pixels = np.logical_not( unmeasured_pixels )
 
         # Zero out these regions on the diffraction measurement data
         self.data = self.data * params.exitwave_options.measured_pixels
@@ -386,10 +386,10 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
         )
 
         # Define regions where we have missing diffraction measurement data
-        params.exitwave_options.unmeasured_pixels = np.zeros( self.probe.shape[-2:], np.bool_ )
-        params.exitwave_options.unmeasured_pixels[ 100 : 105, : ] = True
-        params.exitwave_options.unmeasured_pixels[ :, 100 : 105 ] = True
-        params.exitwave_options.measured_pixels = np.logical_not( params.exitwave_options.unmeasured_pixels )
+        unmeasured_pixels = np.zeros( self.probe.shape[-2:], np.bool_ )
+        unmeasured_pixels[ 100 : 105, : ] = True
+        unmeasured_pixels[ :, 100 : 105 ] = True
+        params.exitwave_options.measured_pixels = np.logical_not( unmeasured_pixels )
 
         # Zero out these regions on the diffraction measurement data
         self.data = self.data * params.exitwave_options.measured_pixels

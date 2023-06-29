@@ -30,7 +30,8 @@ class ExitWaveOptions:
 
     step_length_weight: float = 0.5 
     """When computing steplength, we use a weighted average of the previous calculated step 
-    and the current calculated step, options are 0.0 <= step_length_weight <= 1.0."""
+    and the current calculated step, options are 0.0 <= step_length_weight <= 1.0, with being
+    closer to 1.0 favoring the current calculated step"""
 
     step_length_usemodes: str = "all_modes" 
     """When computing steplength for exitwave updates, there are two ways we do this:
@@ -46,32 +47,24 @@ class ExitWaveOptions:
     """Depending on how we control scaling for the exitwaves, we might need to scale up or down 
     the number of photons in the unmeasured regions for the exitwave updates in Fourier space."""
 
-    unmeasured_pixels: typing.Union[npt.NDArray, None] = dataclasses.field(
-        default_factory=lambda: np.zeros(1, dtype=bool))
-    """A binary array that defines spatial regions on the detector where we have unmeasured pixels."""
-
     measured_pixels: typing.Union[npt.NDArray, None] = dataclasses.field(
         default_factory=lambda: np.ones(1, dtype=bool))
     """A binary array that defines spatial regions on the detector where we have measured pixels."""
 
     def copy_to_device(self, comm):
         """Copy to the current GPU memory."""
-        if self.unmeasured_pixels is not None:
-            self.unmeasured_pixels = cp.asarray(self.unmeasured_pixels)
         if self.measured_pixels is not None:
             self.measured_pixels = cp.asarray(self.measured_pixels)
-        # if self.unmeasured_pixels is not None:
-        #     self.unmeasured_pixels = comm.pool.bcast([self.unmeasured_pixels])
+        # if self.measured_pixels is not None:
+        #     self.measured_pixels = comm.pool.bcast([self.measured_pixels])
         return self
 
     def copy_to_host(self):
         """Copy to the host CPU memory."""
-        if self.unmeasured_pixels is not None:
-            self.unmeasured_pixels = cp.asnumpy(self.unmeasured_pixels)
         if self.measured_pixels is not None:
             self.measured_pixels = cp.asnumpy(self.measured_pixels)
-        # if self.unmeasured_pixels is not None:
-        #     self.unmeasured_pixels = cp.asnumpy( self.unmeasured_pixels[0] )
+        # if self.measured_pixels is not None:
+        #     self.measured_pixels = cp.asnumpy( self.measured_pixels[0] )
         return self
 
     def resample(self, factor: float) -> ExitWaveOptions:
@@ -83,7 +76,6 @@ class ExitWaveOptions:
             step_length_weight=self.step_length_weight,
             step_length_start=self.step_length_start,
             step_length_usemodes=self.step_length_usemodes,
-            unmeasured_pixels=self.unmeasured_pixels,
             measured_pixels=self.measured_pixels,
             unmeasured_pixels_scaling=self.unmeasured_pixels_scaling)
 
@@ -117,7 +109,7 @@ def poisson_steplength_all_modes(
 
     for _ in range(0, 2):
 
-        xi_alpha_minus_one = xi * step_length[..., None, None] - 1
+        xi_alpha_minus_one =  ( xi * step_length[..., None, None] - 1 )[ :, None, ... ]
 
         numer = I_m * xi_alpha_minus_one
         denom = abs2_Psi * cp.square(xi_alpha_minus_one) + I_e - abs2_Psi
@@ -127,8 +119,8 @@ def poisson_steplength_all_modes(
         denom = cp.sum(measured_pixels * cp.square(xi) * abs2_Psi,
                        axis=(-1, -2))
 
-        step_length = step_length * (1 - weight_avg) + (numer /
-                                                        denom) * weight_avg
+        step_length = step_length * (1 - weight_avg) + (numer[:, 0, :] /
+                                                        denom[:, 0, :]) * weight_avg
 
     return step_length
 
@@ -156,9 +148,7 @@ def poisson_steplength_dominant_mode(
     if measured_pixels.size == 0:
         measured_pixels = 1
 
-    denom = measured_pixels * I_e * cp.square(xi)
-
-    sum_denom = cp.sum(denom, axis=(-1, -2))
+    sum_denom = cp.sum(measured_pixels * I_e * cp.square(xi), axis=(-1, -2))
 
     for _ in range(0, 2):
 
@@ -170,11 +160,6 @@ def poisson_steplength_dominant_mode(
         step_length = (1 -
                        weight_avg) * step_length + weight_avg * nom_over_denom
 
-        step_length = cp.abs(cp.fmax(cp.fmin(step_length, 1), 0))
-
-    step_length += 1e-2 * tike.random.randomizer_cp.standard_normal(
-        size=step_length.shape,
-        dtype=tike.precision.floating,
-    )
+        # step_length = cp.abs(cp.fmax(cp.fmin(step_length, 1), 0))
 
     return step_length

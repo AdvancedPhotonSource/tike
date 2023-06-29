@@ -395,11 +395,15 @@ def _update_wavefront(
 
         else:
 
-            abs2_Psi = cp.square(cp.abs(cp.swapaxes(cp.squeeze(farplane), 0,
-                                                    1)))
+            # abs2_Psi = cp.square(cp.abs(cp.swapaxes(cp.squeeze(farplane), 0, 1)))
+            abs2_Psi = cp.square(cp.abs(cp.swapaxes(farplane, 0, 2)))
 
             step_length = tike.ptycho.exitwave.poisson_steplength_all_modes(
-                xi, abs2_Psi, intensity, data, exitwave_options.measured_pixels,
+                xi, 
+                abs2_Psi, 
+                intensity, 
+                data, 
+                exitwave_options.measured_pixels,
                 step_length, exitwave_options.step_length_weight)
 
         step_length = cp.swapaxes(step_length, 0, 1)[:, None, :, None, None]
@@ -407,7 +411,7 @@ def _update_wavefront(
         farplane = ((farplane - step_length * grad_cost) *
                     exitwave_options.measured_pixels +
                     farplane * exitwave_options.unmeasured_pixels_scaling *
-                    exitwave_options.unmeasured_pixels)
+                    cp.logical_not(exitwave_options.measured_pixels))
 
     else:
 
@@ -415,7 +419,7 @@ def _update_wavefront(
         # TODO: optimal step lengths using 2nd order taylor expansion
         farplane *= ((cp.sqrt(data) /
                       (cp.sqrt(intensity) + 1e-9))[..., None, None, :, :] +
-                     exitwave_options.unmeasured_pixels *
+                     cp.logical_not(exitwave_options.measured_pixels) *
                      exitwave_options.unmeasured_pixels_scaling)
 
     farplane = op.propagation.adj(farplane, overwrite=True)
