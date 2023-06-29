@@ -76,15 +76,19 @@ class ExitWaveOptions:
 
     def resample(self, factor: float) -> ExitWaveOptions:
         """Return a new `ExitWaveOptions` with the parameters rescaled."""
-        # FIXME: Unmeasured/measured pixels should be cropped/padded during
-        # resampling
         return ExitWaveOptions(
             noise_model=self.noise_model,
             step_length_weight=self.step_length_weight,
             step_length_start=self.step_length_start,
             step_length_usemodes=self.step_length_usemodes,
-            unmeasured_pixels=self.unmeasured_pixels,
-            measured_pixels=self.measured_pixels,
+            unmeasured_pixels=crop_fourier_space(
+                self.unmeasured_pixels,
+                int(self.unmeasured_pixels.shape[-1] * factor),
+            ),
+            measured_pixels=crop_fourier_space(
+                self.measured_pixels,
+                int(self.measured_pixels.shape[-1] * factor),
+            ),
             unmeasured_pixels_scaling=self.unmeasured_pixels_scaling)
 
 
@@ -178,3 +182,17 @@ def poisson_steplength_dominant_mode(
     )
 
     return step_length
+
+
+def crop_fourier_space(x: np.ndarray, w: int) -> np.ndarray:
+    """Crop x assuming a 2D frequency space image with zero frequency in corner."""
+    assert x.shape[-2] == x.shape[-1], "Only works on square arrays right now."
+    half1 = w // 2
+    half0 = w - half1
+    # yapf: disable
+    return x[
+        ..., np.r_[0:half0, (x.shape[-1] - half1):x.shape[-1]],
+    ][
+        ..., np.r_[0:half0, (x.shape[-2] - half1):x.shape[-2]], :,
+    ]
+    # yapf: enable
