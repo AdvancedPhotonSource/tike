@@ -211,7 +211,7 @@ def wobbly_center(population, num_cluster):
         # print(f"{i} will be added to {c}")
         labels[i] = c
         # print(f"Start with labels: {labels}")
-    return [xp.flatnonzero(labels == c) for c in range(num_cluster)]
+    return [cp.asnumpy(xp.flatnonzero(labels == c)) for c in range(num_cluster)]
 
 
 def compact(population, num_cluster, max_iter=500):
