@@ -124,7 +124,7 @@ def stream_and_modify(
     streams: typing.List[cp.cuda.Stream] = [cp.cuda.Stream(), cp.cuda.Stream()],
     indices: typing.Union[None, typing.List[int]] = None,
     *,
-    chunk_size: int = None,
+    chunk_size: int = 64,
 ) -> typing.Tuple:
     """Use multiple CUDA streams to load data for a function.
 
@@ -186,7 +186,6 @@ def stream_and_modify(
         indices = list(range(N))
     else:
         N = len(indices)
-    chunk_size = max(1, 2**25 // math.prod(ind_args[0].shape[1:])) if chunk_size is None else chunk_size
     chunk_size = min(chunk_size, N)
     num_streams = 2
 
