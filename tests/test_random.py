@@ -4,7 +4,8 @@ import unittest
 import numpy as np
 import scipy.stats
 
-from tike.opt import batch_indicies, randomizer
+from tike.opt import batch_indicies
+from tike.random import randomizer_np as randomizer
 import tike.cluster
 
 
