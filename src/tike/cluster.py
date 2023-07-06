@@ -151,7 +151,8 @@ def wobbly_center(population, num_cluster):
     Parameters
     ----------
     population : (M, N) array_like
-        The M samples of an N dimensional population that needs to be clustered.
+        The M samples of an N dimensional population that needs to be
+        clustered.
     num_cluster : int (0..M]
         The number of clusters in which to divide M samples.
 
@@ -195,6 +196,91 @@ def wobbly_center(population, num_cluster):
     labels[starting_centroids] = range(num_cluster)
     # print(f"\nStart with labels: {labels}")
     for c in range(len(population) - len(starting_centroids)):
+        # c is the label of the cluster getting the next addition
+        c = c % num_cluster
+        # add the unclaimed observation that is furthest from this cluster
+        furthest = xp.argmax(
+            xp.linalg.norm(
+                population[labels == UNASSIGNED] -
+                xp.mean(population[labels == c], axis=0, keepdims=True),
+                axis=1,
+            ),
+            axis=0,
+        )
+        # i is the index of furthest in labels
+        i = xp.argmax(xp.cumsum(labels == UNASSIGNED) == (furthest + 1))
+        # print(f"{i} will be added to {c}")
+        labels[i] = c
+        # print(f"Start with labels: {labels}")
+    return [cp.asnumpy(xp.flatnonzero(labels == c)) for c in range(num_cluster)]
+
+
+def wobbly_center_random_bootstrap(
+        population,
+        num_cluster: int,
+        boot_fraction: float = 0.95,
+):
+    """Return the indices that divide population into heterogenous clusters.
+
+    Uses a hybrid approach to generate heterogenous clusters. First, a fraction
+    of the population is divided into clusters randomly, then the wobbly center
+    algorithm is used to distriube the remaining segment of the population with
+    the goal of maximizing intracluster heterogeneity.
+
+    Parameters
+    ----------
+    population : (M, N) array_like
+        The M samples of an N dimensional population that needs to be
+        clustered.
+    num_cluster : int (0..M]
+        The number of clusters in which to divide M samples.
+    boot_fraction: (0, 1]
+        The percentage of each cluster that is randomly assigned before
+        starting the wobbly center algorithm.
+
+    Returns
+    -------
+    indicies : (num_cluster,) list of array of integer
+        The indicies of population that belong to each cluster.
+
+    Raises
+    ------
+    ValueError
+        If num_cluster is less than 1 or more than 65535. The implementation
+        uses uint16 as cluster tag, so it cannot count more than that number of
+        clusters.
+
+    References
+    ----------
+    Mishra, Megha, Chandrasekaran Anirudh Bhardwaj, and Kalyani Desikan. "A
+    Maximal Heterogeneity Based Clustering Approach for Obtaining Samples."
+    arXiv preprint arXiv:1709.01423 (2017).
+
+    """
+    logger.info("Clustering method is wobbly center with random bootstrap.")
+    xp = cp.get_array_module(population)
+    if num_cluster == 1 or num_cluster == population.shape[0]:
+        return xp.split(xp.arange(population.shape[0]), num_cluster)
+    if not 0 < num_cluster <= min(0xFFFF, population.shape[0]):
+        raise ValueError(
+            f"The number of clusters must be 0 < {num_cluster} < min(65536, M)."
+        )
+    # Partially initialize the clusters randomly; each cluster starts with an
+    # equal number of members
+    num_bootstrap = int(len(population) * boot_fraction)
+    num_bootstrap -= num_bootstrap % num_cluster
+    seed = xp.random.choice(
+        len(population),
+        size=num_bootstrap,
+        replace=False,
+    )
+    # Use a label array to keep track of cluster assignment
+    UNASSIGNED = 0xFFFF
+    labels = xp.full(len(population), UNASSIGNED, dtype='uint16')
+    for c in range(num_cluster):
+        labels[seed[c::num_cluster]] = c
+    # print(f"\nStart with labels: {labels}")
+    for c in range(len(population) - num_bootstrap):
         # c is the label of the cluster getting the next addition
         c = c % num_cluster
         # add the unclaimed observation that is furthest from this cluster
