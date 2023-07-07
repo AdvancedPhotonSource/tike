@@ -8,6 +8,7 @@ import tike.communicators
 import tike.linalg
 import tike.operators
 import tike.opt
+import tike.random
 import tike.ptycho.position
 import tike.ptycho.probe
 import tike.ptycho.object
@@ -97,7 +98,7 @@ def lstsq_grad(
     if parameters.algorithm_options.batch_method == 'compact':
         order = range
     else:
-        order = tike.opt.randomizer.permutation
+        order = tike.random.randomizer_np.permutation
 
     batch_cost = []
     beta_object = []

@@ -8,6 +8,7 @@ import tike.linalg
 import tike.opt
 import tike.ptycho.position
 import tike.ptycho.probe
+import tike.random
 
 from .options import *
 
@@ -61,7 +62,7 @@ def dm(
 
     # The objective function value for each batch
     batch_cost: typing.List[float] = []
-    for n in tike.opt.randomizer.permutation(len(batches[0])):
+    for n in tike.random.randomizer_np.permutation(len(batches[0])):
 
         (
             cost,

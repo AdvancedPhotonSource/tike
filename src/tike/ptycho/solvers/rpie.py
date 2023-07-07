@@ -7,6 +7,11 @@ import tike.communicators
 import tike.linalg
 import tike.operators
 import tike.opt
+import tike.ptycho.object
+import tike.ptycho.position
+import tike.ptycho.probe
+import tike.precision
+import tike.random
 
 from .options import *
 from .lstsq import _momentum_checked
@@ -89,7 +94,7 @@ def rpie(
     if parameters.algorithm_options.batch_method == 'compact':
         order = range
     else:
-        order = tike.opt.randomizer.permutation
+        order = tike.random.randomizer_np.permutation
 
     psi_update_numerator = [None] * comm.pool.num_workers
     probe_update_numerator = [None] * comm.pool.num_workers
