@@ -127,6 +127,7 @@ import numpy as np
 import tike.communicators
 import tike.linalg
 import tike.opt
+import tike.random
 import tike.precision
 
 logger = logging.getLogger(__name__)
@@ -270,7 +271,7 @@ def estimate_global_transformation_ransac(
     """
     best_fitness = np.inf  # small fitness is good
     # Choose a subset
-    for subset in tike.opt.randomizer.choice(
+    for subset in tike.random.randomizer_np.choice(
             a=len(positions0),
             size=(max_iter, min_sample),
             replace=True,

@@ -6,6 +6,7 @@ import tike.linalg
 import tike.opt
 import tike.ptycho.position
 import tike.ptycho.probe
+import tike.random
 
 from tike.ptycho.solvers.rpie import _update_position
 
@@ -60,7 +61,7 @@ def dm(
     probe_update_denominator = None
     batch_cost = []
 
-    for n in tike.opt.randomizer.permutation(len(batches[0])):
+    for n in tike.random.randomizer_np.permutation(len(batches[0])):
 
         bdata = comm.pool.map(tike.opt.get_batch, data, batches, n=n)
         bscan = comm.pool.map(tike.opt.get_batch, parameters.scan, batches, n=n)
