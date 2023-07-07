@@ -9,6 +9,7 @@ import tike.operators
 import tike.opt
 import tike.ptycho.object
 import tike.ptycho.probe
+import tike.random
 
 from .options import *
 
@@ -55,7 +56,7 @@ def adam_grad(
     if parameters.algorithm_options.batch_method == 'compact':
         order = range
     else:
-        order = tike.opt.randomizer.permutation
+        order = tike.random.randomizer_np.permutation
 
     batch_cost = []
     sum_grad_object = 0

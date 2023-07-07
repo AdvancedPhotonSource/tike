@@ -1,7 +1,8 @@
 import logging
 
 from tike.linalg import orthogonalize_gs
-from tike.opt import conjugate_gradient, get_batch, randomizer
+from tike.opt import conjugate_gradient, get_batch
+from tike.random import randomizer_np as randomizer
 from ..position import update_positions_pd, PositionOptions
 from ..object import positivity_constraint, smoothness_constraint
 

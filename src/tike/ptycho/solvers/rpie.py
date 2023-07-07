@@ -11,6 +11,7 @@ import tike.ptycho.object
 import tike.ptycho.position
 import tike.ptycho.probe
 import tike.precision
+import tike.random
 
 from .options import *
 from .lstsq import _momentum_checked
@@ -88,7 +89,7 @@ def rpie(
     if parameters.algorithm_options.batch_method == 'compact':
         order = range
     else:
-        order = tike.opt.randomizer.permutation
+        order = tike.random.randomizer_np.permutation
 
     batch_cost = []
     object_update_sum = 0
