@@ -8,10 +8,15 @@ import scipy.io
 import tike.ptycho.probe
 from tike.communicators import Comm, MPIComm
 
+from .templates import _mpi_size
+
 resultdir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'result',
                          'ptycho', 'probe')
 
-
+@unittest.skipIf(
+    _mpi_size > 1,
+    reason="MPI not implemented for online reconstruction.",
+)
 class TestProbe(unittest.TestCase):
 
     def test_eigen_probe(self):
