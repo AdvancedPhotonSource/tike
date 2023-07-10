@@ -103,17 +103,17 @@ def poisson_steplength_all_modes(
     weight_avg      : float ( 0.0 <= weight_avg <= 1.0  ), the weight we use when computing a weighted average
     """
 
-    if measured_pixels.size == 0:
-        measured_pixels = 1
+    # if measured_pixels.size == 0:
+    #     measured_pixels = 1
 
-    xi = measured_pixels * xi
+    # xi = measured_pixels * xi
 
     I_e = I_e[ :, None, None, ... ]
     I_m = I_m[ :, None, None, ... ]
 
     xi_abs_Psi2 = xi * abs2_Psi
 
-    denom_final = cp.sum( xi * xi_abs_Psi2, axis=( -1, -2 ))
+    denom_final = cp.sum( ( xi * xi_abs_Psi2 )[ ..., measured_pixels], axis = -1 )
     
     for _ in range(0, 2):
 
@@ -121,7 +121,7 @@ def poisson_steplength_all_modes(
 
         denom = abs2_Psi * cp.square(xi_alpha_minus_one) + I_e - abs2_Psi
 
-        numer = cp.sum( xi_abs_Psi2 * ( 1 + ( I_m * xi_alpha_minus_one ) / denom ), axis=(-1, -2))
+        numer = cp.sum( (xi_abs_Psi2 * ( 1 + ( I_m * xi_alpha_minus_one ) / denom ))[ ..., measured_pixels], axis = -1 )
 
         step_length = step_length * ( 1 - weight_avg ) + ( numer / denom_final )[ ..., None, None ] * weight_avg
 
@@ -148,21 +148,21 @@ def poisson_steplength_dominant_mode(
     weight_avg      : float ( 0.0 <= weight_avg <= 1.0  ), the weight we use when computing a weighted average
     """
 
-    if measured_pixels.size == 0:
-        measured_pixels = 1
+    # if measured_pixels.size == 0:
+    #     measured_pixels = 1
 
-    xi = measured_pixels * xi
+    # xi = measured_pixels * xi
 
     I_e = I_e[ :, None, None, ... ]
     I_m = I_m[ :, None, None, ... ]
 
-    sum_denom = cp.sum( cp.square( xi ) * I_e, axis = ( -1, -2 ))
+    sum_denom = cp.sum( (cp.square( xi ) * I_e)[ ..., measured_pixels], axis = -1 )
 
     for _ in range(0, 2):
 
         numer = xi * ( I_e - I_m / ( 1 - step_length * xi ))
 
-        numer_over_denom = cp.sum( numer, axis = ( -1, -2 )) / sum_denom
+        numer_over_denom = cp.sum( numer[ ..., measured_pixels], axis = -1 ) / sum_denom
 
         step_length = ( 1 - weight_avg ) * step_length + weight_avg * numer_over_denom[ ..., None, None ]
 

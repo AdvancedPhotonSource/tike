@@ -296,6 +296,8 @@ def _update_wavefront(
 
     cost = cp.mean(costs)
 
+    farplane_opt = cp.zeros( farplane.shape, farplane.dtype )
+
     if exitwave_options.noise_model == 'poisson':
 
         xi = ( 1 - data / (intensity + 1e-9))[:, None, None, ... ]
@@ -327,18 +329,17 @@ def _update_wavefront(
                 exitwave_options.step_length_weight,
             )
 
-        farplane_opt = ((farplane - step_length * grad_cost) *
-                        exitwave_options.measured_pixels +
-                        farplane * exitwave_options.unmeasured_pixels_scaling *
-                        cp.logical_not(exitwave_options.measured_pixels))
+        farplane_opt[ ..., exitwave_options.measured_pixels ] = ( farplane - step_length * grad_cost)[ ..., exitwave_options.measured_pixels ] 
+
+        unmeasured_pixels = cp.logical_not( exitwave_options.measured_pixels )
+        farplane_opt[ ..., unmeasured_pixels ] = farplane[ ..., unmeasured_pixels ] * exitwave_options.unmeasured_pixels_scaling
 
     else:
 
-        farplane_opt = (farplane * (cp.sqrt(data) /
-                           (cp.sqrt(intensity) + 1e-9))[..., None, None, :, :] *
-                        exitwave_options.measured_pixels +
-                        farplane * exitwave_options.unmeasured_pixels_scaling *
-                        cp.logical_not(exitwave_options.measured_pixels))
+        farplane_opt[ ..., exitwave_options.measured_pixels ] = ( farplane * ((cp.sqrt(data) / (cp.sqrt(intensity) + 1e-9))[..., None, None, :, :]))[ ..., exitwave_options.measured_pixels ]
+                    
+        unmeasured_pixels = cp.logical_not( exitwave_options.measured_pixels )            
+        farplane_opt[ ..., unmeasured_pixels ] = farplane[ ..., unmeasured_pixels ] * exitwave_options.unmeasured_pixels_scaling
 
     farplane = farplane_opt - farplane
 

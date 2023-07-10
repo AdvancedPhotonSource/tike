@@ -407,19 +407,20 @@ def _update_wavefront(
                 step_length, exitwave_options.step_length_weight
                 )
 
-        farplane = ((farplane - step_length * grad_cost) *
-                    exitwave_options.measured_pixels +
-                    farplane * exitwave_options.unmeasured_pixels_scaling *
-                    cp.logical_not(exitwave_options.measured_pixels))
+        farplane[ ..., exitwave_options.measured_pixels ] = ( farplane - step_length * grad_cost)[ ..., exitwave_options.measured_pixels ] 
+
+        unmeasured_pixels = cp.logical_not( exitwave_options.measured_pixels )
+        farplane[ ..., unmeasured_pixels ] = farplane[ ..., unmeasured_pixels ] * exitwave_options.unmeasured_pixels_scaling
 
     else:
 
         # Gaussian noise model for exitwave updates, steplength = 1
         # TODO: optimal step lengths using 2nd order taylor expansion
-        farplane *= ((cp.sqrt(data) /
-                      (cp.sqrt(intensity) + 1e-9))[..., None, None, :, :] +
-                     cp.logical_not(exitwave_options.measured_pixels) *
-                     exitwave_options.unmeasured_pixels_scaling)
+
+        farplane[ ..., exitwave_options.measured_pixels ] = ( farplane * ((cp.sqrt(data) / (cp.sqrt(intensity) + 1e-9))[..., None, None, :, :]))[ ..., exitwave_options.measured_pixels ]
+                    
+        unmeasured_pixels = cp.logical_not( exitwave_options.measured_pixels )            
+        farplane[ ..., unmeasured_pixels ] = farplane[ ..., unmeasured_pixels ] * exitwave_options.unmeasured_pixels_scaling
 
     farplane = op.propagation.adj(farplane, overwrite=True)
 
