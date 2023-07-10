@@ -106,22 +106,24 @@ def poisson_steplength_all_modes(
     if measured_pixels.size == 0:
         measured_pixels = 1
 
+    xi = measured_pixels * xi
+
+    I_e = I_e[ :, None, None, ... ]
+    I_m = I_m[ :, None, None, ... ]
+
     xi_abs_Psi2 = xi * abs2_Psi
 
+    denom_final = cp.sum( xi * xi_abs_Psi2, axis=( -1, -2 ))
+    
     for _ in range(0, 2):
 
-        xi_alpha_minus_one =  ( xi * step_length[..., None, None] - 1 )[ :, None, ... ]
+        xi_alpha_minus_one =  ( xi * step_length - 1 )
 
-        numer = I_m * xi_alpha_minus_one
         denom = abs2_Psi * cp.square(xi_alpha_minus_one) + I_e - abs2_Psi
-        numer = cp.sum(measured_pixels * xi_abs_Psi2 * (1 + numer / denom),
-                       axis=(-1, -2))
 
-        denom = cp.sum(measured_pixels * cp.square(xi) * abs2_Psi,
-                       axis=(-1, -2))
+        numer = cp.sum( xi_abs_Psi2 * ( 1 + ( I_m * xi_alpha_minus_one ) / denom ), axis=(-1, -2))
 
-        step_length = step_length * (1 - weight_avg) + (numer[:, 0, :] /
-                                                        denom[:, 0, :]) * weight_avg
+        step_length = step_length * ( 1 - weight_avg ) + ( numer / denom_final )[ ..., None, None ] * weight_avg
 
     return step_length
 
@@ -149,17 +151,20 @@ def poisson_steplength_dominant_mode(
     if measured_pixels.size == 0:
         measured_pixels = 1
 
-    sum_denom = cp.sum(measured_pixels * I_e * cp.square(xi), axis=(-1, -2))
+    xi = measured_pixels * xi
+
+    I_e = I_e[ :, None, None, ... ]
+    I_m = I_m[ :, None, None, ... ]
+
+    sum_denom = cp.sum( cp.square( xi ) * I_e, axis = ( -1, -2 ))
 
     for _ in range(0, 2):
 
-        nom = measured_pixels * xi * (I_e - I_m /
-                                      (1 - step_length[..., None, None] * xi))
+        numer = xi * ( I_e - I_m / ( 1 - step_length * xi ))
 
-        nom_over_denom = cp.sum(nom, axis=(-1, -2)) / sum_denom
+        numer_over_denom = cp.sum( numer, axis = ( -1, -2 )) / sum_denom
 
-        step_length = (1 -
-                       weight_avg) * step_length + weight_avg * nom_over_denom
+        step_length = ( 1 - weight_avg ) * step_length + weight_avg * numer_over_denom[ ..., None, None ]
 
         # step_length = cp.abs(cp.fmax(cp.fmin(step_length, 1), 0))
 

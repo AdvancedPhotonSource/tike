@@ -371,21 +371,24 @@ def _update_wavefront(
     )
 
     cost = getattr(tike.operators, f'{op.propagation.model}_each_pattern')(
-        data,
-        intensity * exitwave_options.measured_pixels,
+        data[ :, exitwave_options.measured_pixels ][:, None, :],
+        intensity[ :, exitwave_options.measured_pixels ][:, None, :],
     )
+
     if position_options is not None:
         position_options.confidence[..., 0] = cost
+
     cost = cp.mean(cost)
+
     logger.info('%10s cost is %+12.5e', 'farplane', cost)
 
     if exitwave_options.noise_model == 'poisson':
 
-        xi = 1 - data / intensity
-        grad_cost = farplane * xi[:, None, None, :, :]
+        xi = ( 1 - data / intensity )[:, None, None, :, :]
+        grad_cost = farplane * xi
 
-        step_length = exitwave_options.step_length_start * cp.ones(
-            (farplane.shape[2], farplane.shape[0]))
+        step_length = exitwave_options.step_length_start * cp.ones( ( farplane.shape[0], farplane.shape[2] ))
+        step_length = step_length[ :, None, :, None, None ]
 
         if exitwave_options.step_length_usemodes == 'dominant_mode':
 
@@ -395,17 +398,14 @@ def _update_wavefront(
 
         else:
 
-            abs2_Psi = cp.square(cp.abs(cp.swapaxes(farplane, 0, 2)))
-
             step_length = tike.ptycho.exitwave.poisson_steplength_all_modes(
                 xi, 
-                abs2_Psi, 
+                cp.square( cp.abs( farplane )),    
                 intensity, 
                 data, 
                 exitwave_options.measured_pixels,
-                step_length, exitwave_options.step_length_weight)
-
-        step_length = cp.swapaxes(step_length, 0, 1)[:, None, :, None, None]
+                step_length, exitwave_options.step_length_weight
+                )
 
         farplane = ((farplane - step_length * grad_cost) *
                     exitwave_options.measured_pixels +
