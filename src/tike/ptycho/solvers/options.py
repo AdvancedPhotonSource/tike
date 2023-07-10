@@ -49,6 +49,7 @@ class IterativeOptions(abc.ABC):
     """The number of epochs to consider for convergence monitoring. Set to
     any value less than 2 to disable."""
 
+
 @dataclasses.dataclass
 class AdamOptions(IterativeOptions):
     name: str = dataclasses.field(default='adam_grad', init=False)
@@ -178,9 +179,9 @@ class PtychoParameters():
             if self.eigen_probe is not None else None,
             eigen_weights=self.eigen_weights,
             algorithm_options=self.algorithm_options,
-            probe_options=self.probe_options.resample(factor)
+            probe_options=self.probe_options.resample(factor, interp)
             if self.probe_options is not None else None,
-            object_options=self.object_options.resample(factor)
+            object_options=self.object_options.resample(factor, interp)
             if self.object_options is not None else None,
             position_options=self.position_options.resample(factor)
             if self.position_options is not None else None,

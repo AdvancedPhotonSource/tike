@@ -8,6 +8,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 import typing
+import copy
 
 import cupy as cp
 import cupyx.scipy.ndimage
@@ -24,6 +25,16 @@ logger = logging.getLogger(__name__)
 @dataclasses.dataclass
 class ObjectOptions:
     """Manage data and setting related to object correction."""
+
+    convergence_tolerance: float = 0
+    """Terminate reconstruction early when the mnorm of the object update is
+    less than this value."""
+
+    update_mnorm: typing.List[float] = dataclasses.field(
+        init=False,
+        default_factory=list,
+    )
+    """A record of the previous mnorms of the object update."""
 
     positivity_constraint: float = 0
     """This value is passed to the tike.ptycho.object.positivity_constraint
@@ -71,27 +82,32 @@ class ObjectOptions:
 
     def copy_to_device(self, comm):
         """Copy to the current GPU memory."""
+        options = copy.copy(self)
+        options.update_mnorm = copy.copy(self.update_mnorm)
         if self.v is not None:
-            self.v = cp.asarray(self.v)
+            options.v = cp.asarray(self.v)
         if self.m is not None:
-            self.m = cp.asarray(self.m)
+            options.m = cp.asarray(self.m)
         if self.preconditioner is not None:
-            self.preconditioner = comm.pool.bcast([self.preconditioner])
-        return self
+            options.preconditioner = comm.pool.bcast([self.preconditioner])
+        return options
 
     def copy_to_host(self):
         """Copy to the host CPU memory."""
+        options = copy.copy(self)
+        options.update_mnorm = copy.copy(self.update_mnorm)
         if self.v is not None:
-            self.v = cp.asnumpy(self.v)
+            options.v = cp.asnumpy(self.v)
         if self.m is not None:
-            self.m = cp.asnumpy(self.m)
+            options.m = cp.asnumpy(self.m)
         if self.preconditioner is not None:
-            self.preconditioner = cp.asnumpy(self.preconditioner[0])
-        return self
+            options.preconditioner = cp.asnumpy(self.preconditioner[0])
+        return options
 
-    def resample(self, factor: float) -> ObjectOptions:
+    def resample(self, factor: float, interp) -> ObjectOptions:
         """Return a new `ObjectOptions` with the parameters rescaled."""
-        return ObjectOptions(
+        options = ObjectOptions(
+            convergence_tolerance=self.convergence_tolerance,
             positivity_constraint=self.positivity_constraint,
             smoothness_constraint=self.smoothness_constraint,
             use_adaptive_moment=self.use_adaptive_moment,
@@ -99,6 +115,8 @@ class ObjectOptions:
             mdecay=self.mdecay,
             clip_magnitude=self.clip_magnitude,
         )
+        options.update_mnorm = copy.copy(self.update_mnorm)
+        return options
         # Momentum reset to zero when grid scale changes
 
 

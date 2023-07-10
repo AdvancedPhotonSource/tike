@@ -119,6 +119,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 import typing
+import copy
 
 import cupy as cp
 import cupyx.scipy.ndimage
@@ -446,21 +447,23 @@ class PositionOptions:
 
     def copy_to_device(self):
         """Copy to the current GPU memory."""
-        self.initial_scan = cp.asarray(self.initial_scan)
+        options = copy.copy(self)
+        options.initial_scan = cp.asarray(self.initial_scan)
         if self.confidence is not None:
-            self.confidence = cp.asarray(self.confidence)
+            options.confidence = cp.asarray(self.confidence)
         if self.use_adaptive_moment:
-            self._momentum = cp.asarray(self._momentum)
-        return self
+            options._momentum = cp.asarray(self._momentum)
+        return options
 
     def copy_to_host(self):
         """Copy to the host CPU memory."""
-        self.initial_scan = cp.asnumpy(self.initial_scan)
+        options = copy.copy(self)
+        options.initial_scan = cp.asnumpy(self.initial_scan)
         if self.confidence is not None:
-            self.confidence = cp.asnumpy(self.confidence)
+            options.confidence = cp.asnumpy(self.confidence)
         if self.use_adaptive_moment:
-            self._momentum = cp.asnumpy(self._momentum)
-        return self
+            options._momentum = cp.asnumpy(self._momentum)
+        return options
 
     def resample(self, factor: float) -> PositionOptions:
         """Return a new `PositionOptions` with the parameters scaled."""
