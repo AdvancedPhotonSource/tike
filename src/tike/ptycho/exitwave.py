@@ -90,23 +90,19 @@ def poisson_steplength_all_modes(
     step_length,
     weight_avg,
 ):
+
     """Compute the optimal steplength for each exitwave mode independently.
 
     Parameters
     ----------
-    xi              : ND array ( # scan positions, # rows, # columns ), xi = 1 - I_m / I_e
-    abs2_Psi        : ND array ( # shared probe modes, None, # scan positions, # rows, # columns ), the squared absolute value of the calulated exitwaves       
-    I_m             : ND array ( # scan positions, # rows, # columns ), measured diffraction intensity
-    I_e             : ND array ( # scan positions, # rows, # columns ), calculated diffraction intensity 
-    measured_pixels : 2D binary array ( # rows, # columns ), the regions on the detector where we have defined measurements
-    step_length     : 2D array ( # shared probe modes, # scan positions), the steplength initializations
-    weight_avg      : float ( 0.0 <= weight_avg <= 1.0  ), the weight we use when computing a weighted average
+    xi              : ND array (FRAME, WIDE, HIGH), xi = 1 - I_m / I_e
+    abs2_Psi        : ND array (SHARED, None, FRAME, WIDE, HIGH ), the squared absolute value of the calulated exitwaves       
+    I_m             : ND array (FRAME, WIDE, HIGH), measured diffraction intensity
+    I_e             : ND array (FRAME, WIDE, HIGH), calculated diffraction intensity 
+    measured_pixels : 2D binary array (WIDE, HIGH), the regions on the detector where we have defined measurements
+    step_length     : 2D array (SHARED, FRAME), the steplength initializations
+    weight_avg      : float, the weight we use when computing a weighted average with ( 0.0 <= weight_avg <= 1.0  )
     """
-
-    # if measured_pixels.size == 0:
-    #     measured_pixels = 1
-
-    # xi = measured_pixels * xi
 
     I_e = I_e[ :, None, None, ... ]
     I_m = I_m[ :, None, None, ... ]
@@ -140,18 +136,13 @@ def poisson_steplength_dominant_mode(
 
     Parameters
     ----------
-    xi              : ND array ( # scan positions, # rows, # columns ), xi = 1 - I_m / I_e
-    I_m             : ND array ( # scan positions, # rows, # columns ), measured diffraction intensity
-    I_e             : ND array ( # scan positions, # rows, # columns ), calculated diffraction intensity 
-    measured_pixels : 2D binary array ( # rows, # columns ), the regions on the detector where we have defined measurements
-    step_length     : 2D array ( # shared probe modes, # scan positions), the steplength initializations
-    weight_avg      : float ( 0.0 <= weight_avg <= 1.0  ), the weight we use when computing a weighted average
+    xi              : ND array (FRAME, WIDE, HIGH), xi = 1 - I_m / I_e
+    I_m             : ND array (FRAME, WIDE, HIGH), measured diffraction intensity
+    I_e             : ND array (FRAME, WIDE, HIGH), calculated diffraction intensity 
+    measured_pixels : 2D binary array (WIDE, HIGH), the regions on the detector where we have defined measurements
+    step_length     : 2D array ( SHARED, FRAME), the steplength initializations
+    weight_avg      : float, the weight we use when computing a weighted average with ( 0.0 <= weight_avg <= 1.0  )
     """
-
-    # if measured_pixels.size == 0:
-    #     measured_pixels = 1
-
-    # xi = measured_pixels * xi
 
     I_e = I_e[ :, None, None, ... ]
     I_m = I_m[ :, None, None, ... ]

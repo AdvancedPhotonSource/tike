@@ -246,6 +246,9 @@ class PtychoRecon(
         params.probe_options = ProbeOptions()
         params.object_options = ObjectOptions()
         params.exitwave_options=ExitWaveOptions(),
+
+        params.exitwave_options[0].measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
+
         _save_ptycho_result(
             params,
             f"mpi{self.mpi_size}-init{self.post_name}",
@@ -275,7 +278,11 @@ class PtychoRecon(
             ),
             probe_options=ProbeOptions(),
             object_options=ObjectOptions(),
+            exitwave_options=ExitWaveOptions(),
         )
+
+        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
+
         _save_ptycho_result(
             self.template_consistent_algorithm(
                 data=self.data,
@@ -297,7 +304,11 @@ class PtychoRecon(
             ),
             probe_options=ProbeOptions(),
             object_options=ObjectOptions(),
+            exitwave_options=ExitWaveOptions(),
         )
+
+        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
+
         _save_ptycho_result(
             self.template_consistent_algorithm(
                 data=self.data,
@@ -318,7 +329,11 @@ class PtychoRecon(
             ),
             probe_options=ProbeOptions(),
             object_options=ObjectOptions(),
+            exitwave_options=ExitWaveOptions(),
         )
+
+        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
+
         _save_ptycho_result(
             self.template_consistent_algorithm(
                 data=self.data,
@@ -345,6 +360,9 @@ class PtychoRecon(
             object_options=ObjectOptions(use_adaptive_moment=True,),
             exitwave_options=ExitWaveOptions( noise_model = "poisson", step_length_usemodes = "all_modes" ),
         )
+
+        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
+
         _save_ptycho_result(
             self.template_consistent_algorithm(
                 data=self.data,
@@ -366,6 +384,9 @@ class PtychoRecon(
             object_options=ObjectOptions(use_adaptive_moment=True,),
             exitwave_options=ExitWaveOptions( noise_model = "poisson", step_length_usemodes = "dominant_mode" ),
         )
+
+        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
+
         _save_ptycho_result(
             self.template_consistent_algorithm(
                 data=self.data,
@@ -396,8 +417,13 @@ class PtychoRecon(
         params.exitwave_options.measured_pixels = np.logical_not( unmeasured_pixels )
 
         # Zero out these regions on the diffraction measurement data
-        self.data = self.data * params.exitwave_options.measured_pixels
-        
+        # to simulate realistic measurements with umeasured pixels
+        self.data[ ..., unmeasured_pixels ] = np.nan
+
+        # import matplotlib.pyplot as plt
+        # import matplotlib as mpl
+        # mpl.use('TKAgg'); plt.figure(); plt.imshow( np.fft.fftshift( self.data[222, ... ] )); plt.show(block=False)
+
         _save_ptycho_result(
             self.template_consistent_algorithm(
                 data=self.data,
@@ -420,6 +446,9 @@ class PtychoRecon(
             object_options=ObjectOptions(use_adaptive_moment=True,),
             exitwave_options=ExitWaveOptions(),
         )
+
+        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
+
         _save_ptycho_result(
             self.template_consistent_algorithm(
                 data=self.data,
@@ -442,6 +471,9 @@ class PtychoRecon(
             object_options=ObjectOptions(use_adaptive_moment=True,),
             exitwave_options=ExitWaveOptions(),
         )
+
+        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
+
         _save_ptycho_result(
             self.template_consistent_algorithm(
                 data=self.data,
@@ -464,6 +496,9 @@ class PtychoRecon(
             object_options=ObjectOptions(use_adaptive_moment=True,),
             exitwave_options=ExitWaveOptions(),
         )
+
+        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
+
         probes_with_modes = min(3, params.probe.shape[-3])
         params.eigen_probe, params.eigen_weights = tike.ptycho.probe.init_varying_probe(
             params.scan,
@@ -501,6 +536,9 @@ class PtychoRecon(
             object_options=ObjectOptions(),
             exitwave_options=ExitWaveOptions( noise_model = "poisson", step_length_usemodes = "dominant_mode" ),
         )
+
+        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
+
         _save_ptycho_result(
             self.template_consistent_algorithm(
                 data=self.data,
@@ -523,6 +561,9 @@ class PtychoRecon(
             object_options=ObjectOptions(),
             exitwave_options=ExitWaveOptions( noise_model = "poisson", step_length_usemodes = "all_modes" ),
         )
+
+        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
+
         _save_ptycho_result(
             self.template_consistent_algorithm(
                 data=self.data,
@@ -553,7 +594,7 @@ class PtychoRecon(
         params.exitwave_options.measured_pixels = np.logical_not( unmeasured_pixels )
 
         # Zero out these regions on the diffraction measurement data
-        self.data = self.data * params.exitwave_options.measured_pixels
+        self.data[ :, unmeasured_pixels ] = np.nan
         
         _save_ptycho_result(
             self.template_consistent_algorithm(
@@ -577,6 +618,9 @@ class PtychoRecon(
             object_options=ObjectOptions(),
             exitwave_options=ExitWaveOptions(),
         )
+
+        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
+        
         _save_ptycho_result(
             self.template_consistent_algorithm(
                 data=self.data,
@@ -600,6 +644,9 @@ class PtychoRecon(
             object_options=ObjectOptions(use_adaptive_moment=True,),
             exitwave_options=ExitWaveOptions(),
         )
+
+        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
+
         _save_ptycho_result(
             self.template_consistent_algorithm(
                 data=self.data,
@@ -622,6 +669,9 @@ class PtychoRecon(
             object_options=ObjectOptions(),
             exitwave_options=ExitWaveOptions(),
         )
+
+        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
+
         probes_with_modes = min(1, params.probe.shape[-3])
         params.eigen_probe, params.eigen_weights = tike.ptycho.probe.init_varying_probe(
             params.scan,
@@ -655,7 +705,11 @@ class PtychoRecon(
             ),
             probe_options=ProbeOptions(),
             object_options=ObjectOptions(),
+            exitwave_options=ExitWaveOptions(),
         )
+
+        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
+
         _save_ptycho_result(
             self.template_consistent_algorithm(
                 data=self.data,

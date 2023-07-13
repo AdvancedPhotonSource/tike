@@ -267,6 +267,9 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
             object_options=ObjectOptions(),
             exitwave_options=ExitWaveOptions(),
         )
+
+        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
+        
         result = self.template_consistent_algorithm(
             data=self.data,
             params=params,
@@ -293,6 +296,9 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
                 use_position_regularization=True,
             ),
         )
+
+        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
+
         result = self.template_consistent_algorithm(
             data=self.data,
             params=params,
@@ -320,6 +326,9 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
                 use_position_regularization=True,
             ),
         )
+
+        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
+
         result = self.template_consistent_algorithm(
             data=self.data,
             params=params,
