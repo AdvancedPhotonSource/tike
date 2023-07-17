@@ -121,7 +121,7 @@ def poisson_steplength_all_modes(
     measured_pixels :   (WIDE, HIGH) float32
                         the regions on the detector where we have defined
                         measurements
-    step_length     :   (SHARED, 1, FRAME, 1, 1) float32
+    step_length     :   (FRAME, 1, SHARED, 1, 1) float32
                         the steplength initializations
     weight_avg      :   float
                         the weight we use when computing a weighted average
