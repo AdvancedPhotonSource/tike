@@ -265,11 +265,8 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
             ),
             probe_options=ProbeOptions(),
             object_options=ObjectOptions(),
-            exitwave_options=ExitWaveOptions(),
         )
 
-        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
-        
         result = self.template_consistent_algorithm(
             data=self.data,
             params=params,
@@ -289,15 +286,12 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
             ),
             probe_options=ProbeOptions(),
             object_options=ObjectOptions(),
-            exitwave_options=ExitWaveOptions(),
             position_options=PositionOptions(
                 self.scan,
                 use_adaptive_moment=True,
                 use_position_regularization=True,
             ),
         )
-
-        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
 
         result = self.template_consistent_algorithm(
             data=self.data,
@@ -319,15 +313,12 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
             ),
             probe_options=ProbeOptions(),
             object_options=ObjectOptions(),
-            exitwave_options=ExitWaveOptions(),
             position_options=PositionOptions(
                 self.scan,
                 use_adaptive_moment=True,
                 use_position_regularization=True,
             ),
         )
-
-        params.exitwave_options.measured_pixels = np.ones( self.probe.shape[-2:], dtype=np.bool_ )
 
         result = self.template_consistent_algorithm(
             data=self.data,
@@ -339,6 +330,17 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
     def test_consistent_rpie_unmeasured_detector_regions(self):
         """Check ptycho.solver.rpie position correction."""
         algorithm = f"mpi{self.mpi_size}-rpie_unmeasured_detector_regions{self.post_name}"
+
+        # Define regions where we have missing diffraction measurement data
+        unmeasured_pixels = np.zeros(self.probe.shape[-2:], np.bool_)
+        unmeasured_pixels[100:105, :] = True
+        unmeasured_pixels[:, 100:105] = True
+        measured_pixels = np.logical_not(unmeasured_pixels)
+
+        # Zero out these regions on the diffraction measurement data
+        self.data = self.data.astype(np.floating)
+        self.data[:, unmeasured_pixels] = np.nan
+
         params = tike.ptycho.PtychoParameters(
             psi=self.psi,
             probe=self.probe,
@@ -349,22 +351,16 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
             ),
             probe_options=ProbeOptions(),
             object_options=ObjectOptions(),
-            exitwave_options=ExitWaveOptions( unmeasured_pixels_scaling = 1.05 ),
+            exitwave_options=ExitWaveOptions(
+                measured_pixels=measured_pixels,
+                unmeasured_pixels_scaling=1.05,
+            ),
             position_options=PositionOptions(
                 self.scan,
                 use_adaptive_moment=True,
                 use_position_regularization=True,
             ),
         )
-
-        # Define regions where we have missing diffraction measurement data
-        unmeasured_pixels = np.zeros( self.probe.shape[-2:], np.bool_ )
-        unmeasured_pixels[ 100 : 105, : ] = True
-        unmeasured_pixels[ :, 100 : 105 ] = True
-        params.exitwave_options.measured_pixels = np.logical_not( unmeasured_pixels )
-
-        # Zero out these regions on the diffraction measurement data
-        self.data = self.data * params.exitwave_options.measured_pixels
 
         result = self.template_consistent_algorithm(
             data=self.data,
@@ -376,6 +372,17 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
     def test_consistent_lstsq_grad_unmeasured_detector_regions(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
         algorithm = f"mpi{self.mpi_size}-lstsq_grad_unmeasured_detector_regions{self.post_name}"
+
+        # Define regions where we have missing diffraction measurement data
+        unmeasured_pixels = np.zeros(self.probe.shape[-2:], np.bool_)
+        unmeasured_pixels[100:105, :] = True
+        unmeasured_pixels[:, 100:105] = True
+        measured_pixels = np.logical_not(unmeasured_pixels)
+
+        # Zero out these regions on the diffraction measurement data
+        self.data = self.data.astype(np.floating)
+        self.data[:, unmeasured_pixels] = np.nan
+
         params = tike.ptycho.PtychoParameters(
             psi=self.psi,
             probe=self.probe,
@@ -386,7 +393,10 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
             ),
             probe_options=ProbeOptions(),
             object_options=ObjectOptions(),
-            exitwave_options=ExitWaveOptions( unmeasured_pixels_scaling = 1.05 ),
+            exitwave_options=ExitWaveOptions(
+                measured_pixels=measured_pixels,
+                unmeasured_pixels_scaling=1.05,
+            ),
             position_options=PositionOptions(
                 self.scan,
                 use_adaptive_moment=True,
@@ -394,21 +404,13 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
             ),
         )
 
-        # Define regions where we have missing diffraction measurement data
-        unmeasured_pixels = np.zeros( self.probe.shape[-2:], np.bool_ )
-        unmeasured_pixels[ 100 : 105, : ] = True
-        unmeasured_pixels[ :, 100 : 105 ] = True
-        params.exitwave_options.measured_pixels = np.logical_not( unmeasured_pixels )
-
-        # Zero out these regions on the diffraction measurement data
-        self.data = self.data * params.exitwave_options.measured_pixels
-
         result = self.template_consistent_algorithm(
             data=self.data,
             params=params,
         )
         _save_ptycho_result(result, algorithm)
         self._save_position_error_variance(result, algorithm)
+
 
 class TestPtychoPosition(
         PtychoPosition,

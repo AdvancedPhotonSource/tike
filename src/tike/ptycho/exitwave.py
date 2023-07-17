@@ -24,6 +24,12 @@ logger = logging.getLogger(__name__)
 class ExitWaveOptions:
     """Manage data and setting related to exitwave updates."""
 
+    measured_pixels: npt.NDArray
+    """
+    A binary array that defines spatial regions on the detector where we have
+    measured pixels.
+    """
+
     noise_model: str = "gaussian"
     """The noise model for the exitwave updates: "gaussian" OR "poisson" """
 
@@ -57,13 +63,6 @@ class ExitWaveOptions:
     Depending on how we control scaling for the exitwaves, we might need to
     scale up or down the number of photons in the unmeasured regions for the
     exitwave updates in Fourier space.
-    """
-
-    measured_pixels: typing.Union[npt.NDArray, None] = dataclasses.field(
-        default_factory=lambda: np.ones(1, dtype=bool))
-    """
-    A binary array that defines spatial regions on the detector where we have
-    measured pixels.
     """
 
     def copy_to_device(self, comm):
