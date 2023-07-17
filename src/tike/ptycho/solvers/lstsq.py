@@ -303,9 +303,10 @@ def _update_wavefront(
         xi = (1 - data / (intensity + 1e-9))[:, None, None, ...]
         grad_cost = farplane * xi
 
-        step_length = exitwave_options.step_length_start * cp.ones(
-            (farplane.shape[0], farplane.shape[2]))
-        step_length = step_length[:, None, :, None, None]
+        step_length = cp.full(
+            shape=(farplane.shape[0], 1, farplane.shape[2], 1, 1),
+            fill_value=exitwave_options.step_length_start,
+        )
 
         if exitwave_options.step_length_usemodes == 'dominant_mode':
 
