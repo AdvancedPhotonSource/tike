@@ -25,31 +25,46 @@ class ExitWaveOptions:
     """Manage data and setting related to exitwave updates."""
 
     noise_model: str = "gaussian"
-    """This string sets which noise model we use for the exitwave updates,
-    options are = { "gaussian", "poisson" }."""
+    """The noise model for the exitwave updates: "gaussian" OR "poisson" """
 
     step_length_weight: float = 0.5
-    """When computing steplength, we use a weighted average of the previous calculated step
-    and the current calculated step, options are 0.0 <= step_length_weight <= 1.0, with being
-    closer to 1.0 favoring the current calculated step"""
+    """
+    When computing steplength, we use a weighted average of the previous
+    calculated step and the current calculated step, options are 0.0 <=
+    step_length_weight <= 1.0, with being closer to 1.0 favoring the current
+    calculated step
+    """
 
     step_length_usemodes: str = "all_modes"
-    """When computing steplength for exitwave updates, there are two ways we do this:
-    1) use the dominant mode to compute the steplength and use that steplength for the other
-    less dominant modes, and 2) compute the steplength for each mode independently,
-    options are { "dominant_mode", "all_modes" }."""
+    """
+    When computing steplength for exitwave updates, there are two ways we do
+    this:
+
+        "dominant_mode" - use the dominant mode to compute the steplength and
+        use that steplength for the other less dominant modes
+
+        "all_modes" - compute the steplength for each mode independently
+    """
 
     step_length_start: float = 0.5
-    """We use an iterative/recursive method for finding the steplengths,
-    and this is what we use as initialization for that method."""
+    """
+    We use an iterative/recursive method for finding the steplengths, and this
+    is what we use as initialization for that method.
+    """
 
     unmeasured_pixels_scaling: float = 1.00
-    """Depending on how we control scaling for the exitwaves, we might need to scale up or down
-    the number of photons in the unmeasured regions for the exitwave updates in Fourier space."""
+    """
+    Depending on how we control scaling for the exitwaves, we might need to
+    scale up or down the number of photons in the unmeasured regions for the
+    exitwave updates in Fourier space.
+    """
 
     measured_pixels: typing.Union[npt.NDArray, None] = dataclasses.field(
         default_factory=lambda: np.ones(1, dtype=bool))
-    """A binary array that defines spatial regions on the detector where we have measured pixels."""
+    """
+    A binary array that defines spatial regions on the detector where we have
+    measured pixels.
+    """
 
     def copy_to_device(self, comm):
         """Copy to the current GPU memory."""
@@ -104,11 +119,13 @@ def poisson_steplength_all_modes(
     I_e             :   (FRAME, WIDE, HIGH) float32
                         calculated diffraction intensity
     measured_pixels :   (WIDE, HIGH) float32
-                        the regions on the detector where we have defined measurements
+                        the regions on the detector where we have defined
+                        measurements
     step_length     :   (SHARED, 1, FRAME, 1, 1) float32
                         the steplength initializations
     weight_avg      :   float
-                        the weight we use when computing a weighted average with ( 0.0 <= weight_avg <= 1.0  )
+                        the weight we use when computing a weighted average
+                        with ( 0.0 <= weight_avg <= 1.0  )
     """
 
     I_e = I_e[:, None, None, ...]
@@ -148,7 +165,8 @@ def poisson_steplength_dominant_mode(
     weight_avg,
 ):
     """
-    Compute the optimal steplength for each exitwave mode using only the dominant mode.
+    Compute the optimal steplength for each exitwave mode using only the
+    dominant mode.
 
     Parameters
     ----------
@@ -159,11 +177,13 @@ def poisson_steplength_dominant_mode(
     I_e             :   (FRAME, WIDE, HIGH) float32
                         calculated diffraction intensity
     measured_pixels :   (WIDE, HIGH) float32
-                        the regions on the detector where we have defined measurements
+                        the regions on the detector where we have defined
+                        measurements
     step_length     :   (FRAME, 1, SHARED, 1, 1) float32
                         the steplength initializations
     weight_avg      :   float
-                        the weight we use when computing a weighted average with ( 0.0 <= weight_avg <= 1.0  )
+                        the weight we use when computing a weighted average
+                        with ( 0.0 <= weight_avg <= 1.0  )
     """
 
     I_e = I_e[:, None, None, ...]
