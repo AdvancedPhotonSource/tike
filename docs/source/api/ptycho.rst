@@ -24,6 +24,7 @@ ptycho
    :maxdepth: 3
    :hidden:
 
+   ptycho.exitwave
    ptycho.fresnel
    ptycho.io
    ptycho.learn
