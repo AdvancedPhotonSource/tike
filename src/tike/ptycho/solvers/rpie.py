@@ -371,8 +371,8 @@ def _update_wavefront(
     )
 
     cost = getattr(tike.operators, f'{op.propagation.model}_each_pattern')(
-        data[ :, exitwave_options.measured_pixels ][:, None, :],
-        intensity[ :, exitwave_options.measured_pixels ][:, None, :],
+        data[:, exitwave_options.measured_pixels][:, None, :],
+        intensity[:, exitwave_options.measured_pixels][:, None, :],
     )
 
     if position_options is not None:
@@ -384,43 +384,53 @@ def _update_wavefront(
 
     if exitwave_options.noise_model == 'poisson':
 
-        xi = ( 1 - data / intensity )[:, None, None, :, :]
+        xi = (1 - data / intensity)[:, None, None, :, :]
         grad_cost = farplane * xi
 
-        step_length = exitwave_options.step_length_start * cp.ones( ( farplane.shape[0], farplane.shape[2] ))
-        step_length = step_length[ :, None, :, None, None ]
+        step_length = exitwave_options.step_length_start * cp.ones(
+            (farplane.shape[0], farplane.shape[2]))
+        step_length = step_length[:, None, :, None, None]
 
         if exitwave_options.step_length_usemodes == 'dominant_mode':
 
             step_length = tike.ptycho.exitwave.poisson_steplength_dominant_mode(
-                xi, intensity, data, exitwave_options.measured_pixels,
-                step_length, exitwave_options.step_length_weight)
+                xi,
+                intensity,
+                data,
+                exitwave_options.measured_pixels,
+                step_length,
+                exitwave_options.step_length_weight,
+            )
 
         else:
 
             step_length = tike.ptycho.exitwave.poisson_steplength_all_modes(
-                xi, 
-                cp.square( cp.abs( farplane )),    
-                intensity, 
-                data, 
+                xi,
+                cp.square(cp.abs(farplane)),
+                intensity,
+                data,
                 exitwave_options.measured_pixels,
-                step_length, exitwave_options.step_length_weight
-                )
+                step_length,
+                exitwave_options.step_length_weight,
+            )
 
-        farplane[ ..., exitwave_options.measured_pixels ] = ( farplane - step_length * grad_cost)[ ..., exitwave_options.measured_pixels ] 
-
-        unmeasured_pixels = cp.logical_not( exitwave_options.measured_pixels )
-        farplane[ ..., unmeasured_pixels ] = farplane[ ..., unmeasured_pixels ] * exitwave_options.unmeasured_pixels_scaling
+        farplane[..., exitwave_options.measured_pixels] = (
+            farplane -
+            step_length * grad_cost)[..., exitwave_options.measured_pixels]
 
     else:
 
         # Gaussian noise model for exitwave updates, steplength = 1
         # TODO: optimal step lengths using 2nd order taylor expansion
 
-        farplane[ ..., exitwave_options.measured_pixels ] = ( farplane * ((cp.sqrt(data) / (cp.sqrt(intensity) + 1e-9))[..., None, None, :, :]))[ ..., exitwave_options.measured_pixels ]
-                    
-        unmeasured_pixels = cp.logical_not( exitwave_options.measured_pixels )            
-        farplane[ ..., unmeasured_pixels ] = farplane[ ..., unmeasured_pixels ] * exitwave_options.unmeasured_pixels_scaling
+        farplane[..., exitwave_options.measured_pixels] = (
+            farplane * ((cp.sqrt(data) /
+                         (cp.sqrt(intensity) + 1e-9))[..., None, None, :, :])
+        )[..., exitwave_options.measured_pixels]
+
+    unmeasured_pixels = cp.logical_not(exitwave_options.measured_pixels)
+    farplane[..., unmeasured_pixels] = farplane[
+        ..., unmeasured_pixels] * exitwave_options.unmeasured_pixels_scaling
 
     farplane = op.propagation.adj(farplane, overwrite=True)
 
