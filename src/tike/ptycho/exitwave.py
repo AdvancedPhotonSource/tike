@@ -95,9 +95,9 @@ def poisson_steplength_all_modes(
 
     Parameters
     ----------
-    xi              :   (FRAME, WIDE, HIGH) float32
+    xi              :   (FRAME, 1, 1, WIDE, HIGH) float32
                         xi = 1 - I_m / I_e
-    abs2_Psi        :   (SHARED, None, FRAME, WIDE, HIGH ) float32
+    abs2_Psi        :   (FRAME, 1, SHARED, WIDE, HIGH ) float32
                         the squared absolute value of the calulated exitwaves
     I_m             :   (FRAME, WIDE, HIGH) float32
                         measured diffraction intensity
@@ -105,7 +105,7 @@ def poisson_steplength_all_modes(
                         calculated diffraction intensity
     measured_pixels :   (WIDE, HIGH) float32
                         the regions on the detector where we have defined measurements
-    step_length     :   (SHARED, FRAME) float32
+    step_length     :   (SHARED, 1, FRAME, 1, 1) float32
                         the steplength initializations
     weight_avg      :   float
                         the weight we use when computing a weighted average with ( 0.0 <= weight_avg <= 1.0  )
@@ -116,7 +116,10 @@ def poisson_steplength_all_modes(
 
     xi_abs_Psi2 = xi * abs2_Psi
 
-    denom_final = cp.sum((xi * xi_abs_Psi2)[..., measured_pixels], axis=-1)
+    denom_final = cp.sum(
+        (xi * xi_abs_Psi2)[..., measured_pixels],
+        axis=-1,
+    )
 
     for _ in range(0, 2):
 
@@ -127,10 +130,11 @@ def poisson_steplength_all_modes(
         numer = cp.sum(
             (xi_abs_Psi2 *
              (1 + (I_m * xi_alpha_minus_one) / denom))[..., measured_pixels],
-            axis=-1)
+            axis=-1,
+        )
 
-        step_length = step_length * (1 - weight_avg) + (
-            numer / denom_final)[..., None, None] * weight_avg
+        step_length = (step_length * (1 - weight_avg) +
+                       (numer / denom_final)[..., None, None] * weight_avg)
 
     return step_length
 
@@ -148,7 +152,7 @@ def poisson_steplength_dominant_mode(
 
     Parameters
     ----------
-    xi              :   (FRAME, WIDE, HIGH) float32
+    xi              :   (FRAME, 1, 1, WIDE, HIGH) float32
                         xi = 1 - I_m / I_e
     I_m             :   (FRAME, WIDE, HIGH) float32
                         measured diffraction intensity
@@ -156,7 +160,7 @@ def poisson_steplength_dominant_mode(
                         calculated diffraction intensity
     measured_pixels :   (WIDE, HIGH) float32
                         the regions on the detector where we have defined measurements
-    step_length     :   (SHARED, FRAME) float32
+    step_length     :   (FRAME, 1, SHARED, 1, 1) float32
                         the steplength initializations
     weight_avg      :   float
                         the weight we use when computing a weighted average with ( 0.0 <= weight_avg <= 1.0  )
@@ -165,18 +169,22 @@ def poisson_steplength_dominant_mode(
     I_e = I_e[:, None, None, ...]
     I_m = I_m[:, None, None, ...]
 
-    sum_denom = cp.sum((cp.square(xi) * I_e)[..., measured_pixels], axis=-1)
+    sum_denom = cp.sum(
+        (cp.square(xi) * I_e)[..., measured_pixels],
+        axis=-1,
+    )
 
     for _ in range(0, 2):
 
         numer = xi * (I_e - I_m / (1 - step_length * xi))
 
-        numer_over_denom = cp.sum(numer[..., measured_pixels],
-                                  axis=-1) / sum_denom
+        numer_over_denom = cp.sum(
+            numer[..., measured_pixels],
+            axis=-1,
+        ) / sum_denom
 
-        step_length = (1 - weight_avg
-                      ) * step_length + weight_avg * numer_over_denom[..., None,
-                                                                      None]
+        step_length = ((1 - weight_avg) * step_length +
+                       weight_avg * numer_over_denom[..., None, None])
 
         # step_length = cp.abs(cp.fmax(cp.fmin(step_length, 1), 0))
 
