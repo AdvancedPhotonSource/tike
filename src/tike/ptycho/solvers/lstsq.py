@@ -136,7 +136,8 @@ def lstsq_grad(
             unique_probe,
             bscan,
             psi,
-            [exitwave_options],
+            exitwave_options.measured_pixels,
+            exitwave_options=exitwave_options,
             op=op,
         ))
 
@@ -279,6 +280,8 @@ def _update_wavefront(
     varying_probe: npt.NDArray[cp.csingle],
     scan: npt.NDArray[cp.single],
     psi: npt.NDArray[cp.csingle],
+    measured_pixels: npt.NDArray[cp.bool],
+    *,
     exitwave_options: ExitWaveOptions,
     op: tike.operators.Ptycho,
 ) -> typing.Tuple[npt.NDArray[cp.csingle], float]:
@@ -291,8 +294,8 @@ def _update_wavefront(
     )
 
     costs = getattr(tike.operators, f'{op.propagation.model}_each_pattern')(
-        data[:, exitwave_options.measured_pixels][:, None, :],
-        intensity[:, exitwave_options.measured_pixels][:, None, :])
+        data[:, measured_pixels][:, None, :],
+        intensity[:, measured_pixels][:, None, :])
 
     cost = cp.mean(costs)
 
@@ -314,7 +317,7 @@ def _update_wavefront(
                 xi,
                 intensity,
                 data,
-                exitwave_options.measured_pixels,
+                measured_pixels,
                 step_length,
                 exitwave_options.step_length_weight,
             )
@@ -326,23 +329,23 @@ def _update_wavefront(
                 cp.square(cp.abs(farplane)),
                 intensity,
                 data,
-                exitwave_options.measured_pixels,
+                measured_pixels,
                 step_length,
                 exitwave_options.step_length_weight,
             )
 
-        farplane_opt[..., exitwave_options.measured_pixels] = (
+        farplane_opt[..., measured_pixels] = (
             farplane -
-            step_length * grad_cost)[..., exitwave_options.measured_pixels]
+            step_length * grad_cost)[..., measured_pixels]
 
     else:
 
-        farplane_opt[..., exitwave_options.measured_pixels] = (
+        farplane_opt[..., measured_pixels] = (
             farplane * ((cp.sqrt(data) /
                          (cp.sqrt(intensity) + 1e-9))[..., None, None, :, :])
-        )[..., exitwave_options.measured_pixels]
+        )[..., measured_pixels]
 
-    unmeasured_pixels = cp.logical_not(exitwave_options.measured_pixels)
+    unmeasured_pixels = cp.logical_not(measured_pixels)
     farplane_opt[..., unmeasured_pixels] = farplane[
         ..., unmeasured_pixels] * exitwave_options.unmeasured_pixels_scaling
 

@@ -407,7 +407,7 @@ class Reconstruction():
             self.operator,
             self.comm,
             self.data,
-            [ self._device_parameters.exitwave_options.measured_pixels ],
+            self._device_parameters.exitwave_options,
             self._device_parameters.psi,
             self._device_parameters.scan,
             self._device_parameters.probe,
@@ -721,20 +721,20 @@ def _get_rescale(data, measured_pixels, psi, scan, probe, num_batch, operator):
 
 
         intensity, _ = operator._compute_intensity(
-            data[..., b, :, :][:,measured_pixels],     # ??? IS THIS EVER USED TO COMPUTE CALCULATED INTENSITY ???
+            None,
             psi,
             scan[..., b, :],
             probe,
         )
 
         n[0] += np.sum(data[..., b, :, :][:, measured_pixels])
-        n[1] += np.sum(intensity)
+        n[1] += np.sum(intensity[:, measured_pixels])
 
     return n
 
 
-def _rescale_probe(operator, comm, data, measured_pixels, psi, scan, probe, num_batch):
-       
+def _rescale_probe(operator, comm, data, exitwave_options, psi, scan, probe, num_batch):
+
     """Rescale probe so model and measured intensity are similar magnitude.
 
     Rescales the probe so that the sum of modeled intensity at the detector is
@@ -744,7 +744,7 @@ def _rescale_probe(operator, comm, data, measured_pixels, psi, scan, probe, num_
         n = comm.pool.map(
             _get_rescale,
             data,
-            measured_pixels,
+            exitwave_options.measured_pixels,
             psi,
             scan,
             probe,

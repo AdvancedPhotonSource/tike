@@ -136,8 +136,9 @@ def rpie(
             unique_probe,
             bscan,
             psi,
-            [exitwave_options],
+            exitwave_options.measured_pixels,
             bposition_options,
+            exitwave_options=exitwave_options,
             op=op,
         ))
 
@@ -359,8 +360,10 @@ def _update_wavefront(
     varying_probe,
     scan,
     psi,
-    exitwave_options,
+    measured_pixels,
     position_options,
+    *,
+    exitwave_options,
     op=None,
 ):
     farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
@@ -371,8 +374,8 @@ def _update_wavefront(
     )
 
     cost = getattr(tike.operators, f'{op.propagation.model}_each_pattern')(
-        data[:, exitwave_options.measured_pixels][:, None, :],
-        intensity[:, exitwave_options.measured_pixels][:, None, :],
+        data[:, measured_pixels][:, None, :],
+        intensity[:, measured_pixels][:, None, :],
     )
 
     if position_options is not None:
@@ -398,7 +401,7 @@ def _update_wavefront(
                 xi,
                 intensity,
                 data,
-                exitwave_options.measured_pixels,
+                measured_pixels,
                 step_length,
                 exitwave_options.step_length_weight,
             )
@@ -410,26 +413,26 @@ def _update_wavefront(
                 cp.square(cp.abs(farplane)),
                 intensity,
                 data,
-                exitwave_options.measured_pixels,
+                measured_pixels,
                 step_length,
                 exitwave_options.step_length_weight,
             )
 
-        farplane[..., exitwave_options.measured_pixels] = (
+        farplane[..., measured_pixels] = (
             farplane -
-            step_length * grad_cost)[..., exitwave_options.measured_pixels]
+            step_length * grad_cost)[..., measured_pixels]
 
     else:
 
         # Gaussian noise model for exitwave updates, steplength = 1
         # TODO: optimal step lengths using 2nd order taylor expansion
 
-        farplane[..., exitwave_options.measured_pixels] = (
+        farplane[..., measured_pixels] = (
             farplane * ((cp.sqrt(data) /
                          (cp.sqrt(intensity) + 1e-9))[..., None, None, :, :])
-        )[..., exitwave_options.measured_pixels]
+        )[..., measured_pixels]
 
-    unmeasured_pixels = cp.logical_not(exitwave_options.measured_pixels)
+    unmeasured_pixels = cp.logical_not(measured_pixels)
     farplane[..., unmeasured_pixels] = farplane[
         ..., unmeasured_pixels] * exitwave_options.unmeasured_pixels_scaling
 

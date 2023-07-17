@@ -69,17 +69,13 @@ class ExitWaveOptions:
     def copy_to_device(self, comm):
         """Copy to the current GPU memory."""
         if self.measured_pixels is not None:
-            self.measured_pixels = cp.asarray(self.measured_pixels)
-        # if self.measured_pixels is not None:
-        #     self.measured_pixels = comm.pool.bcast([self.measured_pixels])
+            self.measured_pixels = comm.pool.bcast([self.measured_pixels])
         return self
 
     def copy_to_host(self):
         """Copy to the host CPU memory."""
         if self.measured_pixels is not None:
-            self.measured_pixels = cp.asnumpy(self.measured_pixels)
-        # if self.measured_pixels is not None:
-        #     self.measured_pixels = cp.asnumpy( self.measured_pixels[0] )
+            self.measured_pixels = cp.asnumpy(self.measured_pixels[0])
         return self
 
     def resample(self, factor: float) -> ExitWaveOptions:
