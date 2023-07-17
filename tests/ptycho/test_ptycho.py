@@ -334,10 +334,6 @@ class PtychoRecon(
             f"mpi{self.mpi_size}-cgrad{self.post_name}",
         )
 
-    #===============
-    # ML-LSTSQ tests
-    #===============
-
     def test_consistent_lstsq_poisson_steplength_allmodes(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
         params = tike.ptycho.PtychoParameters(
@@ -506,10 +502,6 @@ class PtychoRecon(
             "These weights should be unused/untouched "
             "and should have been initialized to zero.")
 
-    #===========
-    # rPIE tests
-    #===========
-
     def test_consistent_rpie_poisson_steplength_dominantmode(self):
         """Check ptycho.solver.rpie for consistency."""
         params = tike.ptycho.PtychoParameters(
@@ -674,8 +666,6 @@ class PtychoRecon(
         assert np.all(result.eigen_weights[..., 1:, probes_with_modes:] == 0), (
             "These weights should be unused/untouched "
             "and should have been initialized to zero.")
-
-    #=====
 
     def test_consistent_dm(self):
         """Check ptycho.solver.dm for consistency."""
