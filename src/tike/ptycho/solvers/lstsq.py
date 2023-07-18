@@ -280,7 +280,7 @@ def _update_wavefront(
     varying_probe: npt.NDArray[cp.csingle],
     scan: npt.NDArray[cp.single],
     psi: npt.NDArray[cp.csingle],
-    measured_pixels: npt.NDArray[cp.bool],
+    measured_pixels: npt.NDArray[cp.bool_],
     *,
     exitwave_options: ExitWaveOptions,
     op: tike.operators.Ptycho,
