@@ -299,7 +299,7 @@ def _update_wavefront(
 
     cost = cp.mean(costs)
 
-    farplane_opt = cp.zeros(farplane.shape, farplane.dtype)
+    farplane_opt = cp.empty_like(farplane)
 
     if exitwave_options.noise_model == 'poisson':
 
