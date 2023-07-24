@@ -42,7 +42,7 @@ jobs:
         name: Configure Conda to only use conda-forge
 
       - run: >
-          conda create --quiet --yes
+          conda create --quiet --yes --force
           -n tike
           --channel conda-forge
           --file requirements.txt
@@ -107,7 +107,7 @@ jobs:
         name: Configure Conda to only use conda-forge
 
       - run: >
-          conda create --quiet --yes
+          conda create --quiet --yes --force
           -n tike
           --channel conda-forge
           --file requirements.txt

@@ -3,6 +3,7 @@ from .fresnel import *
 from .object import ObjectOptions
 from .position import *
 from .probe import ProbeOptions
+from .exitwave import ExitWaveOptions
 from .ptycho import *
 from .solvers import *
 
