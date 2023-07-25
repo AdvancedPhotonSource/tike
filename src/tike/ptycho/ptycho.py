@@ -570,6 +570,9 @@ class Reconstruction():
             parameters.object_options = self.parameters.object_options.copy_to_host(
             )
 
+        if self.parameters.exitwave_options is not None:
+            parameters.exitwave_options = self.parameters.exitwave_options.copy_to_host()
+
         if self.parameters.position_options is not None:
             host_position_options = self.parameters.position_options[0].empty()
             for x, o in zip(
