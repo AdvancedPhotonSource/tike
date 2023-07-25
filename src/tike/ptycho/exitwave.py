@@ -5,6 +5,7 @@ the wavefield after any and all interaction with the sample and thus there's
 just free space propagation to the detector.
 
 """
+from __future__ import annotations
 
 import copy
 import dataclasses
@@ -62,14 +63,14 @@ class ExitWaveOptions:
     exitwave updates in Fourier space.
     """
 
-    def copy_to_device(self, comm):
+    def copy_to_device(self, comm) -> ExitWaveOptions:
         """Copy to the current GPU memory."""
         options = copy.copy(self)
         if self.measured_pixels is not None:
             options = comm.pool.bcast([self.measured_pixels])
         return options
 
-    def copy_to_host(self):
+    def copy_to_host(self) -> ExitWaveOptions:
         """Copy to the host CPU memory."""
         options = copy.copy(self)
         if self.measured_pixels is not None:

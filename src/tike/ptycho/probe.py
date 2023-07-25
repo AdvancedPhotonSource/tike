@@ -136,7 +136,7 @@ class ProbeOptions:
     )
     """The power of the primary probe modes at each iteration."""
 
-    def copy_to_device(self, comm):
+    def copy_to_device(self, comm) -> ProbeOptions:
         """Copy to the current GPU memory."""
         options = copy.copy(self)
         if self.v is not None:
@@ -147,7 +147,7 @@ class ProbeOptions:
             options.preconditioner = comm.pool.bcast([self.preconditioner])
         return options
 
-    def copy_to_host(self):
+    def copy_to_host(self) -> ProbeOptions:
         """Copy to the host CPU memory."""
         options = copy.copy(self)
         if self.v is not None:

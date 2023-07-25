@@ -80,7 +80,7 @@ class ObjectOptions:
     clip_magnitude: bool = False
     """Whether to force the object magnitude to remain <= 1."""
 
-    def copy_to_device(self, comm):
+    def copy_to_device(self, comm) -> ObjectOptions:
         """Copy to the current GPU memory."""
         options = copy.copy(self)
         options.update_mnorm = copy.copy(self.update_mnorm)
@@ -92,7 +92,7 @@ class ObjectOptions:
             options.preconditioner = comm.pool.bcast([self.preconditioner])
         return options
 
-    def copy_to_host(self):
+    def copy_to_host(self) -> ObjectOptions:
         """Copy to the host CPU memory."""
         options = copy.copy(self)
         options.update_mnorm = copy.copy(self.update_mnorm)
