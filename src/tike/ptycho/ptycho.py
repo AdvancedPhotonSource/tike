@@ -471,16 +471,14 @@ class Reconstruction():
                 self.parameters.psi = self.comm.pool.map(
                     tike.ptycho.object.positivity_constraint,
                     self.parameters.psi,
-                    r=self.parameters.object_options
-                    .positivity_constraint,
+                    r=self.parameters.object_options.positivity_constraint,
                 )
 
             if self.parameters.object_options.smoothness_constraint:
                 self.parameters.psi = self.comm.pool.map(
                     tike.ptycho.object.smoothness_constraint,
                     self.parameters.psi,
-                    r=self.parameters.object_options
-                    .smoothness_constraint,
+                    r=self.parameters.object_options.smoothness_constraint,
                 )
 
             if self.parameters.object_options.clip_magnitude:
@@ -491,8 +489,7 @@ class Reconstruction():
                 )
 
             if self.parameters.object_options.preconditioner is not None and (
-                    len(self.parameters.algorithm_options.costs) % 10
-                    == 1):
+                    len(self.parameters.algorithm_options.costs) % 10 == 1):
                 (
                     self.parameters.psi,
                     self.parameters.probe,
@@ -532,8 +529,8 @@ class Reconstruction():
             self.parameters.object_options.update_mnorm.append(
                 update_norm.get())
             logger.info(f"The object update mean-norm is {update_norm:.3e}")
-            if (np.mean(self.parameters.object_options.update_mnorm[-5:]) <
-                    self.parameters.object_options.convergence_tolerance):
+            if (np.mean(self.parameters.object_options.update_mnorm[-5:])
+                    < self.parameters.object_options.convergence_tolerance):
                 logger.info(
                     f"The object seems converged. {update_norm:.3e} < "
                     f"{self.parameters.object_options.convergence_tolerance:.3e}"
@@ -571,7 +568,8 @@ class Reconstruction():
             )
 
         if self.parameters.exitwave_options is not None:
-            parameters.exitwave_options = self.parameters.exitwave_options.copy_to_host()
+            parameters.exitwave_options = self.parameters.exitwave_options.copy_to_host(
+            )
 
         if self.parameters.position_options is not None:
             host_position_options = self.parameters.position_options[0].empty()
@@ -724,7 +722,6 @@ def _get_rescale(data, measured_pixels, psi, scan, probe, num_batch, operator):
                                      num_batch,
                                      use_random=False):
 
-
         intensity, _ = operator._compute_intensity(
             None,
             psi,
@@ -738,8 +735,8 @@ def _get_rescale(data, measured_pixels, psi, scan, probe, num_batch, operator):
     return n
 
 
-def _rescale_probe(operator, comm, data, exitwave_options, psi, scan, probe, num_batch):
-
+def _rescale_probe(operator, comm, data, exitwave_options, psi, scan, probe,
+                   num_batch):
     """Rescale probe so model and measured intensity are similar magnitude.
 
     Rescales the probe so that the sum of modeled intensity at the detector is
