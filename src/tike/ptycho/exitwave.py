@@ -67,7 +67,7 @@ class ExitWaveOptions:
         """Copy to the current GPU memory."""
         options = copy.copy(self)
         if self.measured_pixels is not None:
-            options = comm.pool.bcast([self.measured_pixels])
+            options.measured_pixels = comm.pool.bcast([self.measured_pixels])
         return options
 
     def copy_to_host(self) -> ExitWaveOptions:
