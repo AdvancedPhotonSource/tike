@@ -12,6 +12,7 @@ import tike.random
 import tike.ptycho.position
 import tike.ptycho.probe
 import tike.ptycho.object
+import tike.ptycho.exitwave
 import tike.precision
 
 from .options import *
@@ -68,10 +69,14 @@ def lstsq_grad(
     probe = parameters.probe
     scan = parameters.scan
     psi = parameters.psi
+
     algorithm_options = parameters.algorithm_options
+
     probe_options = parameters.probe_options
     position_options = parameters.position_options
     object_options = parameters.object_options
+    exitwave_options = parameters.exitwave_options
+
     eigen_probe = parameters.eigen_probe
     eigen_weights = parameters.eigen_weights
 
@@ -132,6 +137,8 @@ def lstsq_grad(
             unique_probe,
             bscan,
             psi,
+            exitwave_options.measured_pixels,
+            exitwave_options=exitwave_options,
             op=op,
         ))
 
@@ -238,9 +245,7 @@ def lstsq_grad(
                     shape=(3, *dprobe.shape),
                 )
             if probe_options.m is None:
-                probe_options.m = np.zeros_like(
-                    dprobe,
-                )
+                probe_options.m = np.zeros_like(dprobe,)
             # ptychoshelves only applies momentum to the main probe
             mode = 0
             (
@@ -259,8 +264,6 @@ def lstsq_grad(
             probe[0][..., mode, :, :] = probe[0][..., mode, :, :] + d
             probe = comm.pool.bcast([probe[0]])
 
-
-
     parameters.probe = probe
     parameters.psi = psi
     parameters.scan = scan
@@ -278,23 +281,81 @@ def _update_wavefront(
     varying_probe: npt.NDArray[cp.csingle],
     scan: npt.NDArray[cp.single],
     psi: npt.NDArray[cp.csingle],
+    measured_pixels: npt.NDArray[cp.bool_],
+    *,
+    exitwave_options: ExitWaveOptions,
     op: tike.operators.Ptycho,
 ) -> typing.Tuple[npt.NDArray[cp.csingle], float]:
 
     farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
+
     intensity = cp.sum(
         cp.square(cp.abs(farplane)),
         axis=list(range(1, farplane.ndim - 2)),
     )
-    costs = getattr(tike.operators,
-                    f'{op.propagation.model}_each_pattern')(data, intensity)
+
+    costs = getattr(tike.operators, f'{op.propagation.model}_each_pattern')(
+        data[:, measured_pixels][:, None, :],
+        intensity[:, measured_pixels][:, None, :])
+
     cost = cp.mean(costs)
-    logger.info('%10s cost is %+12.5e', 'farplane', cost)
-    farplane = -op.propagation.grad(data, farplane, intensity)
+
+    farplane_opt = cp.empty_like(farplane)
+
+    if exitwave_options.noise_model == 'poisson':
+
+        xi = (1 - data / (intensity + 1e-9))[:, None, None, ...]
+        grad_cost = farplane * xi
+
+        step_length = cp.full(
+            shape=(farplane.shape[0], 1, farplane.shape[2], 1, 1),
+            fill_value=exitwave_options.step_length_start,
+        )
+
+        if exitwave_options.step_length_usemodes == 'dominant_mode':
+
+            step_length = tike.ptycho.exitwave.poisson_steplength_dominant_mode(
+                xi,
+                intensity,
+                data,
+                measured_pixels,
+                step_length,
+                exitwave_options.step_length_weight,
+            )
+
+        else:
+
+            step_length = tike.ptycho.exitwave.poisson_steplength_all_modes(
+                xi,
+                cp.square(cp.abs(farplane)),
+                intensity,
+                data,
+                measured_pixels,
+                step_length,
+                exitwave_options.step_length_weight,
+            )
+
+        farplane_opt[..., measured_pixels] = (
+            farplane -
+            step_length * grad_cost)[..., measured_pixels]
+
+    else:
+
+        farplane_opt[..., measured_pixels] = (
+            farplane * ((cp.sqrt(data) /
+                         (cp.sqrt(intensity) + 1e-9))[..., None, None, :, :])
+        )[..., measured_pixels]
+
+    unmeasured_pixels = cp.logical_not(measured_pixels)
+    farplane_opt[..., unmeasured_pixels] = farplane[
+        ..., unmeasured_pixels] * exitwave_options.unmeasured_pixels_scaling
+
+    farplane = farplane_opt - farplane
 
     farplane = op.propagation.adj(farplane, overwrite=True)
 
     pad, end = op.diffraction.pad, op.diffraction.end
+
     return farplane[..., pad:end, pad:end], cost, costs
 
 
@@ -547,8 +608,7 @@ def _get_nearplane_gradients(
     chi = nearplane[..., [m], :, :]
 
     if __debug__:
-        logger.debug('%10s cost is %+12.5e', 'nearplane',
-                     tike.linalg.norm(chi))
+        logger.debug('%10s cost is %+12.5e', 'nearplane', tike.linalg.norm(chi))
 
     # Get update directions for each scan positions
     if recover_psi:
@@ -828,9 +888,7 @@ def _momentum_checked(
     g (WIDTH, HEIGHT)
         The current psi update
     """
-    m = np.zeros_like(
-        g,
-    ) if m is None else m
+    m = np.zeros_like(g,) if m is None else m
     previous_g = np.zeros_like(
         g,
         shape=(memory_length, *g.shape),

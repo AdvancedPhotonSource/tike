@@ -374,6 +374,10 @@ class Reconstruction():
             self.parameters.object_options = self.parameters.object_options.copy_to_device(
                 self.comm,)
 
+        if self.parameters.exitwave_options is not None:
+            self.parameters.exitwave_options = self.parameters.exitwave_options.copy_to_device(
+                self.comm,)
+
         if self.parameters.eigen_probe is not None:
             self.parameters.eigen_probe = self.comm.pool.bcast(
                 [self.parameters.eigen_probe.astype(tike.precision.cfloating)])
@@ -398,6 +402,7 @@ class Reconstruction():
             self.operator,
             self.comm,
             self.data,
+            self.parameters.exitwave_options,
             self.parameters.psi,
             self.parameters.scan,
             self.parameters.probe,
@@ -708,7 +713,7 @@ def _order_join(a, b):
     return np.append(a, b + len(a))
 
 
-def _get_rescale(data, psi, scan, probe, num_batch, operator):
+def _get_rescale(data, measured_pixels, psi, scan, probe, num_batch, operator):
 
     n = cp.zeros(2, dtype=np.double)
 
@@ -716,20 +721,22 @@ def _get_rescale(data, psi, scan, probe, num_batch, operator):
                                      num_batch,
                                      use_random=False):
 
+
         intensity, _ = operator._compute_intensity(
-            data[..., b, :, :],
+            None,
             psi,
             scan[..., b, :],
             probe,
         )
 
-        n[0] += np.sum(data[..., b, :, :])
-        n[1] += np.sum(intensity)
+        n[0] += np.sum(data[..., b, :, :][:, measured_pixels])
+        n[1] += np.sum(intensity[:, measured_pixels])
 
     return n
 
 
-def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
+def _rescale_probe(operator, comm, data, exitwave_options, psi, scan, probe, num_batch):
+
     """Rescale probe so model and measured intensity are similar magnitude.
 
     Rescales the probe so that the sum of modeled intensity at the detector is
@@ -739,6 +746,7 @@ def _rescale_probe(operator, comm, data, psi, scan, probe, num_batch):
         n = comm.pool.map(
             _get_rescale,
             data,
+            exitwave_options.measured_pixels,
             psi,
             scan,
             probe,

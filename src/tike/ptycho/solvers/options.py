@@ -10,6 +10,7 @@ import scipy.ndimage
 from tike.ptycho.object import ObjectOptions
 from tike.ptycho.position import PositionOptions, check_allowed_positions
 from tike.ptycho.probe import ProbeOptions
+from tike.ptycho.exitwave import ExitWaveOptions
 
 
 @dataclasses.dataclass
@@ -129,6 +130,9 @@ class PtychoParameters():
         default_factory=RpieOptions,)
     """A class containing algorithm specific parameters"""
 
+    exitwave_options: typing.Union[ExitWaveOptions, None] = None
+    """A class containing settings related to exitwave updates."""
+
     probe_options: typing.Union[ProbeOptions, None] = None
     """A class containing settings related to probe updates."""
 
@@ -163,6 +167,10 @@ class PtychoParameters():
             self.psi,
             self.probe.shape,
         )
+        if self.exitwave_options is None:
+            self.exitwave_options = ExitWaveOptions(
+                measured_pixels=np.ones(self.probe.shape[-2:], dtype=np.bool_)
+            )
 
     def resample(
         self,
@@ -170,7 +178,9 @@ class PtychoParameters():
         interp: None | typing.Callable[[np.ndarray, float], np.array],
     ) -> PtychoParameters:
         """Return a new `PtychoParameter` with the parameters rescaled."""
+
         interp = _resize_fft if interp is None else interp
+
         return PtychoParameters(
             probe=interp(self.probe, factor),
             psi=_resize_spline(self.psi, factor),
@@ -185,6 +195,8 @@ class PtychoParameters():
             if self.object_options is not None else None,
             position_options=self.position_options.resample(factor)
             if self.position_options is not None else None,
+            exitwave_options=self.exitwave_options.resample(factor)
+            if self.exitwave_options is not None else None,
         )
 
 

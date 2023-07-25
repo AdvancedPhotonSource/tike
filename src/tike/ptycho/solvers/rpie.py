@@ -10,6 +10,7 @@ import tike.opt
 import tike.ptycho.object
 import tike.ptycho.position
 import tike.ptycho.probe
+import tike.ptycho.exitwave
 import tike.precision
 import tike.random
 
@@ -75,6 +76,7 @@ def rpie(
     scan = parameters.scan
     psi = parameters.psi
     algorithm_options = parameters.algorithm_options
+    exitwave_options = parameters.exitwave_options
     probe_options = parameters.probe_options
     position_options = parameters.position_options
     object_options = parameters.object_options
@@ -135,7 +137,9 @@ def rpie(
             unique_probe,
             bscan,
             psi,
+            exitwave_options.measured_pixels,
             bposition_options,
+            exitwave_options=exitwave_options,
             op=op,
         ))
 
@@ -357,28 +361,86 @@ def _update_wavefront(
     varying_probe,
     scan,
     psi,
+    measured_pixels,
     position_options,
+    *,
+    exitwave_options,
     op=None,
 ):
     farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
+
     intensity = cp.sum(
         cp.square(cp.abs(farplane)),
         axis=list(range(1, farplane.ndim - 2)),
     )
+
     cost = getattr(tike.operators, f'{op.propagation.model}_each_pattern')(
-        data,
-        intensity,
+        data[:, measured_pixels][:, None, :],
+        intensity[:, measured_pixels][:, None, :],
     )
+
     if position_options is not None:
         position_options.confidence[..., 0] = cost
+
     cost = cp.mean(cost)
+
     logger.info('%10s cost is %+12.5e', 'farplane', cost)
 
-    farplane *= (cp.sqrt(data) / (cp.sqrt(intensity) + 1e-9))[..., None,
-                                                              None, :, :]
+    if exitwave_options.noise_model == 'poisson':
+
+        xi = (1 - data / intensity)[:, None, None, :, :]
+        grad_cost = farplane * xi
+
+        step_length = cp.full(
+            shape=(farplane.shape[0], 1, farplane.shape[2], 1, 1),
+            fill_value=exitwave_options.step_length_start,
+        )
+
+        if exitwave_options.step_length_usemodes == 'dominant_mode':
+
+            step_length = tike.ptycho.exitwave.poisson_steplength_dominant_mode(
+                xi,
+                intensity,
+                data,
+                measured_pixels,
+                step_length,
+                exitwave_options.step_length_weight,
+            )
+
+        else:
+
+            step_length = tike.ptycho.exitwave.poisson_steplength_all_modes(
+                xi,
+                cp.square(cp.abs(farplane)),
+                intensity,
+                data,
+                measured_pixels,
+                step_length,
+                exitwave_options.step_length_weight,
+            )
+
+        farplane[..., measured_pixels] = (
+            farplane -
+            step_length * grad_cost)[..., measured_pixels]
+
+    else:
+
+        # Gaussian noise model for exitwave updates, steplength = 1
+        # TODO: optimal step lengths using 2nd order taylor expansion
+
+        farplane[..., measured_pixels] = (
+            farplane * ((cp.sqrt(data) /
+                         (cp.sqrt(intensity) + 1e-9))[..., None, None, :, :])
+        )[..., measured_pixels]
+
+    unmeasured_pixels = cp.logical_not(measured_pixels)
+    farplane[..., unmeasured_pixels] = farplane[
+        ..., unmeasured_pixels] * exitwave_options.unmeasured_pixels_scaling
+
     farplane = op.propagation.adj(farplane, overwrite=True)
 
     pad, end = op.diffraction.pad, op.diffraction.end
+
     return farplane[..., pad:end, pad:end], cost, position_options
 
 
