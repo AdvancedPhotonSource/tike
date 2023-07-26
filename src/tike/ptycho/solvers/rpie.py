@@ -10,6 +10,7 @@ import tike.opt
 import tike.ptycho.object
 import tike.ptycho.position
 import tike.ptycho.probe
+import tike.ptycho.exitwave
 import tike.precision
 import tike.random
 
@@ -75,6 +76,7 @@ def rpie(
     scan = parameters.scan
     psi = parameters.psi
     algorithm_options = parameters.algorithm_options
+    exitwave_options = parameters.exitwave_options
     probe_options = parameters.probe_options
     position_options = parameters.position_options
     object_options = parameters.object_options
@@ -117,6 +119,7 @@ def rpie(
             scan,
             psi,
             probe,
+            exitwave_options.measured_pixels,
             psi_update_numerator,
             probe_update_numerator,
             position_update_numerator,
@@ -130,6 +133,7 @@ def rpie(
             object_options=object_options,
             probe_options=probe_options,
             position_options=position_options,
+            exitwave_options=exitwave_options,
         )))
 
         batch_cost.append(comm.Allreduce_mean(cost, axis=None).get())
@@ -304,8 +308,8 @@ def _update(
                     g=(dprobe)[0, 0, mode, :, :],
                     v=probe_options.v,
                     m=probe_options.m,
-                    vdecay=object_options.vdecay,
-                    mdecay=object_options.mdecay,
+                    vdecay=probe_options.vdecay,
+                    mdecay=probe_options.mdecay,
                 )
             probe[0] = probe[0] + dprobe / deno
         probe = comm.pool.bcast([probe[0]])
@@ -318,6 +322,7 @@ def _get_nearplane_gradients(
     scan: npt.NDArray,
     psi: npt.NDArray,
     probe: npt.NDArray,
+    measured_pixels: npt.NDArray,
     psi_update_numerator: typing.Union[None, npt.NDArray],
     probe_update_numerator: typing.Union[None, npt.NDArray],
     position_update_numerator: typing.Union[None, npt.NDArray],
@@ -332,6 +337,7 @@ def _get_nearplane_gradients(
     object_options: typing.Union[None, ObjectOptions] = None,
     probe_options: typing.Union[None, ProbeOptions] = None,
     position_options: typing.Union[None, PositionOptions],
+    exitwave_options: ExitWaveOptions,
 ) -> typing.List[npt.NDArray]:
 
     cost = 0.0
@@ -375,16 +381,61 @@ def _get_nearplane_gradients(
         )
         each_cost = getattr(tike.operators,
                             f'{op.propagation.model}_each_pattern')(
-                                data,
-                                intensity,
+                                data[:, measured_pixels][:, None, :],
+                                intensity[:, measured_pixels][:, None, :],
                             )
         cost += cp.sum(each_cost)
 
-        farplane = -getattr(tike.operators, f'{op.propagation.model}_grad')(
-            data,
-            farplane,
-            intensity,
-        )
+        if exitwave_options.noise_model == 'poisson':
+
+            xi = (1 - data / intensity)[:, None, None, :, :]
+            grad_cost = farplane * xi
+
+            step_length = cp.full(
+                shape=(farplane.shape[0], 1, farplane.shape[2], 1, 1),
+                fill_value=exitwave_options.step_length_start,
+            )
+
+            if exitwave_options.step_length_usemodes == 'dominant_mode':
+
+                step_length = tike.ptycho.exitwave.poisson_steplength_dominant_mode(
+                    xi,
+                    intensity,
+                    data,
+                    measured_pixels,
+                    step_length,
+                    exitwave_options.step_length_weight,
+                )
+
+            else:
+
+                step_length = tike.ptycho.exitwave.poisson_steplength_all_modes(
+                    xi,
+                    cp.square(cp.abs(farplane)),
+                    intensity,
+                    data,
+                    measured_pixels,
+                    step_length,
+                    exitwave_options.step_length_weight,
+                )
+
+            farplane[..., measured_pixels] = (-step_length * grad_cost)[..., measured_pixels]
+
+        else:
+
+            # Gaussian noise model for exitwave updates, steplength = 1
+            # TODO: optimal step lengths using 2nd order taylor expansion
+
+            farplane[..., measured_pixels] = -getattr(
+                tike.operators, f'{op.propagation.model}_grad')(
+                    data,
+                    farplane,
+                    intensity,
+                )[..., measured_pixels]
+
+        unmeasured_pixels = cp.logical_not(measured_pixels)
+        farplane[..., unmeasured_pixels] *= (
+            exitwave_options.unmeasured_pixels_scaling - 1.0)
 
         pad, end = op.diffraction.pad, op.diffraction.end
         diff = op.propagation.adj(farplane, overwrite=True)[..., pad:end,

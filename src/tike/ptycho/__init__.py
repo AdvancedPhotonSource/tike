@@ -3,6 +3,7 @@ from .fresnel import *
 from .object import *
 from .position import *
 from .probe import *
+from .exitwave import *
 from .ptycho import *
 from .solvers import *
 

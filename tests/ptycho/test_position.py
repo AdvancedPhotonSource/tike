@@ -6,6 +6,7 @@ import numpy as np
 import os.path
 import unittest
 
+from tike.ptycho.exitwave import ExitWaveOptions
 from tike.ptycho.object import ObjectOptions
 from tike.ptycho.position import PositionOptions
 from tike.ptycho.probe import ProbeOptions
@@ -265,6 +266,7 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
             probe_options=ProbeOptions(force_orthogonality=True,),
             object_options=ObjectOptions(),
         )
+
         result = self.template_consistent_algorithm(
             data=self.data,
             params=params,
@@ -290,6 +292,7 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
                 use_position_regularization=True,
             ),
         )
+
         result = self.template_consistent_algorithm(
             data=self.data,
             params=params,
@@ -316,6 +319,91 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
                 use_position_regularization=True,
             ),
         )
+
+        result = self.template_consistent_algorithm(
+            data=self.data,
+            params=params,
+        )
+        _save_ptycho_result(result, algorithm)
+        self._save_position_error_variance(result, algorithm)
+
+    def test_consistent_rpie_unmeasured_detector_regions(self):
+        """Check ptycho.solver.rpie position correction."""
+        algorithm = f"mpi{self.mpi_size}-rpie_unmeasured_detector_regions{self.post_name}"
+
+        # Define regions where we have missing diffraction measurement data
+        unmeasured_pixels = np.zeros(self.probe.shape[-2:], np.bool_)
+        unmeasured_pixels[100:105, :] = True
+        unmeasured_pixels[:, 100:105] = True
+        measured_pixels = np.logical_not(unmeasured_pixels)
+
+        # Zero out these regions on the diffraction measurement data
+        self.data = self.data.astype(np.floating)
+        self.data[:, unmeasured_pixels] = np.nan
+
+        params = tike.ptycho.PtychoParameters(
+            psi=self.psi,
+            probe=self.probe,
+            scan=self.scan,
+            algorithm_options=tike.ptycho.RpieOptions(
+                num_batch=5,
+                num_iter=16,
+            ),
+            probe_options=ProbeOptions(),
+            object_options=ObjectOptions(),
+            exitwave_options=ExitWaveOptions(
+                measured_pixels=measured_pixels,
+                unmeasured_pixels_scaling=1.05,
+            ),
+            position_options=PositionOptions(
+                self.scan,
+                use_adaptive_moment=True,
+                use_position_regularization=True,
+            ),
+        )
+
+        result = self.template_consistent_algorithm(
+            data=self.data,
+            params=params,
+        )
+        _save_ptycho_result(result, algorithm)
+        self._save_position_error_variance(result, algorithm)
+
+    def test_consistent_lstsq_grad_unmeasured_detector_regions(self):
+        """Check ptycho.solver.lstsq_grad for consistency."""
+        algorithm = f"mpi{self.mpi_size}-lstsq_grad_unmeasured_detector_regions{self.post_name}"
+
+        # Define regions where we have missing diffraction measurement data
+        unmeasured_pixels = np.zeros(self.probe.shape[-2:], np.bool_)
+        unmeasured_pixels[100:105, :] = True
+        unmeasured_pixels[:, 100:105] = True
+        measured_pixels = np.logical_not(unmeasured_pixels)
+
+        # Zero out these regions on the diffraction measurement data
+        self.data = self.data.astype(np.floating)
+        self.data[:, unmeasured_pixels] = np.nan
+
+        params = tike.ptycho.PtychoParameters(
+            psi=self.psi,
+            probe=self.probe,
+            scan=self.scan,
+            algorithm_options=tike.ptycho.LstsqOptions(
+                num_batch=5,
+                num_iter=16,
+            ),
+            probe_options=ProbeOptions(),
+            object_options=ObjectOptions(),
+            exitwave_options=ExitWaveOptions(
+                measured_pixels=measured_pixels,
+                unmeasured_pixels_scaling=1.05,
+            ),
+            position_options=PositionOptions(
+                self.scan,
+                use_adaptive_moment=True,
+                use_position_regularization=True,
+            ),
+        )
+
         result = self.template_consistent_algorithm(
             data=self.data,
             params=params,

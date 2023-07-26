@@ -12,6 +12,7 @@ import tike.random
 import tike.ptycho.position
 import tike.ptycho.probe
 import tike.ptycho.object
+import tike.ptycho.exitwave
 import tike.precision
 
 from .options import *
@@ -68,10 +69,14 @@ def lstsq_grad(
     probe = parameters.probe
     scan = parameters.scan
     psi = parameters.psi
+
     algorithm_options = parameters.algorithm_options
+
     probe_options = parameters.probe_options
     position_options = parameters.position_options
     object_options = parameters.object_options
+    exitwave_options = parameters.exitwave_options
+
     eigen_probe = parameters.eigen_probe
     eigen_weights = parameters.eigen_weights
 
@@ -127,17 +132,20 @@ def lstsq_grad(
             position_update_numerator,
             position_update_denominator,
             comm.streams,
+            exitwave_options.measured_pixels,
             batch_index=batch_index,
+            exitwave_options=exitwave_options,
             op=op,
             recover_psi=object_options is not None,
             recover_probe=probe_options is not None,
             recover_positions=position_options is not None,
         )))
         object_upd_sum = comm.Allreduce(object_upd_sum)
-        m_probe_update = comm.pool.bcast([comm.Allreduce_mean(
-            m_probe_update,
-            axis=-5,
-        )])
+        m_probe_update = comm.pool.bcast(
+            [comm.Allreduce_mean(
+                m_probe_update,
+                axis=-5,
+            )])
 
         (
             beigen_probe,
@@ -371,8 +379,7 @@ def _update_nearplane(
             )
 
         if eigen_probe[0] is not None and m < eigen_probe[0].shape[-3]:
-            assert eigen_weights[0].shape[
-                -2] == eigen_probe[0].shape[-4] + 1
+            assert eigen_weights[0].shape[-2] == eigen_probe[0].shape[-4] + 1
             for eigen_index in range(1, eigen_probe[0].shape[-4] + 1):
 
                 (
@@ -422,12 +429,14 @@ def _get_nearplane_gradients(
     position_update_numerator,
     position_update_denominator,
     streams: typing.List[cp.cuda.Stream],
+    measured_pixels: npt.NDArray,
     *,
     batch_index: int,
     op: tike.operators.Ptycho,
     recover_psi: bool,
     recover_probe: bool,
     recover_positions: bool,
+    exitwave_options: ExitWaveOptions,
 ):
     lo: int = 0
     costs = cp.empty_like(scan, shape=len(batches[batch_index]))
@@ -490,10 +499,60 @@ def _get_nearplane_gradients(
             cp.square(cp.abs(farplane)),
             axis=list(range(1, farplane.ndim - 2)),
         )
-        costs[lo:hi] = getattr(
-            tike.operators, f'{op.propagation.model}_each_pattern')(data,
-                                                                    intensity)
-        farplane = -op.propagation.grad(data, farplane, intensity)
+        costs[lo:hi] = getattr(tike.operators,
+                               f'{op.propagation.model}_each_pattern')(
+                                   data[:, measured_pixels][:, None, :],
+                                   intensity[:, measured_pixels][:, None, :],
+                               )
+
+        if exitwave_options.noise_model == 'poisson':
+
+            xi = (1 - data / (intensity + 1e-9))[:, None, None, ...]
+            grad_cost = farplane * xi
+
+            step_length = cp.full(
+                shape=(farplane.shape[0], 1, farplane.shape[2], 1, 1),
+                fill_value=exitwave_options.step_length_start,
+            )
+
+            if exitwave_options.step_length_usemodes == 'dominant_mode':
+
+                step_length = tike.ptycho.exitwave.poisson_steplength_dominant_mode(
+                    xi,
+                    intensity,
+                    data,
+                    measured_pixels,
+                    step_length,
+                    exitwave_options.step_length_weight,
+                )
+
+            else:
+
+                step_length = tike.ptycho.exitwave.poisson_steplength_all_modes(
+                    xi,
+                    cp.square(cp.abs(farplane)),
+                    intensity,
+                    data,
+                    measured_pixels,
+                    step_length,
+                    exitwave_options.step_length_weight,
+                )
+
+            farplane[..., measured_pixels] = (-step_length *
+                                              grad_cost)[..., measured_pixels]
+
+        else:
+
+            farplane[..., measured_pixels] = -getattr(
+                tike.operators, f'{op.propagation.model}_grad')(
+                    data,
+                    farplane,
+                    intensity,
+                )[..., measured_pixels]
+
+        unmeasured_pixels = cp.logical_not(measured_pixels)
+        farplane[..., unmeasured_pixels] *= (
+            exitwave_options.unmeasured_pixels_scaling - 1.0)
 
         farplane = op.propagation.adj(farplane, overwrite=True)
 
@@ -544,22 +603,22 @@ def _get_nearplane_gradients(
 
             position_update_numerator[indices, ..., 0] = cp.sum(
                 cp.real(
-                    cp.conj(grad_x * unique_probe[lo:hi, ..., m:m+1, :, :]) *
-                    chi[lo:hi, ..., m:m+1, :, :]),
+                    cp.conj(grad_x * unique_probe[lo:hi, ..., m:m + 1, :, :]) *
+                    chi[lo:hi, ..., m:m + 1, :, :]),
                 axis=(-4, -3, -2, -1),
             )
             position_update_denominator[indices, ..., 0] = cp.sum(
-                cp.abs(grad_x * unique_probe[lo:hi, ..., m:m+1, :, :])**2,
+                cp.abs(grad_x * unique_probe[lo:hi, ..., m:m + 1, :, :])**2,
                 axis=(-4, -3, -2, -1),
             )
             position_update_numerator[indices, ..., 1] = cp.sum(
                 cp.real(
-                    cp.conj(grad_y * unique_probe[lo:hi, ..., m:m+1, :, :]) *
-                    chi[lo:hi, ..., m:m+1, :, :]),
+                    cp.conj(grad_y * unique_probe[lo:hi, ..., m:m + 1, :, :]) *
+                    chi[lo:hi, ..., m:m + 1, :, :]),
                 axis=(-4, -3, -2, -1),
             )
             position_update_denominator[indices, ..., 1] = cp.sum(
-                cp.abs(grad_y * unique_probe[lo:hi, ..., m:m+1, :, :])**2,
+                cp.abs(grad_y * unique_probe[lo:hi, ..., m:m + 1, :, :])**2,
                 axis=(-4, -3, -2, -1),
             )
 
@@ -669,7 +728,7 @@ def _precondition_nearplane_gradients(
             positions=scan[indices],
         )
         dOP = object_update_proj[..., None,
-                                 None, :, :] * unique_probe[..., m:m+1, :, :]
+                                 None, :, :] * unique_probe[..., m:m + 1, :, :]
 
         A1 = cp.sum((dOP * dOP.conj()).real + eps, axis=(-2, -1))
     else:
@@ -701,23 +760,23 @@ def _precondition_nearplane_gradients(
         #                           keepdims=True,
         #                       ) + b0 + b1)
 
-        dPO = m_probe_update[..., m:m+1, :, :] * patches
+        dPO = m_probe_update[..., m:m + 1, :, :] * patches
         A4 = cp.sum((dPO * dPO.conj()).real + eps, axis=(-2, -1))
     else:
         dPO = None
         A4 = None
 
     if recover_psi and recover_probe:
-        b1 = cp.sum((dOP.conj() * nearplane[..., m:m+1, :, :]).real,
+        b1 = cp.sum((dOP.conj() * nearplane[..., m:m + 1, :, :]).real,
                     axis=(-2, -1))
-        b2 = cp.sum((dPO.conj() * nearplane[..., m:m+1, :, :]).real,
+        b2 = cp.sum((dPO.conj() * nearplane[..., m:m + 1, :, :]).real,
                     axis=(-2, -1))
         A2 = cp.sum((dOP * dPO.conj()), axis=(-2, -1))
     elif recover_psi:
-        b1 = cp.sum((dOP.conj() * nearplane[..., m:m+1, :, :]).real,
+        b1 = cp.sum((dOP.conj() * nearplane[..., m:m + 1, :, :]).real,
                     axis=(-2, -1))
     elif recover_probe:
-        b2 = cp.sum((dPO.conj() * nearplane[..., m:m+1, :, :]).real,
+        b2 = cp.sum((dPO.conj() * nearplane[..., m:m + 1, :, :]).real,
                     axis=(-2, -1))
 
     return (
@@ -769,8 +828,8 @@ def _get_nearplane_steps(A1, A2, A4, b1, b2, A1_delta, A4_delta, recover_psi,
 
 
 def _get_coefs_intensity(weights, xi, P, O, batches, *, batch_index, m):
-    OP = O * P[..., m:m+1, :, :]
-    num = cp.sum(cp.real(cp.conj(OP) * xi[..., m:m+1, :, :]), axis=(-1, -2))
+    OP = O * P[..., m:m + 1, :, :]
+    num = cp.sum(cp.real(cp.conj(OP) * xi[..., m:m + 1, :, :]), axis=(-1, -2))
     den = cp.sum(cp.abs(OP)**2, axis=(-1, -2))
     weights[batches[batch_index], ..., 0:1,
             m:m + 1] = weights[batches[batch_index], ..., 0:1,
@@ -779,7 +838,7 @@ def _get_coefs_intensity(weights, xi, P, O, batches, *, batch_index, m):
 
 
 def _get_residuals(grad_probe, grad_probe_mean, m):
-    return grad_probe[..., m:m+1, :, :] - grad_probe_mean[..., m:m+1, :, :]
+    return grad_probe[..., m:m + 1, :, :] - grad_probe_mean[..., m:m + 1, :, :]
 
 
 def _update_residuals(R, eigen_probe, batches, *, batch_index, axis, c, m):
