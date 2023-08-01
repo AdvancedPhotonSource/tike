@@ -484,7 +484,7 @@ class Reconstruction():
                 self._device_parameters.psi = self.comm.pool.map(
                     tike.ptycho.object.smoothness_constraint,
                     self._device_parameters.psi,
-                    r=self._device_parameters.object_options
+                    a=self._device_parameters.object_options
                     .smoothness_constraint,
                 )
 

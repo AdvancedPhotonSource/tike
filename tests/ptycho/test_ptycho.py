@@ -602,7 +602,9 @@ class PtychoRecon(
                 num_iter=16,
             ),
             probe_options=ProbeOptions(),
-            object_options=ObjectOptions(),
+            object_options=ObjectOptions(
+                smoothness_constraint=0.01,
+            ),
         )
 
         _save_ptycho_result(
