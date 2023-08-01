@@ -179,7 +179,6 @@ def simulate(
 def reconstruct(
     data: npt.NDArray,
     parameters: solvers.PtychoParameters,
-    model: str = 'gaussian',
     num_gpu: typing.Union[int, typing.Tuple[int, ...]] = 1,
     use_mpi: bool = False,
 ) -> solvers.PtychoParameters:
@@ -197,14 +196,16 @@ def reconstruct(
         diffraction peak is at the corners.
     parameters: :py:class:`tike.ptycho.solvers.PtychoParameters`
         A class containing reconstruction parameters.
-    model : "gaussian", "poisson"
-        The noise model to use for the cost function.
     num_gpu : int, tuple(int)
         The number of GPUs to use or a tuple of the device numbers of the GPUs
         to use. If the number of GPUs is less than the requested number, only
         workers for the available GPUs are allocated.
     use_mpi : bool
         Whether to use MPI or not.
+
+    .. versionchanged:: 0.25.0
+    Removed the model parameter. Use :py:class:`tike.ptycho.ExitwaveOptions`
+    instead.
 
     Raises
     ------
@@ -222,7 +223,6 @@ def reconstruct(
     with Reconstruction(
             data,
             parameters,
-            model,
             num_gpu,
             use_mpi,
     ) as context:
@@ -257,7 +257,6 @@ class Reconstruction():
         with tike.ptycho.Reconstruction(
             data,
             parameters,
-            model,
             num_gpu,
             use_mpi,
         ) as context:
@@ -277,7 +276,6 @@ class Reconstruction():
         self,
         data: npt.NDArray,
         parameters: solvers.PtychoParameters,
-        model: str = 'gaussian',
         num_gpu: typing.Union[int, typing.Tuple[int, ...]] = 1,
         use_mpi: bool = False,
     ):
@@ -326,7 +324,6 @@ class Reconstruction():
             detector_shape=data.shape[-1],
             nz=parameters.psi.shape[-2],
             n=parameters.psi.shape[-1],
-            model=model,
         )
         self.comm = tike.communicators.Comm(num_gpu, mpi)
 
@@ -771,7 +768,6 @@ def _rescale_probe(operator, comm, data, exitwave_options, psi, scan, probe, num
 def reconstruct_multigrid(
     data: npt.NDArray,
     parameters: solvers.PtychoParameters,
-    model: str = 'gaussian',
     num_gpu: typing.Union[int, typing.Tuple[int, ...]] = 1,
     use_mpi: bool = False,
     num_levels: int = 3,
@@ -812,7 +808,6 @@ def reconstruct_multigrid(
                 ),
                 parameters=resampled_parameters,
                 num_gpu=num_gpu,
-                model=model,
                 use_mpi=use_mpi,
         ) as context:
             context.iterate(resampled_parameters.algorithm_options.num_iter)

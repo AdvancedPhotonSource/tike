@@ -78,6 +78,7 @@ def cgrad(
                 num_iter=algorithm_options.cg_iter,
                 step_length=algorithm_options.step_length,
                 object_options=object_options,
+                model=parameters.exitwave_options.noise_model,
             )
             psi = comm.pool.map(positivity_constraint,
                                 psi,
@@ -98,6 +99,7 @@ def cgrad(
                 step_length=algorithm_options.step_length,
                 mode=list(range(probe[0].shape[-3])),
                 probe_options=probe_options,
+                model=parameters.exitwave_options.noise_model,
             )
 
         if position_options and comm.pool.num_workers == 1:
@@ -135,11 +137,19 @@ def _update_probe(
     step_length,
     mode,
     probe_options,
+    model,
 ):
     """Solve the probe recovery problem."""
 
     def cost_function(probe):
-        cost_out = comm.pool.map(op.cost, data, psi, scan, probe)
+        cost_out = comm.pool.map(
+            op.cost,
+            data,
+            psi,
+            scan,
+            probe,
+            model=model,
+        )
         return comm.Allreduce_reduce_cpu(cost_out)
 
     def grad(probe):
@@ -150,6 +160,7 @@ def _update_probe(
             scan,
             probe,
             mode=mode,
+            model=model,
         )
         return comm.Allreduce_reduce_gpu(grad_list)
 
@@ -192,15 +203,30 @@ def _update_object(
     num_iter,
     step_length,
     object_options,
+    model: str,
 ):
     """Solve the object recovery problem."""
 
     def cost_function_multi(psi, **kwargs):
-        cost_out = comm.pool.map(op.cost, data, psi, scan, probe)
+        cost_out = comm.pool.map(
+            op.cost,
+            data,
+            psi,
+            scan,
+            probe,
+            model=model,
+        )
         return comm.Allreduce_mean(cost_out, axis=None).get()
 
     def grad_multi(psi):
-        grad_list = comm.pool.map(op.grad_psi, data, psi, scan, probe)
+        grad_list = comm.pool.map(
+            op.grad_psi,
+            data,
+            psi,
+            scan,
+            probe,
+            model=model,
+        )
         return comm.Allreduce_reduce_gpu(grad_list)
 
     def dir_multi(dir):

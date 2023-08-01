@@ -294,7 +294,7 @@ def _update_wavefront(
         axis=list(range(1, farplane.ndim - 2)),
     )
 
-    costs = getattr(tike.operators, f'{op.propagation.model}_each_pattern')(
+    costs = getattr(tike.operators, f'{exitwave_options.noise_model}_each_pattern')(
         data[:, measured_pixels][:, None, :],
         intensity[:, measured_pixels][:, None, :])
 

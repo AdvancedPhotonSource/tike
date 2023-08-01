@@ -86,6 +86,7 @@ def dm(
             bscan,
             parameters.psi,
             op=op,
+            model=parameters.exitwave_options.noise_model,
         ))
 
         batch_cost.append(comm.Allreduce_mean(cost, axis=None).get())
@@ -145,14 +146,14 @@ def dm(
     return parameters
 
 
-def _update_wavefront(data, varying_probe, scan, psi, op=None):
+def _update_wavefront(data, varying_probe, scan, psi, *, op=None, model):
 
     farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
     intensity = cp.sum(
         cp.square(cp.abs(farplane)),
         axis=list(range(1, farplane.ndim - 2)),
     )
-    cost = op.propagation.cost(data, intensity)
+    cost = getattr(tike.operators, model)(data, intensity)
     logger.info('%10s cost is %+12.5e', 'farplane', cost)
 
     farplane *= (cp.sqrt(data) / (cp.sqrt(intensity) + 1e-9))[..., None,
