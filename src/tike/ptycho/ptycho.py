@@ -203,9 +203,9 @@ def reconstruct(
     use_mpi : bool
         Whether to use MPI or not.
 
-    .. versionchanged:: 0.25.0
-    Removed the model parameter. Use :py:class:`tike.ptycho.ExitwaveOptions`
-    instead.
+
+    .. versionchanged:: 0.25.0 Removed the `model` parameter. Use
+        :py:class:`tike.ptycho.exitwave.ExitwaveOptions` instead.
 
     Raises
     ------

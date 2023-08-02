@@ -36,9 +36,9 @@ class Propagation(CachedFFT, Operator):
         functions and gradients is (nscan, 1, 1, detector_shape,
         detector_shape).
 
-    .. versionchanged:: 0.25.0
-    Removed the model parameter and the cost(), grad() functions. Use the cost
-    and gradient functions directly instead.
+
+    .. versionchanged:: 0.25.0 Removed the model parameter and the cost(),
+        grad() functions. Use the cost and gradient functions directly instead.
 
     """
 

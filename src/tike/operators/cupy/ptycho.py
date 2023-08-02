@@ -47,8 +47,8 @@ class Ptycho(Operator):
         measurement in the coordinate system of psi. Coordinate order
         consistent with WIDE, HIGH order.
 
-    .. versionchanged:: 0.25.0
-    Removed the model and ntheta parameters.
+
+    .. versionchanged:: 0.25.0 Removed the model and ntheta parameters.
 
     """
 
