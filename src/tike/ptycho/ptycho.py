@@ -479,6 +479,9 @@ class Reconstruction():
                     tike.ptycho.object.smoothness_constraint,
                     self.parameters.psi,
                     r=self.parameters.object_options.smoothness_constraint,
+                    self.parameters.psi,
+                    a=self.parameters.object_options
+                    .smoothness_constraint,
                 )
 
             if self.parameters.object_options.clip_magnitude:
