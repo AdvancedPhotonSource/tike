@@ -11,7 +11,7 @@ import numpy as np
 from .operator import Operator
 from .propagation import Propagation
 from .convolution import Convolution
-
+from . import objective
 
 class Ptycho(Operator):
     """A Ptychography operator.
@@ -33,9 +33,6 @@ class Ptycho(Operator):
         The wave propagation operator being used.
     diffraction : :py:class:`Operator`
         The object probe interaction operator being used.
-    model : string
-        The type of noise model to use for the cost functions.
-
     data : (..., FRAME, WIDE, HIGH) float32
         The intensity (square of the absolute value) of the propagated
         wavefront; i.e. what the detector records.
@@ -50,6 +47,9 @@ class Ptycho(Operator):
         measurement in the coordinate system of psi. Coordinate order
         consistent with WIDE, HIGH order.
 
+
+    .. versionchanged:: 0.25.0 Removed the model and ntheta parameters.
+
     """
 
     def __init__(
@@ -58,8 +58,6 @@ class Ptycho(Operator):
         probe_shape: int,
         nz: int,
         n: int,
-        ntheta: int = 1,
-        model: str = 'gaussian',
         propagation: typing.Type[Propagation] = Propagation,
         diffraction: typing.Type[Convolution] = Convolution,
         **kwargs,
@@ -67,7 +65,6 @@ class Ptycho(Operator):
         """Please see help(Ptycho) for more info."""
         self.propagation = propagation(
             detector_shape=detector_shape,
-            model=model,
             **kwargs,
         )
         self.diffraction = diffraction(
@@ -173,10 +170,12 @@ class Ptycho(Operator):
         psi: npt.NDArray[np.csingle],
         scan: npt.NDArray[np.single],
         probe: npt.NDArray[np.csingle],
+        *,
+        model: str,
     ) -> float:
         """Please see help(Ptycho) for more info."""
         intensity, _ = self._compute_intensity(data, psi, scan, probe)
-        return self.propagation.cost(data, intensity)
+        return getattr(objective, model)(data, intensity)
 
     def grad_psi(
         self,
@@ -184,12 +183,14 @@ class Ptycho(Operator):
         psi: npt.NDArray[np.csingle],
         scan: npt.NDArray[np.single],
         probe: npt.NDArray[np.csingle],
+        *,
+        model: str,
     ) -> npt.NDArray[np.csingle]:
         """Please see help(Ptycho) for more info."""
         intensity, farplane = self._compute_intensity(data, psi, scan, probe)
         grad_obj = self.xp.zeros_like(psi)
         grad_obj = self.adj(
-            farplane=self.propagation.grad(
+            farplane=getattr(objective, f'{model}_grad')(
                 data,
                 farplane,
                 intensity,
@@ -208,6 +209,8 @@ class Ptycho(Operator):
         scan: npt.NDArray[np.single],
         probe: npt.NDArray[np.csingle],
         mode: typing.List[int] = None,
+        *,
+        model: str,
     ) -> npt.NDArray[np.csingle]:
         """Compute the gradient with respect to the probe(s).
 
@@ -222,7 +225,7 @@ class Ptycho(Operator):
         # Use the average gradient for all probe positions
         return self.xp.mean(
             self.adj_probe(
-                farplane=self.propagation.grad(
+                farplane=getattr(objective, f'{model}_grad')(
                     data,
                     farplane[..., mode, :, :],
                     intensity,

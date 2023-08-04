@@ -81,6 +81,7 @@ def adam_grad(
             bscan,
             parameters.probe,
             op=op,
+            model=parameters.exitwave_options.noise_model,
         )))
 
         cost = comm.Allreduce_mean(cost, axis=None).get()
@@ -155,6 +156,7 @@ def _grad_all(
     *,
     mode: typing.Union[None, typing.List[int]] = None,
     op: tike.operators.Ptycho,
+    model: str,
 ) -> typing.Tuple[npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray]:
     """Compute the gradient with respect to probe(s) and object.
 
@@ -171,9 +173,9 @@ def _grad_all(
         scan,
         probe,
     )
-    cost = op.propagation.cost(data, intensity)
+    cost = getattr(tike.operators, model)(data, intensity)
     grad_psi, grad_probe, amp_psi, amp_probe = op.adj_all(
-        farplane=op.propagation.grad(
+        farplane=getattr(tike.operators, f'{model}_grad')(
             data,
             farplane[..., mode, :, :],
             intensity,

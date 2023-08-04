@@ -22,8 +22,6 @@ class Propagation(CachedFFT, Operator):
     ----------
     detector_shape : int
         The pixel width and height of the nearplane and farplane waves.
-    model : string
-        The type of noise model to use for the cost functions.
     cost : (data-like, farplane-like) -> float
         The function to be minimized when solving a problem.
     grad : (data-like, farplane-like) -> farplane-like
@@ -34,17 +32,18 @@ class Propagation(CachedFFT, Operator):
     nearplane: (..., detector_shape, detector_shape) complex64
         The wavefronts after exiting the object.
     farplane: (..., detector_shape, detector_shape) complex64
-        The wavefronts hitting the detector respectively.
-        Shape for cost functions and gradients is
-        (nscan, 1, 1, detector_shape, detector_shape).
+        The wavefronts hitting the detector respectively. Shape for cost
+        functions and gradients is (nscan, 1, 1, detector_shape,
+        detector_shape).
+
+
+    .. versionchanged:: 0.25.0 Removed the model parameter and the cost(),
+        grad() functions. Use the cost and gradient functions directly instead.
 
     """
 
-    def __init__(self, detector_shape: int, model: str = 'gaussian', **kwargs):
+    def __init__(self, detector_shape: int, **kwargs):
         self.detector_shape = detector_shape
-        self.cost = getattr(objective, f'{model}')
-        self.grad = getattr(objective, f'{model}_grad')
-        self.model = model
 
     def fwd(
         self,

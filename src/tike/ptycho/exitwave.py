@@ -20,7 +20,11 @@ logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class ExitWaveOptions:
-    """Manage data and setting related to exitwave updates."""
+    """Manage data and setting related to exitwave updates.
+
+    .. versionadded:: 0.25.0
+
+    """
 
     measured_pixels: npt.NDArray
     """
