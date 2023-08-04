@@ -379,11 +379,13 @@ def _get_nearplane_gradients(
             cp.square(cp.abs(farplane)),
             axis=list(range(1, farplane.ndim - 2)),
         )
-        each_cost = getattr(tike.operators,
-                            f'{op.propagation.model}_each_pattern')(
-                                data[:, measured_pixels][:, None, :],
-                                intensity[:, measured_pixels][:, None, :],
-                            )
+        each_cost = getattr(
+            tike.operators,
+            f'{exitwave_options.noise_model}_each_pattern',
+        )(
+            data[:, measured_pixels][:, None, :],
+            intensity[:, measured_pixels][:, None, :],
+        )
         cost += cp.sum(each_cost)
 
         if exitwave_options.noise_model == 'poisson':
@@ -419,7 +421,8 @@ def _get_nearplane_gradients(
                     exitwave_options.step_length_weight,
                 )
 
-            farplane[..., measured_pixels] = (-step_length * grad_cost)[..., measured_pixels]
+            farplane[..., measured_pixels] = (-step_length *
+                                              grad_cost)[..., measured_pixels]
 
         else:
 
@@ -427,7 +430,7 @@ def _get_nearplane_gradients(
             # TODO: optimal step lengths using 2nd order taylor expansion
 
             farplane[..., measured_pixels] = -getattr(
-                tike.operators, f'{op.propagation.model}_grad')(
+                tike.operators, f'{exitwave_options.noise_model}_grad')(
                     data,
                     farplane,
                     intensity,

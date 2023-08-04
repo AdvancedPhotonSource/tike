@@ -74,6 +74,7 @@ def dm(
             parameters.scan,
             parameters.psi,
             parameters.probe,
+            parameters.exitwave_options.measured_pixels,
             psi_update_numerator,
             probe_update_numerator,
             batches,
@@ -82,6 +83,7 @@ def dm(
             op=op,
             object_options=parameters.object_options,
             probe_options=parameters.probe_options,
+            exitwave_options=parameters.exitwave_options,
         )))
 
         cost = comm.Allreduce_mean(cost, axis=None).get()
@@ -166,6 +168,7 @@ def _get_nearplane_gradients(
     scan: npt.NDArray,
     psi: npt.NDArray,
     probe: npt.NDArray,
+    measured_pixels: npt.NDArray,
     psi_update_numerator: typing.Union[None, npt.NDArray],
     probe_update_numerator: typing.Union[None, npt.NDArray],
     batches: typing.List[typing.List[int]],
@@ -175,6 +178,7 @@ def _get_nearplane_gradients(
     op: tike.operators.Ptycho,
     object_options: typing.Union[None, ObjectOptions] = None,
     probe_options: typing.Union[None, ProbeOptions] = None,
+    exitwave_options: ExitWaveOptions,
 ) -> typing.List[npt.NDArray]:
 
     def keep_some_args_constant(
@@ -192,10 +196,19 @@ def _get_nearplane_gradients(
             cp.square(cp.abs(farplane)),
             axis=list(range(1, farplane.ndim - 2)),
         )
-        cost += op.propagation.cost(data, intensity)
+        each_cost = getattr(
+            tike.operators,
+            f'{exitwave_options.noise_model}_each_pattern',
+        )(
+            data[:, measured_pixels][:, None, :],
+            intensity[:, measured_pixels][:, None, :],
+        )
+        cost += cp.sum(each_cost)
 
-        farplane *= (cp.sqrt(data) / (cp.sqrt(intensity) + 1e-9))[..., None,
-                                                                  None, :, :]
+        farplane[..., measured_pixels] *= ((
+            cp.sqrt(data) / (cp.sqrt(intensity) + 1e-9))[..., None, None,
+                                                         measured_pixels])
+        farplane[..., ~measured_pixels] = 0
 
         pad, end = op.diffraction.pad, op.diffraction.end
         nearplane = op.propagation.adj(farplane, overwrite=True)[..., pad:end,

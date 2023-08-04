@@ -500,7 +500,7 @@ def _get_nearplane_gradients(
             axis=list(range(1, farplane.ndim - 2)),
         )
         costs[lo:hi] = getattr(tike.operators,
-                               f'{op.propagation.model}_each_pattern')(
+                               f'{exitwave_options.noise_model}_each_pattern')(
                                    data[:, measured_pixels][:, None, :],
                                    intensity[:, measured_pixels][:, None, :],
                                )
@@ -544,7 +544,7 @@ def _get_nearplane_gradients(
         else:
 
             farplane[..., measured_pixels] = -getattr(
-                tike.operators, f'{op.propagation.model}_grad')(
+                tike.operators, f'{exitwave_options.noise_model}_grad')(
                     data,
                     farplane,
                     intensity,

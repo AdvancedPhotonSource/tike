@@ -146,8 +146,7 @@ class PtychoParameters():
         )
         if self.exitwave_options is None:
             self.exitwave_options = ExitWaveOptions(
-                measured_pixels=np.ones(self.probe.shape[-2:], dtype=np.bool_)
-            )
+                measured_pixels=np.ones(self.probe.shape[-2:], dtype=np.bool_))
 
     def resample(
         self,
