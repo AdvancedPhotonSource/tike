@@ -317,8 +317,7 @@ class Reconstruction():
             mpi = tike.communicators.NoMPIComm
 
         self.data = data
-        self.parameters = parameters
-        self._device_parameters = None
+        self.parameters = copy.deepcopy(parameters)
         self.device = cp.cuda.Device(
             num_gpu[0] if isinstance(num_gpu, tuple) else None)
         self.operator = tike.operators.Ptycho(
@@ -335,8 +334,6 @@ class Reconstruction():
         self.operator.__enter__()
         self.comm.__enter__()
 
-        self._device_parameters = copy.deepcopy(self.parameters)
-
         # Divide the inputs into regions
         if (not np.all(np.isfinite(self.data)) or np.any(self.data < 0)):
             warnings.warn(
@@ -345,9 +342,9 @@ class Reconstruction():
         odd_pool = self.comm.pool.num_workers % 2
         (
             self.comm.order,
-            self._device_parameters.scan,
+            self.parameters.scan,
             self.data,
-            self._device_parameters.eigen_weights,
+            self.parameters.eigen_weights,
         ) = tike.cluster.by_scan_grid(
             self.comm.pool,
             (
@@ -358,60 +355,58 @@ class Reconstruction():
             (tike.precision.floating, tike.precision.floating
              if self.data.itemsize > 2 else self.data.dtype,
              tike.precision.floating),
-            self._device_parameters.scan,
+            self.parameters.scan,
             self.data,
-            self._device_parameters.eigen_weights,
+            self.parameters.eigen_weights,
         )
 
-        self._device_parameters.psi = self.comm.pool.bcast(
-            [self._device_parameters.psi.astype(tike.precision.cfloating)])
+        self.parameters.psi = self.comm.pool.bcast(
+            [self.parameters.psi.astype(tike.precision.cfloating)])
 
-        self._device_parameters.probe = self.comm.pool.bcast(
-            [self._device_parameters.probe.astype(tike.precision.cfloating)])
+        self.parameters.probe = self.comm.pool.bcast(
+            [self.parameters.probe.astype(tike.precision.cfloating)])
 
-        if self._device_parameters.probe_options is not None:
-            self._device_parameters.probe_options = self._device_parameters.probe_options.copy_to_device(
+        if self.parameters.probe_options is not None:
+            self.parameters.probe_options = self.parameters.probe_options.copy_to_device(
                 self.comm,)
 
-        if self._device_parameters.object_options is not None:
-            self._device_parameters.object_options = self._device_parameters.object_options.copy_to_device(
+        if self.parameters.object_options is not None:
+            self.parameters.object_options = self.parameters.object_options.copy_to_device(
                 self.comm,)
 
-        if self._device_parameters.exitwave_options is not None:
-            self._device_parameters.exitwave_options = self._device_parameters.exitwave_options.copy_to_device(
+        if self.parameters.exitwave_options is not None:
+            self.parameters.exitwave_options = self.parameters.exitwave_options.copy_to_device(
                 self.comm,)
 
-        if self._device_parameters.eigen_probe is not None:
-            self._device_parameters.eigen_probe = self.comm.pool.bcast([
-                self._device_parameters.eigen_probe.astype(
-                    tike.precision.cfloating)
-            ])
+        if self.parameters.eigen_probe is not None:
+            self.parameters.eigen_probe = self.comm.pool.bcast(
+                [self.parameters.eigen_probe.astype(tike.precision.cfloating)])
 
-        if self._device_parameters.position_options is not None:
+        if self.parameters.position_options is not None:
             # TODO: Consider combining put/split, get/join operations?
-            self._device_parameters.position_options = self.comm.pool.map(
+            self.parameters.position_options = self.comm.pool.map(
                 PositionOptions.copy_to_device,
-                (self._device_parameters.position_options.split(x)
+                (self.parameters.position_options.split(x)
                  for x in self.comm.order),
             )
 
         # Unique batch for each device
         self.batches = self.comm.pool.map(
             getattr(tike.cluster,
-                    self._device_parameters.algorithm_options.batch_method),
-            self._device_parameters.scan,
-            num_cluster=self._device_parameters.algorithm_options.num_batch,
+                    self.parameters.algorithm_options.batch_method),
+            self.parameters.scan,
+            num_cluster=self.parameters.algorithm_options.num_batch,
         )
 
-        self._device_parameters.probe = _rescale_probe(
+        self.parameters.probe = _rescale_probe(
             self.operator,
             self.comm,
             self.data,
-            self._device_parameters.exitwave_options,
-            self._device_parameters.psi,
-            self._device_parameters.scan,
-            self._device_parameters.probe,
-            num_batch=self._device_parameters.algorithm_options.num_batch,
+            self.parameters.exitwave_options,
+            self.parameters.psi,
+            self.parameters.scan,
+            self.parameters.probe,
+            num_batch=self.parameters.algorithm_options.num_batch,
         )
 
         return self
@@ -419,171 +414,182 @@ class Reconstruction():
     def iterate(self, num_iter: int) -> None:
         """Advance the reconstruction by num_iter epochs."""
         start = time.perf_counter()
+        psi_previous = self.parameters.psi[0].copy()
         for i in range(num_iter):
 
-            logger.info(
-                f"{self._device_parameters.algorithm_options.name} epoch "
-                f"{len(self._device_parameters.algorithm_options.times):,d}")
+            logger.info(f"{self.parameters.algorithm_options.name} epoch "
+                        f"{len(self.parameters.algorithm_options.times):,d}")
 
-            if self._device_parameters.probe_options is not None:
-                if self._device_parameters.probe_options.force_centered_intensity:
-                    self._device_parameters.probe = self.comm.pool.map(
+            if self.parameters.probe_options is not None:
+                if self.parameters.probe_options.force_centered_intensity:
+                    self.parameters.probe = self.comm.pool.map(
                         constrain_center_peak,
-                        self._device_parameters.probe,
+                        self.parameters.probe,
                     )
-                if self._device_parameters.probe_options.force_sparsity < 1:
-                    self._device_parameters.probe = self.comm.pool.map(
+                if self.parameters.probe_options.force_sparsity < 1:
+                    self.parameters.probe = self.comm.pool.map(
                         constrain_probe_sparsity,
-                        self._device_parameters.probe,
-                        f=self._device_parameters.probe_options
-                        .force_sparsity,
+                        self.parameters.probe,
+                        f=self.parameters.probe_options.force_sparsity,
                     )
 
-                if self._device_parameters.probe_options.force_orthogonality:
+                if self.parameters.probe_options.force_orthogonality:
                     (
-                        self._device_parameters.probe,
+                        self.parameters.probe,
                         power,
                     ) = (list(a) for a in zip(*self.comm.pool.map(
                         tike.ptycho.probe.orthogonalize_eig,
-                        self._device_parameters.probe,
+                        self.parameters.probe,
                     )))
+                    self.parameters.probe_options.power.append(power[0].get())
 
             (
-                self._device_parameters.object_options,
-                self._device_parameters.probe_options,
+                self.parameters.object_options,
+                self.parameters.probe_options,
             ) = solvers.update_preconditioners(
                 comm=self.comm,
                 operator=self.operator,
-                scan=self._device_parameters.scan,
-                probe=self._device_parameters.probe,
-                psi=self._device_parameters.psi,
-                object_options=self._device_parameters.object_options,
-                probe_options=self._device_parameters.probe_options,
+                scan=self.parameters.scan,
+                probe=self.parameters.probe,
+                psi=self.parameters.psi,
+                object_options=self.parameters.object_options,
+                probe_options=self.parameters.probe_options,
             )
 
-            self._device_parameters = getattr(
+            self.parameters = getattr(
                 solvers,
-                self._device_parameters.algorithm_options.name,
+                self.parameters.algorithm_options.name,
             )(
                 self.operator,
                 self.comm,
                 data=self.data,
                 batches=self.batches,
-                parameters=self._device_parameters,
+                parameters=self.parameters,
             )
 
-            if self._device_parameters.object_options.positivity_constraint:
-                self._device_parameters.psi = self.comm.pool.map(
+            if self.parameters.object_options.positivity_constraint:
+                self.parameters.psi = self.comm.pool.map(
                     tike.ptycho.object.positivity_constraint,
-                    self._device_parameters.psi,
-                    r=self._device_parameters.object_options
-                    .positivity_constraint,
+                    self.parameters.psi,
+                    r=self.parameters.object_options.positivity_constraint,
                 )
 
-            if self._device_parameters.object_options.smoothness_constraint:
-                self._device_parameters.psi = self.comm.pool.map(
+            if self.parameters.object_options.smoothness_constraint:
+                self.parameters.psi = self.comm.pool.map(
                     tike.ptycho.object.smoothness_constraint,
-                    self._device_parameters.psi,
-                    a=self._device_parameters.object_options
+                    self.parameters.psi,
+                    r=self.parameters.object_options.smoothness_constraint,
+                    self.parameters.psi,
+                    a=self.parameters.object_options
                     .smoothness_constraint,
                 )
 
-            if self._device_parameters.object_options.clip_magnitude:
-                self._device_parameters.psi = self.comm.pool.map(
+            if self.parameters.object_options.clip_magnitude:
+                self.parameters.psi = self.comm.pool.map(
                     _clip_magnitude,
-                    self._device_parameters.psi,
+                    self.parameters.psi,
                     a_max=1.0,
                 )
 
-            if self._device_parameters.object_options.preconditioner is not None and (
-                    len(self._device_parameters.algorithm_options.costs) % 10
-                    == 1):
+            if self.parameters.object_options.preconditioner is not None and (
+                    len(self.parameters.algorithm_options.costs) % 10 == 1):
                 (
-                    self._device_parameters.psi,
-                    self._device_parameters.probe,
+                    self.parameters.psi,
+                    self.parameters.probe,
                 ) = (list(a) for a in zip(*self.comm.pool.map(
                     tike.ptycho.object.remove_object_ambiguity,
-                    self._device_parameters.psi,
-                    self._device_parameters.probe,
-                    self._device_parameters.object_options.preconditioner,
+                    self.parameters.psi,
+                    self.parameters.probe,
+                    self.parameters.object_options.preconditioner,
                 )))
 
-            if self._device_parameters.eigen_probe is not None:
+            if self.parameters.eigen_probe is not None:
                 (
-                    self._device_parameters.eigen_probe,
-                    self._device_parameters.eigen_weights,
+                    self.parameters.eigen_probe,
+                    self.parameters.eigen_weights,
                 ) = tike.ptycho.probe.constrain_variable_probe(
                     self.comm,
-                    self._device_parameters.eigen_probe,
-                    self._device_parameters.eigen_weights,
+                    self.parameters.eigen_probe,
+                    self.parameters.eigen_weights,
                 )
 
-            if (self._device_parameters.position_options
-                    and self._device_parameters.position_options[0]
-                    .use_position_regularization):
+            if (self.parameters.position_options and self.parameters
+                    .position_options[0].use_position_regularization):
 
-                (self._device_parameters.position_options
+                (self.parameters.position_options
                 ) = affine_position_regularization(
                     self.comm,
-                    updated=self._device_parameters.scan,
-                    position_options=self._device_parameters.position_options,
+                    updated=self.parameters.scan,
+                    position_options=self.parameters.position_options,
                 )
 
-            self._device_parameters.algorithm_options.times.append(
-                time.perf_counter() - start)
+            self.parameters.algorithm_options.times.append(time.perf_counter() -
+                                                           start)
             start = time.perf_counter()
 
-            if tike.opt.is_converged(self._device_parameters.algorithm_options):
+            update_norm = tike.linalg.mnorm(self.parameters.psi[0] -
+                                            psi_previous)
+            self.parameters.object_options.update_mnorm.append(
+                update_norm.get())
+            logger.info(f"The object update mean-norm is {update_norm:.3e}")
+            if (np.mean(self.parameters.object_options.update_mnorm[-5:])
+                    < self.parameters.object_options.convergence_tolerance):
+                logger.info(
+                    f"The object seems converged. {update_norm:.3e} < "
+                    f"{self.parameters.object_options.convergence_tolerance:.3e}"
+                )
                 break
 
-    def _get_result(self):
+    def get_result(self):
         """Return the current parameter estimates."""
-        self.parameters.probe = self._device_parameters.probe[0].get()
-
-        self.parameters.psi = self._device_parameters.psi[0].get()
-
         reorder = np.argsort(np.concatenate(self.comm.order))
-        self.parameters.scan = self.comm.pool.gather_host(
-            self._device_parameters.scan,
-            axis=-2,
-        )[reorder]
+        parameters = solvers.PtychoParameters(
+            probe=self.parameters.probe[0].get(),
+            psi=self.parameters.psi[0].get(),
+            scan=self.comm.pool.gather_host(
+                self.parameters.scan,
+                axis=-2,
+            )[reorder],
+            algorithm_options=self.parameters.algorithm_options,
+        )
 
-        if self._device_parameters.eigen_probe is not None:
-            self.parameters.eigen_probe = self._device_parameters.eigen_probe[
-                0].get()
+        if self.parameters.eigen_probe is not None:
+            parameters.eigen_probe = self.parameters.eigen_probe[0].get()
 
-        if self._device_parameters.eigen_weights is not None:
-            self.parameters.eigen_weights = self.comm.pool.gather(
-                self._device_parameters.eigen_weights,
+        if self.parameters.eigen_weights is not None:
+            parameters.eigen_weights = self.comm.pool.gather(
+                self.parameters.eigen_weights,
                 axis=-3,
             )[reorder].get()
 
-        self.parameters.algorithm_options = self._device_parameters.algorithm_options
-
-        if self._device_parameters.probe_options is not None:
-            self.parameters.probe_options = self._device_parameters.probe_options.copy_to_host(
+        if self.parameters.probe_options is not None:
+            parameters.probe_options = self.parameters.probe_options.copy_to_host(
             )
 
-        if self._device_parameters.object_options is not None:
-            self.parameters.object_options = self._device_parameters.object_options.copy_to_host(
+        if self.parameters.object_options is not None:
+            parameters.object_options = self.parameters.object_options.copy_to_host(
             )
 
-        if self._device_parameters.position_options is not None:
-            host_position_options = self._device_parameters.position_options[
-                0].empty()
+        if self.parameters.exitwave_options is not None:
+            parameters.exitwave_options = self.parameters.exitwave_options.copy_to_host(
+            )
+
+        if self.parameters.position_options is not None:
+            host_position_options = self.parameters.position_options[0].empty()
             for x, o in zip(
                     self.comm.pool.map(
                         PositionOptions.copy_to_host,
-                        self._device_parameters.position_options,
+                        self.parameters.position_options,
                     ),
                     self.comm.order,
             ):
                 host_position_options = host_position_options.join(x, o)
-            self.parameters.position_options = host_position_options
+            parameters.position_options = host_position_options
+
+        return parameters
 
     def __exit__(self, type, value, traceback):
-        self._get_result()
-        self._device_parameters = None
+        self.parameters = self.get_result()
         self.comm.__exit__(type, value, traceback)
         self.operator.__exit__(type, value, traceback)
         self.device.__exit__(type, value, traceback)
@@ -597,29 +603,29 @@ class Reconstruction():
     ) -> typing.Tuple[typing.List[typing.List[float]], typing.List[float]]:
         """Return the cost function values and times as a tuple."""
         return (
-            self._device_parameters.algorithm_options.costs,
-            self._device_parameters.algorithm_options.times,
+            self.parameters.algorithm_options.costs,
+            self.parameters.algorithm_options.times,
         )
 
     def get_psi(self) -> np.array:
         """Return the current object estimate as a numpy array."""
-        return self._device_parameters.psi[0].get()
+        return self.parameters.psi[0].get()
 
     def get_probe(self) -> typing.Tuple[np.array, np.array, np.array]:
         """Return the current probe, eigen_probe, weights as numpy arrays."""
         reorder = np.argsort(np.concatenate(self.comm.order))
-        if self._device_parameters.eigen_probe is None:
+        if self.parameters.eigen_probe is None:
             eigen_probe = None
         else:
-            eigen_probe = self._device_parameters.eigen_probe[0].get()
-        if self._device_parameters.eigen_weights is None:
+            eigen_probe = self.parameters.eigen_probe[0].get()
+        if self.parameters.eigen_weights is None:
             eigen_weights = None
         else:
             eigen_weights = self.comm.pool.gather(
-                self._device_parameters.eigen_weights,
+                self.parameters.eigen_weights,
                 axis=-3,
             )[reorder].get()
-        probe = self._device_parameters.probe[0].get()
+        probe = self.parameters.probe[0].get()
         return probe, eigen_probe, eigen_weights
 
     def peek(self) -> typing.Tuple[np.array, np.array, np.array, np.array]:
@@ -655,7 +661,7 @@ class Reconstruction():
                 if odd_pool else self.comm.pool.num_workers // 2,
                 1 if odd_pool else 2,
             ),
-            (self._device_parameters.scan[0].dtype, self.data[0].dtype),
+            (self.parameters.scan[0].dtype, self.data[0].dtype),
             new_scan,
             new_data,
         )
@@ -667,9 +673,9 @@ class Reconstruction():
             new_data,
             axis=0,
         )
-        self._device_parameters.scan = self.comm.pool.map(
+        self.parameters.scan = self.comm.pool.map(
             cp.append,
-            self._device_parameters.scan,
+            self.parameters.scan,
             new_scan,
             axis=0,
         )
@@ -682,15 +688,15 @@ class Reconstruction():
         # Rebatch on each device
         self.batches = self.comm.pool.map(
             getattr(tike.cluster,
-                    self._device_parameters.algorithm_options.batch_method),
-            self._device_parameters.scan,
-            num_cluster=self._device_parameters.algorithm_options.num_batch,
+                    self.parameters.algorithm_options.batch_method),
+            self.parameters.scan,
+            num_cluster=self.parameters.algorithm_options.num_batch,
         )
 
-        if self._device_parameters.eigen_weights is not None:
-            self._device_parameters.eigen_weights = self.comm.pool.map(
+        if self.parameters.eigen_weights is not None:
+            self.parameters.eigen_weights = self.comm.pool.map(
                 cp.pad,
-                self._device_parameters.eigen_weights,
+                self.parameters.eigen_weights,
                 pad_width=(
                     (0, len(new_scan)),  # position
                     (0, 0),  # eigen
@@ -699,10 +705,10 @@ class Reconstruction():
                 mode='mean',
             )
 
-        if self._device_parameters.position_options is not None:
-            self._device_parameters.position_options = self.comm.pool.map(
+        if self.parameters.position_options is not None:
+            self.parameters.position_options = self.comm.pool.map(
                 PositionOptions.append,
-                self._device_parameters.position_options,
+                self.parameters.position_options,
                 new_scan,
             )
 
@@ -719,7 +725,6 @@ def _get_rescale(data, measured_pixels, psi, scan, probe, num_batch, operator):
                                      num_batch,
                                      use_random=False):
 
-
         intensity, _ = operator._compute_intensity(
             None,
             psi,
@@ -733,8 +738,8 @@ def _get_rescale(data, measured_pixels, psi, scan, probe, num_batch, operator):
     return n
 
 
-def _rescale_probe(operator, comm, data, exitwave_options, psi, scan, probe, num_batch):
-
+def _rescale_probe(operator, comm, data, exitwave_options, psi, scan, probe,
+                   num_batch):
     """Rescale probe so model and measured intensity are similar magnitude.
 
     Rescales the probe so that the sum of modeled intensity at the detector is
@@ -775,7 +780,7 @@ def reconstruct_multigrid(
     num_gpu: typing.Union[int, typing.Tuple[int, ...]] = 1,
     use_mpi: bool = False,
     num_levels: int = 3,
-    interp=None,
+    interp: typing.Callable = solvers.options._resize_fft,
 ) -> solvers.PtychoParameters:
     """Solve the ptychography problem using a multi-grid method.
 

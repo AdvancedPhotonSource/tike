@@ -36,6 +36,7 @@ allowed to vary.
 """
 
 from __future__ import annotations
+import copy
 import dataclasses
 import logging
 import typing
@@ -135,29 +136,31 @@ class ProbeOptions:
     )
     """The power of the primary probe modes at each iteration."""
 
-    def copy_to_device(self, comm):
+    def copy_to_device(self, comm) -> ProbeOptions:
         """Copy to the current GPU memory."""
+        options = copy.copy(self)
         if self.v is not None:
-            self.v = cp.asarray(self.v)
+            options.v = cp.asarray(self.v)
         if self.m is not None:
-            self.m = cp.asarray(self.m)
+            options.m = cp.asarray(self.m)
         if self.preconditioner is not None:
-            self.preconditioner = comm.pool.bcast([self.preconditioner])
-        return self
+            options.preconditioner = comm.pool.bcast([self.preconditioner])
+        return options
 
-    def copy_to_host(self):
+    def copy_to_host(self) -> ProbeOptions:
         """Copy to the host CPU memory."""
+        options = copy.copy(self)
         if self.v is not None:
-            self.v = cp.asnumpy(self.v)
+            options.v = cp.asnumpy(self.v)
         if self.m is not None:
-            self.m = cp.asnumpy(self.m)
+            options.m = cp.asnumpy(self.m)
         if self.preconditioner is not None:
-            self.preconditioner = cp.asnumpy(self.preconditioner[0])
-        return self
+            options.preconditioner = cp.asnumpy(self.preconditioner[0])
+        return options
 
-    def resample(self, factor: float) -> ProbeOptions:
+    def resample(self, factor: float, interp) -> ProbeOptions:
         """Return a new `ProbeOptions` with the parameters rescaled."""
-        return ProbeOptions(
+        options = ProbeOptions(
             force_orthogonality=self.force_orthogonality,
             force_centered_intensity=self.force_centered_intensity,
             force_sparsity=self.force_sparsity,
@@ -168,6 +171,7 @@ class ProbeOptions:
             probe_support_degree=self.probe_support_degree,
             probe_support_radius=self.probe_support_radius,
         )
+        return options
         # Momentum reset to zero when grid scale changes
 
 

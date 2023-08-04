@@ -347,8 +347,8 @@ def _update(
                     g=(dprobe)[0, 0, mode, :, :],
                     v=probe_options.v,
                     m=probe_options.m,
-                    vdecay=object_options.vdecay,
-                    mdecay=object_options.mdecay,
+                    vdecay=probe_options.vdecay,
+                    mdecay=probe_options.mdecay,
                 )
             probe[0] = probe[0] + dprobe / deno
         probe = comm.pool.bcast([probe[0]])

@@ -5,17 +5,15 @@ the wavefield after any and all interaction with the sample and thus there's
 just free space propagation to the detector.
 
 """
-
 from __future__ import annotations
+
+import copy
 import dataclasses
 import logging
-import typing
 
 import cupy as cp
 import numpy as np
 import numpy.typing as npt
-
-import tike.random
 
 logger = logging.getLogger(__name__)
 
@@ -65,17 +63,19 @@ class ExitWaveOptions:
     exitwave updates in Fourier space.
     """
 
-    def copy_to_device(self, comm):
+    def copy_to_device(self, comm) -> ExitWaveOptions:
         """Copy to the current GPU memory."""
+        options = copy.copy(self)
         if self.measured_pixels is not None:
-            self.measured_pixels = comm.pool.bcast([self.measured_pixels])
-        return self
+            options.measured_pixels = comm.pool.bcast([self.measured_pixels])
+        return options
 
-    def copy_to_host(self):
+    def copy_to_host(self) -> ExitWaveOptions:
         """Copy to the host CPU memory."""
+        options = copy.copy(self)
         if self.measured_pixels is not None:
-            self.measured_pixels = cp.asnumpy(self.measured_pixels[0])
-        return self
+            options.measured_pixels = cp.asnumpy(self.measured_pixels[0])
+        return options
 
     def resample(self, factor: float) -> ExitWaveOptions:
         """Return a new `ExitWaveOptions` with the parameters rescaled."""
