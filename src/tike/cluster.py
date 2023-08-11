@@ -194,7 +194,6 @@ def wobbly_center(population, num_cluster):
 
     """
     logger.info("Clustering method is wobbly center.")
-    population = cp.asnumpy(population)
     xp = cp.get_array_module(population)
     if num_cluster == 1 or num_cluster == population.shape[0]:
         return xp.split(xp.arange(population.shape[0]), num_cluster)
