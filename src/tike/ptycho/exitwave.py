@@ -26,14 +26,14 @@ class ExitWaveOptions:
 
     """
 
-    measured_pixels: npt.NDArray
+    measured_pixels: npt.NDArray[np.bool_]
     """
-    A binary array that defines spatial regions on the detector where we have
-    measured pixels.
+    A boolean array that defines spatial regions on the detector where we have
+    measured pixels. False for bad pixels and True for good pixels.
     """
 
     noise_model: str = "gaussian"
-    """The noise model for the exitwave updates: "gaussian" OR "poisson" """
+    """`'gaussian'` OR `'poisson'` The noise model for the exitwave updates"""
 
     step_length_weight: float = 0.5
     """
@@ -64,7 +64,7 @@ class ExitWaveOptions:
     """
     Depending on how we control scaling for the exitwaves, we might need to
     scale up or down the number of photons in the unmeasured regions for the
-    exitwave updates in Fourier space.
+    exitwave updates in Fourier space. `1.0` for no scaling.
     """
 
     def copy_to_device(self, comm) -> ExitWaveOptions:
