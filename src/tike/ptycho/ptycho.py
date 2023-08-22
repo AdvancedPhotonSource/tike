@@ -476,8 +476,7 @@ class Reconstruction():
                 self.parameters.psi = self.comm.pool.map(
                     tike.ptycho.object.smoothness_constraint,
                     self.parameters.psi,
-                    a=self.parameters.object_options
-                    .smoothness_constraint,
+                    a=self.parameters.object_options.smoothness_constraint,
                 )
 
             if self.parameters.object_options.clip_magnitude:
@@ -487,9 +486,10 @@ class Reconstruction():
                     a_max=1.0,
                 )
 
-            if (self.parameters.algorithm_options.name != 'dm'
-                    and self.parameters.object_options.preconditioner is not None
-                    and (len(self.parameters.algorithm_options.costs) % 10 == 1)):
+            if (self.parameters.algorithm_options.name != 'dm' and
+                    self.parameters.object_options.preconditioner is not None
+                    and
+                (len(self.parameters.algorithm_options.costs) % 10 == 1)):
                 (
                     self.parameters.psi,
                     self.parameters.probe,
@@ -536,6 +536,12 @@ class Reconstruction():
                     f"{self.parameters.object_options.convergence_tolerance:.3e}"
                 )
                 break
+
+            logger.info(
+                '%10s cost is %+1.3e',
+                self.parameters.exitwave_options.noise_model,
+                np.mean(self.parameters.algorithm_options.costs),
+            )
 
     def get_result(self):
         """Return the current parameter estimates."""
@@ -734,7 +740,10 @@ def _get_rescale(
         _,
     ) -> typing.Tuple[npt.NDArray]:
 
-        (data, scan,) = ind_args
+        (
+            data,
+            scan,
+        ) = ind_args
         (sums,) = mod_args
 
         intensity, _ = operator._compute_intensity(
@@ -747,12 +756,19 @@ def _get_rescale(
         sums[0] += cp.sum(data[:, measured_pixels], dtype=np.double)
         sums[1] += cp.sum(intensity[:, measured_pixels], dtype=np.double)
 
-        return [sums,]
+        return [
+            sums,
+        ]
 
     result = tike.communicators.stream.stream_and_modify(
         f=make_certain_args_constant,
-        ind_args=[data, scan,],
-        mod_args=[sums,],
+        ind_args=[
+            data,
+            scan,
+        ],
+        mod_args=[
+            sums,
+        ],
         streams=streams,
     )
 

@@ -13,7 +13,7 @@ def _estimate_step_length(obj, theta, op):
     proper order of magnitude.
 
     """
-    logger.info('Estimate step length from forward adjoint operations.')
+    logger.debug('Estimate step length from forward adjoint operations.')
     outnback = op.adj(
         data=op.fwd(u=obj, theta=theta),
         theta=theta,

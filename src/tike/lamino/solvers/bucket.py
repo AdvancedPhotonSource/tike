@@ -13,7 +13,7 @@ def _estimate_step_length(obj, fwd_data, theta, grid, op, comm, s):
     proper order of magnitude.
 
     """
-    logger.info('Estimate step length from forward adjoint operations.')
+    logger.debug('Estimate step length from forward adjoint operations.')
 
     def reduce_norm(data, workers):
 

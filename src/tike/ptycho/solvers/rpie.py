@@ -137,7 +137,6 @@ def rpie(
         )))
 
         batch_cost.append(comm.Allreduce_mean(cost, axis=None).get())
-        logger.info('%10s cost is %+12.5e', 'farplane', batch_cost[-1])
 
         if algorithm_options.batch_method != 'compact':
             (
@@ -564,8 +563,6 @@ def _update_position(
         alpha * max(position_update_denominator.max(), 1e-6))
 
     if position_options.use_adaptive_moment:
-        logger.info(
-            "position correction with ADAptive Momemtum acceleration enabled.")
         (
             step,
             position_options.v,
