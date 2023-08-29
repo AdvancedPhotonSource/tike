@@ -540,7 +540,7 @@ class Reconstruction():
             logger.info(
                 '%10s cost is %+1.3e',
                 self.parameters.exitwave_options.noise_model,
-                np.mean(self.parameters.algorithm_options.costs),
+                np.mean(self.parameters.algorithm_options.costs[-1]),
             )
 
     def get_result(self):
