@@ -486,10 +486,11 @@ class Reconstruction():
                     a_max=1.0,
                 )
 
-            if (self.parameters.algorithm_options.name != 'dm' and
-                    self.parameters.object_options.preconditioner is not None
-                    and
-                (len(self.parameters.algorithm_options.costs) % 10 == 1)):
+            if (
+                self.parameters.algorithm_options.name != 'dm'
+                and self.parameters.object_options.preconditioner is not None
+                and len(self.parameters.algorithm_options.costs) % 10 == 1
+            ):  # yapf: disable
                 (
                     self.parameters.psi,
                     self.parameters.probe,
