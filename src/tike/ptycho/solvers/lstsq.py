@@ -140,12 +140,16 @@ def lstsq_grad(
             recover_probe=probe_options is not None,
             recover_positions=position_options is not None,
         )))
-        object_upd_sum = comm.Allreduce(object_upd_sum)
-        m_probe_update = comm.pool.bcast(
-            [comm.Allreduce_mean(
-                m_probe_update,
-                axis=-5,
-            )])
+
+        if object_options is not None:
+            object_upd_sum = comm.Allreduce(object_upd_sum)
+
+        if probe_options is not None:
+            m_probe_update = comm.pool.bcast(
+                [comm.Allreduce_mean(
+                    m_probe_update,
+                    axis=-5,
+                )])
 
         (
             beigen_probe,
@@ -188,8 +192,16 @@ def lstsq_grad(
             recover_probe=probe_options is not None,
             probe_options=probe_options,
         )))
-        A1_delta = comm.pool.bcast([comm.Allreduce_mean(A1, axis=-3)])
-        A4_delta = comm.pool.bcast([comm.Allreduce_mean(A4, axis=-3)])
+
+        if object_options is not None:
+            A1_delta = comm.pool.bcast([comm.Allreduce_mean(A1, axis=-3)])
+        else:
+            A1_delta = [None] * comm.pool.num_workers
+
+        if probe_options is not None:
+            A4_delta = comm.pool.bcast([comm.Allreduce_mean(A4, axis=-3)])
+        else:
+            A4_delta = [None] * comm.pool.num_workers
 
         (
             weighted_step_psi,
@@ -207,14 +219,18 @@ def lstsq_grad(
             recover_probe=probe_options is not None,
             m=0,
         )))
-        bbeta_object = comm.Allreduce_mean(
-            weighted_step_psi,
-            axis=-5,
-        )[..., 0, 0, 0]
-        bbeta_probe = comm.Allreduce_mean(
-            weighted_step_probe,
-            axis=-5,
-        )
+
+        if object_options is not None:
+            bbeta_object = comm.Allreduce_mean(
+                weighted_step_psi,
+                axis=-5,
+            )[..., 0, 0, 0]
+
+        if probe_options is not None:
+            bbeta_probe = comm.Allreduce_mean(
+                weighted_step_probe,
+                axis=-5,
+            )
 
         # Update each direction
         if object_options is not None:
@@ -249,8 +265,11 @@ def lstsq_grad(
         for c in costs:
             batch_cost = batch_cost + c.tolist()
 
-        beta_object.append(bbeta_object)
-        beta_probe.append(bbeta_probe)
+        if object_options is not None:
+            beta_object.append(bbeta_object)
+
+        if probe_options is not None:
+            beta_probe.append(bbeta_probe)
 
     if eigen_probe is not None:
         eigen_probe = beigen_probe
@@ -672,7 +691,8 @@ def _get_nearplane_gradients(
         unique_probe,
         probe_update,
         object_upd_sum,
-        m_probe_update / len(batches[batch_index]),
+        m_probe_update /
+        len(batches[batch_index]) if m_probe_update is not None else None,
         costs,
         patches,
         position_update_numerator,
@@ -716,6 +736,15 @@ def _precondition_nearplane_gradients(
 
     eps = op.xp.float32(1e-9) / (nearplane.shape[-2] * nearplane.shape[-1])
 
+    A1 = None
+    A2 = None
+    A4 = None
+    b1 = None
+    b2 = None
+    dOP = None
+    dPO = None
+    object_update_proj = None
+
     if recover_psi:
         object_update_precond = _precondition_object_update(
             object_upd_sum,
@@ -731,10 +760,6 @@ def _precondition_nearplane_gradients(
                                  None, :, :] * unique_probe[..., m:m + 1, :, :]
 
         A1 = cp.sum((dOP * dOP.conj()).real + eps, axis=(-2, -1))
-    else:
-        object_update_proj = None
-        dOP = None
-        A1 = None
 
     if recover_probe:
 
@@ -762,9 +787,6 @@ def _precondition_nearplane_gradients(
 
         dPO = m_probe_update[..., m:m + 1, :, :] * patches
         A4 = cp.sum((dPO * dPO.conj()).real + eps, axis=(-2, -1))
-    else:
-        dPO = None
-        A4 = None
 
     if recover_psi and recover_probe:
         b1 = cp.sum((dOP.conj() * nearplane[..., m:m + 1, :, :]).real,
@@ -792,8 +814,10 @@ def _precondition_nearplane_gradients(
 def _get_nearplane_steps(A1, A2, A4, b1, b2, A1_delta, A4_delta, recover_psi,
                          recover_probe, m):
 
-    A1 += 0.5 * A1_delta
-    A4 += 0.5 * A4_delta
+    if recover_psi:
+        A1 += 0.5 * A1_delta
+    if recover_probe:
+        A4 += 0.5 * A4_delta
 
     # (22) Use least-squares to find the optimal step sizes simultaneously
     if recover_psi and recover_probe:
