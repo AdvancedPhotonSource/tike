@@ -8,10 +8,15 @@ import scipy.io
 import tike.ptycho.probe
 from tike.communicators import Comm, MPIComm
 
+from .templates import _mpi_size
+
 resultdir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'result',
                          'ptycho', 'probe')
 
-
+@unittest.skipIf(
+    _mpi_size > 1,
+    reason="MPI not implemented for online reconstruction.",
+)
 class TestProbe(unittest.TestCase):
 
     def test_eigen_probe(self):
@@ -33,6 +38,9 @@ class TestProbe(unittest.TestCase):
             [np.random.rand(*leading, posi, 1, 1, wide, high)])
         diff = comm.pool.bcast(
             [np.random.rand(*leading, posi, 1, 1, wide, high)])
+        batches = comm.pool.bcast([[
+            np.arange(0, posi, dtype=int)]
+        ])
 
         new_probe, new_weights = tike.ptycho.probe.update_eigen_probe(
             comm=comm,
@@ -41,6 +49,8 @@ class TestProbe(unittest.TestCase):
             weights=weights,
             patches=patches,
             diff=diff,
+            batches=batches,
+            batch_index=0,
             c=1,
             m=0,
         )

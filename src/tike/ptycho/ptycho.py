@@ -343,18 +343,19 @@ class Reconstruction():
             self.data,
             self.parameters.eigen_weights,
         ) = tike.cluster.by_scan_grid(
-            self.comm.pool,
-            (
+            self.data,
+            self.parameters.eigen_weights,
+            scan=self.parameters.scan,
+            pool=self.comm.pool,
+            shape=(
                 self.comm.pool.num_workers
                 if odd_pool else self.comm.pool.num_workers // 2,
                 1 if odd_pool else 2,
             ),
-            (tike.precision.floating, tike.precision.floating
-             if self.data.itemsize > 2 else self.data.dtype,
-             tike.precision.floating),
-            self.parameters.scan,
-            self.data,
-            self.parameters.eigen_weights,
+            dtype=(tike.precision.floating, tike.precision.floating
+                   if self.data.itemsize > 2 else self.data.dtype,
+                   tike.precision.floating),
+            destination=('gpu', 'pinned', 'gpu'),
         )
 
         self.parameters.psi = self.comm.pool.bcast(
@@ -486,8 +487,9 @@ class Reconstruction():
                     a_max=1.0,
                 )
 
-            if self.parameters.object_options.preconditioner is not None and (
-                    len(self.parameters.algorithm_options.costs) % 10 == 1):
+            if (self.parameters.algorithm_options.name != 'dm'
+                    and self.parameters.object_options.preconditioner is not None
+                    and (len(self.parameters.algorithm_options.costs) % 10 == 1)):
                 (
                     self.parameters.psi,
                     self.parameters.probe,
@@ -650,15 +652,16 @@ class Reconstruction():
             new_scan,
             new_data,
         ) = tike.cluster.by_scan_grid(
-            self.comm.pool,
-            (
+            new_data,
+            scan=new_scan,
+            pool=self.comm.pool,
+            shape=(
                 self.comm.pool.num_workers
                 if odd_pool else self.comm.pool.num_workers // 2,
                 1 if odd_pool else 2,
             ),
-            (self.parameters.scan[0].dtype, self.data[0].dtype),
-            new_scan,
-            new_data,
+            dtype=(self.parameters.scan[0].dtype, self.data[0].dtype),
+            destination=('gpu', 'pinned'),
         )
         # TODO: Perform sqrt of data here if gaussian model.
         # FIXME: Append makes a copy of each array!
@@ -712,25 +715,48 @@ def _order_join(a, b):
     return np.append(a, b + len(a))
 
 
-def _get_rescale(data, measured_pixels, psi, scan, probe, num_batch, operator):
+def _get_rescale(
+    data,
+    measured_pixels,
+    psi,
+    scan,
+    probe,
+    streams,
+    *,
+    operator,
+):
 
-    n = cp.zeros(2, dtype=np.double)
+    sums = cp.zeros((2,), dtype=cp.double)
 
-    for b in tike.opt.batch_indicies(data.shape[-3],
-                                     num_batch,
-                                     use_random=False):
+    def make_certain_args_constant(
+        ind_args,
+        mod_args,
+        _,
+    ) -> typing.Tuple[npt.NDArray]:
+
+        (data, scan,) = ind_args
+        (sums,) = mod_args
 
         intensity, _ = operator._compute_intensity(
             None,
             psi,
-            scan[..., b, :],
+            scan,
             probe,
         )
 
-        n[0] += np.sum(data[..., b, :, :][:, measured_pixels])
-        n[1] += np.sum(intensity[:, measured_pixels])
+        sums[0] += cp.sum(data[:, measured_pixels], dtype=np.double)
+        sums[1] += cp.sum(intensity[:, measured_pixels], dtype=np.double)
 
-    return n
+        return [sums,]
+
+    result = tike.communicators.stream.stream_and_modify(
+        f=make_certain_args_constant,
+        ind_args=[data, scan,],
+        mod_args=[sums,],
+        streams=streams,
+    )
+
+    return result[0]
 
 
 def _rescale_probe(operator, comm, data, exitwave_options, psi, scan, probe,
@@ -748,7 +774,7 @@ def _rescale_probe(operator, comm, data, exitwave_options, psi, scan, probe,
             psi,
             scan,
             probe,
-            num_batch=num_batch,
+            comm.streams,
             operator=operator,
         )
     except cp.cuda.memory.OutOfMemoryError:

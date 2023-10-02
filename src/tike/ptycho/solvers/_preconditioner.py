@@ -47,25 +47,16 @@ def _psi_preconditioner(
         dtype=psi.dtype,
     )
 
-    for s in cp.array_split(scan, max(len(scan) // 64, 1)):
-        (psi_update_denominator,) = make_certain_args_constant(
-            [s],
-            [psi_update_denominator],
-            None,
-        )
-
-    return psi_update_denominator
-
-    # return tike.communicators.stream.stream_and_modify(
-    #     f=make_certain_args_constant,
-    #     ind_args=[
-    #         scan,
-    #     ],
-    #     mod_args=[
-    #         psi_update_denominator,
-    #     ],
-    #     streams=streams,
-    # )[0]
+    return tike.communicators.stream.stream_and_modify(
+        f=make_certain_args_constant,
+        ind_args=[
+            scan,
+        ],
+        mod_args=[
+            psi_update_denominator,
+        ],
+        streams=streams,
+    )[0]
 
 
 def _probe_preconditioner(
@@ -103,25 +94,16 @@ def _probe_preconditioner(
         dtype=probe.dtype,
     )
 
-    for s in cp.array_split(scan, max(len(scan) // 64, 1)):
-        (probe_update_denominator,) = make_certain_args_constant(
-            [s],
-            [probe_update_denominator],
-            None,
-        )
-
-    return probe_update_denominator
-
-    # return tike.communicators.stream.stream_and_modify(
-    #     f=make_certain_args_constant,
-    #     ind_args=[
-    #         scan,
-    #     ],
-    #     mod_args=[
-    #         probe_update_denominator,
-    #     ],
-    #     streams=streams,
-    # )[0]
+    return tike.communicators.stream.stream_and_modify(
+        f=make_certain_args_constant,
+        ind_args=[
+            scan,
+        ],
+        mod_args=[
+            probe_update_denominator,
+        ],
+        streams=streams,
+    )[0]
 
 
 def update_preconditioners(
@@ -141,7 +123,7 @@ def update_preconditioners(
             psi,
             scan,
             probe,
-            streams=None,  #comm.streams,
+            comm.streams,
             operator=operator,
         )
 
@@ -163,7 +145,7 @@ def update_preconditioners(
             psi,
             scan,
             probe,
-            streams=None,  #comm.streams,
+            comm.streams,
             operator=operator,
         )
 

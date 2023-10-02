@@ -1,9 +1,9 @@
 """Functions for ptychography."""
 from .fresnel import *
-from .object import ObjectOptions
+from .object import *
 from .position import *
-from .probe import ProbeOptions
-from .exitwave import ExitWaveOptions
+from .probe import *
+from .exitwave import *
 from .ptycho import *
 from .solvers import *
 

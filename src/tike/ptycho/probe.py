@@ -293,9 +293,9 @@ def constrain_variable_probe(comm, variable_probe, weights):
     return variable_probe, weights
 
 
-def _get_update(R, eigen_probe, weights, *, c, m):
+def _get_update(R, eigen_probe, weights, batches, *, batch_index, c, m):
     # (..., POSI, 1, 1, 1, 1) to match other arrays
-    weights = weights[..., c:c + 1, m:m + 1, None, None]
+    weights = weights[..., batches[batch_index], c:c + 1, m:m + 1, None, None]
     eigen_probe = eigen_probe[..., c - 1:c, m:m + 1, :, :]
     norm_weights = tike.linalg.norm(weights, axis=-5, keepdims=True)**2
 
@@ -327,7 +327,7 @@ def _get_d(patches, diff, eigen_probe, update, *, β, c, m):
     # Determine new eigen_weights for the updated eigen probe
     phi = patches * eigen_probe[..., c - 1:c, m:m + 1, :, :]
     n = np.mean(
-        np.real(diff * phi.conj()),
+        np.real(diff[..., m:m + 1, :, :] * phi.conj()),
         axis=(-1, -2),
         keepdims=False,
     )
@@ -336,16 +336,16 @@ def _get_d(patches, diff, eigen_probe, update, *, β, c, m):
     return eigen_probe, n, d, d_mean
 
 
-def _get_weights_mean(n, d, d_mean, weights, *, c, m):
+def _get_weights_mean(n, d, d_mean, weights, batches, *, batch_index, c, m):
     # yapf: disable
     weight_update = (
         n / (d + 0.1 * d_mean)
-    ).reshape(*weights[..., c:c + 1, m:m + 1].shape)
+    ).reshape(*weights[..., batches[batch_index], c:c + 1, m:m + 1].shape)
     # yapf: enable
     assert np.all(np.isfinite(weight_update))
 
     # (33) The sum of all previous steps constrained to zero-mean
-    weights[..., c:c + 1, m:m + 1] += weight_update
+    weights[..., batches[batch_index], c:c + 1, m:m + 1] += weight_update
     return weights
 
 
@@ -356,6 +356,9 @@ def update_eigen_probe(
     weights,
     patches,
     diff,
+    batches,
+    *,
+    batch_index,
     β=0.1,
     c=1,
     m=0,
@@ -375,7 +378,7 @@ def update_eigen_probe(
         Residual probe updates; what's left after subtracting the shared probe
         update from the varying probe updates for each position
     patches : (..., POSI, 1, 1, WIDE, HIGH) complex64
-    diff : (..., POSI, 1, 1, WIDE, HIGH) complex64
+    diff : (..., POSI, 1, SHARED, WIDE, HIGH) complex64
     eigen_probe : (..., 1, EIGEN, SHARED, WIDE, HIGH) complex64
         The eigen probe being updated.
     β : float
@@ -398,7 +401,7 @@ def update_eigen_probe(
     assert R[0].shape[-3] == R[0].shape[-4] == 1
     assert 1 == eigen_probe[0].shape[-5]
     assert R[0].shape[:-5] == eigen_probe[0].shape[:-5] == weights[0].shape[:-3]
-    assert weights[0].shape[-3] == R[0].shape[-5]
+    assert weights[0][..., batches[0][batch_index], :, :].shape[-3] == R[0].shape[-5]
     assert R[0].shape[-2:] == eigen_probe[0].shape[-2:]
 
     update = comm.pool.map(
@@ -406,6 +409,8 @@ def update_eigen_probe(
         R,
         eigen_probe,
         weights,
+        batches,
+        batch_index=batch_index,
         c=c,
         m=m,
     )
@@ -437,6 +442,8 @@ def update_eigen_probe(
             d,
             d_mean,
             weights,
+            batches,
+            batch_index=batch_index,
             c=c,
             m=m,
         ))
@@ -691,7 +698,8 @@ def init_varying_probe(
     return eigen_probe, weights
 
 
-def orthogonalize_eig(x: npt.NDArray,) -> typing.Tuple[npt.NDArray, npt.NDArray]:
+def orthogonalize_eig(
+    x: npt.NDArray,) -> typing.Tuple[npt.NDArray, npt.NDArray]:
     """Orthogonalize modes of x using eigenvectors of the pairwise dot product.
 
     Parameters
@@ -729,7 +737,8 @@ def orthogonalize_eig(x: npt.NDArray,) -> typing.Tuple[npt.NDArray, npt.NDArray]
     val, vectors = xp.linalg.eigh(A, UPLO='U')
     result = (vectors.swapaxes(-1, -2) @ x.reshape(*x.shape[:-2], -1)).reshape(
         *x.shape)
-    power = np.square(tike.linalg.norm(result, axis=(-2, -1), keepdims=False)).flatten()
+    power = np.square(tike.linalg.norm(result, axis=(-2, -1),
+                                       keepdims=False)).flatten()
     order = np.argsort(power, axis=None, kind='stable')[::-1]
     result = result[..., order, :, :]
     power = power[order]

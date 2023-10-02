@@ -239,11 +239,11 @@ class PtychoRecon(
             probe=self.probe,
             scan=self.scan,
         )
-        params.algorithm_options = tike.ptycho.AdamOptions(
+        params.algorithm_options = tike.ptycho.RpieOptions(
             num_batch=5,
             num_iter=16,
         )
-        params.probe_options = ProbeOptions()
+        params.probe_options = ProbeOptions(force_orthogonality=True,)
         params.object_options = ObjectOptions()
         params.exitwave_options = ExitWaveOptions(measured_pixels=np.ones(
             self.probe.shape[-2:],
@@ -266,73 +266,6 @@ class PtychoRecon(
             )
         except ImportError:
             pass
-
-    def test_consistent_adam_grad(self):
-        """Check ptycho.solver.adam_grad for consistency."""
-        params = tike.ptycho.PtychoParameters(
-            psi=self.psi,
-            probe=self.probe,
-            scan=self.scan,
-            algorithm_options=tike.ptycho.AdamOptions(
-                num_batch=5,
-                num_iter=16,
-            ),
-            probe_options=ProbeOptions(),
-            object_options=ObjectOptions(),
-        )
-
-        _save_ptycho_result(
-            self.template_consistent_algorithm(
-                data=self.data,
-                params=params,
-            ),
-            f"mpi{self.mpi_size}-adam_grad{self.post_name}",
-        )
-
-    def test_consistent_adam_grad_compact(self):
-        """Check ptycho.solver.adam_grad for consistency."""
-        params = tike.ptycho.PtychoParameters(
-            psi=self.psi,
-            probe=self.probe,
-            scan=self.scan,
-            algorithm_options=tike.ptycho.AdamOptions(
-                num_batch=5,
-                num_iter=16,
-                batch_method='compact',
-            ),
-            probe_options=ProbeOptions(),
-            object_options=ObjectOptions(),
-        )
-
-        _save_ptycho_result(
-            self.template_consistent_algorithm(
-                data=self.data,
-                params=params,
-            ),
-            f"mpi{self.mpi_size}-adam_grad-compact{self.post_name}",
-        )
-
-    def test_consistent_cgrad(self):
-        """Check ptycho.solver.cgrad for consistency."""
-        params = tike.ptycho.PtychoParameters(
-            psi=self.psi,
-            probe=self.probe,
-            scan=self.scan,
-            algorithm_options=tike.ptycho.CgradOptions(
-                num_batch=5,
-                num_iter=16,
-            ),
-            probe_options=ProbeOptions(),
-            object_options=ObjectOptions(),
-        )
-
-        _save_ptycho_result(
-            self.template_consistent_algorithm(
-                data=self.data,
-                params=params,
-            ),
-            f"mpi{self.mpi_size}-cgrad{self.post_name}",
-        )
 
     def test_consistent_lstsq_poisson_steplength_allmodes(self):
         """Check ptycho.solver.lstsq_grad for consistency."""
@@ -438,7 +371,10 @@ class PtychoRecon(
                 num_batch=5,
                 num_iter=16,
             ),
-            probe_options=ProbeOptions(use_adaptive_moment=True,),
+            probe_options=ProbeOptions(
+                force_orthogonality=True,
+                use_adaptive_moment=True,
+            ),
             object_options=ObjectOptions(use_adaptive_moment=True,),
         )
 
@@ -459,7 +395,10 @@ class PtychoRecon(
                 num_iter=16,
                 batch_method='compact',
             ),
-            probe_options=ProbeOptions(use_adaptive_moment=True,),
+            probe_options=ProbeOptions(
+                force_orthogonality=True,
+                use_adaptive_moment=True,
+            ),
             object_options=ObjectOptions(use_adaptive_moment=True,),
         )
 
@@ -479,7 +418,10 @@ class PtychoRecon(
                 num_batch=5,
                 num_iter=16,
             ),
-            probe_options=ProbeOptions(use_adaptive_moment=True,),
+            probe_options=ProbeOptions(
+                force_orthogonality=True,
+                use_adaptive_moment=True,
+            ),
             object_options=ObjectOptions(use_adaptive_moment=True,),
         )
 
@@ -601,7 +543,7 @@ class PtychoRecon(
                 num_batch=5,
                 num_iter=16,
             ),
-            probe_options=ProbeOptions(),
+            probe_options=ProbeOptions(force_orthogonality=True,),
             object_options=ObjectOptions(
                 smoothness_constraint=0.01,
             ),
@@ -626,7 +568,10 @@ class PtychoRecon(
                 num_iter=16,
                 batch_method='compact',
             ),
-            probe_options=ProbeOptions(use_adaptive_moment=True,),
+            probe_options=ProbeOptions(
+                force_orthogonality=True,
+                use_adaptive_moment=True,
+            ),
             object_options=ObjectOptions(use_adaptive_moment=True,),
         )
 
@@ -646,7 +591,7 @@ class PtychoRecon(
                 num_batch=5,
                 num_iter=16,
             ),
-            probe_options=ProbeOptions(),
+            probe_options=ProbeOptions(force_orthogonality=True,),
             object_options=ObjectOptions(),
         )
 
@@ -679,7 +624,7 @@ class PtychoRecon(
                 num_iter=16,
                 num_batch=5,
             ),
-            probe_options=ProbeOptions(),
+            probe_options=ProbeOptions(force_orthogonality=True,),
             object_options=ObjectOptions(),
         )
 

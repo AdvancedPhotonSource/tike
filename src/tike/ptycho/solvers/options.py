@@ -52,29 +52,6 @@ class IterativeOptions(abc.ABC):
 
 
 @dataclasses.dataclass
-class AdamOptions(IterativeOptions):
-    name: str = dataclasses.field(default='adam_grad', init=False)
-
-    alpha: float = 0.05
-    """A hyper-parameter which controls the type of update regularization.
-    RPIE becomes EPIE when this parameter is 1."""
-
-    step_length: float = 1
-    """Scales the search directions."""
-
-
-@dataclasses.dataclass
-class CgradOptions(IterativeOptions):
-    name: str = dataclasses.field(default='cgrad', init=False)
-
-    cg_iter: int = 2
-    """The number of conjugate directions to search for each update."""
-
-    step_length: float = 1
-    """Scales the inital search directions before the line search."""
-
-
-@dataclasses.dataclass
 class DmOptions(IterativeOptions):
     name: str = dataclasses.field(default='dm', init=False)
 
@@ -169,8 +146,7 @@ class PtychoParameters():
         )
         if self.exitwave_options is None:
             self.exitwave_options = ExitWaveOptions(
-                measured_pixels=np.ones(self.probe.shape[-2:], dtype=np.bool_)
-            )
+                measured_pixels=np.ones(self.probe.shape[-2:], dtype=np.bool_))
 
     def resample(
         self,

@@ -1,6 +1,8 @@
 import logging
+import typing
 
 import cupy as cp
+import numpy.typing as npt
 
 import tike.linalg
 import tike.opt
@@ -8,19 +10,19 @@ import tike.ptycho.position
 import tike.ptycho.probe
 import tike.random
 
-from tike.ptycho.solvers.rpie import _update_position
+from .options import *
 
 logger = logging.getLogger(__name__)
 
 
 def dm(
-    op,
-    comm,
-    data,
-    batches,
+    op: tike.operators.Ptycho,
+    comm: tike.communicators.Comm,
+    data: typing.List[npt.NDArray],
+    batches: typing.List[typing.List[npt.NDArray[cp.intc]]],
     *,
-    parameters,
-):
+    parameters: PtychoParameters,
+) -> PtychoParameters:
     """Solve the ptychography problem using the difference map approach.
 
     Parameters
@@ -55,87 +57,46 @@ def dm(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
-    psi_update_numerator = None
-    psi_update_denominator = None
-    probe_update_numerator = None
-    probe_update_denominator = None
-    batch_cost = []
+    psi_update_numerator = [None] * comm.pool.num_workers
+    probe_update_numerator = [None] * comm.pool.num_workers
 
+    # The objective function value for each batch
+    batch_cost: typing.List[float] = []
     for n in tike.random.randomizer_np.permutation(len(batches[0])):
 
-        bdata = comm.pool.map(tike.opt.get_batch, data, batches, n=n)
-        bscan = comm.pool.map(tike.opt.get_batch, parameters.scan, batches, n=n)
-
-        if parameters.position_options is None:
-            bposition_options = None
-        else:
-            bposition_options = comm.pool.map(
-                tike.ptycho.position.PositionOptions.split,
-                parameters.position_options,
-                [b[n] for b in batches],
-            )
-
-        unique_probe = parameters.probe
-        beigen_probe = None
-        beigen_weights = None
-
-        nearplane, cost = zip(*comm.pool.map(
-            _update_wavefront,
-            bdata,
-            unique_probe,
-            bscan,
-            parameters.psi,
-            op=op,
-            model=parameters.exitwave_options.noise_model,
-        ))
-
-        batch_cost.append(comm.Allreduce_mean(cost, axis=None).get())
-
         (
+            cost,
             psi_update_numerator,
-            psi_update_denominator,
             probe_update_numerator,
-            probe_update_denominator,
-        ) = _update_nearplane(
-            op,
-            comm,
-            nearplane,
-            parameters.psi,
-            bscan,
-            parameters.probe,
-            parameters.object_options is not None,
-            parameters.probe_options is not None,
-            position_options=bposition_options,
-            psi_update_numerator=psi_update_numerator,
-            psi_update_denominator=psi_update_denominator,
-            probe_update_numerator=probe_update_numerator,
-            probe_update_denominator=probe_update_denominator,
-        )
-
-        if parameters.position_options is not None:
-            comm.pool.map(
-                tike.ptycho.position.PositionOptions.insert,
-                parameters.position_options,
-                bposition_options,
-                [b[n] for b in batches],
-            )
-
-        comm.pool.map(
-            tike.opt.put_batch,
-            bscan,
+        ) = (list(a) for a in zip(*comm.pool.map(
+            _get_nearplane_gradients,
+            data,
             parameters.scan,
+            parameters.psi,
+            parameters.probe,
+            parameters.exitwave_options.measured_pixels,
+            psi_update_numerator,
+            probe_update_numerator,
             batches,
+            comm.streams,
             n=n,
-        )
+            op=op,
+            object_options=parameters.object_options,
+            probe_options=parameters.probe_options,
+            exitwave_options=parameters.exitwave_options,
+        )))
 
-    parameters.psi, parameters.probe = _apply_update(
+        cost = comm.Allreduce_mean(cost, axis=None).get()
+        logger.info('%10s cost is %+12.5e', 'farplane', cost)
+        batch_cost.append(cost)
+
+    (
+        parameters.psi,
+        parameters.probe,
+    ) = _apply_update(
         comm,
-        parameters.object_options is not None,
-        parameters.probe_options is not None,
         psi_update_numerator,
-        psi_update_denominator,
         probe_update_numerator,
-        probe_update_denominator,
         parameters.psi,
         parameters.probe,
         parameters.object_options,
@@ -146,128 +107,22 @@ def dm(
     return parameters
 
 
-def _update_wavefront(data, varying_probe, scan, psi, *, op=None, model):
-
-    farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
-    intensity = cp.sum(
-        cp.square(cp.abs(farplane)),
-        axis=list(range(1, farplane.ndim - 2)),
-    )
-    cost = getattr(tike.operators, model)(data, intensity)
-    logger.info('%10s cost is %+12.5e', 'farplane', cost)
-
-    farplane *= (cp.sqrt(data) / (cp.sqrt(intensity) + 1e-9))[..., None,
-                                                              None, :, :]
-
-    farplane = op.propagation.adj(farplane, overwrite=True)
-
-    pad, end = op.diffraction.pad, op.diffraction.end
-    return farplane[..., pad:end, pad:end], cost
-
-
-def _update_nearplane(
-    op,
-    comm,
-    nearplane_,
-    psi,
-    scan_,
-    probe,
-    recover_psi,
-    recover_probe,
-    step_length=1.0,
-    position_options=None,
-    *,
-    psi_update_numerator=None,
-    psi_update_denominator=None,
-    probe_update_numerator=None,
-    probe_update_denominator=None,
-):
-
-    patches = comm.pool.map(_get_patches, nearplane_, psi, scan_, op=op)
-
-    (
-        _psi_update_numerator,
-        _psi_update_denominator,
-        _probe_update_numerator,
-        _probe_update_denominator,
-        # position_update_numerator,
-        # position_update_denominator,
-    ) = (list(a) for a in zip(*comm.pool.map(
-        _get_nearplane_gradients,
-        nearplane_,
-        patches,
-        psi,
-        scan_,
-        probe,
-        recover_psi=recover_psi,
-        recover_probe=recover_probe,
-        recover_positions=position_options is not None,
-        op=op,
-    )))
-
-    if psi_update_numerator is None or not recover_psi:
-        psi_update_numerator = _psi_update_numerator
-    else:
-        psi_update_numerator = comm.pool.map(
-            cp.add,
-            psi_update_numerator,
-            _psi_update_numerator,
-        )
-    if psi_update_denominator is None or not recover_psi:
-        psi_update_denominator = _psi_update_denominator
-    else:
-        psi_update_denominator = comm.pool.map(
-            cp.add,
-            psi_update_denominator,
-            _psi_update_denominator,
-        )
-
-    if probe_update_numerator is None or not recover_probe:
-        probe_update_numerator = _probe_update_numerator
-    else:
-        probe_update_numerator = comm.pool.map(
-            cp.add,
-            probe_update_numerator,
-            _probe_update_numerator,
-        )
-    if probe_update_denominator is None or not recover_probe:
-        probe_update_denominator = _probe_update_denominator
-    else:
-        probe_update_denominator = comm.pool.map(
-            cp.add,
-            probe_update_denominator,
-            _probe_update_denominator,
-        )
-
-    return (
-        psi_update_numerator,
-        psi_update_denominator,
-        probe_update_numerator,
-        probe_update_denominator,
-    )
-
-
 def _apply_update(
     comm,
-    recover_psi,
-    recover_probe,
     psi_update_numerator,
-    psi_update_denominator,
     probe_update_numerator,
-    probe_update_denominator,
     psi,
     probe,
     object_options,
     probe_options,
 ):
 
-    if recover_psi:
+    if object_options:
         psi_update_numerator = comm.Allreduce_reduce_gpu(
             psi_update_numerator)[0]
-        psi_update_denominator = comm.Allreduce_reduce_gpu(
-            psi_update_denominator)[0]
 
-        new_psi = psi_update_numerator / (psi_update_denominator + 1e-9)
+        new_psi = psi_update_numerator / (object_options.preconditioner[0] +
+                                          1e-9)
         if object_options.use_adaptive_moment:
             (
                 dpsi,
@@ -283,13 +138,13 @@ def _apply_update(
             new_psi = dpsi + psi[0]
         psi = comm.pool.bcast([new_psi])
 
-    if recover_probe:
+    if probe_options:
+
         probe_update_numerator = comm.Allreduce_reduce_gpu(
             probe_update_numerator)[0]
-        probe_update_denominator = comm.Allreduce_reduce_gpu(
-            probe_update_denominator)[0]
 
-        new_probe = probe_update_numerator / (probe_update_denominator + 1e-9)
+        new_probe = probe_update_numerator / (probe_options.preconditioner[0] +
+                                              1e-9)
         if probe_options.use_adaptive_moment:
             (
                 dprobe,
@@ -308,67 +163,112 @@ def _apply_update(
     return psi, probe
 
 
-def _get_patches(nearplane, psi, scan, op=None):
-    patches = op.diffraction.patch.fwd(
-        patches=cp.zeros_like(nearplane[..., 0, 0, :, :]),
-        images=psi,
-        positions=scan,
-    )[..., None, None, :, :]
-    return patches
-
-
 def _get_nearplane_gradients(
-    nearplane,
-    patches,
-    psi,
-    scan,
-    probe,
-    recover_psi=True,
-    recover_probe=True,
-    recover_positions=True,
-    op=None,
-):
-    psi_update_numerator = cp.zeros_like(psi)
-    psi_update_denominator = cp.zeros_like(psi)
-    probe_update_numerator = cp.zeros_like(probe)
+    data: npt.NDArray,
+    scan: npt.NDArray,
+    psi: npt.NDArray,
+    probe: npt.NDArray,
+    measured_pixels: npt.NDArray,
+    psi_update_numerator: typing.Union[None, npt.NDArray],
+    probe_update_numerator: typing.Union[None, npt.NDArray],
+    batches: typing.List[typing.List[int]],
+    streams: typing.List[cp.cuda.Stream],
+    *,
+    n: int,
+    op: tike.operators.Ptycho,
+    object_options: typing.Union[None, ObjectOptions] = None,
+    probe_options: typing.Union[None, ProbeOptions] = None,
+    exitwave_options: ExitWaveOptions,
+) -> typing.List[npt.NDArray]:
 
-    for m in range(probe.shape[-3]):
+    def keep_some_args_constant(
+        ind_args,
+        mod_args,
+        _,
+    ):
+        (data, scan) = ind_args
+        (cost, psi_update_numerator, probe_update_numerator) = mod_args
 
-        diff = nearplane[..., [m], :, :]
+        varying_probe = probe
 
-        if recover_psi:
-            grad_psi = cp.conj(probe[..., [m], :, :]) * diff
+        farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
+        intensity = cp.sum(
+            cp.square(cp.abs(farplane)),
+            axis=list(range(1, farplane.ndim - 2)),
+        )
+        each_cost = getattr(
+            tike.operators,
+            f'{exitwave_options.noise_model}_each_pattern',
+        )(
+            data[:, measured_pixels][:, None, :],
+            intensity[:, measured_pixels][:, None, :],
+        )
+        cost += cp.sum(each_cost)
+
+        farplane[..., measured_pixels] *= ((
+            cp.sqrt(data) / (cp.sqrt(intensity) + 1e-9))[..., None, None,
+                                                         measured_pixels])
+        farplane[..., ~measured_pixels] = 0
+
+        pad, end = op.diffraction.pad, op.diffraction.end
+        nearplane = op.propagation.adj(farplane, overwrite=True)[..., pad:end,
+                                                                 pad:end]
+
+        patches = op.diffraction.patch.fwd(
+            patches=cp.zeros_like(nearplane[..., 0, 0, :, :]),
+            images=psi,
+            positions=scan,
+        )[..., None, None, :, :]
+
+        if object_options:
+
+            grad_psi = (cp.conj(varying_probe) * nearplane).reshape(
+                scan.shape[0] * probe.shape[-3], *probe.shape[-2:])
             psi_update_numerator = op.diffraction.patch.adj(
-                patches=grad_psi[..., 0, 0, :, :],
+                patches=grad_psi,
                 images=psi_update_numerator,
                 positions=scan,
-            )
-            probe_amp = probe[..., 0, m, :, :] * probe[..., 0, m, :, :].conj()
-            psi_update_denominator = op.diffraction.patch.adj(
-                patches=probe_amp,
-                images=psi_update_denominator,
-                positions=scan,
+                nrepeat=probe.shape[-3],
             )
 
-        if recover_probe:
-            probe_update_numerator[..., [m], :, :] = cp.sum(
-                cp.conj(patches) * diff,
+        if probe_options:
+            probe_update_numerator += cp.sum(
+                cp.conj(patches) * nearplane,
                 axis=-5,
                 keepdims=True,
             )
 
-    if recover_probe:
-        probe_update_denominator = cp.sum(
-            patches * patches.conj(),
-            axis=-5,
-            keepdims=True,
-        )
-    else:
-        probe_update_denominator = None
+        return [
+            cost,
+            psi_update_numerator,
+            probe_update_numerator,
+        ]
 
-    return (
+    psi_update_numerator = cp.zeros_like(
+        psi,) if psi_update_numerator is None else psi_update_numerator
+    probe_update_numerator = cp.zeros_like(
+        probe,) if probe_update_numerator is None else probe_update_numerator
+
+    (
+        cost,
         psi_update_numerator,
-        psi_update_denominator,
         probe_update_numerator,
-        probe_update_denominator,
+    ) = tike.communicators.stream.stream_and_modify(
+        f=keep_some_args_constant,
+        ind_args=[
+            data,
+            scan,
+        ],
+        mod_args=[
+            0.0,
+            psi_update_numerator,
+            probe_update_numerator,
+        ],
+        streams=streams,
+        indices=batches[n],
     )
+    return [
+        cost / len(batches[n]),
+        psi_update_numerator,
+        probe_update_numerator,
+    ]

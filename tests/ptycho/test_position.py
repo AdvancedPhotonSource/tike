@@ -263,7 +263,7 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
                 num_batch=5,
                 num_iter=16,
             ),
-            probe_options=ProbeOptions(),
+            probe_options=ProbeOptions(force_orthogonality=True,),
             object_options=ObjectOptions(),
         )
 
@@ -284,7 +284,7 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
                 num_batch=5,
                 num_iter=16,
             ),
-            probe_options=ProbeOptions(),
+            probe_options=ProbeOptions(force_orthogonality=True,),
             object_options=ObjectOptions(),
             position_options=PositionOptions(
                 self.scan,
@@ -311,7 +311,7 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
                 num_batch=5,
                 num_iter=16,
             ),
-            probe_options=ProbeOptions(),
+            probe_options=ProbeOptions(force_orthogonality=True,),
             object_options=ObjectOptions(),
             position_options=PositionOptions(
                 self.scan,
