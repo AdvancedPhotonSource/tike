@@ -1,8 +1,11 @@
-import warnings
 import os
+import typing
+import warnings
 
 import numpy as np
+import numpy.typing as npt
 import tike.view
+import tike.ptycho
 
 test_dir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
@@ -41,7 +44,12 @@ def _save_eigen_probe(output_folder, eigen_probe):
         )
 
 
-def _save_probe(output_folder, probe, probe_options, algorithm):
+def _save_probe(
+    output_folder: str,
+    probe: npt.NDArray,
+    probe_options: typing.Union[None, tike.ptycho.ProbeOptions],
+    algorithm: str,
+):
     import matplotlib
     matplotlib.use('Agg')
     from matplotlib import pyplot as plt
@@ -54,7 +62,7 @@ def _save_probe(output_folder, probe, probe_options, algorithm):
         f'{output_folder}/probe.png',
         tike.view.complexHSV_to_RGB(flattened),
     )
-    if len(probe_options.power) > 0:
+    if probe_options is not None and len(probe_options.power) > 0:
         f = plt.figure()
         tike.view.plot_probe_power_series(probe_options.power)
         plt.title(algorithm)
