@@ -87,7 +87,6 @@ def dm(
         )))
 
         cost = comm.Allreduce_mean(cost, axis=None).get()
-        logger.info('%10s cost is %+12.5e', 'farplane', cost)
         batch_cost.append(cost)
 
     (

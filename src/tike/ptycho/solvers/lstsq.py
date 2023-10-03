@@ -356,7 +356,6 @@ def _update_nearplane(
 ):
     m = 0
     if eigen_weights[0] is not None:
-        logger.info('Updating eigen probes')
 
         eigen_weights = comm.pool.map(
             _get_coefs_intensity,
@@ -864,8 +863,6 @@ def _update_position(
         alpha * max(position_update_denominator.max(), 1e-6))
 
     if position_options.use_adaptive_moment:
-        logger.info(
-            "position correction with ADAptive Momemtum acceleration enabled.")
         (
             step,
             position_options.v,

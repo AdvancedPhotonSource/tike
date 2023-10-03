@@ -76,7 +76,7 @@ def momentum(g, v, m, vdecay=None, mdecay=0.9):
     eps : float
         A tiny constant to prevent zero division.
     """
-    logger.info("Momentum decay m=%+.3e", mdecay)
+    logger.debug("Momentum decay m=%+.3e", mdecay)
     m = 0 if m is None else m
     m = mdecay * m + (1 - mdecay) * g
     return m, None, m
@@ -203,7 +203,7 @@ def adam(
     Kingma, Diederik P., and Jimmy Ba. "Adam: A method for stochastic
     optimization." arXiv preprint arXiv:1412.6980 (2014).
     """
-    logger.info("ADAM decay m=%+.3e, v=%+.3e; eps=%+.3e", mdecay, vdecay, eps)
+    logger.debug("ADAM decay m=%+.3e, v=%+.3e; eps=%+.3e", mdecay, vdecay, eps)
     v = np.zeros_like(g.real) if v is None else v
     m = np.zeros_like(g) if m is None else m
     m = mdecay * m + (1 - mdecay) * g
@@ -272,7 +272,7 @@ def line_search(
             break
         step_count += 1
 
-    logger.info("line_search: %d backtracks; %.3e -> %.3e; cost %.6e",
+    logger.debug("line_search: %d backtracks; %.3e -> %.3e; cost %.6e",
                 step_count, first_step, step_length, fxsd)
 
     return step_length, fxsd, xsd
@@ -372,7 +372,7 @@ def conjugate_gradient(
             )
         else:
             x = update_multi(x, step_length, dir_list)
-            logger.info("Blind update; length %.3e", step_length)
+            logger.debug("Blind update; length %.3e", step_length)
 
     if __debug__ and num_search < num_iter:
         cost = cost_function(x)

@@ -48,8 +48,11 @@ def position_units_to_pixels(
         (detector_pixel_width * detector_pixel_count) /
         (detector_distance * wavelength(photon_energy / 1000) / 100))
     logger.info(
-        "Based on detector distance and photon energy,"
-        f" reconstruction pixel size will be {1 / pixel_per_meter:.3e} m.")
+        f"For a detector of {detector_pixel_count:d} pixels"
+        f" each {detector_pixel_width:.3e} m wide"
+        f" with propagation distance {detector_distance:.3e} m"
+        f" and photon energy {photon_energy:.3e} eV;"
+        f" the reconstruction pixel size will be {1 / pixel_per_meter:.3e} m.")
     return positions * pixel_per_meter
 
 
