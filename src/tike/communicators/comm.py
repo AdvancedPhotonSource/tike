@@ -114,7 +114,12 @@ class Comm:
             return self.mpi.Allreduce(
                 self.pool.reduce_mean(x, axis=axis) * weight_local)
 
-    def Allreduce(self, x, s=None, **kwargs):
+    def Allreduce(
+        self,
+        x: typing.List[cp.ndarray],
+        s: int = None,
+        **kwargs,
+    ) -> typing.List[cp.ndarray]:
         """ThreadPool allreduce coupled with MPI allreduce.
 
         Parameters
@@ -132,7 +137,5 @@ class Comm:
         for worker in self.pool.workers:
             with cp.cuda.Device(worker):
                 buf.append(
-                    cp.asarray(
-                        self.mpi.Allreduce(
-                            cp.asnumpy(src[self.pool.workers.index(worker)]),)))
+                    self.mpi.Allreduce(src[self.pool.workers.index(worker)]))
         return buf
