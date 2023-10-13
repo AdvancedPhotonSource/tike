@@ -12,7 +12,26 @@ import cupy as cp
 import numpy as np
 
 
-class ThreadPool(ThreadPoolExecutor):
+class NoPoolExecutor():
+    """Replaces ThreadPoolExecutor when only one thread is needed."""
+
+    def __init__(self, num_workers) -> None:
+        if num_workers != 1:
+            msg = "Cannot initialize NoPoolExecutor with workers != 1."
+            raise ValueError(msg)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        pass
+
+    def map(self, func, *iterables, timeout=None, chunksize=1):
+        """ThreadPoolExecutor.map, but with no threads."""
+        return map(func, *iterables)
+
+
+class ThreadPool():
     """Python thread pool plus scatter gather methods.
 
     A Pool is a context manager which provides access to and communications
@@ -66,7 +85,9 @@ class ThreadPool(ThreadPoolExecutor):
                 raise ValueError(f'{w} is not a valid GPU device number.')
         self.workers = workers
         self.xp = xp
-        super().__init__(self.num_workers)
+        self.executor = ThreadPoolExecutor(
+            self.num_workers) if self.num_workers > 1 else NoPoolExecutor(
+                self.num_workers)
 
     def __enter__(self):
         if self.workers[0] != cp.cuda.Device().id:
@@ -74,7 +95,11 @@ class ThreadPool(ThreadPoolExecutor):
                 "The primary worker must be the current device. "
                 f"Use `with cupy.cuda.Device({self.workers[0]}):` to set the "
                 "current device.")
+        self.executor.__enter__()
         return self
+
+    def __exit__(self, type, value, traceback):
+        self.executor.__exit__(type, value, traceback)
 
     @property
     def num_workers(self):
@@ -378,4 +403,4 @@ class ThreadPool(ThreadPoolExecutor):
 
         workers = self.workers if workers is None else workers
 
-        return list(super().map(f, workers, *iterables))
+        return list(self.executor.map(f, workers, *iterables))
