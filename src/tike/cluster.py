@@ -12,16 +12,29 @@ import tike.communicators
 logger = logging.getLogger(__name__)
 
 
-def _split_gpu(m, x, dtype):
+def _split_gpu(
+    m: npt.NDArray,
+    x: npt.ArrayLike,
+    dtype: npt.DTypeLike,
+) -> npt.ArrayLike:
     return cp.asarray(x[m], dtype=dtype)
 
 
-def _split_host(m, x, dtype):
+def _split_host(
+    m: npt.NDArray,
+    x: npt.ArrayLike,
+    dtype: npt.DTypeLike,
+) -> npt.ArrayLike:
     return np.asarray(x[m], dtype=dtype)
 
-def _split_pinned(m, x, dtype):
+
+def _split_pinned(
+    m: npt.NDArray,
+    x: npt.ArrayLike,
+    dtype: npt.DTypeLike,
+) -> npt.ArrayLike:
     unpinned = x[m]
-    pinned = cupyx.empty_like_pinned(x[m], dtype=dtype)
+    pinned = cupyx.empty_like_pinned(unpinned, dtype=dtype)
     pinned[:] = unpinned
     return pinned
 
@@ -94,7 +107,7 @@ def by_scan_stripes(
     n: int,
     fly: int = 1,
     axis: int = 0,
-) -> typing.List[npt.NDArray[bool]]:
+) -> typing.List[npt.NDArray[np.bool_]]:
     """Return `n` boolean masks that split the field of view into stripes.
 
     Mask divide the data into spatially contiguous regions along the position
@@ -156,6 +169,80 @@ def by_scan_stripes(
             scan[:, 0, axis] <= edges[i + 1],
         ).repeat(fly) for i in range(n)
     ]
+
+
+def _sequential(
+    functions: typing.List,
+    population: npt.ArrayLike,
+    nums_cluster: typing.List[int],
+) -> typing.List[npt.NDArray]:
+    """Return indices dividing the population by applying functions sequentially.
+
+    The returned clusters are divided along the provided dimension into
+    clusters of approximate equal numbers of elements.
+
+    Parameters
+    ----------
+    functions : [f(population, num_cluster), f(population, num_cluster), ...]
+        A list of clustering functions to apply sequentially.
+    population : (M, N) array_like
+        The M samples of an N dimensional population that needs to be
+        clustered.
+    num_cluster : [int, int, ...]
+        The number of clusters in which to divide M samples at each step.
+
+    Returns
+    -------
+    indicies : (num_cluster,) list of array of integer
+        The indicies of population that belong to each cluster.
+    """
+    indices = functions[0](population, nums_cluster[0])
+
+    if len(functions) == 1:
+        return indices
+
+    for set in indices:
+        sub_indices = _sequential(
+            functions[1:],
+            population=population[set],
+            nums_cluster=nums_cluster[1:],
+        )
+        indices[sub_indices]
+
+
+def stripes_equal_count(
+    population: npt.ArrayLike,
+    num_cluster: int,
+    dim: int = 0,
+) -> typing.List[npt.NDArray]:
+    """Return indices dividing the population into stripes of equal count.
+
+    The returned clusters are divided along the provided dimension into
+    clusters of approximate equal numbers of elements.
+
+    Parameters
+    ----------
+    population : (M, N) array_like
+        The M samples of an N dimensional population that needs to be
+        clustered.
+    num_cluster : int (0..M]
+        The number of clusters in which to divide M samples.
+    dim : int
+        The dimension (of N) along which the population is divided.
+
+    Returns
+    -------
+    indicies : (num_cluster,) list of array of integer
+        The indicies of population that belong to each cluster.
+    """
+    logger.info("Clustering method is stripes.")
+    xp = cp.get_array_module(population)
+    # Sort the population along the dimension, then split into ranges of approx
+    # equal size
+    return np.array_split(
+        cp.asnumpy(xp.argsort(population[:, dim])),
+        num_cluster,
+    )
 
 
 def wobbly_center(population, num_cluster):
@@ -234,10 +321,10 @@ def wobbly_center(population, num_cluster):
 
 
 def wobbly_center_random_bootstrap(
-        population,
-        num_cluster: int,
-        boot_fraction: float = 0.95,
-):
+    population,
+    num_cluster: int,
+    boot_fraction: float = 0.95,
+) -> typing.List[npt.NDArray]:
     """Return the indices that divide population into heterogenous clusters.
 
     Uses a hybrid approach to generate heterogenous clusters. First, a fraction
@@ -363,8 +450,7 @@ def compact(population, num_cluster, max_iter=500):
     max_size[:len(population) % num_cluster] += 1
     assert np.sum(max_size) == len(population), (
         f"Sum of cluster maximums {np.sum(max_size)} should "
-        f"equal the population size {len(population)}!"
-    )
+        f"equal the population size {len(population)}!")
 
     # Use kmeans++ to choose initial cluster centers
     starting_centroids = np.zeros(num_cluster, dtype='int')
@@ -420,8 +506,7 @@ def compact(population, num_cluster, max_iter=500):
             _unassigned.remove(p)
             size[nearest[p]] += 1
             assert size[nearest[p]] <= max_size[nearest[p]], (
-                f"{size[nearest[p]]} !<= {max_size[nearest[p]]}"
-            )
+                f"{size[nearest[p]]} !<= {max_size[nearest[p]]}")
             if size[nearest[p]] >= max_size[nearest[p]]:
                 unfilled_clusters.remove(nearest[p])
                 # re-start with one less available cluster
@@ -498,8 +583,8 @@ def _k_means_objective(population, labels, num_cluster):
     for c in range(num_cluster):
         weight = xp.sum(labels == c)
         if weight > 1:
-            cost += weight * abs(xp.linalg.det(
-                xp.cov(
+            cost += weight * abs(
+                xp.linalg.det(xp.cov(
                     population[labels == c],
                     rowvar=False,
                 )))
@@ -532,3 +617,15 @@ def cluster_compact(*args, **kwargs):
         DeprecationWarning,
     )
     return compact(*args, **kwargs)
+
+
+def _batch_ends(
+    num_batch: int,
+    size: int,
+    index: int,
+) -> typing.Tuple[int, int]:
+    batch_size = size // num_batch
+    remainder = size % num_batch
+    lo = batch_size * index + min(remainder, index)
+    hi = lo + batch_size + (1 if index < remainder else 0)
+    return (lo, hi)
