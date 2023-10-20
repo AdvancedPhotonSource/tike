@@ -7,6 +7,27 @@
 // Padding areas are untouched and retain whatever values they had before the
 // kernel was launched.
 
+// https://docs.nvidia.com/cuda/archive/12.2.2/cuda-c-programming-guide/index.html#atomic-functions
+#if __CUDA_ARCH__ < 600
+__device__ double atomicAdd(double* address, double val)
+{
+    unsigned long long int* address_as_ull =
+                              (unsigned long long int*)address;
+    unsigned long long int old = *address_as_ull, assumed;
+
+    do {
+        assumed = old;
+        old = atomicCAS(address_as_ull, assumed,
+                        __double_as_longlong(val +
+                               __longlong_as_double(assumed)));
+
+    // Note: uses integer comparison to avoid hang in case of NaN (since NaN != NaN)
+    } while (assumed != old);
+
+    return __longlong_as_double(old);
+}
+#endif
+
 // Consider the point 0.0 in 1 dimension. The weight distribution should be
 // 0 [[ w = 1.0 ]] 1 [ w = 0.0 ] 2
 // Consider the point 1.2 in 1 dimension. The weight distribution should be
