@@ -9,7 +9,7 @@ on:
       - "tests/**"
       - "src/tike/**"
       - pyproject.toml
-      - .github/unit-tests.yml
+      - .github/workflows/unit-tests.yml
   pull_request:
     branches:
       - main
@@ -17,7 +17,7 @@ on:
       - "tests/**"
       - "src/tike/**"
       - pyproject.toml
-      - .github/unit-tests.yml
+      - .github/workflows/unit-tests.yml
 
 jobs:
   linux-x86-no-mpi:
