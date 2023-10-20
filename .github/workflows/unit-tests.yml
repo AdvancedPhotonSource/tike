@@ -35,11 +35,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - run: >
+      - run: |
           echo ${CUDA_VISIBLE_DEVICES}
           nvidia-smi
 
-      - run: >
+      - run: |
           conda config --remove channels defaults || true
           conda config --add channels conda-forge
           conda config --show channels
@@ -104,11 +104,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - run: >
+      - run: |
           echo ${CUDA_VISIBLE_DEVICES}
           nvidia-smi
 
-      - run: >
+      - run: |
           conda config --remove channels defaults || true
           conda config --add channels conda-forge
           conda config --show channels
