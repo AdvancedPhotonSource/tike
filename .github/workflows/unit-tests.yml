@@ -35,6 +35,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - run: nvidia-smi
+
       - run: >
           conda config --remove channels defaults || true
           conda config --add channels conda-forge
@@ -99,6 +101,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+
+      - run: nvidia-smi
 
       - run: >
           conda config --remove channels defaults || true
