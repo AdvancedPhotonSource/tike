@@ -33,9 +33,8 @@ def _split_pinned(
     x: npt.ArrayLike,
     dtype: npt.DTypeLike,
 ) -> npt.ArrayLike:
-    unpinned = x[m]
-    pinned = cupyx.empty_like_pinned(unpinned, dtype=dtype)
-    pinned[:] = unpinned
+    pinned = cupyx.empty_pinned(shape=(len(m), *x.shape[1:]), dtype=dtype)
+    pinned[...] = x[m]
     return pinned
 
 
@@ -171,43 +170,103 @@ def by_scan_stripes(
     ]
 
 
-def _sequential(
-    functions: typing.List,
-    population: npt.ArrayLike,
-    nums_cluster: typing.List[int],
-) -> typing.List[npt.NDArray]:
-    """Return indices dividing the population by applying functions sequentially.
+def by_scan_stripes_contiguous(
+    *args,
+    pool: tike.communicators.ThreadPool,
+    shape: typing.Tuple[int],
+    dtype: typing.List[npt.DTypeLike],
+    destination: typing.List[str],
+    scan: npt.NDArray[np.float32],
+    fly: int = 1,
+    batch_method,
+    num_batch: int,
+) -> typing.Tuple[typing.List[npt.NDArray],
+                  typing.List[typing.List[npt.NDArray]]]:
+    """Split data by into stripes and create contiguously ordered batches.
 
-    The returned clusters are divided along the provided dimension into
-    clusters of approximate equal numbers of elements.
+    Divide the field of view into one stripe per devices; within each stripe,
+    create batches according to the batch_method loading the batches into
+    contiguous blocks in device memory.
 
     Parameters
     ----------
-    functions : [f(population, num_cluster), f(population, num_cluster), ...]
-        A list of clustering functions to apply sequentially.
-    population : (M, N) array_like
-        The M samples of an N dimensional population that needs to be
-        clustered.
-    num_cluster : [int, int, ...]
-        The number of clusters in which to divide M samples at each step.
+    shape : tuple of int
+        The number of grid divisions along each dimension.
+    dtype : List[str]
+        The datatypes of the args after splitting.
+    scan : (nscan, 2) float32
+        The 2D coordinates of the scan positions.
+    args : (nscan, ...) float32 or None
+        The arrays to be split by scan position.
+    fly : int
+        The number of scan positions per frame.
+    batch_method :
+        The method for determining the batches after dividing amongst GPUs
 
     Returns
     -------
-    indicies : (num_cluster,) list of array of integer
-        The indicies of population that belong to each cluster.
+    order : List[array[int]]
+        The locations of the inputs in the original arrays.
+    batches : List[List[array[int]]]
+        The locations of the elements of each batch
+    scan : List[array[float32]]
+        The divided 2D coordinates of the scan positions.
+    args : List[array[float32]] or None
+        Each input divided into regions or None if arg was None.
+
     """
-    indices = functions[0](population, nums_cluster[0])
+    if len(shape) != 2:
+        raise ValueError('The grid shape must have two dimensions.')
 
-    if len(functions) == 1:
-        return indices
+    map_to_gpu = stripes_equal_count(
+        population=scan,
+        num_cluster=shape[0] * shape[1],
+        dim=0,
+    )
+    split_scan = pool.map(
+        _split_host,
+        map_to_gpu,
+        x=scan,
+        dtype=scan.dtype,
+    )
+    batches_noncontiguous: typing.List[typing.List[npt.NDArray]] = pool.map(
+        getattr(tike.cluster, batch_method),
+        split_scan,
+        num_cluster=num_batch,
+    )
+    map_to_gpu_contiguous: typing.List[npt.NDArray] = []
+    batches_contiguous: typing.List[typing.List[npt.NDArray]] = []
+    for gpu_map, batch_map in zip(map_to_gpu, batches_noncontiguous):
+        batch_indices = gpu_map[np.concatenate(batch_map)]
+        map_to_gpu_contiguous.append(batch_indices)
+        batch_sizes = [len(batch) for batch in batch_map]
+        batch_breaks = np.cumsum(batch_sizes)[:-1]
+        batches_contiguous.append(
+            np.array_split(
+                np.arange(len(batch_indices)),
+                batch_breaks,
+            ))
 
-    for set in indices:
-        sub_indices = _sequential(
-            functions[1:],
-            population=population[set],
-            nums_cluster=nums_cluster[1:],
-        )
-        indices[sub_indices]
+    split_args = []
+    for arg, t, dest in zip([scan, *args], dtype, destination):
+        if arg is None:
+            split_args.append(None)
+        else:
+            split_args.append(
+                pool.map(
+                    _split_gpu if dest == 'gpu' else _split_pinned,
+                    map_to_gpu_contiguous,
+                    x=arg,
+                    dtype=t,
+                ))
+
+    if __debug__:
+        for device in batches_contiguous:
+            assert len(device) == num_batch, (
+                f"There should be {num_batch} batches, found {len(device)}"
+            )
+
+    return (map_to_gpu_contiguous, batches_contiguous, *split_args)
 
 
 def stripes_equal_count(
