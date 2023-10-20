@@ -35,7 +35,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - run: nvidia-smi
+      - run: >
+        echo ${CUDA_VISIBLE_DEVICES}
+        nvidia-smi
 
       - run: >
           conda config --remove channels defaults || true
@@ -102,7 +104,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - run: nvidia-smi
+      - run: >
+        echo ${CUDA_VISIBLE_DEVICES}
+        nvidia-smi
 
       - run: >
           conda config --remove channels defaults || true
