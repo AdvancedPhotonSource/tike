@@ -237,6 +237,8 @@ def stripes_equal_count(
     """
     logger.info("Clustering method is stripes.")
     xp = cp.get_array_module(population)
+    if (num_cluster == 1) or (num_cluster >= len(population)):
+        return np.array_split(np.arange(population.shape[0]), num_cluster)
     # Sort the population along the dimension, then split into ranges of approx
     # equal size
     return np.array_split(
@@ -282,12 +284,12 @@ def wobbly_center(population, num_cluster):
     """
     logger.info("Clustering method is wobbly center.")
     xp = cp.get_array_module(population)
-    if num_cluster == 1 or num_cluster == population.shape[0]:
-        return xp.split(xp.arange(population.shape[0]), num_cluster)
-    if not 0 < num_cluster <= min(0xFFFF, population.shape[0]):
+    if not 0 < num_cluster < 0xFFFF:
         raise ValueError(
-            f"The number of clusters must be 0 < {num_cluster} < min(65536, M)."
+            f"The number of clusters must be 0 < {num_cluster} < 65536."
         )
+    if (num_cluster == 1) or (num_cluster >= len(population)):
+        return np.array_split(np.arange(population.shape[0]), num_cluster)
     # Start with the num_cluster observations closest to the global centroid
     starting_centroids = xp.argpartition(
         xp.linalg.norm(population - xp.mean(population, axis=0, keepdims=True),
@@ -364,12 +366,12 @@ def wobbly_center_random_bootstrap(
     """
     logger.info("Clustering method is wobbly center with random bootstrap.")
     xp = cp.get_array_module(population)
-    if num_cluster == 1 or num_cluster == population.shape[0]:
-        return xp.split(xp.arange(population.shape[0]), num_cluster)
-    if not 0 < num_cluster <= min(0xFFFF, population.shape[0]):
+    if not 0 < num_cluster < 0xFFFF:
         raise ValueError(
-            f"The number of clusters must be 0 < {num_cluster} < min(65536, M)."
+            f"The number of clusters must be 0 < {num_cluster} < 65536."
         )
+    if (num_cluster == 1) or (num_cluster >= len(population)):
+        return np.array_split(np.arange(population.shape[0]), num_cluster)
     # Partially initialize the clusters randomly; each cluster starts with an
     # equal number of members
     num_bootstrap = int(len(population) * boot_fraction)
@@ -436,12 +438,12 @@ def compact(population, num_cluster, max_iter=500):
     logger.info("Clustering method is compact.")
     # Indexing and serial operations is very slow on GPU, so always use host
     population = cp.asnumpy(population)
-    if num_cluster == 1 or num_cluster == population.shape[0]:
-        return np.split(np.arange(population.shape[0]), num_cluster)
-    if not 0 < num_cluster <= min(0xFFFF, population.shape[0]):
+    if not 0 < num_cluster < 0xFFFF:
         raise ValueError(
-            f"The number of clusters must be 0 < {num_cluster} < min(65536, M)."
+            f"The number of clusters must be 0 < {num_cluster} < 65536."
         )
+    if (num_cluster == 1) or (num_cluster >= len(population)):
+        return np.array_split(np.arange(population.shape[0]), num_cluster)
     # Define a constant array used for indexing.
     _all = np.arange(len(population))
     # Specify the number of points allowed in each cluster
