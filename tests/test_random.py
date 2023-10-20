@@ -14,6 +14,19 @@ class ClusterTests():
 
     cluster_method = staticmethod(None)
 
+    def setUp(self, num_pop=500, num_cluster=10):
+        """Generates a normally distributed 3D population."""
+        self.num_pop = num_pop
+        self.num_cluster = num_cluster
+        m0 = [-np.sqrt(2), np.pi, np.e]
+        s0 = [0.5, 3, 7]
+        population = np.concatenate(
+            [randomizer.normal(m, s, (num_pop, 1)) for m, s in zip(m0, s0)],
+            axis=1,
+        )
+        randomizer.shuffle(population, axis=0)
+        self.population = population
+
     def test_no_clusters(self):
         with self.assertRaises(ValueError):
             self.cluster_method(self.population, 0)
@@ -30,8 +43,9 @@ class ClusterTests():
         assert np.all(samples[0].flatten() - np.arange(self.num_pop) == 0)
 
     def test_more_clusters_than_population(self):
-        with self.assertRaises(ValueError):
-            self.cluster_method(self.population, self.num_pop + 1)
+        samples = self.cluster_method(self.population, self.num_pop + 1)
+        assert len(samples) == self.num_pop + 1
+        assert len(samples[-1]) == 0
 
     def test_max_clusters(self):
         samples = self.cluster_method(self.population, self.num_pop)
@@ -49,24 +63,21 @@ class ClusterTests():
         assert len(samples[0]) == 2
         assert len(samples[1]) == 1
 
+    def test_clusters_sorted_by_size(self, num_cluster=7):
+        samples = self.cluster_method(self.population, num_cluster)
+        sizes = list(len(batch) for batch in samples)
+        remainder = self.num_pop % num_cluster
+        small = self.num_pop // num_cluster
+        large = small + 1
+        truth = [large] * remainder + [small] * (num_cluster - remainder)
+        for a, b in zip(sizes, truth):
+            assert a == b, f"Batch size {a} does not match expected size {b}."
 
-class TestWobblyCenter(unittest.TestCase, ClusterTests):
+
+class TestWobblyCenter(ClusterTests, unittest.TestCase):
 
     cluster_method = staticmethod(tike.cluster.wobbly_center)
 
-    def setUp(self, num_pop=500, num_cluster=10):
-        """Generates a normally distributed 3D population."""
-        self.num_pop = num_pop
-        self.num_cluster = num_cluster
-        m0 = [-np.sqrt(2), np.pi, np.e]
-        s0 = [0.5, 3, 7]
-        population = np.concatenate(
-            [randomizer.normal(m, s, (num_pop, 1)) for m, s in zip(m0, s0)],
-            axis=1,
-        )
-        randomizer.shuffle(population, axis=0)
-        self.population = population
-
     def test_simple_cluster(self):
         references = [
             np.array([2, 3, 4, 9]),
@@ -102,23 +113,10 @@ class TestWobblyCenter(unittest.TestCase, ClusterTests):
         assert np.all(p0 > p1)
 
 
-class TestWobblyCenterRandomBootstrap(unittest.TestCase, ClusterTests):
+class TestWobblyCenterRandomBootstrap(ClusterTests, unittest.TestCase):
 
     cluster_method = staticmethod(tike.cluster.wobbly_center_random_bootstrap)
 
-    def setUp(self, num_pop=500, num_cluster=10):
-        """Generates a normally distributed 3D population."""
-        self.num_pop = num_pop
-        self.num_cluster = num_cluster
-        m0 = [-np.sqrt(2), np.pi, np.e]
-        s0 = [0.5, 3, 7]
-        population = np.concatenate(
-            [randomizer.normal(m, s, (num_pop, 1)) for m, s in zip(m0, s0)],
-            axis=1,
-        )
-        randomizer.shuffle(population, axis=0)
-        self.population = population
-
     def test_simple_cluster(self):
         references = [
             np.array([2, 3, 4, 9]),
@@ -154,7 +152,7 @@ class TestWobblyCenterRandomBootstrap(unittest.TestCase, ClusterTests):
         assert np.all(p0 > p1)
 
 
-class TestClusterCompact(unittest.TestCase, ClusterTests):
+class TestClusterCompact(ClusterTests, unittest.TestCase):
 
     cluster_method = staticmethod(tike.cluster.compact)
 
@@ -214,6 +212,14 @@ class TestClusterCompact(unittest.TestCase, ClusterTests):
             os.makedirs(folder)
         plt.savefig(os.path.join(folder, 'clusters.svg'))
 
+
+class TestClusterStripesEqualCount(ClusterTests, unittest.TestCase):
+
+    cluster_method = staticmethod(tike.cluster.stripes_equal_count)
+
+    @unittest.skip("stripes_equal_count is not limited by the size of uint16.")
+    def test_implementation_limited_clusters(self):
+        pass
 
 def test_split_by_scan():
     scan = np.mgrid[0:3, 0:3].reshape(2, -1)
