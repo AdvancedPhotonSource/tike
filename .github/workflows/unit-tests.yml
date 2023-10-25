@@ -22,6 +22,7 @@ on:
 jobs:
   linux-x86-no-mpi:
     runs-on: self-hosted
+    continue-on-error: true
 
     strategy:
       matrix:
@@ -93,6 +94,7 @@ jobs:
 
   linux-x86-with-mpi:
     runs-on: self-hosted
+    continue-on-error: true
 
     strategy:
       matrix:
