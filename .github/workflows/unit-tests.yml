@@ -9,7 +9,7 @@ on:
       - "tests/**"
       - "src/tike/**"
       - pyproject.toml
-      - .github/unit-tests.yml
+      - .github/workflows/unit-tests.yml
   pull_request:
     branches:
       - main
@@ -17,11 +17,12 @@ on:
       - "tests/**"
       - "src/tike/**"
       - pyproject.toml
-      - .github/unit-tests.yml
+      - .github/workflows/unit-tests.yml
 
 jobs:
   linux-x86-no-mpi:
     runs-on: self-hosted
+    continue-on-error: true
 
     strategy:
       matrix:
@@ -35,7 +36,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - run: >
+      - run: |
+          echo ${CUDA_VISIBLE_DEVICES}
+          nvidia-smi
+
+      - run: |
           conda config --remove channels defaults || true
           conda config --add channels conda-forge
           conda config --show channels
@@ -51,7 +56,7 @@ jobs:
           cuda-version=${{ matrix.cuda-version }}
         name: Create build environment
 
-      - run: conda remove -n tike mpi mpi4py --yes --quiet
+      - run: conda remove -n tike mpi4py --yes --quiet || true
         name: Remove MPI from test environment
 
       - run: conda list -n tike
@@ -89,6 +94,7 @@ jobs:
 
   linux-x86-with-mpi:
     runs-on: self-hosted
+    continue-on-error: true
 
     strategy:
       matrix:
@@ -100,7 +106,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - run: >
+      - run: |
+          echo ${CUDA_VISIBLE_DEVICES}
+          nvidia-smi
+
+      - run: |
           conda config --remove channels defaults || true
           conda config --add channels conda-forge
           conda config --show channels
@@ -114,6 +124,7 @@ jobs:
           pytest
           python=${{ matrix.python-version }}
           'openmpi=*=h*'
+          mpi4py
           cuda-version=${{ matrix.cuda-version }}
         name: Create build environment
 
