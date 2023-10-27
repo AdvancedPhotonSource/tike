@@ -13,13 +13,14 @@ except ImportError:
     _mpi_size = 1
     _mpi_rank = 0
 
+_gpu_count = cp.cuda.runtime.getDeviceCount()
 
 class TestComm(unittest.TestCase):
 
-    def setUp(self, workers=cp.cuda.runtime.getDeviceCount() // _mpi_size):
-        cp.cuda.device.Device(workers * _mpi_rank).use()
+    def setUp(self, workers=max(1,  _gpu_count // _mpi_size)):
+        cp.cuda.device.Device((workers * _mpi_rank) % _gpu_count).use()
         self.comm = tike.communicators.Comm(
-            tuple(i + workers * _mpi_rank for i in range(workers)))
+            tuple(i + (workers * _mpi_rank) % _gpu_count for i in range(workers)))
         self.xp = self.comm.pool.xp
 
     def test_Allreduce_reduce_gpu(self):

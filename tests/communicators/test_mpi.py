@@ -5,6 +5,7 @@ import cupy as cp
 
 from tike.communicators import MPIComm, combined_shape
 
+_gpu_count = cp.cuda.runtime.getDeviceCount()
 
 class TestMPIComm(unittest.TestCase):
 
@@ -19,7 +20,7 @@ class TestMPIComm(unittest.TestCase):
         pass
 
     def test_bcast(self, root=0):
-        with cp.cuda.Device(self.mpi.rank):
+        with cp.cuda.Device(self.mpi.rank % _gpu_count):
             x = self.xp.ones(5) if self.mpi.rank == root else self.xp.zeros(5)
             truth = self.xp.ones(5)
             result = self.mpi.Bcast(x, root=root)
@@ -27,7 +28,7 @@ class TestMPIComm(unittest.TestCase):
 
     def test_gather(self, root=0):
         # For testing assign each rank 1 GPU of the same index
-        with cp.cuda.Device(self.mpi.rank):
+        with cp.cuda.Device(self.mpi.rank % _gpu_count):
             x = self.xp.ones(5) * self.mpi.rank
             truth = self.xp.ones(
                 (self.mpi.size, 5)) * self.xp.arange(self.mpi.size)[..., None]
@@ -39,7 +40,7 @@ class TestMPIComm(unittest.TestCase):
 
     def test_gather_mismatched_shapes(self, root=0):
         # For testing assign each rank 1 GPU of the same index
-        with cp.cuda.Device(self.mpi.rank):
+        with cp.cuda.Device(self.mpi.rank % _gpu_count):
             x = self.xp.ones((2, self.mpi.rank + 1, 1, 3)) * (self.mpi.rank + 1)
             truth = self.xp.ones((
                 2,
@@ -64,7 +65,7 @@ class TestMPIComm(unittest.TestCase):
 
     def test_allreduce(self):
         # For testing assign each rank 1 GPU of the same index
-        with cp.cuda.Device(self.mpi.rank):
+        with cp.cuda.Device(self.mpi.rank % _gpu_count):
             x = self.xp.ones(5)
             truth = self.xp.ones(5) * self.mpi.size
             result = self.mpi.Allreduce(x)
@@ -72,7 +73,7 @@ class TestMPIComm(unittest.TestCase):
 
     def test_allgather(self):
         # For testing assign each rank 1 GPU of the same index
-        with cp.cuda.Device(self.mpi.rank):
+        with cp.cuda.Device(self.mpi.rank % _gpu_count):
             x = self.xp.ones(5) * self.mpi.rank
             truth = self.xp.arange(self.mpi.size)[:, None] * self.xp.ones(
                 (1, 5))
@@ -82,7 +83,7 @@ class TestMPIComm(unittest.TestCase):
 
     def test_allgather_mismatched_shapes(self):
         # For testing assign each rank 1 GPU of the same index
-        with cp.cuda.Device(self.mpi.rank):
+        with cp.cuda.Device(self.mpi.rank % _gpu_count):
             x = self.xp.ones((2, self.mpi.rank + 1, 1, 3)) * (self.mpi.rank + 1)
             truth = self.xp.ones((
                 2,
