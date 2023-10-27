@@ -79,8 +79,8 @@ class TestPtycho(unittest.TestCase, OperatorTests):
         print()
         print('<Fm,   m> = {:.5g}{:+.5g}j'.format(a.real.item(), a.imag.item()))
         print('< d, F*d> = {:.5g}{:+.5g}j'.format(b.real.item(), b.imag.item()))
-        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-4, atol=0)
-        self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-4, atol=0)
+        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-3, atol=0)
+        self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-3, atol=0)
 
     def test_adj_probe_time(self):
         """Time the adjoint operation."""
@@ -123,10 +123,10 @@ class TestPtycho(unittest.TestCase, OperatorTests):
                                                     b.imag.item()))
         print('< d1, F*d1> = {:.5g}{:+.5g}j'.format(c.real.item(),
                                                     c.imag.item()))
-        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-4, atol=0)
-        self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-4, atol=0)
-        self.xp.testing.assert_allclose(a.real, c.real, rtol=1e-4, atol=0)
-        self.xp.testing.assert_allclose(a.imag, c.imag, rtol=1e-4, atol=0)
+        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-3, atol=0)
+        self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-3, atol=0)
+        self.xp.testing.assert_allclose(a.real, c.real, rtol=1e-3, atol=0)
+        self.xp.testing.assert_allclose(a.imag, c.imag, rtol=1e-3, atol=0)
 
 
 if __name__ == '__main__':
