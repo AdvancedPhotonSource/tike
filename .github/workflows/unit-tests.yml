@@ -36,6 +36,7 @@ jobs:
 
       - run: |
           echo ${CUDA_VISIBLE_DEVICES}
+          echo "CUDA_VERSION=$(nvidia-smi -q | grep "CUDA Version" | sed 's/CUDA Version\s*: //')" >> "$GITHUB_ENV"
 
       - run: |
           conda config --remove channels defaults || true
@@ -50,6 +51,7 @@ jobs:
           --file requirements.txt
           pytest
           python=${{ matrix.python-version }}
+          cuda-version=$CUDA_VERSION
         name: Create build environment
 
       - run: conda remove -n tike mpi4py --yes --quiet || true
@@ -102,6 +104,7 @@ jobs:
 
       - run: |
           echo ${CUDA_VISIBLE_DEVICES}
+          echo "CUDA_VERSION=$(nvidia-smi -q | grep "CUDA Version" | sed 's/CUDA Version\s*: //')" >> "$GITHUB_ENV"
 
       - run: |
           conda config --remove channels defaults || true
@@ -118,6 +121,7 @@ jobs:
           python=${{ matrix.python-version }}
           'openmpi=*=h*'
           mpi4py
+          cuda-version=$CUDA_VERSION
         name: Create build environment
 
       - run: conda list -n tike
