@@ -53,9 +53,10 @@ except ImportError:
     _mpi_size = 1
     _mpi_rank = 0
 
-_device_per_rank = cp.cuda.runtime.getDeviceCount() // _mpi_size
-_base_device = _device_per_rank * _mpi_rank
-_gpu_indices = tuple(i + _base_device for i in range(_device_per_rank))
+_device_per_rank = max(1, cp.cuda.runtime.getDeviceCount() // _mpi_size)
+_base_device = (_device_per_rank * _mpi_rank) % cp.cuda.runtime.getDeviceCount()
+_gpu_indices = tuple((i + _base_device) % cp.cuda.runtime.getDeviceCount()
+                     for i in range(_device_per_rank))
 
 
 class MPIAndGPUInfo():

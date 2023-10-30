@@ -5,9 +5,11 @@ __copyright__ = "Copyright (c) 2021, UChicago Argonne, LLC."
 
 import warnings
 import logging
+import typing
 
 import h5py
 import numpy as np
+import numpy.typing as npt
 
 from tike.constants import wavelength
 import tike.precision
@@ -57,12 +59,13 @@ def position_units_to_pixels(
 
 
 def read_aps_velociprobe(
-        diffraction_path,
-        position_path,
-        xy_columns=(5, 1),
-        trigger_column=7,
-        max_crop=2048,
-):
+    diffraction_path,
+    position_path,
+    xy_columns: typing.Tuple[int, int] = (5, 1),
+    trigger_column: int = 7,
+    max_crop: int = 2048,
+    binned_pix: int = 1,
+) -> typing.Tuple[npt.NDArray, npt.NDArray]:
     """Load ptychography data from the Advanced Photon Source Velociprobe.
 
     Expects one HDF5 file and one CSV file with the following organization::
@@ -117,6 +120,8 @@ def read_aps_velociprobe(
         positions together.
     max_crop : int
         Crop the diffraction pattern to at most this width.
+    binned_pix : int
+        The number of pixels binned together along each dimension
 
     Returns
     -------
@@ -160,15 +165,37 @@ def read_aps_velociprobe(
         radius = radius // 2
         logger.info(f'Autodetected diffraction size is {2* radius}.')
 
+        binned_width = (2 * radius) // binned_pix
+        if binned_width * binned_pix != 2 * radius:
+            msg = (f"Invalid pixel binning provided! {2 * radius} cannot be "
+                   f"evenly collected into bins of {binned_pix}.")
+            raise ValueError(msg)
+        logger.info(f'Post-binning diffraction size is {binned_width}.')
+
         data = []
 
         def crop_and_shift(x):
+            # yapf: disable
+            cropped = x[
+                ...,
+                beam_center_y - radius:beam_center_y + radius,
+                beam_center_x - radius:beam_center_x + radius,
+            ]
+            binned = np.sum(
+                np.reshape(
+                    cropped,
+                    (-1, binned_width, binned_pix, binned_width, binned_pix),
+                ),
+                axis=(-3, -1),
+                keepdims=False,
+                dtype=x.dtype,
+            )
             data.append(
                 np.fft.ifftshift(
-                    x[..., beam_center_y - radius:beam_center_y + radius,
-                      beam_center_x - radius:beam_center_x + radius],
+                    binned,
                     axes=(-2, -1),
                 ))
+            # yapf: enable
 
         for x in f['/entry/data']:
             try:
@@ -243,7 +270,7 @@ def read_aps_velociprobe(
         scan,
         detector_dist,
         data.shape[-1],
-        det_pix_width,
+        det_pix_width * binned_pix,
         photon_energy,
     )
 
@@ -265,11 +292,12 @@ def read_aps_lynx(
     beam_center_x,
     beam_center_y,
     detector_dist,
-    xy_columns=(6, 3),
+    xy_columns: typing.Tuple[int, int] = (6, 3),
     trigger_column: int = 0,
     max_crop: int = 2048,
     gap_value: int = 2**12 - 1,
-):
+    binned_pix: int = 1,
+) -> typing.Tuple[npt.NDArray, npt.NDArray]:
     """Load ptychography data from Advanced Photon Source LYNX.
 
     Expects one h5 file and one dat file with the following organization::
@@ -303,6 +331,8 @@ def read_aps_lynx(
         Crop the diffraction pattern to at most this width.
     gap_value : int
         The value used to encode detector gaps
+    binned_pix : int
+        The number of pixels binned together along each dimension
 
     Returns
     -------
@@ -337,15 +367,39 @@ def read_aps_lynx(
         radius = radius // 2
         logger.info(f'Autodetected diffraction size is {2 * radius}.')
 
+        binned_width = (2 * radius) // binned_pix
+        if binned_width * binned_pix != 2 * radius:
+            msg = (f"Invalid pixel binning provided! {2 * radius} cannot be "
+                   f"evenly collected into bins of {binned_pix}.")
+            raise ValueError(msg)
+        logger.info(f'Post-binning diffraction size is {binned_width}.')
+
         data = []
 
         def crop_and_shift(x):
+            # yapf: disable
+            cropped = x[
+                ...,
+                beam_center_y - radius:beam_center_y + radius,
+                beam_center_x - radius:beam_center_x + radius,
+            ]
+            # Set between panel values to zero
+            cropped[cropped == gap_value] = 0
+            binned = np.sum(
+                np.reshape(
+                    cropped,
+                    (-1, binned_width, binned_pix, binned_width, binned_pix),
+                ),
+                axis=(-3, -1),
+                keepdims=False,
+                dtype=x.dtype,
+            )
             data.append(
                 np.fft.ifftshift(
-                    x[..., beam_center_y - radius:beam_center_y + radius,
-                      beam_center_x - radius:beam_center_x + radius],
+                    binned,
                     axes=(-2, -1),
                 ))
+            # yapf: enable
 
         try:
             crop_and_shift(f['/entry/data/eiger_4'])
@@ -356,8 +410,6 @@ def read_aps_lynx(
             raise error
 
     data = np.concatenate(data, axis=0)
-    # Set between panel values to zero
-    data[data == gap_value] = 0
 
     raw_position = np.genfromtxt(
         position_path,
@@ -382,7 +434,7 @@ def read_aps_lynx(
         scan,
         detector_dist,
         data.shape[-1],
-        det_pix_width,
+        det_pix_width * binned_pix,
         photon_energy,
     )
 
