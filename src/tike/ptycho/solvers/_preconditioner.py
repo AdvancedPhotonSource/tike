@@ -13,6 +13,14 @@ def _rolling_average(old, new):
     return 0.5 * (new + old)
 
 
+@cp.fuse()
+def _probe_amp_sum(probe):
+    return cp.sum(
+        probe * cp.conj(probe),
+        axis=-3,
+    )
+
+
 def _psi_preconditioner(
     psi: npt.NDArray[tike.precision.cfloating],
     scan: npt.NDArray[tike.precision.floating],
@@ -31,10 +39,7 @@ def _psi_preconditioner(
         scan = ind_args[0]
         psi_update_denominator = mod_args[0]
 
-        probe_amp = cp.sum(
-            probe * probe.conj(),
-            axis=-3,
-        )[:, 0]
+        probe_amp = _probe_amp_sum(probe)[:, 0]
         psi_update_denominator = operator.diffraction.patch.adj(
             patches=probe_amp,
             images=psi_update_denominator,
@@ -59,6 +64,15 @@ def _psi_preconditioner(
     )[0]
 
 
+@cp.fuse()
+def _patch_amp_sum(patches):
+    return cp.sum(
+        patches * cp.conj(patches),
+        axis=0,
+        keepdims=False,
+    )
+
+
 def _probe_preconditioner(
     psi: npt.NDArray[tike.precision.cfloating],
     scan: npt.NDArray[tike.precision.floating],
@@ -81,11 +95,7 @@ def _probe_preconditioner(
             positions=scan,
             patch_width=probe.shape[-1],
         )
-        probe_update_denominator += cp.sum(
-            patches * patches.conj(),
-            axis=0,
-            keepdims=False,
-        )
+        probe_update_denominator += _patch_amp_sum(patches)
         assert probe_update_denominator.ndim == 2
         return (probe_update_denominator,)
 
