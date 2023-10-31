@@ -96,6 +96,7 @@ class TestWobblyCenter(unittest.TestCase, ClusterTests):
         p0 = print_sample_error(
             tike.cluster.wobbly_center(self.population, self.num_cluster))
         print('random sample')
+        np.random.seed(0)
         p1 = print_sample_error(batch_indicies(self.num_pop, self.num_cluster))
 
         # We should be more condifent that wobbly samples are the same
@@ -148,6 +149,7 @@ class TestWobblyCenterRandomBootstrap(unittest.TestCase, ClusterTests):
         p0 = print_sample_error(
             tike.cluster.wobbly_center(self.population, self.num_cluster))
         print('random sample')
+        np.random.seed(0)
         p1 = print_sample_error(batch_indicies(self.num_pop, self.num_cluster))
 
         # We should be more condifent that wobbly samples are the same
@@ -194,6 +196,7 @@ class TestClusterCompact(unittest.TestCase, ClusterTests):
         p0 = print_sample_error(
             tike.cluster.compact(self.population, self.num_cluster))
         print('random sample')
+        np.random.seed(0)
         p1 = print_sample_error(batch_indicies(self.num_pop, self.num_cluster))
 
         # Every compact cluster should have smaller devation than a random

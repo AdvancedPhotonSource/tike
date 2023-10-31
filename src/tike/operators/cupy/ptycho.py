@@ -7,11 +7,21 @@ import typing
 
 import numpy.typing as npt
 import numpy as np
+import cupy as cp
 
 from .operator import Operator
 from .propagation import Propagation
 from .convolution import Convolution
 from . import objective
+
+
+@cp.fuse()
+def _intensity_from_farplane(farplane):
+    return cp.sum(
+        cp.real(farplane * cp.conj(farplane)),
+        axis=tuple(range(1, farplane.ndim - 2)),
+    )
+
 
 class Ptycho(Operator):
     """A Ptychography operator.
@@ -159,10 +169,7 @@ class Ptycho(Operator):
             scan=scan,
             probe=probe,
         )
-        return self.xp.sum(
-            (farplane * farplane.conj()).real,
-            axis=tuple(range(1, farplane.ndim - 2)),
-        ), farplane
+        return _intensity_from_farplane(farplane), farplane
 
     def cost(
         self,
