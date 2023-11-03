@@ -336,26 +336,28 @@ class Reconstruction():
             warnings.warn(
                 "Diffraction patterns contain invalid data. "
                 "All data should be non-negative and finite.", UserWarning)
-        odd_pool = self.comm.pool.num_workers % 2
+
         (
             self.comm.order,
+            self.batches,
             self.parameters.scan,
             self.data,
             self.parameters.eigen_weights,
-        ) = tike.cluster.by_scan_grid(
+        ) = tike.cluster.by_scan_stripes_contiguous(
             self.data,
             self.parameters.eigen_weights,
             scan=self.parameters.scan,
             pool=self.comm.pool,
-            shape=(
-                self.comm.pool.num_workers
-                if odd_pool else self.comm.pool.num_workers // 2,
-                1 if odd_pool else 2,
+            shape=(self.comm.pool.num_workers, 1),
+            dtype=(
+                tike.precision.floating,
+                tike.precision.floating
+                if self.data.itemsize > 2 else self.data.dtype,
+                tike.precision.floating,
             ),
-            dtype=(tike.precision.floating, tike.precision.floating
-                   if self.data.itemsize > 2 else self.data.dtype,
-                   tike.precision.floating),
             destination=('gpu', 'pinned', 'gpu'),
+            batch_method=self.parameters.algorithm_options.batch_method,
+            num_batch=self.parameters.algorithm_options.num_batch,
         )
 
         self.parameters.psi = self.comm.pool.bcast(
@@ -387,14 +389,6 @@ class Reconstruction():
                 (self.parameters.position_options.split(x)
                  for x in self.comm.order),
             )
-
-        # Unique batch for each device
-        self.batches = self.comm.pool.map(
-            getattr(tike.cluster,
-                    self.parameters.algorithm_options.batch_method),
-            self.parameters.scan,
-            num_cluster=self.parameters.algorithm_options.num_batch,
-        )
 
         self.parameters.probe = _rescale_probe(
             self.operator,
