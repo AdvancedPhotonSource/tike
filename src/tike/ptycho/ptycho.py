@@ -493,7 +493,7 @@ class Reconstruction():
             if ( self.parameters.object_options.rescale_using_mean_of_abs_object
                 and self.parameters.algorithm_options.name != 'dm'
                 and self.parameters.object_options.preconditioner is not None
-                and len(self.parameters.algorithm_options.costs) % self.parameters.object_options.rescale_using_mean_of_abs_object_skip == 1
+                and len(self.parameters.algorithm_options.costs) % self.parameters.object_options.rescale_using_mean_of_abs_object_skip == 0
             ):  # yapf: disable
                 (
                     self.parameters.psi,
