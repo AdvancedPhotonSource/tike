@@ -390,16 +390,17 @@ class Reconstruction():
                  for x in self.comm.order),
             )
 
-        self.parameters.probe = _rescale_probe(
-            self.operator,
-            self.comm,
-            self.data,
-            self.parameters.exitwave_options,
-            self.parameters.psi,
-            self.parameters.scan,
-            self.parameters.probe,
-            num_batch=self.parameters.algorithm_options.num_batch,
-        )
+        if self.parameters.probe_options.init_rescale_from_measurements :
+            self.parameters.probe = _rescale_probe(
+                self.operator,
+                self.comm,
+                self.data,
+                self.parameters.exitwave_options,
+                self.parameters.psi,
+                self.parameters.scan,
+                self.parameters.probe,
+                num_batch=self.parameters.algorithm_options.num_batch,
+            )
 
         return self
 
@@ -412,12 +413,19 @@ class Reconstruction():
             logger.info(f"{self.parameters.algorithm_options.name} epoch "
                         f"{len(self.parameters.algorithm_options.times):,d}")
 
-            if self.parameters.probe_options is not None:
+            total_epochs = len( self.parameters.algorithm_options.times )
+            self.parameters.probe_options.recover_probe = ( total_epochs >= self.parameters.probe_options.update_start ) and (( total_epochs % self.parameters.probe_options.update_skip ) == 0 )
+            # self.parameters.object_options.recover_psi         = ( total_epochs >= self.parameters.object_options.update_start )   and (( total_epochs % self.parameters.object_options.update_skip )   == 0 )
+            # self.parameters.position_options.recover_positions = ( total_epochs >= self.parameters.position_options.update_start ) and (( total_epochs % self.parameters.position_options.update_skip ) == 0 )
+
+            if self.parameters.probe_options.recover_probe :
+
                 if self.parameters.probe_options.force_centered_intensity:
                     self.parameters.probe = self.comm.pool.map(
                         constrain_center_peak,
                         self.parameters.probe,
                     )
+
                 if self.parameters.probe_options.force_sparsity < 1:
                     self.parameters.probe = self.comm.pool.map(
                         constrain_probe_sparsity,
@@ -433,6 +441,7 @@ class Reconstruction():
                         tike.ptycho.probe.orthogonalize_eig,
                         self.parameters.probe,
                     )))
+                    
                     self.parameters.probe_options.power.append(power[0].get())
 
             (
@@ -480,10 +489,11 @@ class Reconstruction():
                     a_max=1.0,
                 )
 
-            if (
-                self.parameters.algorithm_options.name != 'dm'
+            
+            if ( self.parameters.object_options.rescale_using_mean_of_abs_object
+                and self.parameters.algorithm_options.name != 'dm'
                 and self.parameters.object_options.preconditioner is not None
-                and len(self.parameters.algorithm_options.costs) % 10 == 1
+                and len(self.parameters.algorithm_options.costs) % self.parameters.object_options.rescale_using_mean_of_abs_object_skip == 1
             ):  # yapf: disable
                 (
                     self.parameters.psi,
@@ -494,19 +504,21 @@ class Reconstruction():
                     self.parameters.probe,
                     self.parameters.object_options.preconditioner,
                 )))
+            # ELSE IF: self.parameters.probe_options.rescale_using_fixed_probe_intensity_photons
+            # ELSE:    do nothing
+ 
+            if self.parameters.probe_options.recover_probe :
+                if self.parameters.eigen_probe is not None:
+                    (
+                        self.parameters.eigen_probe,
+                        self.parameters.eigen_weights,
+                    ) = tike.ptycho.probe.constrain_variable_probe(
+                        self.comm,
+                        self.parameters.eigen_probe,
+                        self.parameters.eigen_weights,
+                    )
 
-            if self.parameters.eigen_probe is not None:
-                (
-                    self.parameters.eigen_probe,
-                    self.parameters.eigen_weights,
-                ) = tike.ptycho.probe.constrain_variable_probe(
-                    self.comm,
-                    self.parameters.eigen_probe,
-                    self.parameters.eigen_weights,
-                )
-
-            if (self.parameters.position_options and self.parameters
-                    .position_options[0].use_position_regularization):
+            if (self.parameters.position_options and self.parameters.position_options[0].use_position_regularization):
 
                 (self.parameters.position_options
                 ) = affine_position_regularization(
@@ -521,9 +533,12 @@ class Reconstruction():
 
             update_norm = tike.linalg.mnorm(self.parameters.psi[0] -
                                             psi_previous)
+            
             self.parameters.object_options.update_mnorm.append(
                 update_norm.get())
+            
             logger.info(f"The object update mean-norm is {update_norm:.3e}")
+            
             if (np.mean(self.parameters.object_options.update_mnorm[-5:])
                     < self.parameters.object_options.convergence_tolerance):
                 logger.info(

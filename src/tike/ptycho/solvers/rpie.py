@@ -263,7 +263,8 @@ def _update(
             psi[0] = psi[0] + dpsi / deno
         psi = comm.pool.bcast([psi[0]])
 
-    if probe_options:
+    if probe_options.recover_probe :
+        
         probe_update_numerator = comm.Allreduce_reduce_gpu(
             probe_update_numerator)[0]
         b0 = tike.ptycho.probe.finite_probe_support(
@@ -461,7 +462,7 @@ def _get_nearplane_gradients(
                 positions=scan[indices],
             )[..., None, None, :, :]
 
-        if probe_options:
+        if probe_options.recover_probe:
             probe_update_numerator += cp.sum(
                 cp.conj(patches) * diff,
                 axis=-5,
