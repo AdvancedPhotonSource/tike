@@ -144,14 +144,14 @@ def lstsq_grad(
         if object_options is not None:
             object_upd_sum = comm.Allreduce(object_upd_sum)
 
-        if probe_options.recover_probe :
+        if probe_options.recover_probe:
+            
             m_probe_update = comm.pool.bcast(
                 [comm.Allreduce_mean(
                     m_probe_update,
                     axis=-5,
                 )])
-
-        if probe_options.recover_probe :
+            
             (
                 beigen_probe,
                 beigen_weights,
@@ -320,7 +320,7 @@ def lstsq_grad(
 
         psi = comm.pool.bcast([psi[0]])
 
-    if probe_options.recover_probe :
+    if probe_options.recover_probe:
         if probe_options.use_adaptive_moment:
             beta_probe = cp.mean(cp.stack(beta_probe))
             dprobe = probe_options.probe_update_sum
@@ -609,10 +609,10 @@ def _get_nearplane_gradients(
                 axis=-5,
                 keepdims=True,
             )
-        # else:
-        #     probe_update = None
-        #     m_probe_update = None
-        #     patches = None
+        else:
+            probe_update = None
+            m_probe_update = None
+            patches = None
 
         if recover_positions:
             m = 0

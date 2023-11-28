@@ -57,14 +57,14 @@ logger = logging.getLogger(__name__)
 class ProbeOptions:
     """Manage data and setting related to probe correction."""
 
-    update_probe: bool = True
+    recover_probe: bool = False
     """Boolean switch used to indicate whether to update probe or not."""
 
-    update_start : int = 1
+    update_start: int = 0
     """Start probe updates at this epoch."""
 
-    update_skip : int = 1
-    """Only update probe when mod( current epoch, update_skip ) == 0"""
+    update_period: int = 1
+    """The number of epochs between probe updates"""
 
     init_rescale_from_measurements: bool = True
     """Initial rescaling of probe using measured intensity."""
@@ -173,9 +173,9 @@ class ProbeOptions:
     def resample(self, factor: float, interp) -> ProbeOptions:
         """Return a new `ProbeOptions` with the parameters rescaled."""
         options = ProbeOptions(
-            update_probe = self.update_probe,
+            recover_probe = self.recover_probe,
             update_start = self.update_start,
-            update_skip = self.update_skip,
+            update_period = self.update_period,
             init_rescale_from_measurements = self.init_rescale_from_measurements,
             force_orthogonality=self.force_orthogonality,
             force_centered_intensity=self.force_centered_intensity,
