@@ -390,17 +390,18 @@ class Reconstruction():
                  for x in self.comm.order),
             )
 
-        if self.parameters.probe_options.init_rescale_from_measurements:
-            self.parameters.probe = _rescale_probe(
-                self.operator,
-                self.comm,
-                self.data,
-                self.parameters.exitwave_options,
-                self.parameters.psi,
-                self.parameters.scan,
-                self.parameters.probe,
-                num_batch=self.parameters.algorithm_options.num_batch,
-            )
+        if self.parameters.probe_options is not None:
+            if self.parameters.probe_options.init_rescale_from_measurements:
+                self.parameters.probe = _rescale_probe(
+                    self.operator,
+                    self.comm,
+                    self.data,
+                    self.parameters.exitwave_options,
+                    self.parameters.psi,
+                    self.parameters.scan,
+                    self.parameters.probe,
+                    num_batch=self.parameters.algorithm_options.num_batch,
+                )
 
         return self
 
@@ -414,35 +415,40 @@ class Reconstruction():
                         f"{len(self.parameters.algorithm_options.times):,d}")
 
             total_epochs = len( self.parameters.algorithm_options.times )
-            self.parameters.probe_options.recover_probe = ( total_epochs >= self.parameters.probe_options.update_start ) and (( total_epochs % self.parameters.probe_options.update_period ) == 0 )
+
+            if self.parameters.probe_options is not None:
+                self.parameters.probe_options.recover_probe = ( total_epochs >= self.parameters.probe_options.update_start ) and (( total_epochs % self.parameters.probe_options.update_period ) == 0 )
+           
             # self.parameters.object_options.recover_psi         = ( total_epochs >= self.parameters.object_options.update_start )   and (( total_epochs % self.parameters.object_options.update_period )   == 0 )
+            
             # self.parameters.position_options.recover_positions = ( total_epochs >= self.parameters.position_options.update_start ) and (( total_epochs % self.parameters.position_options.update_period ) == 0 )
 
-            if self.parameters.probe_options.recover_probe :
+            if self.parameters.probe_options is not None:
+                if self.parameters.probe_options.recover_probe:
 
-                if self.parameters.probe_options.force_centered_intensity:
-                    self.parameters.probe = self.comm.pool.map(
-                        constrain_center_peak,
-                        self.parameters.probe,
-                    )
+                    if self.parameters.probe_options.force_centered_intensity:
+                        self.parameters.probe = self.comm.pool.map(
+                            constrain_center_peak,
+                            self.parameters.probe,
+                        )
 
-                if self.parameters.probe_options.force_sparsity < 1:
-                    self.parameters.probe = self.comm.pool.map(
-                        constrain_probe_sparsity,
-                        self.parameters.probe,
-                        f=self.parameters.probe_options.force_sparsity,
-                    )
+                    if self.parameters.probe_options.force_sparsity < 1:
+                        self.parameters.probe = self.comm.pool.map(
+                            constrain_probe_sparsity,
+                            self.parameters.probe,
+                            f=self.parameters.probe_options.force_sparsity,
+                        )
 
-                if self.parameters.probe_options.force_orthogonality:
-                    (
-                        self.parameters.probe,
-                        power,
-                    ) = (list(a) for a in zip(*self.comm.pool.map(
-                        tike.ptycho.probe.orthogonalize_eig,
-                        self.parameters.probe,
-                    )))
-                    
-                    self.parameters.probe_options.power.append(power[0].get())
+                    if self.parameters.probe_options.force_orthogonality:
+                        (
+                            self.parameters.probe,
+                            power,
+                        ) = (list(a) for a in zip(*self.comm.pool.map(
+                            tike.ptycho.probe.orthogonalize_eig,
+                            self.parameters.probe,
+                        )))
+                        
+                        self.parameters.probe_options.power.append(power[0].get())
 
             (
                 self.parameters.object_options,
@@ -506,16 +512,17 @@ class Reconstruction():
                 )))
             # ELSE IF: self.parameters.probe_options.rescale_using_fixed_probe_intensity_photons
             # ELSE:    do nothing? or should the "rescale_using_mean_of_abs_object" be default?
- 
-            if ( self.parameters.eigen_probe is not None ) and ( self.parameters.probe_options.recover_probe ):
-                (
-                    self.parameters.eigen_probe,
-                    self.parameters.eigen_weights,
-                ) = tike.ptycho.probe.constrain_variable_probe(
-                    self.comm,
-                    self.parameters.eigen_probe,
-                    self.parameters.eigen_weights,
-                )
+
+            if self.parameters.probe_options is not None:
+                if ( self.parameters.eigen_probe is not None ) and ( self.parameters.probe_options.recover_probe ):
+                    (
+                        self.parameters.eigen_probe,
+                        self.parameters.eigen_weights,
+                    ) = tike.ptycho.probe.constrain_variable_probe(
+                        self.comm,
+                        self.parameters.eigen_probe,
+                        self.parameters.eigen_weights,
+                    )
 
             if (self.parameters.position_options and self.parameters.position_options[0].use_position_regularization):
 

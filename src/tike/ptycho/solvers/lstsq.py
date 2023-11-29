@@ -73,6 +73,9 @@ def lstsq_grad(
     algorithm_options = parameters.algorithm_options
 
     probe_options = parameters.probe_options
+    if probe_options is None: recover_probe = False
+    else:                     recover_probe = probe_options.recover_probe
+        
     position_options = parameters.position_options
     object_options = parameters.object_options
     exitwave_options = parameters.exitwave_options
@@ -97,7 +100,7 @@ def lstsq_grad(
         if algorithm_options.batch_method == 'compact':
             object_options.combined_update = cp.zeros_like(psi[0])
 
-    if probe_options.recover_probe:
+    if recover_probe:
         probe_options.probe_update_sum = cp.zeros_like(probe[0])
 
     if parameters.algorithm_options.batch_method == 'compact':
@@ -137,15 +140,14 @@ def lstsq_grad(
             exitwave_options=exitwave_options,
             op=op,
             recover_psi=object_options is not None,
-            recover_probe=probe_options.recover_probe,
+            recover_probe=recover_probe,
             recover_positions=position_options is not None,
         )))
 
         if object_options is not None:
             object_upd_sum = comm.Allreduce(object_upd_sum)
 
-        if probe_options.recover_probe:
-            
+        if recover_probe:
             m_probe_update = comm.pool.bcast(
                 [comm.Allreduce_mean(
                     m_probe_update,
@@ -190,7 +192,7 @@ def lstsq_grad(
             op=op,
             m=0,
             recover_psi=object_options is not None,
-            recover_probe=probe_options.recover_probe,
+            recover_probe=recover_probe,
             probe_options=probe_options,
         )))
 
@@ -199,7 +201,7 @@ def lstsq_grad(
         else:
             A1_delta = [None] * comm.pool.num_workers
 
-        if probe_options.recover_probe:
+        if recover_probe:
             A4_delta = comm.pool.bcast([comm.Allreduce_mean(A4, axis=-3)])
         else:
             A4_delta = [None] * comm.pool.num_workers
@@ -217,7 +219,7 @@ def lstsq_grad(
             A1_delta,
             A4_delta,
             recover_psi=object_options is not None,
-            recover_probe=probe_options.recover_probe,
+            recover_probe=recover_probe,
             m=0,
         )))
 
@@ -227,7 +229,7 @@ def lstsq_grad(
                 axis=-5,
             )[..., 0, 0, 0]
 
-        if probe_options.recover_probe :
+        if recover_probe:
             bbeta_probe = comm.Allreduce_mean(
                 weighted_step_probe,
                 axis=-5,
@@ -256,7 +258,7 @@ def lstsq_grad(
             else:
                 object_options.combined_update += object_upd_sum[0]
 
-        if probe_options.recover_probe :
+        if recover_probe:
             dprobe = bbeta_probe[0] * m_probe_update[0]
             probe_options.probe_update_sum += dprobe / len(batches[0])
             # (27a) Probe update
@@ -269,7 +271,7 @@ def lstsq_grad(
         if object_options is not None:
             beta_object.append(bbeta_object)
 
-        if probe_options.recover_probe :
+        if recover_probe:
             beta_probe.append(bbeta_probe)
 
     if eigen_probe is not None:
@@ -320,7 +322,7 @@ def lstsq_grad(
 
         psi = comm.pool.bcast([psi[0]])
 
-    if probe_options.recover_probe:
+    if recover_probe:
         if probe_options.use_adaptive_moment:
             beta_probe = cp.mean(cp.stack(beta_probe))
             dprobe = probe_options.probe_update_sum
