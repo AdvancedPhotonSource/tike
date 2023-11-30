@@ -391,6 +391,7 @@ class Reconstruction():
             )
 
         if self.parameters.probe_options is not None:
+
             if self.parameters.probe_options.init_rescale_from_measurements:
                 self.parameters.probe = _rescale_probe(
                     self.operator,
@@ -402,6 +403,9 @@ class Reconstruction():
                     self.parameters.probe,
                     num_batch=self.parameters.algorithm_options.num_batch,
                 )
+
+            if np.isnan( self.parameters.probe_options.probe_photons ):
+                self.parameters.probe_options.probe_photons = np.sum( np.abs( self.parameters.probe[0].get() ) ** 2 )
 
         return self
 
@@ -491,11 +495,10 @@ class Reconstruction():
                     a_max=1.0,
                 )
 
-            
-            if ( self.parameters.object_options.rescale_using_mean_of_abs_object
+            if ( self.parameters.algorithm_options.rescale_method == 'mean_of_abs_object'
                 and self.parameters.algorithm_options.name != 'dm'
                 and self.parameters.object_options.preconditioner is not None
-                and len(self.parameters.algorithm_options.costs) % self.parameters.object_options.rescale_using_mean_of_abs_object_period == 0
+                and len(self.parameters.algorithm_options.costs) % self.parameters.algorithm_options.rescale_method_period == 0
             ):  # yapf: disable
                 (
                     self.parameters.psi,
@@ -507,6 +510,18 @@ class Reconstruction():
                     self.parameters.object_options.preconditioner,
                 )))
 
+            elif self.parameters.probe_options is not None:
+                if ( self.parameters.probe_options.recover_probe 
+                    and self.parameters.algorithm_options.rescale_method == 'constant_probe_photons' 
+                    and len(self.parameters.algorithm_options.costs) % self.parameters.algorithm_options.rescale_method_period == 0 ):
+
+                    self.parameters.probe = self.comm.pool.map(
+                        tike.ptycho.probe.rescale_probe_using_fixed_intensity_photons,
+                        self.parameters.probe,
+                        Nphotons = self.parameters.probe_options.probe_photons,
+                        probe_occ = None,
+                    )
+                  
             if self.parameters.probe_options is not None:
                 if ( self.parameters.eigen_probe is not None ) and ( self.parameters.probe_options.recover_probe ):
                     (

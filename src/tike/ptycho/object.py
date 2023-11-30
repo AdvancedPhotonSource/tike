@@ -26,12 +26,6 @@ logger = logging.getLogger(__name__)
 class ObjectOptions:
     """Manage data and setting related to object correction."""
 
-    rescale_using_mean_of_abs_object : bool = True
-    """ Rescale sample (and probe) so that average sample magnitude is around 1.0 """
-
-    rescale_using_mean_of_abs_object_period : int = 10
-    """ Frequency (wrt epoch) we rescale sample/probe so that average sample magnitude is around 1.0 """
-
     convergence_tolerance: float = 0
     """Terminate reconstruction early when the mnorm of the object update is
     less than this value."""
@@ -113,8 +107,6 @@ class ObjectOptions:
     def resample(self, factor: float, interp) -> ObjectOptions:
         """Return a new `ObjectOptions` with the parameters rescaled."""
         options = ObjectOptions(
-            rescale_using_mean_of_abs_object        = self.rescale_using_mean_of_abs_object,
-            rescale_using_mean_of_abs_object_period = self.rescale_using_mean_of_abs_object_period,
             convergence_tolerance=self.convergence_tolerance,
             positivity_constraint=self.positivity_constraint,
             smoothness_constraint=self.smoothness_constraint,
