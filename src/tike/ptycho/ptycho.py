@@ -418,10 +418,6 @@ class Reconstruction():
 
             if self.parameters.probe_options is not None:
                 self.parameters.probe_options.recover_probe = ( total_epochs >= self.parameters.probe_options.update_start ) and (( total_epochs % self.parameters.probe_options.update_period ) == 0 )
-           
-            # self.parameters.object_options.recover_psi         = ( total_epochs >= self.parameters.object_options.update_start )   and (( total_epochs % self.parameters.object_options.update_period )   == 0 )
-            
-            # self.parameters.position_options.recover_positions = ( total_epochs >= self.parameters.position_options.update_start ) and (( total_epochs % self.parameters.position_options.update_period ) == 0 )
 
             if self.parameters.probe_options is not None:
                 if self.parameters.probe_options.recover_probe:
@@ -510,8 +506,6 @@ class Reconstruction():
                     self.parameters.probe,
                     self.parameters.object_options.preconditioner,
                 )))
-            # ELSE IF: self.parameters.probe_options.rescale_using_fixed_probe_intensity_photons
-            # ELSE:    do nothing? or should the "rescale_using_mean_of_abs_object" be default?
 
             if self.parameters.probe_options is not None:
                 if ( self.parameters.eigen_probe is not None ) and ( self.parameters.probe_options.recover_probe ):
