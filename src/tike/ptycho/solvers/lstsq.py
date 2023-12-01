@@ -73,9 +73,11 @@ def lstsq_grad(
     algorithm_options = parameters.algorithm_options
 
     probe_options = parameters.probe_options
-    if probe_options is None: recover_probe = False
-    else:                     recover_probe = probe_options.recover_probe
-        
+    if probe_options is None:
+        recover_probe = False
+    else:
+        recover_probe = probe_options.recover_probe
+
     position_options = parameters.position_options
     object_options = parameters.object_options
     exitwave_options = parameters.exitwave_options
@@ -153,7 +155,7 @@ def lstsq_grad(
                     m_probe_update,
                     axis=-5,
                 )])
-            
+
             (
                 beigen_probe,
                 beigen_weights,

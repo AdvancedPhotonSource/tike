@@ -77,10 +77,11 @@ def rpie(
     psi = parameters.psi
     algorithm_options = parameters.algorithm_options
     exitwave_options = parameters.exitwave_options
-
     probe_options = parameters.probe_options
-    if probe_options is None: recover_probe = False
-    else:                     recover_probe = probe_options.recover_probe
+    if probe_options is None:
+        recover_probe = False
+    else:
+        recover_probe = probe_options.recover_probe
 
     position_options = parameters.position_options
     object_options = parameters.object_options
@@ -136,7 +137,7 @@ def rpie(
             op=op,
             object_options=object_options,
             probe_options=probe_options,
-            recover_probe=recover_probe, 
+            recover_probe=recover_probe,
             position_options=position_options,
             exitwave_options=exitwave_options,
         )))
@@ -155,7 +156,7 @@ def rpie(
                 probe_update_numerator,
                 object_options,
                 probe_options,
-                recover_probe, 
+                recover_probe,
                 algorithm_options,
             )
             psi_update_numerator = [None] * comm.pool.num_workers
@@ -189,7 +190,7 @@ def rpie(
             probe_update_numerator,
             object_options,
             probe_options,
-            recover_probe, 
+            recover_probe,
             algorithm_options,
             errors=list(np.mean(x) for x in algorithm_options.costs[-3:]),
         )
@@ -272,7 +273,7 @@ def _update(
         psi = comm.pool.bcast([psi[0]])
 
     if recover_probe:
-        
+
         probe_update_numerator = comm.Allreduce_reduce_gpu(
             probe_update_numerator)[0]
         b0 = tike.ptycho.probe.finite_probe_support(
@@ -344,7 +345,7 @@ def _get_nearplane_gradients(
     op: tike.operators.Ptycho,
     object_options: typing.Union[None, ObjectOptions] = None,
     probe_options: typing.Union[None, ProbeOptions] = None,
-    recover_probe: bool, 
+    recover_probe: bool,
     position_options: typing.Union[None, PositionOptions],
     exitwave_options: ExitWaveOptions,
 ) -> typing.List[npt.NDArray]:

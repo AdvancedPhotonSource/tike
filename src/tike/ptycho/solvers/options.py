@@ -31,21 +31,22 @@ class IterativeOptions(abc.ABC):
     in the tike.cluster module."""
 
     rescale_method: str = 'mean_of_abs_object'
-    """How we control object/probe scaling in the ptycho optimization problem. 
+    """How we control object/probe scaling in the ptycho optimization problem.
 
     The options here are:
 
-    'mean_of_abs_object'    = The default is using the constraint that the mean of the absolute value of 
-    the object must be approx 1.0, which will then rescale the object and probe
-    so that this constraint is true.
+    'mean_of_abs_object'    = The default is using the constraint that the mean
+    of the absolute value of the object must be approx 1.0, which will then
+    rescale the object and probe so that this constraint is true.
 
-    'constant_probe_photons'   = Rescale the shared probe modes so that its intensity L2 norm 
-    equals to some number of photons specified elsewhere (e.g. toml file). If not specified elsewhere,
-    the average (wrt scan positions) L2 norm of the diffraction intensity measurements is used.
+    'constant_probe_photons'   = Rescale the shared probe modes so that its
+    intensity L2 norm equals to some number of photons specified elsewhere
+    (e.g. toml file). If not specified elsewhere, the average (wrt scan
+    positions) L2 norm of the diffraction intensity measurements is used.
     """
 
     rescale_method_period: int = 10
-    """How often we control object/probe scaling in the ptycho optimization problem. 
+    """How often we control object/probe scaling in the ptycho optimization problem.
 
     The default is perform rescaling of the object/probe every 10 epochs
 
