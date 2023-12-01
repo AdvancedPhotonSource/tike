@@ -240,12 +240,10 @@ def remove_object_ambiguity(
     probe: npt.NDArray[cp.complex64],
     preconditioner: npt.NDArray[cp.complex64],
 ) -> typing.Tuple[npt.NDArray[cp.complex64], npt.NDArray[cp.complex64]]:
-    
     """Remove normalization ambiguity between probe and psi"""
     W = preconditioner.real
     W = W / tike.linalg.mnorm(W)
     object_norm = 2 * np.sqrt(np.mean(np.square(np.abs(psi)) * W))
     psi = psi / object_norm
     probe = probe * object_norm
-
     return psi, probe
