@@ -72,7 +72,7 @@ class ProbeOptions:
     probe_photons: float = np.nan
     """The shared probe mode intensity must add up to this number.
 
-    If we do not give a number for this in the parameters.toml file, then 
+    If we do not give a number for this in the parameters.toml file, then
     it will default to the average of the measurement intensity scaling.
     """
 
@@ -180,11 +180,11 @@ class ProbeOptions:
     def resample(self, factor: float, interp) -> ProbeOptions:
         """Return a new `ProbeOptions` with the parameters rescaled."""
         options = ProbeOptions(
-            recover_probe = self.recover_probe,
-            update_start = self.update_start,
-            update_period = self.update_period,
-            init_rescale_from_measurements = self.init_rescale_from_measurements,
-            probe_photons = self.probe_photons, 
+            recover_probe=self.recover_probe,
+            update_start=self.update_start,
+            update_period=self.update_period,
+            init_rescale_from_measurements=self.init_rescale_from_measurements,
+            probe_photons=self.probe_photons,
             force_orthogonality=self.force_orthogonality,
             force_centered_intensity=self.force_centered_intensity,
             force_sparsity=self.force_sparsity,
@@ -894,7 +894,12 @@ def finite_probe_support(probe, *, radius=0.5, degree=5, p=1.0):
     mask = 1 - cp.exp(-(cp.square(i / radius) + cp.square(j / radius))**degree)
     return p * mask.astype(tike.precision.floating)
 
-def rescale_probe_using_fixed_intensity_photons( probe, Nphotons, probe_occ = None ):
+
+def rescale_probe_using_fixed_intensity_photons(
+    probe,
+    Nphotons,
+    probe_occ=None,
+):
     """
     Rescales the shared probe modes so that its intensity L2 norm equals to some number of photons.
 
@@ -903,19 +908,21 @@ def rescale_probe_using_fixed_intensity_photons( probe, Nphotons, probe_occ = No
     Nphotons : float (0, inf)
         The total number of photons in the L2 norm of the shared probe mode intensity
 
-    probe_occ : 
+    probe_occ :
         An array of the same type as the probe of dimensions = number of shared probe modes that contains the
     relative energy of each mode; must add up to 1.0
     """
 
-    probe_photons = cp.sum( np.abs( probe ) ** 2, (-1, -2) )
+    probe_photons = cp.sum(np.abs(probe)**2, (-1, -2))
 
     if probe_occ is None:
-        probe_occ = probe_photons / cp.sum( probe_photons )
+        probe_occ = probe_photons / cp.sum(probe_photons)
 
-    probe = probe * cp.sqrt( probe_occ * Nphotons / probe_photons )[ ..., None, None ]
+    probe = probe * cp.sqrt(probe_occ * Nphotons / probe_photons)[..., None,
+                                                                  None]
 
     return probe
+
 
 if __name__ == "__main__":
     cp.random.seed()
