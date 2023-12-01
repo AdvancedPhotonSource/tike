@@ -404,8 +404,9 @@ class Reconstruction():
                     num_batch=self.parameters.algorithm_options.num_batch,
                 )
 
-            if np.isnan( self.parameters.probe_options.probe_photons ):
-                self.parameters.probe_options.probe_photons = np.sum( np.abs( self.parameters.probe[0].get() ) ** 2 )
+            if np.isnan(self.parameters.probe_options.probe_photons):
+                self.parameters.probe_options.probe_photons = np.sum(
+                    np.abs(self.parameters.probe[0].get())**2)
 
         return self
 
@@ -418,10 +419,13 @@ class Reconstruction():
             logger.info(f"{self.parameters.algorithm_options.name} epoch "
                         f"{len(self.parameters.algorithm_options.times):,d}")
 
-            total_epochs = len( self.parameters.algorithm_options.times )
+            total_epochs = len(self.parameters.algorithm_options.times)
 
             if self.parameters.probe_options is not None:
-                self.parameters.probe_options.recover_probe = ( total_epochs >= self.parameters.probe_options.update_start ) and (( total_epochs % self.parameters.probe_options.update_period ) == 0 )
+                self.parameters.probe_options.recover_probe = (
+                    total_epochs >= self.parameters.probe_options.update_start
+                    and (total_epochs % self.parameters.probe_options.update_period) == 0
+                )  # yapf: disable
 
             if self.parameters.probe_options is not None:
                 if self.parameters.probe_options.recover_probe:
@@ -447,8 +451,9 @@ class Reconstruction():
                             tike.ptycho.probe.orthogonalize_eig,
                             self.parameters.probe,
                         )))
-                        
-                        self.parameters.probe_options.power.append(power[0].get())
+
+                        self.parameters.probe_options.power.append(
+                            power[0].get())
 
             (
                 self.parameters.object_options,
@@ -495,8 +500,9 @@ class Reconstruction():
                     a_max=1.0,
                 )
 
-            if ( self.parameters.algorithm_options.rescale_method == 'mean_of_abs_object'
-                and self.parameters.algorithm_options.name != 'dm'
+            if (
+                self.parameters.algorithm_options.name != 'dm'
+                and self.parameters.algorithm_options.rescale_method == 'mean_of_abs_object'
                 and self.parameters.object_options.preconditioner is not None
                 and len(self.parameters.algorithm_options.costs) % self.parameters.algorithm_options.rescale_method_period == 0
             ):  # yapf: disable
@@ -511,29 +517,36 @@ class Reconstruction():
                 )))
 
             elif self.parameters.probe_options is not None:
-                if ( self.parameters.probe_options.recover_probe 
-                    and self.parameters.algorithm_options.rescale_method == 'constant_probe_photons' 
-                    and len(self.parameters.algorithm_options.costs) % self.parameters.algorithm_options.rescale_method_period == 0 ):
+                if (
+                    self.parameters.probe_options.recover_probe
+                    and self.parameters.algorithm_options.rescale_method == 'constant_probe_photons'
+                    and len(self.parameters.algorithm_options.costs) % self.parameters.algorithm_options.rescale_method_period == 0
+                ):  # yapf: disable
 
                     self.parameters.probe = self.comm.pool.map(
-                        tike.ptycho.probe.rescale_probe_using_fixed_intensity_photons,
+                        tike.ptycho.probe
+                        .rescale_probe_using_fixed_intensity_photons,
                         self.parameters.probe,
-                        Nphotons = self.parameters.probe_options.probe_photons,
-                        probe_occ = None,
-                    )
-                  
-            if self.parameters.probe_options is not None:
-                if ( self.parameters.eigen_probe is not None ) and ( self.parameters.probe_options.recover_probe ):
-                    (
-                        self.parameters.eigen_probe,
-                        self.parameters.eigen_weights,
-                    ) = tike.ptycho.probe.constrain_variable_probe(
-                        self.comm,
-                        self.parameters.eigen_probe,
-                        self.parameters.eigen_weights,
+                        Nphotons=self.parameters.probe_options.probe_photons,
+                        probe_occ=None,
                     )
 
-            if (self.parameters.position_options and self.parameters.position_options[0].use_position_regularization):
+            if (
+                self.parameters.probe_options is not None
+                and self.parameters.eigen_probe is not None
+                and self.parameters.probe_options.recover_probe
+            ):  #yapf: disable
+                (
+                    self.parameters.eigen_probe,
+                    self.parameters.eigen_weights,
+                ) = tike.ptycho.probe.constrain_variable_probe(
+                    self.comm,
+                    self.parameters.eigen_probe,
+                    self.parameters.eigen_weights,
+                )
+
+            if (self.parameters.position_options and self.parameters
+                    .position_options[0].use_position_regularization):
 
                 (self.parameters.position_options
                 ) = affine_position_regularization(
@@ -548,12 +561,12 @@ class Reconstruction():
 
             update_norm = tike.linalg.mnorm(self.parameters.psi[0] -
                                             psi_previous)
-            
+
             self.parameters.object_options.update_mnorm.append(
                 update_norm.get())
-            
+
             logger.info(f"The object update mean-norm is {update_norm:.3e}")
-            
+
             if (np.mean(self.parameters.object_options.update_mnorm[-5:])
                     < self.parameters.object_options.convergence_tolerance):
                 logger.info(
