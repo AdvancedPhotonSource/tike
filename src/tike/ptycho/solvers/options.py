@@ -45,7 +45,7 @@ class IterativeOptions(abc.ABC):
     positions) L2 norm of the diffraction intensity measurements is used.
     """
 
-    rescale_method_period: int = 10
+    rescale_period: int = 10
     """How often we control object/probe scaling in the ptycho optimization problem.
 
     The default is perform rescaling of the object/probe every 10 epochs

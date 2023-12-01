@@ -504,7 +504,7 @@ class Reconstruction():
                 self.parameters.algorithm_options.name != 'dm'
                 and self.parameters.algorithm_options.rescale_method == 'mean_of_abs_object'
                 and self.parameters.object_options.preconditioner is not None
-                and len(self.parameters.algorithm_options.costs) % self.parameters.algorithm_options.rescale_method_period == 0
+                and len(self.parameters.algorithm_options.costs) % self.parameters.algorithm_options.rescale_period == 0
             ):  # yapf: disable
                 (
                     self.parameters.psi,
@@ -520,7 +520,7 @@ class Reconstruction():
                 if (
                     self.parameters.probe_options.recover_probe
                     and self.parameters.algorithm_options.rescale_method == 'constant_probe_photons'
-                    and len(self.parameters.algorithm_options.costs) % self.parameters.algorithm_options.rescale_method_period == 0
+                    and len(self.parameters.algorithm_options.costs) % self.parameters.algorithm_options.rescale_period == 0
                 ):  # yapf: disable
 
                     self.parameters.probe = self.comm.pool.map(
