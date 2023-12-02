@@ -898,7 +898,7 @@ def finite_probe_support(probe, *, radius=0.5, degree=5, p=1.0):
 def rescale_probe_using_fixed_intensity_photons(
     probe,
     Nphotons,
-    probe_occ=None,
+    probe_power_fraction=None,
 ):
     """
     Rescales the shared probe modes so that its intensity L2 norm equals to some number of photons.
@@ -906,19 +906,18 @@ def rescale_probe_using_fixed_intensity_photons(
     Parameters
     ----------
     Nphotons : float (0, inf)
-        The total number of photons in the L2 norm of the shared probe mode intensity
+        The total number of photons in the shared probe mode intensity, i.e. the sum of the intensity of the shared probe modes.
 
-    probe_occ :
-        An array of the same type as the probe of dimensions = number of shared probe modes that contains the
-    relative energy of each mode; must add up to 1.0
+    probe_power_fraction : array_like
+        A vector of length N_p (N_p = number of shared probe modes) that contains the relative energy of each mode; must add up to 1.0
     """
 
     probe_photons = cp.sum(np.abs(probe)**2, (-1, -2))
 
-    if probe_occ is None:
-        probe_occ = probe_photons / cp.sum(probe_photons)
+    if probe_power_fraction is None:
+        probe_power_fraction = probe_photons / cp.sum(probe_photons)
 
-    probe = probe * cp.sqrt(probe_occ * Nphotons / probe_photons)[..., None,
+    probe = probe * cp.sqrt(probe_power_fraction * Nphotons / probe_photons)[..., None,
                                                                   None]
 
     return probe

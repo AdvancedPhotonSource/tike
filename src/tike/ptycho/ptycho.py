@@ -528,7 +528,7 @@ class Reconstruction():
                         .rescale_probe_using_fixed_intensity_photons,
                         self.parameters.probe,
                         Nphotons=self.parameters.probe_options.probe_photons,
-                        probe_occ=None,
+                        probe_power_fraction=None,
                     )
 
             if (
