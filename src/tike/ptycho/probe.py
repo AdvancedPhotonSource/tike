@@ -57,6 +57,25 @@ logger = logging.getLogger(__name__)
 class ProbeOptions:
     """Manage data and setting related to probe correction."""
 
+    recover_probe: bool = False
+    """Boolean switch used to indicate whether to update probe or not."""
+
+    update_start: int = 0
+    """Start probe updates at this epoch."""
+
+    update_period: int = 1
+    """The number of epochs between probe updates"""
+
+    init_rescale_from_measurements: bool = True
+    """Initial rescaling of probe using measured intensity."""
+
+    probe_photons: float = np.nan
+    """The shared probe mode intensity must add up to this number.
+
+    If we do not give a number for this in the parameters.toml file, then
+    it will default to the average of the measurement intensity scaling.
+    """
+
     force_orthogonality: bool = False
     """Forces probes to be orthogonal each iteration."""
 
@@ -161,6 +180,11 @@ class ProbeOptions:
     def resample(self, factor: float, interp) -> ProbeOptions:
         """Return a new `ProbeOptions` with the parameters rescaled."""
         options = ProbeOptions(
+            recover_probe=self.recover_probe,
+            update_start=self.update_start,
+            update_period=self.update_period,
+            init_rescale_from_measurements=self.init_rescale_from_measurements,
+            probe_photons=self.probe_photons,
             force_orthogonality=self.force_orthogonality,
             force_centered_intensity=self.force_centered_intensity,
             force_sparsity=self.force_sparsity,
@@ -869,6 +893,36 @@ def finite_probe_support(probe, *, radius=0.5, degree=5, p=1.0):
     i, j = cp.meshgrid(centers, centers)
     mask = 1 - cp.exp(-(cp.square(i / radius) + cp.square(j / radius))**degree)
     return p * mask.astype(tike.precision.floating)
+
+
+def rescale_probe_using_fixed_intensity_photons(
+    probe,
+    Nphotons,
+    probe_power_fraction=None,
+):
+    """
+    Rescale the shared probes so the sum of their intensities is Nphotons.
+
+    Parameters
+    ----------
+    Nphotons : float (0, inf)
+        The total number of photons in the shared probe mode intensity, i.e.
+        the sum of the intensity of the shared probe modes.
+
+    probe_power_fraction : array_like
+        A vector of length N_p (N_p = number of shared probe modes) that
+        contains the relative energy of each mode; must add up to 1.0
+    """
+
+    probe_photons = cp.sum(np.abs(probe)**2, (-1, -2))
+
+    if probe_power_fraction is None:
+        probe_power_fraction = probe_photons / cp.sum(probe_photons)
+
+    probe = probe * cp.sqrt(probe_power_fraction * Nphotons / probe_photons)[..., None,
+                                                                  None]
+
+    return probe
 
 
 if __name__ == "__main__":
