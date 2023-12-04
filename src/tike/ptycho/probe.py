@@ -901,15 +901,17 @@ def rescale_probe_using_fixed_intensity_photons(
     probe_power_fraction=None,
 ):
     """
-    Rescales the shared probe modes so that its intensity L2 norm equals to some number of photons.
+    Rescale the shared probes so the sum of their intensities is Nphotons.
 
     Parameters
     ----------
     Nphotons : float (0, inf)
-        The total number of photons in the shared probe mode intensity, i.e. the sum of the intensity of the shared probe modes.
+        The total number of photons in the shared probe mode intensity, i.e.
+        the sum of the intensity of the shared probe modes.
 
     probe_power_fraction : array_like
-        A vector of length N_p (N_p = number of shared probe modes) that contains the relative energy of each mode; must add up to 1.0
+        A vector of length N_p (N_p = number of shared probe modes) that
+        contains the relative energy of each mode; must add up to 1.0
     """
 
     probe_photons = cp.sum(np.abs(probe)**2, (-1, -2))
