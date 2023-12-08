@@ -10,7 +10,7 @@ def stream_and_reduce(
     args: typing.List[npt.NDArray],
     y_shapes: typing.List[typing.List[int]],
     y_dtypes: typing.List[npt.DTypeLike],
-    streams: typing.List[cp.cuda.Stream] = [cp.cuda.Stream(), cp.cuda.Stream()],
+    streams: typing.List[cp.cuda.Stream] = [],
     indices: typing.Union[None, typing.List[int]] = None,
     *,
     chunk_size: int = 64,
@@ -66,9 +66,11 @@ def stream_and_reduce(
         result = [np.sum(y, axis=0) for y in zip(*[f(*x) for x in zip(*args)])]
 
     """
+    if not streams:
+        streams = [cp.cuda.Stream(), cp.cuda.Stream()]
     if indices is None:
         N = len(args[0])
-        indices = range(N)
+        indices = list(range(N))
     else:
         N = len(indices)
     chunk_size = min(chunk_size, N)
@@ -121,7 +123,7 @@ def stream_and_modify(
     ],
     ind_args: typing.List[npt.NDArray],
     mod_args: typing.Tuple,
-    streams: typing.List[cp.cuda.Stream] = [cp.cuda.Stream(), cp.cuda.Stream()],
+    streams: typing.List[cp.cuda.Stream] = [],
     indices: typing.Union[None, typing.List[int]] = None,
     *,
     chunk_size: int = 64,
@@ -181,6 +183,8 @@ def stream_and_modify(
         assert mod_args == truth
 
     """
+    if not streams:
+        streams = [cp.cuda.Stream(), cp.cuda.Stream()]
     if indices is None:
         N = len(ind_args[0])
         indices = list(range(N))
@@ -233,7 +237,7 @@ def stream_and_modify_debug(
     ],
     ind_args: typing.List[npt.NDArray],
     mod_args: typing.Tuple,
-    streams: typing.List[cp.cuda.Stream] = [cp.cuda.Stream(), cp.cuda.Stream()],
+    streams: typing.List[cp.cuda.Stream] = [],
     indices: typing.Union[None, typing.List[int]] = None,
     *,
     chunk_size: int = 64,
@@ -258,6 +262,8 @@ def stream_and_modify_debug(
         The number of slices out of N to process at one time
 
     """
+    if not streams:
+        streams = [cp.cuda.Stream(), cp.cuda.Stream()]
     if indices is None:
         N = len(ind_args[0])
         indices = list(range(N))
