@@ -326,6 +326,11 @@ class PositionOptions:
     """Whether the positions are constrained to fit a random error plus affine
     error model."""
 
+    update_clipping: float = 0
+    """Clipping value for position update. When set to a positive number, x/y update
+    magnitudes beyond the set value are clipped to this value. 
+    """
+
     transform: AffineTransform = AffineTransform()
     """Global transform of positions."""
 
@@ -385,6 +390,7 @@ class PositionOptions:
             vdecay=self.vdecay,
             mdecay=self.mdecay,
             use_position_regularization=self.use_position_regularization,
+            update_clipping=self.update_clipping,
             transform=self.transform,
         )
         if self.use_adaptive_moment:
@@ -399,6 +405,7 @@ class PositionOptions:
             vdecay=self.vdecay,
             mdecay=self.mdecay,
             use_position_regularization=self.use_position_regularization,
+            update_clipping=self.update_clipping,
             transform=self.transform,
         )
         if self.confidence is not None:
@@ -473,6 +480,7 @@ class PositionOptions:
             vdecay=self.vdecay,
             mdecay=self.mdecay,
             use_position_regularization=self.use_position_regularization,
+            update_clipping=self.update_clipping,
             transform=self.transform,
             confidence=self.confidence,
         )

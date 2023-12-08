@@ -1,6 +1,7 @@
 import logging
 
 import cupy as cp
+import numpy as np
 import numpy.typing as npt
 
 import tike.communicators
@@ -561,6 +562,10 @@ def _update_position(
     step = (position_update_numerator) / (
         (1 - alpha) * position_update_denominator +
         alpha * max(position_update_denominator.max(), 1e-6))
+
+    if position_options.update_clipping > 0:
+        clip_val = position_options.update_clipping
+        step = np.clip(step, a_min=-clip_val, a_max=clip_val)
 
     if position_options.use_adaptive_moment:
         (
