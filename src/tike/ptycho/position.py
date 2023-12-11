@@ -327,7 +327,7 @@ class PositionOptions:
     error model."""
 
     update_clipping: float = 0
-    """Clipping value for position update. When set to a positive number, x/y 
+    """Clipping value for position update. When set to a positive number, x/y
     update magnitudes beyond the set value are clipped to this value."""
 
     transform: AffineTransform = AffineTransform()
