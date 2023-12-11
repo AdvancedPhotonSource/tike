@@ -290,6 +290,7 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
                 self.scan,
                 use_adaptive_moment=True,
                 use_position_regularization=True,
+                update_magnitude_limit=5,
             ),
         )
 
