@@ -72,6 +72,9 @@ class IterativeOptions(abc.ABC):
     """The number of epochs to consider for convergence monitoring. Set to
     any value less than 2 to disable."""
 
+    time_limit: float = np.inf
+    """Stop reconstruction when wall-time exceeds this number of seconds."""
+
 
 @dataclasses.dataclass
 class DmOptions(IterativeOptions):

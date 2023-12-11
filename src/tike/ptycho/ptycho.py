@@ -416,6 +416,13 @@ class Reconstruction():
         psi_previous = self.parameters.psi[0].copy()
         for i in range(num_iter):
 
+            if (
+                np.sum(self.parameters.algorithm_options.times)
+                > self.parameters.algorithm_options.time_limit
+            ):
+                logger.info("Maximum reconstruction time exceeded.")
+                break
+
             logger.info(f"{self.parameters.algorithm_options.name} epoch "
                         f"{len(self.parameters.algorithm_options.times):,d}")
 
