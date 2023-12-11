@@ -573,6 +573,13 @@ def _update_position(
         (1 - alpha) * position_update_denominator +
         alpha * max(position_update_denominator.max(), 1e-6))
 
+    if position_options.update_magnitude_limit > 0:
+        step = cp.clip(
+            step,
+            a_min=-position_options.update_magnitude_limit,
+            a_max=position_options.update_magnitude_limit,
+        )
+
     if position_options.use_adaptive_moment:
         (
             step,
