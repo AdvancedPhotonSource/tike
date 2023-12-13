@@ -1,3 +1,5 @@
+import typing
+
 import numpy as np
 import cupy as cp
 import cupyx
@@ -48,7 +50,7 @@ def test_stream_reduce(dtype=np.double, num_streams=2):
     result = tike.communicators.stream.stream_and_reduce(
         f,
         args,
-        y_shapes=[(1,), (1,), (1,)],
+        y_shapes=[[1,], [1,], [1,]],
         y_dtypes=[dtype, dtype, dtype],
         streams=[cp.cuda.Stream() for _ in range(num_streams)],
     )
@@ -59,7 +61,7 @@ def test_stream_reduce(dtype=np.double, num_streams=2):
     np.testing.assert_array_equal(truth, result)
 
 
-def test_stream_reduce_benchmark(dtype=np.double, num_streams=4):
+def test_stream_reduce_benchmark(dtype=np.double, num_streams=2, w=512):
 
     def f(a):
         return (
@@ -68,7 +70,7 @@ def test_stream_reduce_benchmark(dtype=np.double, num_streams=4):
             cp.sum(a, keepdims=True),
         )
 
-    x0 = cupyx.empty_pinned(shape=(1_000, 128, 128), dtype=dtype)
+    x0 = cupyx.empty_pinned(shape=(1_000, w, w), dtype=dtype)
     x0[:] = 1
     args = [
         x0,
@@ -77,9 +79,11 @@ def test_stream_reduce_benchmark(dtype=np.double, num_streams=4):
     result = tike.communicators.stream.stream_and_reduce(
         f,
         args,
-        y_shapes=[(1, 128, 128), (1, 1, 1), (1, 1, 1)],
+        y_shapes=[(1, w, w), (1, 1, 1), (1, 1, 1)],
         y_dtypes=[dtype, dtype, dtype],
-        streams=[cp.cuda.Stream() for _ in range(num_streams)])
+        streams=[cp.cuda.Stream() for _ in range(num_streams)],
+        chunk_size=32,
+    )
     result = [r.get() for r in result]
 
     print(result)
@@ -113,3 +117,35 @@ def test_stream_modify(dtype=np.double, num_streams=2):
         print(t, type(t))
         print(r, type(t))
         cp.testing.assert_array_equal(t, r)
+
+
+def test_stream_modify2(dtype=np.double, num_streams=2):
+
+    x0 = cupyx.empty_pinned(shape=(4,), dtype=dtype)
+    x0[:] = [0, 1, 2, 0.0]
+    x1 = cupyx.empty_pinned(shape=(4,), dtype=dtype)
+    x1[:] = [1, 1, 3, 1.0]
+    x2 = cp.array(0.0)
+
+    def f(
+        ind_args: typing.List[cp.ndarray],
+        lo: int,
+        hi: int,
+    ) -> None:
+        nonlocal x2
+        (a, b) = ind_args
+        x2[...] = cp.sum(a * b) + x2
+
+    tike.communicators.stream.stream_and_modify2(
+        f,
+        ind_args=[x0, x1],
+        streams=[cp.cuda.Stream() for _ in range(num_streams)],
+        chunk_size=2,
+    )
+
+    truth = cp.array(0 * 1 + 1 * 1 + 2 * 3 + 0 * 1.0)
+
+    t, r = (truth, x2)
+    print(t, type(t))
+    print(r, type(t))
+    cp.testing.assert_array_equal(t, r)

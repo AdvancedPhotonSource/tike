@@ -781,43 +781,36 @@ def _get_rescale(
 
     def make_certain_args_constant(
         ind_args,
-        mod_args,
-        _,
-    ) -> typing.Tuple[npt.NDArray]:
+        lo,
+        hi,
+    ):
 
         (
             data,
-            scan,
         ) = ind_args
-        (sums,) = mod_args
+        nonlocal sums, scan
 
         intensity, _ = operator._compute_intensity(
             None,
             psi,
-            scan,
+            scan[lo:hi],
             probe,
         )
 
         sums[0] += cp.sum(data[:, measured_pixels], dtype=np.double)
         sums[1] += cp.sum(intensity[:, measured_pixels], dtype=np.double)
 
-        return [
-            sums,
-        ]
-
-    result = tike.communicators.stream.stream_and_modify(
+    tike.communicators.stream.stream_and_modify2(
         f=make_certain_args_constant,
         ind_args=[
             data,
-            scan,
-        ],
-        mod_args=[
-            sums,
         ],
         streams=streams,
+        lo=0,
+        hi=len(data),
     )
 
-    return result[0]
+    return sums
 
 
 def _rescale_probe(operator, comm, data, exitwave_options, psi, scan, probe,

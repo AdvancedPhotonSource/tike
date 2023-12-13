@@ -4,8 +4,11 @@ import typing
 import cupy as cp
 import numpy.typing as npt
 
+import tike.communicators
 import tike.linalg
+import tike.operators
 import tike.opt
+import tike.precision
 import tike.ptycho.position
 import tike.ptycho.probe
 import tike.random
@@ -60,34 +63,27 @@ def dm(
     psi_update_numerator = [None] * comm.pool.num_workers
     probe_update_numerator = [None] * comm.pool.num_workers
 
-    # The objective function value for each batch
-    batch_cost: typing.List[float] = []
-    for n in tike.random.randomizer_np.permutation(len(batches[0])):
+    (
+        cost,
+        psi_update_numerator,
+        probe_update_numerator,
+    ) = (list(a) for a in zip(*comm.pool.map(
+        _get_nearplane_gradients,
+        data,
+        parameters.scan,
+        parameters.psi,
+        parameters.probe,
+        parameters.exitwave_options.measured_pixels,
+        psi_update_numerator,
+        probe_update_numerator,
+        comm.streams,
+        op=op,
+        object_options=parameters.object_options,
+        probe_options=parameters.probe_options,
+        exitwave_options=parameters.exitwave_options,
+    )))
 
-        (
-            cost,
-            psi_update_numerator,
-            probe_update_numerator,
-        ) = (list(a) for a in zip(*comm.pool.map(
-            _get_nearplane_gradients,
-            data,
-            parameters.scan,
-            parameters.psi,
-            parameters.probe,
-            parameters.exitwave_options.measured_pixels,
-            psi_update_numerator,
-            probe_update_numerator,
-            batches,
-            comm.streams,
-            n=n,
-            op=op,
-            object_options=parameters.object_options,
-            probe_options=parameters.probe_options,
-            exitwave_options=parameters.exitwave_options,
-        )))
-
-        cost = comm.Allreduce_mean(cost, axis=None).get()
-        batch_cost.append(cost)
+    cost = comm.Allreduce_mean(cost).get()
 
     (
         parameters.psi,
@@ -102,7 +98,7 @@ def dm(
         parameters.probe_options,
     )
 
-    parameters.algorithm_options.costs.append(batch_cost)
+    parameters.algorithm_options.costs.append(cost)
     return parameters
 
 
@@ -170,27 +166,32 @@ def _get_nearplane_gradients(
     measured_pixels: npt.NDArray,
     psi_update_numerator: typing.Union[None, npt.NDArray],
     probe_update_numerator: typing.Union[None, npt.NDArray],
-    batches: typing.List[typing.List[int]],
     streams: typing.List[cp.cuda.Stream],
     *,
-    n: int,
     op: tike.operators.Ptycho,
     object_options: typing.Union[None, ObjectOptions] = None,
     probe_options: typing.Union[None, ProbeOptions] = None,
     exitwave_options: ExitWaveOptions,
 ) -> typing.List[npt.NDArray]:
 
+    cost = cp.zeros(1, dtype=tike.precision.floating)
+    count = cp.ones(1, dtype=tike.precision.floating) / len(data)
+    probe_update_numerator = cp.zeros_like(
+        probe) if probe_update_numerator is None else probe_update_numerator
+    psi_update_numerator = cp.zeros_like(
+        psi) if psi_update_numerator is None else psi_update_numerator
+
     def keep_some_args_constant(
         ind_args,
-        mod_args,
-        _,
+        lo,
+        hi,
     ):
-        (data, scan) = ind_args
-        (cost, psi_update_numerator, probe_update_numerator) = mod_args
+        (data,) = ind_args
+        nonlocal cost, psi_update_numerator, probe_update_numerator
 
         varying_probe = probe
 
-        farplane = op.fwd(probe=varying_probe, scan=scan, psi=psi)
+        farplane = op.fwd(probe=varying_probe, scan=scan[lo:hi], psi=psi)
         intensity = cp.sum(
             cp.square(cp.abs(farplane)),
             axis=list(range(1, farplane.ndim - 2)),
@@ -202,7 +203,7 @@ def _get_nearplane_gradients(
             data[:, measured_pixels][:, None, :],
             intensity[:, measured_pixels][:, None, :],
         )
-        cost += cp.sum(each_cost)
+        cost += cp.sum(each_cost) * count
 
         farplane[..., measured_pixels] *= ((
             cp.sqrt(data) / (cp.sqrt(intensity) + 1e-9))[..., None, None,
@@ -216,17 +217,17 @@ def _get_nearplane_gradients(
         patches = op.diffraction.patch.fwd(
             patches=cp.zeros_like(nearplane[..., 0, 0, :, :]),
             images=psi,
-            positions=scan,
+            positions=scan[lo:hi],
         )[..., None, None, :, :]
 
         if object_options:
 
             grad_psi = (cp.conj(varying_probe) * nearplane).reshape(
-                scan.shape[0] * probe.shape[-3], *probe.shape[-2:])
+                (hi - lo) * probe.shape[-3], *probe.shape[-2:])
             psi_update_numerator = op.diffraction.patch.adj(
                 patches=grad_psi,
                 images=psi_update_numerator,
-                positions=scan,
+                positions=scan[lo:hi],
                 nrepeat=probe.shape[-3],
             )
 
@@ -237,37 +238,18 @@ def _get_nearplane_gradients(
                 keepdims=True,
             )
 
-        return [
-            cost,
-            psi_update_numerator,
-            probe_update_numerator,
-        ]
-
-    psi_update_numerator = cp.zeros_like(
-        psi,) if psi_update_numerator is None else psi_update_numerator
-    probe_update_numerator = cp.zeros_like(
-        probe,) if probe_update_numerator is None else probe_update_numerator
-
-    (
-        cost,
-        psi_update_numerator,
-        probe_update_numerator,
-    ) = tike.communicators.stream.stream_and_modify(
+    tike.communicators.stream.stream_and_modify2(
         f=keep_some_args_constant,
         ind_args=[
             data,
-            scan,
-        ],
-        mod_args=[
-            0.0,
-            psi_update_numerator,
-            probe_update_numerator,
         ],
         streams=streams,
-        indices=batches[n],
+        lo=0,
+        hi=len(data),
     )
+
     return [
-        cost / len(batches[n]),
+        cost,
         psi_update_numerator,
         probe_update_numerator,
     ]
