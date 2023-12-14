@@ -25,7 +25,7 @@ def test_norm():
 def test_lstsq():
     a = tike.random.cupy_complex(5, 1, 4, 3, 3)
     x = tike.random.cupy_complex(5, 1, 4, 3, 1)
-    w = tike.random.randomizer_cp.random(
+    w = cp.random.random(
         size=(5, 1, 4, 3),
         dtype=tike.precision.floating,
     )
