@@ -50,7 +50,7 @@ def test_stream_reduce(dtype=np.double, num_streams=2):
     result = tike.communicators.stream.stream_and_reduce(
         f,
         args,
-        y_shapes=[[1,], [1,], [1,]],
+        y_shapes=[[1], [1], [1]],
         y_dtypes=[dtype, dtype, dtype],
         streams=[cp.cuda.Stream() for _ in range(num_streams)],
     )
@@ -66,7 +66,9 @@ def test_stream_reduce_benchmark(dtype=np.double, num_streams=2, w=512):
     def f(a):
         return (
             cp.sum(cp.fft.fft2(a).real, axis=0, keepdims=True),
-            cp.sum(cp.linalg.norm(a, axis=(-1, -2), keepdims=True),  axis=0, keepdims=True),
+            cp.sum(cp.linalg.norm(a, axis=(-1, -2), keepdims=True),
+                   axis=0,
+                   keepdims=True),
             cp.sum(a, keepdims=True),
         )
 
@@ -103,14 +105,14 @@ def test_stream_modify(dtype=np.double, num_streams=2):
     ind_args = (x0, x1)
     mod_args = (x2,)
 
-    truth = cp.array(0*1 + 1*1 + 2*3 + 0*1.0),
+    truth = cp.array(0 * 1 + 1 * 1 + 2 * 3 + 0 * 1.0),
 
     result = tike.communicators.stream.stream_and_modify(
         f,
         ind_args,
         mod_args,
         streams=[cp.cuda.Stream() for _ in range(num_streams)],
-        chunk_size=2
+        chunk_size=2,
     )
 
     for t, r in zip(truth, result):
