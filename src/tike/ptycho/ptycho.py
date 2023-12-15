@@ -692,6 +692,8 @@ class Reconstruction():
         new_scan: npt.NDArray,
     ) -> None:
         """Append new diffraction patterns and positions to existing result."""
+        msg = "Adding data on-the-fly is disabled until further notice."
+        raise NotImplementedError(msg)
         # Assign positions and data to correct devices.
         if (not np.all(np.isfinite(new_data)) or np.any(new_data < 0)):
             warnings.warn(
