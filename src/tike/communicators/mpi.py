@@ -74,9 +74,10 @@ class MPIio:
         edges[-1] += 1
 
         # Generate the mask
-        mask = np.logical_and(edges[self.rank] < scan[:, 0],
-                              scan[:, 0] <= edges[self.rank + 1])
-
+        mask = np.logical_and(
+            edges[self.rank] < scan[:, 0],
+            scan[:, 0] <= edges[self.rank + 1],
+        )
         scan = scan[mask]
         split_args = [arg[mask] for arg in args]
         print("size", mask.shape, type((scan, *split_args)))
@@ -181,8 +182,13 @@ def check_opal(func):
         xp = cp.get_array_module(sendbuf)
 
         if not self._use_opal and xp.__name__ == cp.__name__:
-            return cp.asarray(
-                func(self, cp.asnumpy(sendbuf), *args, **kwargs))
+            warnings.warn(
+                'GPU-Aware Open MPI not detected, '
+                'but GPU arrays are being passed over MPI. '
+                'Set OMPI_MCA_opal_cuda_support=true in your environment.',
+                UserWarning,
+            )
+            return cp.asarray(func(self, cp.asnumpy(sendbuf), *args, **kwargs))
 
         return func(self, sendbuf, *args, **kwargs)
 
