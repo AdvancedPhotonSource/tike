@@ -351,6 +351,7 @@ def _get_nearplane_gradients(
 ) -> typing.List[npt.NDArray]:
 
     cost = 0.0
+    count = 1.0 / len(batches[n])
     psi_update_numerator = cp.zeros_like(
         psi) if psi_update_numerator is None else psi_update_numerator
     probe_update_numerator = cp.zeros_like(
@@ -364,27 +365,21 @@ def _get_nearplane_gradients(
 
     def keep_some_args_constant(
         ind_args,
-        mod_args,
-        indices,
+        lo: int,
+        hi: int,
     ):
         (data,) = ind_args
-        (
-            cost,
-            psi_update_numerator,
-            probe_update_numerator,
-            position_update_numerator,
-            position_update_denominator,
-            eigen_weights,
-            scan,
-        ) = mod_args
+        nonlocal cost, psi_update_numerator, probe_update_numerator
+        nonlocal position_update_numerator, position_update_denominator
+        nonlocal eigen_weights, scan
 
         unique_probe = tike.ptycho.probe.get_varying_probe(
             probe,
             eigen_probe,
-            eigen_weights[indices] if eigen_weights is not None else None,
+            eigen_weights[lo:hi] if eigen_weights is not None else None,
         )
 
-        farplane = op.fwd(probe=unique_probe, scan=scan[indices], psi=psi)
+        farplane = op.fwd(probe=unique_probe, scan=scan[lo:hi], psi=psi)
         intensity = cp.sum(
             cp.square(cp.abs(farplane)),
             axis=list(range(1, farplane.ndim - 2)),
@@ -396,7 +391,7 @@ def _get_nearplane_gradients(
             data[:, measured_pixels][:, None, :],
             intensity[:, measured_pixels][:, None, :],
         )
-        cost += cp.sum(each_cost)
+        cost += cp.sum(each_cost) * count
 
         if exitwave_options.noise_model == 'poisson':
 
@@ -456,11 +451,11 @@ def _get_nearplane_gradients(
 
         if object_options:
             grad_psi = (cp.conj(unique_probe) * diff / probe.shape[-3]).reshape(
-                scan[indices].shape[0] * probe.shape[-3], *probe.shape[-2:])
+                scan[lo:hi].shape[0] * probe.shape[-3], *probe.shape[-2:])
             psi_update_numerator = op.diffraction.patch.adj(
                 patches=grad_psi,
                 images=psi_update_numerator,
-                positions=scan[indices],
+                positions=scan[lo:hi],
                 nrepeat=probe.shape[-3],
             )
 
@@ -469,7 +464,7 @@ def _get_nearplane_gradients(
             patches = op.diffraction.patch.fwd(
                 patches=cp.zeros_like(diff[..., 0, 0, :, :]),
                 images=psi,
-                positions=scan[indices],
+                positions=scan[lo:hi],
             )[..., None, None, :, :]
 
         if recover_probe:
@@ -489,7 +484,7 @@ def _get_nearplane_gradients(
                     cp.abs(OP)**2,
                     axis=(-1, -2),
                 )
-                eigen_weights[indices, ..., 0:1, m:m+1] += (
+                eigen_weights[lo:hi, ..., 0:1, m:m+1] += (
                     0.1 * (eigen_numerator / eigen_denominator)
                 )  # yapf: disable
 
@@ -497,61 +492,35 @@ def _get_nearplane_gradients(
 
             grad_x, grad_y = tike.ptycho.position.gaussian_gradient(patches)
 
-            position_update_numerator[indices, ..., 0] = cp.sum(
+            position_update_numerator[lo:hi, ..., 0] = cp.sum(
                 cp.real(cp.conj(grad_x * unique_probe) * diff),
                 axis=(-4, -3, -2, -1),
             )
-            position_update_denominator[indices, ..., 0] = cp.sum(
+            position_update_denominator[lo:hi, ..., 0] = cp.sum(
                 cp.abs(grad_x * unique_probe)**2,
                 axis=(-4, -3, -2, -1),
             )
-            position_update_numerator[indices, ..., 1] = cp.sum(
+            position_update_numerator[lo:hi, ..., 1] = cp.sum(
                 cp.real(cp.conj(grad_y * unique_probe) * diff),
                 axis=(-4, -3, -2, -1),
             )
-            position_update_denominator[indices, ..., 1] = cp.sum(
+            position_update_denominator[lo:hi, ..., 1] = cp.sum(
                 cp.abs(grad_y * unique_probe)**2,
                 axis=(-4, -3, -2, -1),
             )
 
-        return (
-            cost,
-            psi_update_numerator,
-            probe_update_numerator,
-            position_update_numerator,
-            position_update_denominator,
-            eigen_weights,
-            scan,
-        )
-
-    (
-        cost,
-        psi_update_numerator,
-        probe_update_numerator,
-        position_update_numerator,
-        position_update_denominator,
-        eigen_weights,
-        scan,
-    ) = tike.communicators.stream.stream_and_modify(
+    tike.communicators.stream.stream_and_modify2(
         f=keep_some_args_constant,
         ind_args=[
             data,
         ],
-        mod_args=[
-            cost,
-            psi_update_numerator,
-            probe_update_numerator,
-            position_update_numerator,
-            position_update_denominator,
-            eigen_weights,
-            scan,
-        ],
         streams=streams,
-        indices=batches[n],
+        lo=batches[n][0],
+        hi=batches[n][-1] + 1,
     )
 
     return (
-        cost / len(batches[n]),
+        cost,
         psi_update_numerator,
         probe_update_numerator,
         position_update_numerator,

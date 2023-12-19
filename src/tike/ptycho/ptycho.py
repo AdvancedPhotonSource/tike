@@ -776,7 +776,7 @@ def _get_rescale(
     probe,
     streams,
     *,
-    operator,
+    operator: tike.operators.Ptycho,
 ):
 
     sums = cp.zeros((2,), dtype=cp.double)
