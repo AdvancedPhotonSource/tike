@@ -323,6 +323,7 @@ class Reconstruction():
             detector_shape=data.shape[-1],
             nz=parameters.psi.shape[-2],
             n=parameters.psi.shape[-1],
+            norm=parameters.exitwave_options.propagation_normalization,
         )
         self.comm = tike.communicators.Comm(num_gpu, mpi)
 

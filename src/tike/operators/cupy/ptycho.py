@@ -70,11 +70,13 @@ class Ptycho(Operator):
         n: int,
         propagation: typing.Type[Propagation] = Propagation,
         diffraction: typing.Type[Convolution] = Convolution,
+        norm: str = 'ortho',
         **kwargs,
     ):
         """Please see help(Ptycho) for more info."""
         self.propagation = propagation(
             detector_shape=detector_shape,
+            norm=norm,
             **kwargs,
         )
         self.diffraction = diffraction(
