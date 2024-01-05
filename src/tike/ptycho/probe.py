@@ -795,6 +795,14 @@ def orthogonalize_eig(
     power = power[order]
     return result, power
 
+def power(probe):
+    return np.square(
+        tike.linalg.norm(
+            probe,
+            axis=(-2, -1),
+            keepdims=False,
+        )
+    ).flatten()
 
 def gaussian(size, rin=0.8, rout=1.0):
     """Return a complex gaussian probe distribution.

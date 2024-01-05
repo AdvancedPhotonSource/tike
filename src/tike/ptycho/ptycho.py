@@ -458,9 +458,14 @@ class Reconstruction():
                             tike.ptycho.probe.orthogonalize_eig,
                             self.parameters.probe,
                         )))
+                    else:
+                        power = self.comm.pool.map(
+                            tike.ptycho.probe.power,
+                            self.parameters.probe,
+                        )
 
-                        self.parameters.probe_options.power.append(
-                            power[0].get())
+                    self.parameters.probe_options.power.append(
+                        power[0].get())
 
             (
                 self.parameters.object_options,
