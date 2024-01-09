@@ -103,7 +103,8 @@ class ExitWaveOptions:
                 self.measured_pixels,
                 int(self.measured_pixels.shape[-1] * factor),
             ),
-            unmeasured_pixels_scaling=self.unmeasured_pixels_scaling)
+            unmeasured_pixels_scaling=self.unmeasured_pixels_scaling, 
+            propagation_normalization=self.propagation_normalization )
 
 
 def poisson_steplength_all_modes(
