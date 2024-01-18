@@ -41,8 +41,8 @@ class Zernike(Operator):
             degree_max=degree_max,
             xp=self.xp,
         )
-        # (..., W, 1, 1) * (W, size, size)
-        return np.sum(weights[..., None, None] * basis, axis=-3)
+        # (..., W) @ (W, size, size)
+        return np.einsum("...c,cwh->...wh", weights, basis)
 
     def adj(
         self,
@@ -57,5 +57,5 @@ class Zernike(Operator):
             degree_max=degree_max,
             xp=self.xp,
         )
-        # (..., 1, size, size) * (W, size, size)
-        return np.sum(images[..., None, :, :] * basis, axis=(-2, -1))
+        # (..., size, size) @ (W, size, size)
+        return np.einsum("...wh,cwh->...c", images, basis)
