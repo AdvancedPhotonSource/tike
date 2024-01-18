@@ -66,7 +66,7 @@ def R(m: int, n: int, radius: np.array) -> np.array:
         sign = -sign
         b0 = _bino(n - k, k)
         b1 = _bino(n - 2 * k, (n - m) // 2 - k)
-        result += sign * b0 * b1 * radius**(n - 2 * k)
+        result += sign * b0 * b1 * radius ** (n - 2 * k)
     return result
 
 
@@ -78,7 +78,13 @@ def _bino(a: int, b: int) -> int:
     return result
 
 
-def basis(size: int, degree_min: int, degree_max: int) -> np.array:
+def _bino1(a: int, b: int, xp=np) -> int:
+    """Return the approximate binomial coeffient (a b)."""
+    result = np.arange(a, a - b, -1) / np.arange(1, b + 1)
+    return np.prod(result)
+
+
+def basis(size: int, degree_min: int, degree_max: int, xp=np) -> np.array:
     """Return all circular Zernike basis up to given radial degree.
 
     Parameters
@@ -96,16 +102,16 @@ def basis(size: int, degree_min: int, degree_max: int) -> np.array:
 
     """
     endpoint = 1.0 - 1.0 / (2 * size)
-    x = np.linspace(-endpoint, endpoint, size, endpoint=True)
-    coords = np.stack(np.meshgrid(x, x, indexing='ij'), axis=0)
-    radius = np.linalg.norm(coords, axis=0)
-    theta = np.arctan2(coords[0], coords[1])
+    x = xp.linspace(-endpoint, endpoint, size, endpoint=True)
+    coords = xp.stack(xp.meshgrid(x, x, indexing="ij"), axis=0)
+    radius = xp.linalg.norm(coords, axis=0)
+    theta = xp.arctan2(coords[0], coords[1])
 
     basis = []
     for m, n in valid_indices(degree_min, degree_max):
         basis.append(Z(m, n, radius, theta))
 
-    basis = np.stack(basis, axis=0)
+    basis = xp.stack(basis, axis=0)
     return basis
 
 
@@ -115,3 +121,13 @@ def valid_indices(degree_min: int, degree_max: int) -> tuple:
         for m in range(-n, n + 1):
             if (n - abs(m)) % 2 == 0:
                 yield m, n
+
+
+def degree_from_num_coeffients(num_coefficients: int) -> int:
+    coefficient_count = 0
+    for n in range(0, 999_999):
+        for m in range(-n, n + 1):
+            if (n - abs(m)) % 2 == 0:
+                coefficient_count += 1
+        if coefficient_count >= num_coefficients:
+            return n + 1, coefficient_count
