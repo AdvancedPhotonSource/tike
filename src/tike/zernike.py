@@ -18,6 +18,7 @@ journal = {Journal of Optics},
 abstract = {The Zernike polynomials are a complete set of continuous functions orthogonal over a unit circle. Since first developed by Zernike in 1934, they have been in widespread use in many fields ranging from optics, vision sciences, to image processing. However, due to the lack of a unified definition, many confusing indices have been used in the past decades and mathematical properties are scattered in the literature. This review provides a comprehensive account of Zernike circle polynomials and their noncircular derivatives, including history, definitions, mathematical properties, roles in wavefront fitting, relationships with optical aberrations, and connections with other polynomials. We also survey state-of-the-art applications of Zernike polynomials in a range of fields, including the diffraction theory of aberrations, optical design, optical testing, ophthalmic optics, adaptive optics, and image analysis. Owing to their elegant and rigorous mathematical properties, the range of scientific and industrial applications of Zernike polynomials is likely to expand. This review is expected to clear up the confusion of different indices, provide a self-contained reference guide for beginners as well as specialists, and facilitate further developments and applications of the Zernike polynomials.}
 }
 """
+import typing
 
 import numpy as np
 
@@ -137,7 +138,10 @@ def basis(size: int, degree_min: int, degree_max: int, xp=np) -> np.array:
     return basis
 
 
-def valid_indices(degree_min: int, degree_max: int) -> tuple:
+def valid_indices(
+    degree_min: int,
+    degree_max: int,
+) -> typing.Generator[typing.Tuple[int, int], None, None]:
     """Enumerate all valid zernike indices (m,n) up to the given degree."""
     for n in range(degree_min, degree_max):
         for m in range(-n, n + 1):
@@ -145,14 +149,12 @@ def valid_indices(degree_min: int, degree_max: int) -> tuple:
                 yield m, n
 
 
-def degree_from_num_coeffients(num_coefficients: int) -> int:
-    """
-    There are a total of (n + 1)(n + 2)/2 linearly independent polynomials for a degree ⩽ n.
-    """
-    coefficient_count = 0
-    for n in range(0, 999_999):
-        for m in range(-n, n + 1):
-            if (n - abs(m)) % 2 == 0:
-                coefficient_count += 1
-        if coefficient_count >= num_coefficients:
-            return n + 1, coefficient_count
+def num_basis_less_than_degree(degree_max: int) -> int:
+    """Return number of zernike basis in degrees < degree_max (strictly)."""
+    # And odd times even number is even and always cleanly divisible by 2.
+    return (degree_max) * (degree_max + 1) // 2
+
+
+def degree_max_from_num_basis(num_basis: int) -> int:
+    """Return the max degree (non-inclusive) required to have at least some number of basis."""
+    return int(np.ceil(0.5 * (-1 + np.sqrt(8 * num_basis))))

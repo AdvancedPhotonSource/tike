@@ -23,9 +23,8 @@ class TestZernike(unittest.TestCase, OperatorTests):
         self.nprobe = 11
         self.nbasis = 128
         self.size = 16
-        self.degree_max, self.nbasis = tike.zernike.degree_from_num_coeffients(
-            self.nbasis
-        )
+        self.degree_max = tike.zernike.degree_max_from_num_basis(self.nbasis)
+        self.nbasis = tike.zernike.num_basis_less_than_degree(self.degree_max)
 
         basis = tike.zernike.basis(size=3, degree_min=0, degree_max=self.degree_max)
         assert basis.shape == (self.nbasis, 3, 3), basis.size
@@ -50,6 +49,6 @@ class TestZernike(unittest.TestCase, OperatorTests):
 
         print(self.operator)
 
-    @unittest.skip('FIXME: This operator is not scaled.')
+    @unittest.skip("FIXME: This operator is not scaled.")
     def test_scaled(self):
         pass
