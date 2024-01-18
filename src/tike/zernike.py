@@ -1,4 +1,23 @@
-"""Provide functions to evaluate Zernike polynomials on a discrete grid."""
+"""Provide functions to evaluate Zernike polynomials on a discrete grid.
+
+
+References
+----------
+@article{Niu_2022,
+doi = {10.1088/2040-8986/ac9e08},
+url = {https://dx.doi.org/10.1088/2040-8986/ac9e08},
+year = {2022},
+month = {nov},
+publisher = {IOP Publishing},
+volume = {24},
+number = {12},
+pages = {123001},
+author = {Kuo Niu and Chao Tian},
+title = {Zernike polynomials and their applications},
+journal = {Journal of Optics},
+abstract = {The Zernike polynomials are a complete set of continuous functions orthogonal over a unit circle. Since first developed by Zernike in 1934, they have been in widespread use in many fields ranging from optics, vision sciences, to image processing. However, due to the lack of a unified definition, many confusing indices have been used in the past decades and mathematical properties are scattered in the literature. This review provides a comprehensive account of Zernike circle polynomials and their noncircular derivatives, including history, definitions, mathematical properties, roles in wavefront fitting, relationships with optical aberrations, and connections with other polynomials. We also survey state-of-the-art applications of Zernike polynomials in a range of fields, including the diffraction theory of aberrations, optical design, optical testing, ophthalmic optics, adaptive optics, and image analysis. Owing to their elegant and rigorous mathematical properties, the range of scientific and industrial applications of Zernike polynomials is likely to expand. This review is expected to clear up the confusion of different indices, provide a self-contained reference guide for beginners as well as specialists, and facilitate further developments and applications of the Zernike polynomials.}
+}
+"""
 
 import numpy as np
 
@@ -26,16 +45,18 @@ def Z(m: int, n: int, radius: np.array, angle: np.array) -> np.array:
     if _m_ > n:
         raise ValueError("Angular frequency must be less than radial degree.")
     if m < 0:
-        polynomial = R(_m_, n, radius) * np.sin(m * angle)
-    else:
-        polynomial = R(_m_, n, radius) * np.cos(m * angle)
-    polynomial[np.logical_or(radius < 0, radius > 1)] = 0
-    return polynomial
+        return np.sqrt(2 * (n + 1)) * R(_m_, n, radius) * np.sin(m * angle)
+    if m == 0:
+        return np.sqrt(n + 1) * R(_m_, n, radius)
+    if m > 0:
+        return np.sqrt(2 * (n + 1)) * R(_m_, n, radius) * np.cos(m * angle)
 
 
 def N(m: int, n: int) -> float:
     """Zernike normalization factor."""
-    return np.sqrt(2 * (n + 1) / (1 + (m == 0)))
+    if m == 0:
+        return np.sqrt(n + 1)
+    return np.sqrt(2 * (n + 1))
 
 
 def R(m: int, n: int, radius: np.array) -> np.array:
@@ -67,6 +88,7 @@ def R(m: int, n: int, radius: np.array) -> np.array:
         b0 = _bino(n - k, k)
         b1 = _bino(n - 2 * k, (n - m) // 2 - k)
         result += sign * b0 * b1 * radius ** (n - 2 * k)
+    result[radius > 1] = 0.0
     return result
 
 
@@ -124,6 +146,9 @@ def valid_indices(degree_min: int, degree_max: int) -> tuple:
 
 
 def degree_from_num_coeffients(num_coefficients: int) -> int:
+    """
+    There are a total of (n + 1)(n + 2)/2 linearly independent polynomials for a degree ⩽ n.
+    """
     coefficient_count = 0
     for n in range(0, 999_999):
         for m in range(-n, n + 1):

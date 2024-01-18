@@ -41,7 +41,6 @@ class Zernike(Operator):
             degree_max=degree_max,
             xp=self.xp,
         )
-        basis /= tike.linalg.norm(basis, axis=(-2, -1), keepdims=True)
         # (..., W, 1, 1) * (W, size, size)
         return np.sum(weights[..., None, None] * basis, axis=-3)
 
@@ -58,6 +57,5 @@ class Zernike(Operator):
             degree_max=degree_max,
             xp=self.xp,
         )
-        basis /= tike.linalg.norm(basis, axis=(-2, -1), keepdims=True)
         # (..., 1, size, size) * (W, size, size)
         return np.sum(images[..., None, :, :] * basis, axis=(-2, -1))

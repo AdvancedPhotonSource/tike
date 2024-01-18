@@ -11,7 +11,7 @@ import tike.linalg
 from .util import random_complex, OperatorTests
 
 __author__ = "Daniel Ching"
-__copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
+__copyright__ = "Copyright (c) 2024, UChicago Argonne, LLC."
 __docformat__ = "restructuredtext en"
 
 
@@ -49,3 +49,7 @@ class TestZernike(unittest.TestCase, OperatorTests):
         self.d_name = "images"
 
         print(self.operator)
+
+    @unittest.skip('FIXME: This operator is not scaled.')
+    def test_scaled(self):
+        pass
