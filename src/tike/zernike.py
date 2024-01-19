@@ -89,7 +89,10 @@ def R(m: int, n: int, radius: np.array) -> np.array:
         b0 = _bino(n - k, k)
         b1 = _bino(n - 2 * k, (n - m) // 2 - k)
         result += sign * b0 * b1 * radius ** (n - 2 * k)
-    result[radius > 1] = 0.0
+    # Smooth the sharp edges of the polynomial with a supergaussian window
+    # Higher smoothing degree makes the window edge sharper
+    smoothing_degree = 32
+    result *= np.exp(-(radius ** (2 * smoothing_degree)))
     return result
 
 

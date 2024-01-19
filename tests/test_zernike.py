@@ -11,7 +11,7 @@ testdir = os.path.dirname(__file__)
 
 
 class TestZernike(unittest.TestCase):
-    def test_zernike(self):
+    def test_zernike_preview(self):
         fname = os.path.join(testdir, "result", "zernike")
         os.makedirs(fname, exist_ok=True)
         for i, Z in enumerate(
@@ -60,10 +60,9 @@ class TestZernike(unittest.TestCase):
         fname = os.path.join(testdir, "result", "zernike")
         os.makedirs(fname, exist_ok=True)
 
-        import libimage
-
-        f0 = libimage.load("cryptomeria", 256)
-        # f0 = plt.imread(os.path.join(testdir, "data", "probe.png"))
+        # import libimage
+        # f0 = libimage.load("cryptomeria", 256)
+        f0 = plt.imread(os.path.join(testdir, "data", "probe.png"))
         size = f0.shape[-1]
         plt.imsave(os.path.join(fname, "basis-0.png"), f0, vmin=0, vmax=1.0)
 
@@ -85,10 +84,10 @@ class TestZernike(unittest.TestCase):
             basis = np.moveaxis(basis, 0, -1)
             basis = basis.reshape(size * size, -1)
             # weight only pixels inside basis
-            w = (basis[..., 0] > 0).astype("float32")
+            # w = (basis[..., 0] > 0).astype("float32")
 
-            # x = tike.linalg.lstsq(basis, f0, weights=w)
-            x, _, _, _ = np.linalg.lstsq(basis, f0, rcond=1e-4)
+            # x = tike.linalg.lstsq(basis, f0, )#weights=w)
+            x, _, _, _ = np.linalg.lstsq(basis, f0, rcond=1e-9)
 
             f1 = basis @ x
             f1 = f1.reshape(size, size)
@@ -104,11 +103,10 @@ class TestZernike(unittest.TestCase):
         fname = os.path.join(testdir, "result", "zernike")
         os.makedirs(fname, exist_ok=True)
 
-        import libimage
-
-        f0 = libimage.load("cryptomeria", 256)
-        print(f0.max())
-        # f0 = plt.imread(os.path.join(testdir, "data", "probe.png"))
+        # import libimage
+        # f0 = libimage.load("cryptomeria", 256)
+        # print(f0.max())
+        f0 = plt.imread(os.path.join(testdir, "data", "probe.png"))
         size = f0.shape[-1]
         plt.imsave(os.path.join(fname, "basis1-0.png"), f0, vmin=0, vmax=1.0)
 
