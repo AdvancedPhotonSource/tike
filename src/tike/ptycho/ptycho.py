@@ -323,6 +323,7 @@ class Reconstruction():
             detector_shape=data.shape[-1],
             nz=parameters.psi.shape[-2],
             n=parameters.psi.shape[-1],
+            norm=parameters.exitwave_options.propagation_normalization,
         )
         self.comm = tike.communicators.Comm(num_gpu, mpi)
 
@@ -458,9 +459,14 @@ class Reconstruction():
                             tike.ptycho.probe.orthogonalize_eig,
                             self.parameters.probe,
                         )))
+                    else:
+                        power = self.comm.pool.map(
+                            tike.ptycho.probe.power,
+                            self.parameters.probe,
+                        )
 
-                        self.parameters.probe_options.power.append(
-                            power[0].get())
+                    self.parameters.probe_options.power.append(
+                        power[0].get())
 
             (
                 self.parameters.object_options,

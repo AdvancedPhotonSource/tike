@@ -67,6 +67,17 @@ class ExitWaveOptions:
     exitwave updates in Fourier space. `1.0` for no scaling.
     """
 
+    propagation_normalization: str = 'ortho'
+    """Choose the scaling of the FFT in the forward model:
+
+        "ortho" - the forward and adjoint operations are divided by sqrt(n)
+
+        "forward" - the forward operation is divided by n
+
+        "backward" - the backard operation is divided by n
+
+    """
+
     def copy_to_device(self, comm) -> ExitWaveOptions:
         """Copy to the current GPU memory."""
         options = copy.copy(self)
@@ -92,7 +103,8 @@ class ExitWaveOptions:
                 self.measured_pixels,
                 int(self.measured_pixels.shape[-1] * factor),
             ),
-            unmeasured_pixels_scaling=self.unmeasured_pixels_scaling)
+            unmeasured_pixels_scaling=self.unmeasured_pixels_scaling, 
+            propagation_normalization=self.propagation_normalization )
 
 
 def poisson_steplength_all_modes(

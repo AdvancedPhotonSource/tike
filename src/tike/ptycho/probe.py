@@ -796,6 +796,17 @@ def orthogonalize_eig(
     return result, power
 
 
+def power(probe: npt.NDArray) -> npt.NDArray:
+    """Return the power of each probe mode."""
+    return np.square(
+        tike.linalg.norm(
+            probe,
+            axis=(-2, -1),
+            keepdims=False,
+        )
+    ).flatten()
+
+
 def gaussian(size, rin=0.8, rout=1.0):
     """Return a complex gaussian probe distribution.
 

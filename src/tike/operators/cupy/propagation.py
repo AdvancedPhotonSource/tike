@@ -42,8 +42,9 @@ class Propagation(CachedFFT, Operator):
 
     """
 
-    def __init__(self, detector_shape: int, **kwargs):
+    def __init__(self, detector_shape: int, norm: str = "ortho", **kwargs):
         self.detector_shape = detector_shape
+        self.norm = norm
 
     def fwd(
         self,
@@ -56,7 +57,7 @@ class Propagation(CachedFFT, Operator):
         shape = nearplane.shape
         return self._fft2(
             nearplane.reshape(-1, self.detector_shape, self.detector_shape),
-            norm='ortho',
+            norm=self.norm,
             axes=(-2, -1),
             overwrite_x=overwrite,
         ).reshape(shape)
@@ -72,7 +73,7 @@ class Propagation(CachedFFT, Operator):
         shape = farplane.shape
         return self._ifft2(
             farplane.reshape(-1, self.detector_shape, self.detector_shape),
-            norm='ortho',
+            norm=self.norm,
             axes=(-2, -1),
             overwrite_x=overwrite,
         ).reshape(shape)
@@ -80,5 +81,5 @@ class Propagation(CachedFFT, Operator):
     def _check_shape(self, x: npt.NDArray) -> None:
         assert type(x) is self.xp.ndarray, type(x)
         shape = (-1, self.detector_shape, self.detector_shape)
-        if (__debug__ and x.shape[-2:] != shape[-2:]):
-            raise ValueError(f'waves must have shape {shape} not {x.shape}.')
+        if __debug__ and x.shape[-2:] != shape[-2:]:
+            raise ValueError(f"waves must have shape {shape} not {x.shape}.")
