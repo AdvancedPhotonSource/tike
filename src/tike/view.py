@@ -63,7 +63,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mplcolors
 import cv2 as cv
 import numpy as np
-import tike.linalg
+from tike.ptycho import AffineTransform
 
 logger = logging.getLogger(__name__)
 
@@ -670,3 +670,52 @@ def plot_eigen_weights(weights):
             axi.set_xticklabels([])
 
     axi.set_xlabel('positions')
+
+
+def plot_affine_transform(ax, t: AffineTransform):
+    """Draw an ellipse around the principal axes vectors transformed"""
+
+    def tr(x, y):
+        matrix = t.asarray()
+        x = np.asarray(x)
+        y = np.asarray(y)
+        new_coords = matrix @ [x, y]
+        return new_coords[0, ...], new_coords[1, ...]
+
+    ax.fill(
+        *tr(
+            x=np.cos(np.linspace(-np.pi, np.pi, 2**7)),
+            y=np.sin(np.linspace(-np.pi, np.pi, 2**7)),
+        )
+    )
+    ax.arrow(
+        0.0,
+        0.0,
+        *tr(1.0, 0.0),
+        length_includes_head=True,
+        width=1 / 20,
+        facecolor="black",
+        edgecolor="white",
+        overhang=0.0,
+        head_length=2 / 10,
+    )
+    ax.arrow(
+        0.0,
+        0.0,
+        *tr(0.0, 1.0),
+        length_includes_head=True,
+        width=1 / 20,
+        facecolor="white",
+        edgecolor="black",
+        overhang=0.0,
+        head_length=2 / 10,
+    )
+
+    ax.set(
+        xlim=(-2.0, 2.0),
+        ylim=(-2.0, 2.0),
+        aspect="equal",
+        xticks=np.linspace(-2, 2, endpoint=True, num=9),
+        yticks=np.linspace(-2, 2, endpoint=True, num=9),
+    )
+    ax.grid(True)
