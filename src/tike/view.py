@@ -676,7 +676,7 @@ def plot_eigen_weights(weights):
 def plot_affine_transform(
     ax: Axes,
     t: AffineTransform,
-    color: typing.Tuple[float, float, float] = (0, 0, 0, 1.0),
+    color: typing.Tuple[float, float, float] | str = (0.0, 0.0, 0.0, 1.0),
 ):
     """Draw a unit circle and principal axes transformed by t.
 
