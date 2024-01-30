@@ -138,6 +138,20 @@ class ProbeOptions:
     hard constraint.
     """
 
+    median_filter_abs_probe: bool = False
+    """ Binary switch on whether to apply a median filter to absolute value of 
+    each shared probe mode.
+    """
+
+    median_filter_abs_probe_px: typing.Tuple[float, float] = ( 1.0, 1.0 )
+    """ A 2-element tuple with the median filter pixel widths in ( rows, cols )
+    """
+
+    median_filter_abs_probe_period: int = 1
+    """ How often (wrt update epochs) we want to apply median filtering to the 
+    absolute value of each shared probe mode.
+    """
+
     probe_update_sum: typing.Union[npt.NDArray, None] = dataclasses.field(
         init=False,
         default_factory=lambda: None,
@@ -194,6 +208,9 @@ class ProbeOptions:
             probe_support=self.probe_support,
             probe_support_degree=self.probe_support_degree,
             probe_support_radius=self.probe_support_radius,
+            median_filter_abs_probe        = self.median_filter_abs_probe, 
+            median_filter_abs_probe_px     = self.median_filter_abs_probe_px,
+            median_filter_abs_probe_period = self.median_filter_abs_probe_period,
         )
         return options
         # Momentum reset to zero when grid scale changes
@@ -870,6 +887,16 @@ def constrain_center_peak(probe):
     probe = stack.reshape(probe.shape)
     return probe
 
+def apply_median_filter_abs_probe( probe, med_filt_px ):
+    """ ABCDEF """
+
+    abs_probe = cp.abs( probe[ 0, 0, ... ] )
+
+    abs_probe = cupyx.scipy.ndimage.median_filter( input = abs_probe, size = ( 1.0, *med_filt_px ), mode = 'constant' )
+    
+    probe[ 0, 0, ... ] = abs_probe * cp.exp( 1j * cp.angle( probe[ 0, 0, ... ] )) 
+
+    return probe
 
 def constrain_probe_sparsity(probe, f):
     """Constrain the probe intensity so at least `f` fraction elements are zero."""

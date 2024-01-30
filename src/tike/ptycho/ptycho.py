@@ -82,6 +82,7 @@ from .probe import (
     constrain_center_peak,
     constrain_probe_sparsity,
     get_varying_probe,
+    apply_median_filter_abs_probe,
 )
 
 logger = logging.getLogger(__name__)
@@ -437,6 +438,14 @@ class Reconstruction():
 
             if self.parameters.probe_options is not None:
                 if self.parameters.probe_options.recover_probe:
+
+                    if self.parameters.probe_options.median_filter_abs_probe:
+                        if (( total_epochs % self.parameters.probe_options.median_filter_abs_probe_period ) == 0 ):
+                            self.parameters.probe = self.comm.pool.map(
+                                apply_median_filter_abs_probe,
+                                self.parameters.probe,
+                                med_filt_px = self.parameters.probe_options.median_filter_abs_probe_px
+                            )
 
                     if self.parameters.probe_options.force_centered_intensity:
                         self.parameters.probe = self.comm.pool.map(
