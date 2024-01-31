@@ -888,7 +888,22 @@ def constrain_center_peak(probe):
     return probe
 
 def apply_median_filter_abs_probe( probe, med_filt_px ):
-    """ ABCDEF """
+    
+    """Apply a median filter to each of the shared probe modes.
+
+    This is meant as a "quick fix" to the probe "hot spots" 
+    numerical artifacts that arise due to the sample * probe
+    scaling ambiguity we have in phase retrieval under the 
+    projection approximation.
+
+    Parameters
+    ----------
+    probe : ( 1, 1, SHARED, WIDE, HIGH) complex64
+        The shared probes amongst all positions.
+    med_filt_px : typing.Tuple[float, float]
+        A two element array like (tuple or list) with 
+        the median filter pixel widths 
+    """
 
     abs_probe = cp.abs( probe[ 0, 0, ... ] )
 
