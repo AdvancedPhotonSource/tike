@@ -887,13 +887,16 @@ def constrain_center_peak(probe):
     probe = stack.reshape(probe.shape)
     return probe
 
-def apply_median_filter_abs_probe( probe, med_filt_px ):
-    
+
+def apply_median_filter_abs_probe(
+    probe: npt.NDArray[cp.complex64],
+    med_filt_px: typing.Tuple[float, float],
+) -> npt.NDArray[cp.complex64]:
     """Apply a median filter to each of the shared probe modes.
 
-    This is meant as a "quick fix" to the probe "hot spots" 
+    This is meant as a "quick fix" to the probe "hot spots"
     numerical artifacts that arise due to the sample * probe
-    scaling ambiguity we have in phase retrieval under the 
+    scaling ambiguity we have in phase retrieval under the
     projection approximation.
 
     Parameters
@@ -901,17 +904,26 @@ def apply_median_filter_abs_probe( probe, med_filt_px ):
     probe : ( 1, 1, SHARED, WIDE, HIGH) complex64
         The shared probes amongst all positions.
     med_filt_px : typing.Tuple[float, float]
-        A two element array like (tuple or list) with 
-        the median filter pixel widths 
+        A two element array like (tuple or list) with
+        the median filter pixel widths
+
+    Returns
+    -------
+    probe : the filtered probe modified in-place.
     """
 
-    abs_probe = cp.abs( probe[ 0, 0, ... ] )
+    abs_probe = cp.abs(probe[0, 0, ...])
 
-    abs_probe = cupyx.scipy.ndimage.median_filter( input = abs_probe, size = ( 1.0, *med_filt_px ), mode = 'constant' )
-    
-    probe[ 0, 0, ... ] = abs_probe * cp.exp( 1j * cp.angle( probe[ 0, 0, ... ] )) 
+    abs_probe = cupyx.scipy.ndimage.median_filter(
+        input=abs_probe,
+        size=(1.0, *med_filt_px),
+        mode="constant",
+    )
+
+    probe[0, 0, ...] = abs_probe * cp.exp(1j * cp.angle(probe[0, 0, ...]))
 
     return probe
+
 
 def constrain_probe_sparsity(probe, f):
     """Constrain the probe intensity so at least `f` fraction elements are zero."""
