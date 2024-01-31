@@ -139,16 +139,16 @@ class ProbeOptions:
     """
 
     median_filter_abs_probe: bool = False
-    """ Binary switch on whether to apply a median filter to absolute value of 
+    """Binary switch on whether to apply a median filter to absolute value of 
     each shared probe mode.
     """
 
     median_filter_abs_probe_px: typing.Tuple[float, float] = ( 1.0, 1.0 )
-    """ A 2-element tuple with the median filter pixel widths in ( rows, cols )
+    """A 2-element tuple with the median filter pixel widths along each dimension.
     """
 
     median_filter_abs_probe_period: int = 1
-    """ How often (wrt update epochs) we want to apply median filtering to the 
+    """How often (wrt update epochs) we want to apply median filtering to the 
     absolute value of each shared probe mode.
     """
 
