@@ -145,6 +145,16 @@ class AffineTransform:
     t0: float = 0.0
     t1: float = 0.0
 
+    def resample(self, factor: float) -> AffineTransform:
+        return AffineTransform(
+            self.scale0,
+            self.scale1,
+            self.shear1,
+            self.angle,
+            self.t0 * factor,
+            self.t1 * factor,
+        )
+
     @classmethod
     def fromarray(self, T: np.ndarray) -> AffineTransform:
         """Return an Affine Transfrom from a 2x2 matrix.
@@ -480,10 +490,11 @@ class PositionOptions:
             mdecay=self.mdecay,
             use_position_regularization=self.use_position_regularization,
             update_magnitude_limit=self.update_magnitude_limit,
-            transform=self.transform,
+            transform=self.transform.resample(factor),
             confidence=self.confidence,
         )
         # Momentum reset to zero when grid scale changes
+        return new
 
     @property
     def vx(self):
