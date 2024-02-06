@@ -440,12 +440,11 @@ class Reconstruction():
                 if self.parameters.probe_options.recover_probe:
 
                     if self.parameters.probe_options.median_filter_abs_probe:
-                        if (( total_epochs % self.parameters.probe_options.median_filter_abs_probe_period ) == 0 ):
-                            self.parameters.probe = self.comm.pool.map(
-                                apply_median_filter_abs_probe,
-                                self.parameters.probe,
-                                med_filt_px = self.parameters.probe_options.median_filter_abs_probe_px
-                            )
+                        self.parameters.probe = self.comm.pool.map(
+                            apply_median_filter_abs_probe,
+                            self.parameters.probe,
+                            med_filt_px = self.parameters.probe_options.median_filter_abs_probe_px
+                        )
 
                     if self.parameters.probe_options.force_centered_intensity:
                         self.parameters.probe = self.comm.pool.map(
