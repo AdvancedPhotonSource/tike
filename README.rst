@@ -40,3 +40,11 @@ Alignment
 ==========
 - Lanczos-based rotation and flow operators
 - Cross-correlation rigid alignment solver
+
+*********
+Citations
+*********
+
+This software has a DOI for use in citations.
+
+Gursoy, Doga, and Ching, Daniel J. "Tike." Computer software. December 01, 2022. https://github.com/AdvancedPhotonSource/tike.git. https://doi.org/10.11578/dc.20230202.1.

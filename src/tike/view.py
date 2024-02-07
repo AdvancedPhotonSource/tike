@@ -56,6 +56,7 @@ import warnings
 import typing
 import itertools
 
+from matplotlib.axes import Axes
 from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
 from matplotlib import collections
@@ -63,7 +64,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mplcolors
 import cv2 as cv
 import numpy as np
-import tike.linalg
+from tike.ptycho import AffineTransform
 
 logger = logging.getLogger(__name__)
 
@@ -670,3 +671,67 @@ def plot_eigen_weights(weights):
             axi.set_xticklabels([])
 
     axi.set_xlabel('positions')
+
+
+def plot_affine_transform(
+    ax: Axes,
+    t: AffineTransform,
+    color: typing.Union[typing.Tuple[float, float, float], str] = (0.0, 0.0, 0.0, 1.0),
+):
+    """Draw a unit circle and principal axes transformed by t.
+
+    Draws an unfilled unit circle and the principal axes in the space defined
+    by the transform `t` onto the axes, `ax`. The zero-th principal vector is a
+    full arrow, and the first principal vector is a left-half arrow.
+
+    Any valid Matplotlib color may be specified.
+    """
+
+    def tr(x, y):
+        matrix = t.asarray()
+        x = np.asarray(x)
+        y = np.asarray(y)
+        new_coords = matrix @ [x, y]
+        return new_coords[0, ...], new_coords[1, ...]
+
+    ax.fill(
+        *tr(
+            x=np.cos(np.linspace(-np.pi, np.pi, 2**7)),
+            y=np.sin(np.linspace(-np.pi, np.pi, 2**7)),
+        ),
+        facecolor='none',
+        edgecolor=color,
+        zorder=8,
+    )
+    ax.arrow(
+        0.0,
+        0.0,
+        *tr(1.0, 0.0),
+        length_includes_head=True,
+        width=1 / 20,
+        color=color,
+        overhang=0.0,
+        head_length=2 / 10,
+        zorder=10,
+    )
+    ax.arrow(
+        0.0,
+        0.0,
+        *tr(0.0, 1.0),
+        length_includes_head=True,
+        width=1 / 20,
+        color=color,
+        overhang=0.0,
+        head_length=2 / 10,
+        zorder=9,
+        shape='left',
+    )
+
+    ax.set(
+        xlim=(-2.0, 2.0),
+        ylim=(-2.0, 2.0),
+        aspect="equal",
+        xticks=np.linspace(-2, 2, endpoint=True, num=9),
+        yticks=np.linspace(-2, 2, endpoint=True, num=9),
+    )
+    ax.grid(True, zorder=-1)
