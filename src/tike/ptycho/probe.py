@@ -138,6 +138,14 @@ class ProbeOptions:
     hard constraint.
     """
 
+    median_filter_abs_probe: bool = False
+    """Binary switch on whether to apply a median filter to absolute value of 
+    each shared probe mode.
+    """
+
+    median_filter_abs_probe_px: typing.Tuple[float, float] = ( 1.0, 1.0 )
+    """A 2-element tuple with the median filter pixel widths along each dimension."""
+
     probe_update_sum: typing.Union[npt.NDArray, None] = dataclasses.field(
         init=False,
         default_factory=lambda: None,
@@ -194,6 +202,8 @@ class ProbeOptions:
             probe_support=self.probe_support,
             probe_support_degree=self.probe_support_degree,
             probe_support_radius=self.probe_support_radius,
+            median_filter_abs_probe=self.median_filter_abs_probe, 
+            median_filter_abs_probe_px=self.median_filter_abs_probe_px,
         )
         return options
         # Momentum reset to zero when grid scale changes
@@ -868,6 +878,43 @@ def constrain_center_peak(probe):
     stack = np.roll(p, half[1] - coords[1], axis=-1)
     # Reform to the original shape; make contiguous.
     probe = stack.reshape(probe.shape)
+    return probe
+
+
+def apply_median_filter_abs_probe(
+    probe: npt.NDArray[cp.complex64],
+    med_filt_px: typing.Tuple[float, float],
+) -> npt.NDArray[cp.complex64]:
+    """Apply a median filter to each of the shared probe modes.
+
+    This is meant as a "quick fix" to the probe "hot spots"
+    numerical artifacts that arise due to the sample * probe
+    scaling ambiguity we have in phase retrieval under the
+    projection approximation.
+
+    Parameters
+    ----------
+    probe : ( 1, 1, SHARED, WIDE, HIGH) complex64
+        The shared probes amongst all positions.
+    med_filt_px : typing.Tuple[float, float]
+        A two element array like (tuple or list) with
+        the median filter pixel widths
+
+    Returns
+    -------
+    probe : the filtered probe modified in-place.
+    """
+
+    abs_probe = cp.abs(probe[0, 0, ...])
+
+    abs_probe = cupyx.scipy.ndimage.median_filter(
+        input=abs_probe,
+        size=(1.0, *med_filt_px),
+        mode="constant",
+    )
+
+    probe[0, 0, ...] = abs_probe * cp.exp(1j * cp.angle(probe[0, 0, ...]))
+
     return probe
 
 
