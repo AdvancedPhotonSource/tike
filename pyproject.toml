@@ -26,7 +26,8 @@ classifiers = [
   'Topic :: Scientific/Engineering',
 ]
 dependencies = [
-  "cupy >=10.0, !=10.3.0",
+  # https://github.com/cupy/cupy/issues/8184
+  "cupy >=10.0, !=10.3.0, !=13.0.*",
   'importlib_resources; python_version<"3.9"',
   "matplotlib ==3.*",
   "numpy ~=1.17",

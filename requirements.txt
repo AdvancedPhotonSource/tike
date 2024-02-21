@@ -1,4 +1,4 @@
-cupy>=10,!=10.3.0
+cupy>=10,!=10.3.0,!=13.0.*
 importlib_resources # backport for python<3.9
 matplotlib-base=3.*
 mpi4py>=3.*
@@ -7,6 +7,6 @@ py-opencv>=3.4,<5.0
 python>=3.8
 scipy>=1.6.0
 setuptools_scm>=7
-setuptools>=45
+setuptools>=61
 toml
 wheel
