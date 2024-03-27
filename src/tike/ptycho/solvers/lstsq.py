@@ -141,7 +141,7 @@ def lstsq_grad(
                     batches,
                     position_update_numerator,
                     position_update_denominator,
-                    position_options,
+                    [None] * comm.pool.num_workers if position_options is None else position_options,
                     comm.streams,
                     exitwave_options.measured_pixels,
                     object_options.preconditioner,
@@ -155,6 +155,7 @@ def lstsq_grad(
                 )
             )
         )
+        position_options = None if position_options[0] is None else position_options
 
         if object_options is not None:
             object_upd_sum = comm.Allreduce(object_upd_sum)
@@ -630,7 +631,7 @@ def _get_nearplane_gradients(
             m_probe_update = None
             bpatches = None
 
-        if recover_positions:
+        if position_options:
             m = 0
 
             grad_x, grad_y = tike.ptycho.position.gaussian_gradient(
