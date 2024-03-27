@@ -2,6 +2,7 @@ import logging
 import typing
 
 import cupy as cp
+import numpy as np
 import numpy.typing as npt
 
 import tike.communicators
@@ -125,27 +126,35 @@ def lstsq_grad(
             patches,
             position_update_numerator,
             position_update_denominator,
-        ) = (list(a) for a in zip(*comm.pool.map(
-            _get_nearplane_gradients,
-            data,
-            psi,
-            scan,
-            probe,
-            beigen_probe,
-            beigen_weights,
-            batches,
-            position_update_numerator,
-            position_update_denominator,
-            comm.streams,
-            exitwave_options.measured_pixels,
-            batch_index=batch_index,
-            num_batch=algorithm_options.num_batch,
-            exitwave_options=exitwave_options,
-            op=op,
-            recover_psi=object_options is not None,
-            recover_probe=recover_probe,
-            recover_positions=position_options is not None,
-        )))
+            position_options,
+        ) = (
+            list(a)
+            for a in zip(
+                *comm.pool.map(
+                    _get_nearplane_gradients,
+                    data,
+                    psi,
+                    scan,
+                    probe,
+                    beigen_probe,
+                    beigen_weights,
+                    batches,
+                    position_update_numerator,
+                    position_update_denominator,
+                    position_options,
+                    comm.streams,
+                    exitwave_options.measured_pixels,
+                    object_options.preconditioner,
+                    batch_index=batch_index,
+                    num_batch=algorithm_options.num_batch,
+                    exitwave_options=exitwave_options,
+                    op=op,
+                    recover_psi=object_options is not None,
+                    recover_probe=recover_probe,
+                    recover_positions=position_options is not None,
+                )
+            )
+        )
 
         if object_options is not None:
             object_upd_sum = comm.Allreduce(object_upd_sum)
@@ -454,8 +463,10 @@ def _get_nearplane_gradients(
     batches,
     position_update_numerator,
     position_update_denominator,
+    position_options: PositionOptions,
     streams: typing.List[cp.cuda.Stream],
     measured_pixels: npt.NDArray,
+    object_preconditioner: npt.NDArray[cp.csingle],
     *,
     batch_index: int,
     num_batch: int,
@@ -625,6 +636,39 @@ def _get_nearplane_gradients(
             grad_x, grad_y = tike.ptycho.position.gaussian_gradient(
                 bpatches[blo:bhi])
 
+            crop = probe.shape[-1] // 4
+            total_illumination = op.diffraction.patch.fwd(
+                images=object_preconditioner,
+                positions=scan[lo:hi],
+                patch_width=probe.shape[-1],
+            )[:, crop:-crop, crop:-crop].real
+
+            power = cp.abs(probe[0, 0, 0, crop:-crop, crop:-crop])**2
+
+            dX = cp.mean(
+                cp.abs(grad_x[:, 0, 0, crop:-crop, crop:-crop]).real *
+                total_illumination * power,
+                axis=(-2, -1),
+                keepdims=False,
+            )
+            dY = cp.mean(
+                cp.abs(grad_y[:, 0, 0, crop:-crop, crop:-crop]).real *
+                total_illumination * power,
+                axis=(-2, -1),
+                keepdims=False,
+            )
+
+            total_variation = cp.sqrt(cp.stack(
+                [dX, dY],
+                axis=1,
+            ))
+            mean_variation = (cp.mean(
+                total_variation**4,
+                axis=0,
+            ) + 1e-6)
+            position_options.confidence[
+                lo:hi] = total_variation**4 / mean_variation
+
             position_update_numerator[lo:hi, ..., 0] = cp.sum(
                 cp.real(
                     cp.conj(grad_x * bunique_probe[blo:bhi, ..., m:m + 1, :, :])
@@ -666,6 +710,7 @@ def _get_nearplane_gradients(
         bpatches,
         position_update_numerator,
         position_update_denominator,
+        position_options,
     )
 
 
