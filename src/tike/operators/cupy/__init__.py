@@ -16,6 +16,7 @@ from .objective import *
 from .pad import *
 from .patch import *
 from .propagation import *
+from .fresnelspectprop import *
 from .ptycho import *
 from .rotate import *
 from .shift import *
