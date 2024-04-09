@@ -22,7 +22,7 @@ class Shift(CachedFFT, Operator):
         if shift is None:
             return a
         shape = a.shape
-        padded = a.reshape(-1, *shape[-2:])
+        padded = a.reshape(*shape)
         padded = self._fft2(
             padded,
             axes=(-2, -1),
@@ -33,8 +33,10 @@ class Shift(CachedFFT, Operator):
             self.xp.fft.fftfreq(padded.shape[-2]).astype(shift.dtype),
         )
         padded *= self.xp.exp(
-            -2j * self.xp.pi *
-            (x * shift[..., 1, None, None] + y * shift[..., 0, None, None]))
+            -2j
+            * self.xp.pi
+            * (x * shift[..., 1, None, None] + y * shift[..., 0, None, None])
+        )
         padded = self._ifft2(padded, axes=(-2, -1), overwrite_x=True)
         return padded.reshape(*shape)
 
