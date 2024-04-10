@@ -339,7 +339,7 @@ class ConvolutionFFT(Operator):
                 self.detector_shape,
             )
         )
-        patches = self.shift.fwd(patches, shift, overwrite=False)
+        patches = self.shift.adj(patches, shift, overwrite=False)
 
         patches[..., self.pad : self.end, self.pad : self.end] *= probe
         return patches
@@ -356,7 +356,7 @@ class ConvolutionFFT(Operator):
         index, shift = self.xp.divmod(scan, 1.0)
         shift = shift.reshape((*scan.shape[:-1], 1, 2))
 
-        nearplane = self.shift.adj(nearplane, shift, overwrite=True)
+        nearplane = self.shift.fwd(nearplane, shift, overwrite=True)
 
         if psi is None:
             psi = self.xp.zeros_like(
