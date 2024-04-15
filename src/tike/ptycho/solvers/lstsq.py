@@ -2,6 +2,7 @@ import logging
 import typing
 
 import cupy as cp
+import cupyx.scipy.stats
 import numpy as np
 import numpy.typing as npt
 
@@ -634,9 +635,11 @@ def _get_nearplane_gradients(
         if position_options:
             m = 0
 
+            # TODO: Try adjusting gradient sigma property
             grad_x, grad_y = tike.ptycho.position.gaussian_gradient(
                 bpatches[blo:bhi])
 
+            # start section to compute position certainty metric
             crop = probe.shape[-1] // 4
             total_illumination = op.diffraction.patch.fwd(
                 images=object_preconditioner,
@@ -669,25 +672,42 @@ def _get_nearplane_gradients(
             ) + 1e-6)
             position_options.confidence[
                 lo:hi] = total_variation**4 / mean_variation
+            # end section to compute position certainty metric
 
             position_update_numerator[lo:hi, ..., 0] = cp.sum(
                 cp.real(
-                    cp.conj(grad_x * bunique_probe[blo:bhi, ..., m:m + 1, :, :])
-                    * bchi[blo:bhi, ..., m:m + 1, :, :]),
+                    cp.conj(
+                        grad_x[..., crop:-crop, crop:-crop]
+                        * bunique_probe[blo:bhi, ..., m : m + 1, crop:-crop, crop:-crop]
+                    )
+                    * bchi[blo:bhi, ..., m : m + 1, crop:-crop, crop:-crop]
+                ),
                 axis=(-4, -3, -2, -1),
             )
             position_update_denominator[lo:hi, ..., 0] = cp.sum(
-                cp.abs(grad_x * bunique_probe[blo:bhi, ..., m:m + 1, :, :])**2,
+                cp.abs(
+                    grad_x[..., crop:-crop, crop:-crop]
+                    * bunique_probe[blo:bhi, ..., m : m + 1, crop:-crop, crop:-crop]
+                )
+                ** 2,
                 axis=(-4, -3, -2, -1),
             )
             position_update_numerator[lo:hi, ..., 1] = cp.sum(
                 cp.real(
-                    cp.conj(grad_y * bunique_probe[blo:bhi, ..., m:m + 1, :, :])
-                    * bchi[blo:bhi, ..., m:m + 1, :, :]),
+                    cp.conj(
+                        grad_y[..., crop:-crop, crop:-crop]
+                        * bunique_probe[blo:bhi, ..., m : m + 1, crop:-crop, crop:-crop]
+                    )
+                    * bchi[blo:bhi, ..., m : m + 1, crop:-crop, crop:-crop]
+                ),
                 axis=(-4, -3, -2, -1),
             )
             position_update_denominator[lo:hi, ..., 1] = cp.sum(
-                cp.abs(grad_y * bunique_probe[blo:bhi, ..., m:m + 1, :, :])**2,
+                cp.abs(
+                    grad_y[..., crop:-crop, crop:-crop]
+                    * bunique_probe[blo:bhi, ..., m : m + 1, crop:-crop, crop:-crop]
+                )
+                ** 2,
                 axis=(-4, -3, -2, -1),
             )
 

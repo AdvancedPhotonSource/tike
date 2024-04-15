@@ -489,23 +489,44 @@ def _get_nearplane_gradients(
                 )  # yapf: disable
 
         if position_options:
-
             grad_x, grad_y = tike.ptycho.position.gaussian_gradient(patches)
 
+            crop = probe.shape[-1] // 4
+
             position_update_numerator[lo:hi, ..., 0] = cp.sum(
-                cp.real(cp.conj(grad_x * unique_probe) * diff),
+                cp.real(
+                    cp.conj(
+                        grad_x[..., crop:-crop, crop:-crop]
+                        * unique_probe[..., crop:-crop, crop:-crop]
+                    )
+                    * diff[..., crop:-crop, crop:-crop]
+                ),
                 axis=(-4, -3, -2, -1),
             )
             position_update_denominator[lo:hi, ..., 0] = cp.sum(
-                cp.abs(grad_x * unique_probe)**2,
+                cp.abs(
+                    grad_x[..., crop:-crop, crop:-crop]
+                    * unique_probe[..., crop:-crop, crop:-crop]
+                )
+                ** 2,
                 axis=(-4, -3, -2, -1),
             )
             position_update_numerator[lo:hi, ..., 1] = cp.sum(
-                cp.real(cp.conj(grad_y * unique_probe) * diff),
+                cp.real(
+                    cp.conj(
+                        grad_y[..., crop:-crop, crop:-crop]
+                        * unique_probe[..., crop:-crop, crop:-crop]
+                    )
+                    * diff[..., crop:-crop, crop:-crop]
+                ),
                 axis=(-4, -3, -2, -1),
             )
             position_update_denominator[lo:hi, ..., 1] = cp.sum(
-                cp.abs(grad_y * unique_probe)**2,
+                cp.abs(
+                    grad_y[..., crop:-crop, crop:-crop]
+                    * unique_probe[..., crop:-crop, crop:-crop]
+                )
+                ** 2,
                 axis=(-4, -3, -2, -1),
             )
 

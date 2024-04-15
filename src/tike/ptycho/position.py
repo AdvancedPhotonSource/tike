@@ -674,7 +674,8 @@ def _affine_position_helper(
     W = cp.minimum(10 * relax,
                    W + cp.maximum(0, err - max_error)**2 / max_error**2)
     # allow free movement in depenence on realibility and max allowed error
-    return scan * (1 - W) + W * predicted_positions
+    new_scan = scan * (1 - W) + W * predicted_positions
+    return new_scan
 
 
 # TODO: What is a good default value for max_error?
