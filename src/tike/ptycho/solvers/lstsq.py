@@ -951,6 +951,9 @@ def _update_position(
             a_max=position_options.update_magnitude_limit,
         )
 
+    # Remove outliars and subtract the mean
+    step = step - cupyx.scipy.stats.trim_mean(step, 0.05)
+
     if position_options.use_adaptive_moment:
         (
             step,

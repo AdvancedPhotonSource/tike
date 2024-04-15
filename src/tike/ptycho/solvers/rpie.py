@@ -1,6 +1,7 @@
 import logging
 
 import cupy as cp
+import cupyx.scipy.stats
 import numpy.typing as npt
 
 import tike.communicators
@@ -569,6 +570,9 @@ def _update_position(
             a_min=-position_options.update_magnitude_limit,
             a_max=position_options.update_magnitude_limit,
         )
+
+    # Remove outliars and subtract the mean
+    step = step - cupyx.scipy.stats.trim_mean(step, 0.05)
 
     if position_options.use_adaptive_moment:
         (
