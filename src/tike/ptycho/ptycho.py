@@ -498,6 +498,7 @@ class Reconstruction():
                 data=self.data,
                 batches=self.batches,
                 parameters=self.parameters,
+                epoch=len(self.parameters.algorithm_options.times),
             )
 
             if self.parameters.object_options.positivity_constraint:

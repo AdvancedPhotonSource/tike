@@ -28,6 +28,7 @@ def rpie(
     batches: typing.List[typing.List[npt.NDArray[cp.intc]]],
     *,
     parameters: PtychoParameters,
+    epoch: int,
 ) -> PtychoParameters:
     """Solve the ptychography problem using regularized ptychographical engine.
 
@@ -177,6 +178,7 @@ def rpie(
             position_update_denominator,
             max_shift=probe[0].shape[-1] * 0.1,
             alpha=algorithm_options.alpha,
+            epoch=epoch,
         )))
 
     if algorithm_options.batch_method == 'compact':
@@ -559,7 +561,11 @@ def _update_position(
     *,
     alpha=0.05,
     max_shift=1,
+    epoch=0,
 ):
+    if epoch < position_options.update_start:
+        return scan, position_options
+
     step = (position_update_numerator) / (
         (1 - alpha) * position_update_denominator +
         alpha * max(position_update_denominator.max(), 1e-6))

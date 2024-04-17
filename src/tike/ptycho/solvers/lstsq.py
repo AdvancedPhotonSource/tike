@@ -29,6 +29,7 @@ def lstsq_grad(
     batches: typing.List[npt.NDArray[cp.intc]],
     *,
     parameters: PtychoParameters,
+    epoch: int,
 ):
     """Solve the ptychography problem using Odstrcil et al's approach.
 
@@ -296,13 +297,16 @@ def lstsq_grad(
         eigen_weights = beigen_weights
 
     if position_options:
-        scan, position_options = zip(*comm.pool.map(
-            _update_position,
-            scan,
-            position_options,
-            position_update_numerator,
-            position_update_denominator,
-        ))
+        scan, position_options = zip(
+            *comm.pool.map(
+                _update_position,
+                scan,
+                position_options,
+                position_update_numerator,
+                position_update_denominator,
+                epoch=epoch,
+            )
+        )
 
     algorithm_options.costs.append(batch_cost)
 
@@ -939,7 +943,11 @@ def _update_position(
     *,
     alpha=0.05,
     max_shift=1,
+    epoch=0,
 ):
+    if epoch < position_options.update_start:
+        return scan, position_options
+
     step = (position_update_numerator) / (
         (1 - alpha) * position_update_denominator +
         alpha * max(position_update_denominator.max(), 1e-6))

@@ -354,6 +354,9 @@ class PositionOptions:
     )
     """A rating of the confidence of position information around each position."""
 
+    update_start: int = 0
+    """Start position updates at this epoch."""
+
     def __post_init__(self):
         self.initial_scan = self.initial_scan.astype(tike.precision.floating)
         if self.confidence is None:
