@@ -566,8 +566,7 @@ class Reconstruction():
                     self.parameters.eigen_weights,
                 )
 
-            if (self.parameters.position_options and self.parameters
-                    .position_options[0].use_position_regularization):
+            if self.parameters.position_options:
                 (
                     self.parameters.scan,
                     self.parameters.position_options,
@@ -575,6 +574,9 @@ class Reconstruction():
                     self.comm,
                     updated=self.parameters.scan,
                     position_options=self.parameters.position_options,
+                    regularization_enabled=self.parameters.position_options[
+                        0
+                    ].use_position_regularization,
                 )
 
             self.parameters.algorithm_options.times.append(time.perf_counter() -

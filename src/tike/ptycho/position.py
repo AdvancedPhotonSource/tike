@@ -684,6 +684,7 @@ def affine_position_regularization(
     updated: typing.List[cp.ndarray],
     position_options: typing.List[PositionOptions],
     max_error: float = 32,
+    regularization_enabled: bool = False,
 ) -> typing.Tuple[typing.List[cp.ndarray], typing.List[PositionOptions]]:
     """Regularize position updates with an affine deformation constraint.
 
@@ -728,12 +729,13 @@ def affine_position_regularization(
     for i in range(len(position_options)):
         position_options[i].transform = new_transform
 
-    updated = comm.pool.map(
-        _affine_position_helper,
-        updated,
-        position_options,
-        max_error=max_error,
-    )
+    if regularization_enabled:
+        updated = comm.pool.map(
+            _affine_position_helper,
+            updated,
+            position_options,
+            max_error=max_error,
+        )
 
     return updated, position_options
 
