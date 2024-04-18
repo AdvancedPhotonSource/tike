@@ -217,7 +217,7 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
             plt.title(algorithm)
             plt.scatter(
                 np.linalg.norm(self.scan_truth - result.scan, axis=-1),
-                result.position_options.confidence[..., 1],
+                result.position_options.confidence[..., 0],
             )
             plt.xlabel('position error')
             plt.ylabel('position confidence')
