@@ -91,15 +91,13 @@ class Convolution(Operator):
             patch_width=self.probe_shape,
             nrepeat=probe.shape[-3],
         )
-        patches = patches.reshape(
-            (
-                *scan.shape[:-1],
-                probe.shape[-3],
-                self.detector_shape,
-                self.detector_shape,
-            )
-        )
-        patches[..., self.pad : self.end, self.pad : self.end] *= probe
+        patches = patches.reshape((
+            *scan.shape[:-1],
+            probe.shape[-3],
+            self.detector_shape,
+            self.detector_shape,
+        ))
+        patches[..., self.pad:self.end, self.pad:self.end] *= probe
         return patches
 
     def adj(self, nearplane, scan, probe, psi=None, overwrite=False):
@@ -109,7 +107,7 @@ class Convolution(Operator):
         assert nearplane.shape[:-3] == scan.shape[:-1]
         if not overwrite:
             nearplane = nearplane.copy()
-        nearplane[..., self.pad : self.end, self.pad : self.end] *= probe.conj()
+        nearplane[..., self.pad:self.end, self.pad:self.end] *= probe.conj()
         if psi is None:
             psi = self.xp.zeros_like(
                 nearplane,
@@ -117,13 +115,11 @@ class Convolution(Operator):
             )
         assert psi.shape[:-2] == scan.shape[:-2]
         return self.patch.adj(
-            patches=nearplane.reshape(
-                (
-                    *scan.shape[:-2],
-                    scan.shape[-2] * nearplane.shape[-3],
-                    *nearplane.shape[-2:],
-                )
-            ),
+            patches=nearplane.reshape((
+                *scan.shape[:-2],
+                scan.shape[-2] * nearplane.shape[-3],
+                *nearplane.shape[-2:],
+            )),
             images=psi,
             positions=scan,
             patch_width=self.probe_shape,
@@ -132,7 +128,8 @@ class Convolution(Operator):
 
     def adj_probe(self, nearplane, scan, psi, overwrite=False):
         """Combine probe shaped patches into a probe."""
-        assert nearplane.shape[:-3] == scan.shape[:-1], (nearplane.shape, scan.shape)
+        assert nearplane.shape[:-3] == scan.shape[:-1], (nearplane.shape,
+                                                         scan.shape)
         assert psi.shape[:-2] == scan.shape[:-2], (psi.shape, scan.shape)
         patches = self.xp.zeros_like(
             psi,
@@ -150,11 +147,10 @@ class Convolution(Operator):
             patch_width=self.probe_shape,
             nrepeat=nearplane.shape[-3],
         )
-        patches = patches.reshape(
-            (*scan.shape[:-1], nearplane.shape[-3], self.probe_shape, self.probe_shape)
-        )
+        patches = patches.reshape((*scan.shape[:-1], nearplane.shape[-3],
+                                   self.probe_shape, self.probe_shape))
         patches = patches.conj()
-        patches *= nearplane[..., self.pad : self.end, self.pad : self.end]
+        patches *= nearplane[..., self.pad:self.end, self.pad:self.end]
         return patches
 
     def adj_all(self, nearplane, scan, probe, psi, overwrite=False, rpie=False):
@@ -162,7 +158,8 @@ class Convolution(Operator):
         assert probe.shape[:-4] == scan.shape[:-2]
         assert psi.shape[:-2] == scan.shape[:-2], (psi.shape, scan.shape)
         assert probe.shape[-4] == 1 or probe.shape[-4] == scan.shape[-2]
-        assert nearplane.shape[:-3] == scan.shape[:-1], (nearplane.shape, scan.shape)
+        assert nearplane.shape[:-3] == scan.shape[:-1], (nearplane.shape,
+                                                         scan.shape)
 
         patches = self.patch.fwd(
             # Could be xp.empty if scan positions are all in bounds
@@ -180,9 +177,8 @@ class Convolution(Operator):
             patch_width=self.probe_shape,
             nrepeat=nearplane.shape[-3],
         )
-        patches = patches.reshape(
-            (*scan.shape[:-1], nearplane.shape[-3], self.probe_shape, self.probe_shape)
-        )
+        patches = patches.reshape((*scan.shape[:-1], nearplane.shape[-3],
+                                   self.probe_shape, self.probe_shape))
         if rpie:
             patches_amp = self.xp.sum(
                 patches * patches.conj(),
@@ -190,11 +186,11 @@ class Convolution(Operator):
                 keepdims=True,
             )
         patches = patches.conj()
-        patches *= nearplane[..., self.pad : self.end, self.pad : self.end]
+        patches *= nearplane[..., self.pad:self.end, self.pad:self.end]
 
         if not overwrite:
             nearplane = nearplane.copy()
-        nearplane[..., self.pad : self.end, self.pad : self.end] *= probe.conj()
+        nearplane[..., self.pad:self.end, self.pad:self.end] *= probe.conj()
         if rpie:
             probe_amp = probe * probe.conj()
             probe_amp = probe_amp.reshape(
@@ -214,13 +210,11 @@ class Convolution(Operator):
             )
 
         apsi = self.patch.adj(
-            patches=nearplane.reshape(
-                (
-                    *scan.shape[:-2],
-                    scan.shape[-2] * nearplane.shape[-3],
-                    *nearplane.shape[-2:],
-                )
-            ),
+            patches=nearplane.reshape((
+                *scan.shape[:-2],
+                scan.shape[-2] * nearplane.shape[-3],
+                *nearplane.shape[-2:],
+            )),
             images=self.xp.zeros_like(
                 psi,
                 shape=(*scan.shape[:-2], self.nz, self.n),
@@ -331,17 +325,15 @@ class ConvolutionFFT(Operator):
             nrepeat=probe.shape[-3],
         )
 
-        patches = patches.reshape(
-            (
-                *scan.shape[:-1],
-                probe.shape[-3],
-                self.detector_shape,
-                self.detector_shape,
-            )
-        )
+        patches = patches.reshape((
+            *scan.shape[:-1],
+            probe.shape[-3],
+            self.detector_shape,
+            self.detector_shape,
+        ))
         patches = self.shift.adj(patches, shift, overwrite=False)
 
-        patches[..., self.pad : self.end, self.pad : self.end] *= probe
+        patches[..., self.pad:self.end, self.pad:self.end] *= probe
         return patches
 
     def adj(self, nearplane, scan, probe, psi=None, overwrite=False):
@@ -351,7 +343,7 @@ class ConvolutionFFT(Operator):
         assert nearplane.shape[:-3] == scan.shape[:-1]
         if not overwrite:
             nearplane = nearplane.copy()
-        nearplane[..., self.pad : self.end, self.pad : self.end] *= probe.conj()
+        nearplane[..., self.pad:self.end, self.pad:self.end] *= probe.conj()
 
         index, shift = self.xp.divmod(scan, 1.0)
         shift = shift.reshape((*scan.shape[:-1], 1, 2))
@@ -365,13 +357,11 @@ class ConvolutionFFT(Operator):
             )
         assert psi.shape[:-2] == scan.shape[:-2]
         return self.patch.adj(
-            patches=nearplane.reshape(
-                (
-                    *scan.shape[:-2],
-                    scan.shape[-2] * nearplane.shape[-3],
-                    *nearplane.shape[-2:],
-                )
-            ),
+            patches=nearplane.reshape((
+                *scan.shape[:-2],
+                scan.shape[-2] * nearplane.shape[-3],
+                *nearplane.shape[-2:],
+            )),
             images=psi,
             positions=index,
             patch_width=self.probe_shape,

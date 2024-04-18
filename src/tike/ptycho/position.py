@@ -711,8 +711,7 @@ def affine_position_regularization(
     """
     # Gather all of the scanning positions on one host
     positions0 = comm.pool.gather_host(
-        [x.initial_scan for x in position_options], axis=0
-    )
+        [x.initial_scan for x in position_options], axis=0)
     positions1 = comm.pool.gather_host(updated, axis=0)
     positions0 = comm.mpi.Gather(positions0, axis=0, root=0)
     positions1 = comm.mpi.Gather(positions1, axis=0, root=0)

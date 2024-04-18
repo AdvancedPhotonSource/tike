@@ -129,35 +129,32 @@ def lstsq_grad(
             position_update_numerator,
             position_update_denominator,
             position_options,
-        ) = (
-            list(a)
-            for a in zip(
-                *comm.pool.map(
-                    _get_nearplane_gradients,
-                    data,
-                    psi,
-                    scan,
-                    probe,
-                    beigen_probe,
-                    beigen_weights,
-                    batches,
-                    position_update_numerator,
-                    position_update_denominator,
-                    [None] * comm.pool.num_workers if position_options is None else position_options,
-                    comm.streams,
-                    exitwave_options.measured_pixels,
-                    object_options.preconditioner,
-                    batch_index=batch_index,
-                    num_batch=algorithm_options.num_batch,
-                    exitwave_options=exitwave_options,
-                    op=op,
-                    recover_psi=object_options is not None,
-                    recover_probe=recover_probe,
-                    recover_positions=position_options is not None,
-                )
-            )
-        )
-        position_options = None if position_options[0] is None else position_options
+        ) = (list(a) for a in zip(*comm.pool.map(
+            _get_nearplane_gradients,
+            data,
+            psi,
+            scan,
+            probe,
+            beigen_probe,
+            beigen_weights,
+            batches,
+            position_update_numerator,
+            position_update_denominator,
+            [None] * comm.pool.num_workers if position_options is
+            None else position_options,
+            comm.streams,
+            exitwave_options.measured_pixels,
+            object_options.preconditioner,
+            batch_index=batch_index,
+            num_batch=algorithm_options.num_batch,
+            exitwave_options=exitwave_options,
+            op=op,
+            recover_psi=object_options is not None,
+            recover_probe=recover_probe,
+            recover_positions=position_options is not None,
+        )))
+        position_options = None if position_options[
+            0] is None else position_options
 
         if object_options is not None:
             object_upd_sum = comm.Allreduce(object_upd_sum)
@@ -297,16 +294,14 @@ def lstsq_grad(
         eigen_weights = beigen_weights
 
     if position_options:
-        scan, position_options = zip(
-            *comm.pool.map(
-                _update_position,
-                scan,
-                position_options,
-                position_update_numerator,
-                position_update_denominator,
-                epoch=epoch,
-            )
-        )
+        scan, position_options = zip(*comm.pool.map(
+            _update_position,
+            scan,
+            position_options,
+            position_update_numerator,
+            position_update_denominator,
+            epoch=epoch,
+        ))
 
     algorithm_options.costs.append(batch_cost)
 
@@ -680,38 +675,30 @@ def _get_nearplane_gradients(
 
             position_update_numerator[lo:hi, ..., 0] = cp.sum(
                 cp.real(
-                    cp.conj(
-                        grad_x[..., crop:-crop, crop:-crop]
-                        * bunique_probe[blo:bhi, ..., m : m + 1, crop:-crop, crop:-crop]
-                    )
-                    * bchi[blo:bhi, ..., m : m + 1, crop:-crop, crop:-crop]
-                ),
+                    cp.conj(grad_x[..., crop:-crop, crop:-crop] *
+                            bunique_probe[blo:bhi, ..., m:m + 1, crop:-crop,
+                                          crop:-crop]) *
+                    bchi[blo:bhi, ..., m:m + 1, crop:-crop, crop:-crop]),
                 axis=(-4, -3, -2, -1),
             )
             position_update_denominator[lo:hi, ..., 0] = cp.sum(
-                cp.abs(
-                    grad_x[..., crop:-crop, crop:-crop]
-                    * bunique_probe[blo:bhi, ..., m : m + 1, crop:-crop, crop:-crop]
-                )
-                ** 2,
+                cp.abs(grad_x[..., crop:-crop, crop:-crop] *
+                       bunique_probe[blo:bhi, ..., m:m + 1, crop:-crop,
+                                     crop:-crop])**2,
                 axis=(-4, -3, -2, -1),
             )
             position_update_numerator[lo:hi, ..., 1] = cp.sum(
                 cp.real(
-                    cp.conj(
-                        grad_y[..., crop:-crop, crop:-crop]
-                        * bunique_probe[blo:bhi, ..., m : m + 1, crop:-crop, crop:-crop]
-                    )
-                    * bchi[blo:bhi, ..., m : m + 1, crop:-crop, crop:-crop]
-                ),
+                    cp.conj(grad_y[..., crop:-crop, crop:-crop] *
+                            bunique_probe[blo:bhi, ..., m:m + 1, crop:-crop,
+                                          crop:-crop]) *
+                    bchi[blo:bhi, ..., m:m + 1, crop:-crop, crop:-crop]),
                 axis=(-4, -3, -2, -1),
             )
             position_update_denominator[lo:hi, ..., 1] = cp.sum(
-                cp.abs(
-                    grad_y[..., crop:-crop, crop:-crop]
-                    * bunique_probe[blo:bhi, ..., m : m + 1, crop:-crop, crop:-crop]
-                )
-                ** 2,
+                cp.abs(grad_y[..., crop:-crop, crop:-crop] *
+                       bunique_probe[blo:bhi, ..., m:m + 1, crop:-crop,
+                                     crop:-crop])**2,
                 axis=(-4, -3, -2, -1),
             )
 
