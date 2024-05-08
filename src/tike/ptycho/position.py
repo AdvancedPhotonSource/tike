@@ -264,7 +264,7 @@ def estimate_global_transformation_ransac(
     positions1: np.ndarray,
     weights: np.ndarray = None,
     transform: AffineTransform = AffineTransform(),
-    min_sample: int = 4,
+    min_sample: int = 4,  # must be 4 because we are solving for a 2x2 matrix
     max_error: float = 32,
     min_consensus: float = 0.75,
     max_iter: int = 20,
@@ -282,6 +282,7 @@ def estimate_global_transformation_ransac(
     """
     best_fitness = np.inf  # small fitness is good
     # Choose a subset
+    # FIXME: Use montecarlo sampling to decide when to stop RANSAC instead of minimum consensus
     for subset in tike.random.randomizer_np.choice(
             a=len(positions0),
             size=(max_iter, min_sample),
@@ -353,11 +354,14 @@ class PositionOptions:
     )
     """A rating of the confidence of position information around each position."""
 
+    update_start: int = 0
+    """Start position updates at this epoch."""
+
     def __post_init__(self):
         self.initial_scan = self.initial_scan.astype(tike.precision.floating)
         if self.confidence is None:
             self.confidence = np.ones(
-                shape=(*self.initial_scan.shape[:-1], 1),
+                shape=self.initial_scan.shape,
                 dtype=tike.precision.floating,
             )
         if self.use_adaptive_moment:
@@ -445,7 +449,7 @@ class PositionOptions:
         self.initial_scan = new_initial_scan
         if self.confidence is not None:
             new_confidence = np.empty(
-                (*self.initial_scan.shape[:-2], max_index, 1),
+                (*self.initial_scan.shape[:-2], max_index, 2),
                 dtype=self.initial_scan.dtype,
             )
             new_confidence[..., :len_scan, :] = self.confidence
@@ -657,13 +661,34 @@ def _gaussian_frequency(sigma, size):
     return arr
 
 
+def _affine_position_helper(
+    scan,
+    position_options: PositionOptions,
+    max_error,
+    relax=0.1,
+):
+    predicted_positions = position_options.transform(
+        position_options.initial_scan)
+    err = predicted_positions - position_options.initial_scan
+    # constrain more the probes in flat regions
+    W = relax * (1 - (position_options.confidence /
+                      (1 + position_options.confidence)))
+    # penalize positions that are further than max_error from origin; avoid travel larger than max error
+    W = cp.minimum(10 * relax,
+                   W + cp.maximum(0, err - max_error)**2 / max_error**2)
+    # allow free movement in depenence on realibility and max allowed error
+    new_scan = scan * (1 - W) + W * predicted_positions
+    return new_scan
+
+
 # TODO: What is a good default value for max_error?
 def affine_position_regularization(
     comm: tike.communicators.Comm,
     updated: typing.List[cp.ndarray],
     position_options: typing.List[PositionOptions],
     max_error: float = 32,
-) -> typing.List[PositionOptions]:
+    regularization_enabled: bool = False,
+) -> typing.Tuple[typing.List[cp.ndarray], typing.List[PositionOptions]]:
     """Regularize position updates with an affine deformation constraint.
 
     Assume that the true position updates are a global affine transformation
@@ -706,7 +731,15 @@ def affine_position_regularization(
     for i in range(len(position_options)):
         position_options[i].transform = new_transform
 
-    return position_options
+    if regularization_enabled:
+        updated = comm.pool.map(
+            _affine_position_helper,
+            updated,
+            position_options,
+            max_error=max_error,
+        )
+
+    return updated, position_options
 
 
 def gaussian_gradient(

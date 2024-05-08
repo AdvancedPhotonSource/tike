@@ -25,6 +25,7 @@ def dm(
     batches: typing.List[typing.List[npt.NDArray[cp.intc]]],
     *,
     parameters: PtychoParameters,
+    epoch: int,
 ) -> PtychoParameters:
     """Solve the ptychography problem using the difference map approach.
 
