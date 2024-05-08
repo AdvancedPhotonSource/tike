@@ -24,6 +24,7 @@ jobs:
             - "12.0"
           target-arch:
             - "x86_64"
+            - "aarch64"
     steps:
     - uses: actions/checkout@v4
     - uses: eWaterCycle/setup-apptainer@v2
