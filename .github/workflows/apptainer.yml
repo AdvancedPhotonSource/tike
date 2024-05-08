@@ -33,7 +33,7 @@ jobs:
       run: >
         apptainer build
         --build-arg cuda_version={{ cuda-version }}
-        --build-arg --build-arg target_arch={{ target-arch }}
+        --build-arg target_arch={{ target-arch }}
         apptainer.sif
         apptainer/${{ github.event.repository.name }}.def
     - name: Upload to container registry
