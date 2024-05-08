@@ -29,4 +29,4 @@ jobs:
     - name: Upload to container registry
       run: |
         echo ${{ secrets.GITHUB_TOKEN }} | apptainer remote login -u ${{ github.actor }} --password-stdin oras://ghcr.io
-        apptainer push tike.sif oras://ghcr.io/${GITHUB_REPOSITORY}:${tag}
+        apptainer push tike.sif oras://ghcr.io/${GITHUB_REPOSITORY}:test
