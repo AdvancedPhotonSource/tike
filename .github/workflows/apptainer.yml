@@ -7,9 +7,7 @@ on:
   release:
     types: [published]
   push:
-    tags:
-    # Use pattern matching to only run on version release tags
-    - "v[0-9]+.[0-9]+.[0-9]+"
+    branches: [main]
 
 permissions:
   contents: read
@@ -25,8 +23,8 @@ jobs:
       with:
         apptainer-version: 1.3.0
     - name: Build container from definition
-      run: apptainer build tike.sif apptainer/tike.def
+      run: apptainer build apptainer.sif apptainer/${{ github.event.repository.name }}.def
     - name: Upload to container registry
       run: |
         echo ${{ secrets.GITHUB_TOKEN }} | apptainer registry login -u ${{ github.actor }} --password-stdin oras://ghcr.io
-        apptainer push tike.sif oras://ghcr.io/${GITHUB_REPOSITORY,,}:${{ github.ref_name }}
+        apptainer push apptainer.sif oras://ghcr.io/${GITHUB_REPOSITORY,,}:${{ github.ref_name }}
