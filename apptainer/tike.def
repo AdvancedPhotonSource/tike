@@ -1,0 +1,16 @@
+Bootstrap: docker
+From: registry.fedoraproject.org/fedora-minimal:40
+
+%arguments
+target_arch="x86_64"
+cuda_version="12.2"
+
+%post
+curl -L -o conda-installer.sh https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-{{ target_arch }}.sh
+bash conda-installer.sh -b -p "/opt/miniconda"
+rm conda-installer.sh
+CONDA_OVERRIDE_CUDA={{ cuda_version }} /opt/miniconda/bin/conda install tike cuda-version={{ cuda_version }} -c conda-forge --yes
+/opt/miniconda/bin/conda clean --all --yes
+
+%runscript
+/opt/miniconda/bin/python "$@"
