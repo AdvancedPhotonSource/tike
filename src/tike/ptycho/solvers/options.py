@@ -112,8 +112,8 @@ class PtychoParameters():
     amongst all positions."""
 
     psi: npt.NDArray[np.csingle]
-    """(WIDE, HIGH) complex64 The wavefront modulation coefficients of
-    the object."""
+    """(SLICES, WIDE, HIGH) complex64 The wavefront modulation coefficients of
+    the object. SLICES = number of multislice slices."""
 
     scan: npt.NDArray[np.single]
     """(POSI, 2) float32 Coordinates of the minimum corner of the probe
@@ -158,12 +158,12 @@ class PtychoParameters():
                              "It should be (1, 1, S, W, H) "
                              "where S >=1 is the number of probes, and "
                              "W, H >= 1 are the square probe grid dimensions.")
-        if (self.psi.ndim != 2 or np.any(
-                np.asarray(self.psi.shape) <= np.asarray(self.probe.shape[-2:]))
-           ):
+        
+        if (self.psi.ndim != 3 or np.any( np.asarray(self.psi.shape[-2:]) <= np.asarray(self.probe.shape[-2:])) ):
             raise ValueError(
                 f"psi shape {self.psi.shape} is incorrect. "
-                "It should be (W, H) where W, H > probe.shape[-2:].")
+                "It should be ( multislice_total_slices, W, H) where W, H > probe.shape[-2:]. ")
+        
         check_allowed_positions(
             self.scan,
             self.psi,
@@ -184,7 +184,7 @@ class PtychoParameters():
 
         return PtychoParameters(
             probe=interp(self.probe, factor),
-            psi=_resize_spline(self.psi, factor),
+            psi=_resize_spline(self.psi, factor),                       # ??? THIS IS FOR 2D SAMPLE ARRAYS, BROKEN FOR 3D ???
             scan=self.scan * factor,
             eigen_probe=interp(self.eigen_probe, factor)
             if self.eigen_probe is not None else None,

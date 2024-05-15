@@ -325,6 +325,8 @@ class Reconstruction():
             nz=parameters.psi.shape[-2],
             n=parameters.psi.shape[-1],
             norm=parameters.exitwave_options.propagation_normalization,
+            multislice_total_slices = parameters.psi.shape[0],
+            multislice_propagator   = parameters.object_options.multislice_propagator,
         )
         self.comm = tike.communicators.Comm(num_gpu, mpi)
 
@@ -332,6 +334,10 @@ class Reconstruction():
         self.device.__enter__()
         self.operator.__enter__()
         self.comm.__enter__()
+
+        # ??? COPY TO DEVICE ??? self.operator.multislice_propagator
+        if self.operator.multislice_total_slices > 1:
+            self.operator.multislice.multislice_propagator = cp.asarray( self.operator.multislice.multislice_propagator )          
 
         # Divide the inputs into regions
         if (not np.all(np.isfinite(self.data)) or np.any(self.data < 0)):
@@ -400,6 +406,7 @@ class Reconstruction():
                     self.comm,
                     self.data,
                     self.parameters.exitwave_options,
+                    self.parameters.object_options,
                     self.parameters.psi,
                     self.parameters.scan,
                     self.parameters.probe,
@@ -785,6 +792,7 @@ def _order_join(a, b):
 def _get_rescale(
     data,
     measured_pixels,
+    multislice_propagator,
     psi,
     scan,
     probe,
@@ -829,7 +837,7 @@ def _get_rescale(
     return sums
 
 
-def _rescale_probe(operator, comm, data, exitwave_options, psi, scan, probe,
+def _rescale_probe(operator, comm, data, exitwave_options, object_options, psi, scan, probe,
                    num_batch):
     """Rescale probe so model and measured intensity are similar magnitude.
 
@@ -841,6 +849,7 @@ def _rescale_probe(operator, comm, data, exitwave_options, psi, scan, probe,
             _get_rescale,
             data,
             exitwave_options.measured_pixels,
+            object_options.multislice_propagator,
             psi,
             scan,
             probe,

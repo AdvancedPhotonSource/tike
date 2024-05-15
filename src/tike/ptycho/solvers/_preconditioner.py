@@ -42,14 +42,29 @@ def _psi_preconditioner(
         lo: int,
         hi: int,
     ) -> None:
+        
         nonlocal psi_update_denominator
 
-        probe_amp = _probe_amp_sum(probe)[:, 0]
-        psi_update_denominator[...] = operator.diffraction.patch.adj(
-            patches=probe_amp,
-            images=psi_update_denominator,
-            positions=scan[lo:hi],
-        )
+        # probe0 = cp.repeat( probe, scan[lo:hi].shape[0], axis = 0)[..., 0, :, :, :]
+        # probe_amp = _probe_amp_sum(probe0)
+
+        #probe_amp = _probe_amp_sum(probe)[:, 0]         # _probe_amp_sum(probe)[ :, 0 ] = _probe_amp_sum(probe)[ :, 0, ... ]
+
+        _, multislice_probes = operator.fwd( 
+            probe,
+            scan[lo:hi],
+            psi,
+        ) 
+
+        for tt in cp.arange( 0, psi.shape[0], 1 ) :
+
+            probe_amp = _probe_amp_sum(multislice_probes[ tt, ... ])    
+
+            psi_update_denominator[ tt, ... ] = operator.diffraction.patch.adj(
+                patches=probe_amp,
+                images=psi_update_denominator[ tt, ... ],
+                positions=scan[lo:hi],
+            )
 
     tike.communicators.stream.stream_and_modify2(
         f=make_certain_args_constant,
@@ -58,6 +73,24 @@ def _psi_preconditioner(
         lo=0,
         hi=len(scan),
     )
+
+    ''' 
+
+    import matplotlib.pyplot as plt
+    #import numpy as np
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    import matplotlib as mpl
+    # mpl.use('Agg')
+    mpl.use('TKAgg')
+
+    A = cp.abs( psi_update_denominator[ 0, ... ] - psi_update_denominator[ 1, ... ])
+    fig, ax1 = plt.subplots( nrows = 1, ncols = 1, )
+    pos1 = ax1.imshow( A.get(), cmap = 'gray', ) 
+    plt.colorbar(pos1)
+    plt.show( block = False )
+    
+    '''
+
 
     return psi_update_denominator
 
@@ -93,11 +126,13 @@ def _probe_preconditioner(
         nonlocal probe_update_denominator
 
         patches = operator.diffraction.patch.fwd(
-            images=psi,
+            images=psi[ 0, ... ],
             positions=scan[lo:hi],
             patch_width=probe.shape[-1],
         )
+
         probe_update_denominator[...] += _patch_amp_sum(patches)
+
         assert probe_update_denominator.ndim == 2
 
     tike.communicators.stream.stream_and_modify2(
@@ -120,7 +155,9 @@ def update_preconditioners(
     object_options: typing.Optional[ObjectOptions] = None,
     probe_options: typing.Optional[ProbeOptions] = None,
 ) -> typing.Tuple[ObjectOptions, ProbeOptions]:
+    
     """Update the probe and object preconditioners."""
+
     if object_options:
 
         preconditioner = comm.pool.map(

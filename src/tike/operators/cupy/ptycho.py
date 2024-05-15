@@ -12,6 +12,8 @@ import cupy as cp
 from .operator import Operator
 from .propagation import Propagation
 from .convolution import Convolution
+from .multislice_fresnelspectprop import Multislice_FresnelSpectProp as Multislice
+
 from . import objective
 
 
@@ -36,13 +38,17 @@ class Ptycho(Operator):
     detector_shape : int
         The pixel width and height of the (square) detector grid.
     nz, n : int
-        The pixel width and height of the reconstructed grid.
+        The pixel width and height of the 2D reconstructed grid.
+    multislice_total_slices: uint
+       The number of slices we use for multislice ptycho.
     probe_shape : int
         The pixel width and height of the (square) probe illumination.
     propagation : :py:class:`Operator`
-        The wave propagation operator being used.
+        The farfield free space wave propagation operator.
     diffraction : :py:class:`Operator`
-        The object probe interaction operator being used.
+        The projection approximation (2D exitwave = 2D object * 2D probe) operator.
+    multislice : :py:class:`Operator`
+        The multislice operator which computes 2D exitwaves by propagating a 2D probe through a 3D object.
     data : (..., FRAME, WIDE, HIGH) float32
         The intensity (square of the absolute value) of the propagated
         wavefront; i.e. what the detector records.
@@ -56,7 +62,8 @@ class Ptycho(Operator):
         Coordinates of the minimum corner of the probe grid for each
         measurement in the coordinate system of psi. Coordinate order
         consistent with WIDE, HIGH order.
-
+    multislice_propagator : (..., WIDE, HIGH) complex64
+        A 2D array that numerically propagates a 2D wavefield from an input plane to an output plane
 
     .. versionchanged:: 0.25.0 Removed the model and ntheta parameters.
 
@@ -68,13 +75,16 @@ class Ptycho(Operator):
         probe_shape: int,
         nz: int,
         n: int,
+        multislice_total_slices: int,
+        multislice_propagator: npt.NDArray[np.csingle],
         propagation: typing.Type[Propagation] = Propagation,
         diffraction: typing.Type[Convolution] = Convolution,
+        multislice: typing.Type[Multislice] = Multislice,
         norm: str = 'ortho',
         **kwargs,
     ):
         """Please see help(Ptycho) for more info."""
-        self.propagation = propagation(
+        self.propagation = propagation(             
             detector_shape=detector_shape,
             norm=norm,
             **kwargs,
@@ -86,20 +96,27 @@ class Ptycho(Operator):
             n=n,
             **kwargs,
         )
+        self.multislice = multislice(
+            norm=norm,
+            multislice_propagator = multislice_propagator,
+        )
         # TODO: Replace these with @property functions
         self.probe_shape = probe_shape
         self.detector_shape = detector_shape
         self.nz = nz
         self.n = n
+        self.multislice_total_slices = multislice_total_slices
 
     def __enter__(self):
         self.propagation.__enter__()
         self.diffraction.__enter__()
+        self.multislice.__enter__()
         return self
 
     def __exit__(self, type, value, traceback):
         self.propagation.__exit__(type, value, traceback)
         self.diffraction.__exit__(type, value, traceback)
+        self.multislice.__exit__(type, value, traceback)
 
     def fwd(
         self,
@@ -109,15 +126,81 @@ class Ptycho(Operator):
         **kwargs,
     ) -> npt.NDArray[np.csingle]:
         """Please see help(Ptycho) for more info."""
-        return self.propagation.fwd(
-            self.diffraction.fwd(
-                psi=psi,
-                scan=scan,
-                probe=probe[..., 0, :, :, :],
-            ),
-            overwrite=True,
-        )[..., None, :, :, :]
 
+        # BEFORE:
+        #
+        # return self.propagation.fwd(
+        #     self.diffraction.fwd(
+        #         psi=psi,                          #  cp.mean( psi, axis = 0 )
+        #         scan=scan,    
+        #         probe=probe[..., 0, :, :, :],
+        #     ),
+        #     overwrite=True,
+        # )[..., None, :, :, :]
+    
+  
+
+        multislice_probes = cp.zeros( ( psi.shape[0], scan.shape[-2], *probe.shape[-3:] ), dtype = cp.csingle )
+        multislice_probes[ 0, ... ] = probe[..., 0, :, :, :]            # = cp.repeat( probe, scan.shape[0], axis = 0)[..., 0, :, :, :]
+ 
+        for tt in cp.arange( 0, psi.shape[0], 1 ) :
+
+            multislice_exwvs = self.diffraction.fwd(
+                    psi   = psi[ tt, ... ],               
+                    scan  = scan,
+                    probe = multislice_probes[ tt, ... ],
+                )
+            
+            if tt == ( psi.shape[0] - 1 ) :
+                break
+
+            multislice_probes[ tt + 1, ... ] = self.multislice.fwd(
+                    multislice_inputplane = multislice_exwvs,
+                    multislice_propagator = self.multislice.multislice_propagator, 
+                    overwrite=False,                
+                )
+
+        multislice_farfield = self.propagation.fwd(
+            multislice_exwvs,
+            overwrite=True,                     
+        )
+        multislice_farfield = multislice_farfield[..., None, :, :, :]
+
+
+        ''' 
+
+        import matplotlib.pyplot as plt
+        #import numpy as np
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+        import matplotlib as mpl
+        # mpl.use('Agg')
+        mpl.use('TKAgg')
+
+        pp = 0
+        ss = 13
+
+        A = np.abs( multislice_probes[ 0, ss, pp, ... ] )
+        fig, ax1 = plt.subplots( nrows = 1, ncols = 1, )
+        pos1 = ax1.imshow( A.get(), cmap = 'gray', ) 
+        plt.colorbar(pos1)
+        plt.show( block = False )
+    
+        B = np.abs( multislice_probes[ 1, ss, pp, ... ] )
+        fig, ax2 = plt.subplots( nrows = 1, ncols = 1, )
+        pos2 = ax2.imshow( B.get(), cmap = 'gray', ) 
+        plt.colorbar(pos2)
+        plt.show( block = False )
+
+        C = np.abs( multislice_probes[ 2, ss, pp, ... ] )
+        fig, ax3 = plt.subplots( nrows = 1, ncols = 1, )
+        pos3 = ax3.imshow( C.get(), cmap = 'gray', ) 
+        plt.colorbar(pos3)
+        plt.show( block = False )
+
+        '''
+
+        return multislice_farfield, multislice_probes
+    
     def adj(
         self,
         farplane: npt.NDArray[np.csingle],
@@ -129,7 +212,7 @@ class Ptycho(Operator):
     ) -> npt.NDArray[np.csingle]:
         """Please see help(Ptycho) for more info."""
         return self.diffraction.adj(
-            nearplane=self.propagation.adj(
+            nearplane=self.propagation.adj(     # propagate farplane  to 
                 farplane,
                 overwrite=overwrite,
             )[..., 0, :, :, :],
@@ -166,13 +249,13 @@ class Ptycho(Operator):
         probe: npt.NDArray[np.csingle],
     ) -> npt.NDArray[np.single]:
         """Compute detector intensities replacing the nth probe mode"""
-        farplane = self.fwd(
+        farplane, _ = self.fwd(         
             psi=psi,
             scan=scan,
             probe=probe,
         )
         return _intensity_from_farplane(farplane), farplane
-
+    
     def cost(
         self,
         data: npt.NDArray,
@@ -269,3 +352,44 @@ class Ptycho(Operator):
             rpie=rpie,
         )
         return (result[0], result[1][..., None, :, :, :], *result[2:])
+
+
+
+
+'''
+
+    def __init__(
+        self,
+        detector_shape: int,
+        probe_shape: int,
+        nz: int,
+        n: int,
+        multislice_total_slices: int,
+        multislice_propagator: npt.NDArray[np.csingle],
+        propagation: typing.Type[Propagation] = Propagation,
+        diffraction: typing.Type[Convolution] = Convolution,
+        norm: str = 'ortho',
+        **kwargs,
+    ):
+        """Please see help(Ptycho) for more info."""
+        self.propagation = propagation(             
+            detector_shape=detector_shape,
+            multislice_propagator = multislice_propagator,
+            norm=norm,
+            **kwargs,
+        )
+        self.diffraction = diffraction(
+            probe_shape=probe_shape,
+            detector_shape=detector_shape,
+            nz=nz,
+            n=n,
+            **kwargs,
+        )
+        # TODO: Replace these with @property functions
+        self.probe_shape = probe_shape
+        self.detector_shape = detector_shape
+        self.nz = nz
+        self.n = n
+        self.multislice_total_slices = multislice_total_slices
+
+'''

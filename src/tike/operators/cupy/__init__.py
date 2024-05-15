@@ -19,3 +19,5 @@ from .propagation import *
 from .ptycho import *
 from .rotate import *
 from .shift import *
+
+from .multislice_fresnelspectprop import *

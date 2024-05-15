@@ -80,6 +80,18 @@ class ObjectOptions:
     clip_magnitude: bool = False
     """Whether to force the object magnitude to remain <= 1."""
 
+    multislice_total_slices: np.uint64 = 1                  # dimensionless
+
+    multislice_propagation_distance: np.float32 = 1e-9      # meters
+
+    multislice_propagator: typing.Union[npt.NDArray, None] = dataclasses.field(
+        init=True,
+        default_factory=lambda: None,
+    )
+    """(WIDE, HIGH) complex64 The multislice propagation matrix for 
+    propagating a complex valued wavefield some short distance.
+    (!!!NO CHECKING OF THIS SHORT DISTANCE CONDITION YET!!!)"""
+
     def copy_to_device(self, comm) -> ObjectOptions:
         """Copy to the current GPU memory."""
         options = copy.copy(self)
@@ -90,6 +102,8 @@ class ObjectOptions:
             options.m = cp.asarray(self.m)
         if self.preconditioner is not None:
             options.preconditioner = comm.pool.bcast([self.preconditioner])
+        if self.multislice_propagator is not None:
+            options.multislice_propagator = comm.pool.bcast([self.multislice_propagator])
         return options
 
     def copy_to_host(self) -> ObjectOptions:
@@ -102,6 +116,8 @@ class ObjectOptions:
             options.m = cp.asnumpy(self.m)
         if self.preconditioner is not None:
             options.preconditioner = cp.asnumpy(self.preconditioner[0])
+        if self.multislice_propagator is not None:                                      # is this necessary to move from GPU to host CPU if it never changes vs epoch?
+            options.multislice_propagator = cp.asnumpy(self.multislice_propagator[0])
         return options
 
     def resample(self, factor: float, interp) -> ObjectOptions:
@@ -114,6 +130,9 @@ class ObjectOptions:
             vdecay=self.vdecay,
             mdecay=self.mdecay,
             clip_magnitude=self.clip_magnitude,
+            multislice_propagator           = self.multislice_propagator, 
+            multislice_total_slices         = self.multislice_total_slices,
+            multislice_propagation_distance = self.multislice_propagation_distance
         )
         options.update_mnorm = copy.copy(self.update_mnorm)
         return options
@@ -168,7 +187,7 @@ def smoothness_constraint(x, a):
             f"Smoothness constraint must be in range [0, 1/8) not {a}.")
 
 
-def get_padded_object(scan, probe, extra: int = 0):
+def get_padded_object(scan, probe, fill_value: float = 0.5, multislice_total_slices: int = 1, extra: int = 0):
     """Return a ones-initialized object and shifted scan positions.
 
     An complex object array is initialized with shape such that the area
@@ -180,11 +199,19 @@ def get_padded_object(scan, probe, extra: int = 0):
     min_corner = np.min(int_scan, axis=-2)
     max_corner = np.max(int_scan, axis=-2)
     span = max_corner - min_corner + probe.shape[-1] + 2 + 2 * extra
-    return np.full_like(
+
+    psi = np.full_like(
         probe,
         shape=span.astype(tike.precision.integer),
-        fill_value=tike.precision.cfloating(0.5 + 0j),
-    ), scan + 1 - min_corner + extra
+        fill_value=tike.precision.cfloating( fill_value + 0j ),
+    )
+
+    # if ( multislice_total_slices < 1 ):
+    #     multislice_total_slices = 1
+
+    psi = np.repeat( psi[ np.newaxis, :, : ], multislice_total_slices, axis = 0 )
+
+    return psi, scan + 1 - min_corner + extra
 
 
 def _int_min_max(x):

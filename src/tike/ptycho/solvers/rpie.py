@@ -379,7 +379,7 @@ def _get_nearplane_gradients(
             eigen_weights[lo:hi] if eigen_weights is not None else None,
         )
 
-        farplane = op.fwd(probe=unique_probe, scan=scan[lo:hi], psi=psi)
+        farplane = op.fwd(probe=unique_probe, scan=scan[lo:hi], psi=psi, multislice_propagator = op.propagation.multislice_propagator )
         intensity = cp.sum(
             cp.square(cp.abs(farplane)),
             axis=list(range(1, farplane.ndim - 2)),
@@ -449,6 +449,10 @@ def _get_nearplane_gradients(
         diff = op.propagation.adj(farplane, overwrite=True)[..., pad:end,
                                                             pad:end]
 
+
+        # NOW, USE THE UPDATED EXITWAVES + MULTISLICE 3PIE FOR LOOP TO GO BACKWARDS THROUGH THE SAMPLE
+        # --> psi_update_numerator, grad_psi BECOMES 3D
+
         if object_options:
             grad_psi = (cp.conj(unique_probe) * diff / probe.shape[-3]).reshape(
                 scan[lo:hi].shape[0] * probe.shape[-3], *probe.shape[-2:])
@@ -458,6 +462,8 @@ def _get_nearplane_gradients(
                 positions=scan[lo:hi],
                 nrepeat=probe.shape[-3],
             )
+
+        # ???? I UNDERSTAND HOW 3PIE WORKS FOR PROBE UPDATE, NOT POSITIONS UPDATE ????
 
         if position_options or probe_options:
 
