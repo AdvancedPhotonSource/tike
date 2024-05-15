@@ -379,7 +379,8 @@ def _get_nearplane_gradients(
             eigen_weights[lo:hi] if eigen_weights is not None else None,
         )
 
-        farplane = op.fwd(probe=unique_probe, scan=scan[lo:hi], psi=psi, multislice_propagator = op.propagation.multislice_propagator )
+        farplane = op.fwd( probe = unique_probe, scan = scan[lo:hi], psi = psi )
+
         intensity = cp.sum(
             cp.square(cp.abs(farplane)),
             axis=list(range(1, farplane.ndim - 2)),
