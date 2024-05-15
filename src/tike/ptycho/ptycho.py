@@ -406,7 +406,6 @@ class Reconstruction():
                     self.comm,
                     self.data,
                     self.parameters.exitwave_options,
-                    self.parameters.object_options,
                     self.parameters.psi,
                     self.parameters.scan,
                     self.parameters.probe,
@@ -792,7 +791,6 @@ def _order_join(a, b):
 def _get_rescale(
     data,
     measured_pixels,
-    multislice_propagator,
     psi,
     scan,
     probe,
@@ -837,8 +835,8 @@ def _get_rescale(
     return sums
 
 
-def _rescale_probe(operator, comm, data, exitwave_options, object_options, psi, scan, probe,
-                   num_batch):
+def _rescale_probe(operator, comm, data, exitwave_options, psi, scan, probe, num_batch):
+
     """Rescale probe so model and measured intensity are similar magnitude.
 
     Rescales the probe so that the sum of modeled intensity at the detector is
@@ -849,7 +847,6 @@ def _rescale_probe(operator, comm, data, exitwave_options, object_options, psi, 
             _get_rescale,
             data,
             exitwave_options.measured_pixels,
-            object_options.multislice_propagator,
             psi,
             scan,
             probe,
