@@ -2,9 +2,9 @@ Bootstrap: docker
 From: registry.fedoraproject.org/fedora-minimal:40-{{ target_arch }}
 
 %arguments
-target_arch="x86_64"
-cuda_version="12.0"
-tike_version="main"
+target_arch=x86_64
+cuda_version=12.0
+tike_version=main
 
 %post
 curl -L -o conda-installer.sh https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-{{ target_arch }}.sh
