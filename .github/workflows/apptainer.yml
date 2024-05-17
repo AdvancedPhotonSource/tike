@@ -39,10 +39,10 @@ jobs:
         apptainer build
         --build-arg cuda_version=${{ matrix.cuda-version }}
         --build-arg target_arch=${{ matrix.target-arch }}
-        --build-arg tike_version=${{ github.event.workflow_run.inputs.tag_name }}
+        --build-arg tike_version=${{ github.ref_name }}
         apptainer.sif
         apptainer/${{ github.event.repository.name }}.def
     - name: Upload to container registry
       run: |
         echo ${{ secrets.GITHUB_TOKEN }} | apptainer registry login -u ${{ github.actor }} --password-stdin oras://ghcr.io
-        apptainer push apptainer.sif oras://ghcr.io/${GITHUB_REPOSITORY,,}:${{ github.event.workflow_run.inputs.tag_name }}-${{ matrix.target-arch }}-cuda${{ matrix.cuda-version }}
+        apptainer push apptainer.sif oras://ghcr.io/${GITHUB_REPOSITORY,,}:${{ github.ref_name }}-${{ matrix.target-arch }}-cuda${{ matrix.cuda-version }}
