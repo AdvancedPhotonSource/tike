@@ -4,11 +4,10 @@ name: Publish Apptainer
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows:
-      - Upload a source archive and hash at every tagged release
-    types:
-      - completed
+  release:
+    types: [published]
+  push:
+    branches: [main]
 
 permissions:
   contents: read
