@@ -633,46 +633,11 @@ def _get_nearplane_gradients(
 
         if position_options:
             m = 0
-
-            # TODO: Try adjusting gradient sigma property
             grad_x, grad_y = tike.ptycho.position.gaussian_gradient(
-                bpatches[blo:bhi])
-
-            # start section to compute position certainty metric
+                bpatches[blo:bhi],
+                sigma=0.333,
+            )
             crop = probe.shape[-1] // 4
-            total_illumination = op.diffraction.patch.fwd(
-                images=object_preconditioner,
-                positions=scan[lo:hi],
-                patch_width=probe.shape[-1],
-            )[:, crop:-crop, crop:-crop].real
-
-            power = cp.abs(probe[0, 0, 0, crop:-crop, crop:-crop])**2
-
-            dX = cp.mean(
-                cp.abs(grad_x[:, 0, 0, crop:-crop, crop:-crop]).real *
-                total_illumination * power,
-                axis=(-2, -1),
-                keepdims=False,
-            )
-            dY = cp.mean(
-                cp.abs(grad_y[:, 0, 0, crop:-crop, crop:-crop]).real *
-                total_illumination * power,
-                axis=(-2, -1),
-                keepdims=False,
-            )
-
-            total_variation = cp.sqrt(cp.stack(
-                [dX, dY],
-                axis=1,
-            ))
-            mean_variation = (cp.mean(
-                total_variation**4,
-                axis=0,
-            ) + 1e-6)
-            position_options.confidence[
-                lo:hi] = total_variation**4 / mean_variation
-            # end section to compute position certainty metric
-
             position_update_numerator[lo:hi, ..., 0] = cp.sum(
                 cp.real(
                     cp.conj(grad_x[..., crop:-crop, crop:-crop] *

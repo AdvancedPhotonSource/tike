@@ -233,9 +233,12 @@ class AffineTransform:
             self.t1,
         )
 
-    def __call__(self, x: np.ndarray, gpu=False) -> np.ndarray:
+    def __call__(self, x: np.ndarray, gpu=False, shift=True) -> np.ndarray:
         xp = cp.get_array_module(x)
-        return (x @ self.asarray(xp)) + xp.array((self.t0, self.t1))
+        result = x @ self.asarray(xp)
+        if shift:
+            result += xp.array((self.t0, self.t1))
+        return result
 
 
 def estimate_global_transformation(
@@ -665,19 +668,13 @@ def _affine_position_helper(
     scan,
     position_options: PositionOptions,
     max_error,
-    relax=0.1,
+    relax=0.9,
 ):
     predicted_positions = position_options.transform(
-        position_options.initial_scan)
-    err = predicted_positions - position_options.initial_scan
-    # constrain more the probes in flat regions
-    W = relax * (1 - (position_options.confidence /
-                      (1 + position_options.confidence)))
-    # penalize positions that are further than max_error from origin; avoid travel larger than max error
-    W = cp.minimum(10 * relax,
-                   W + cp.maximum(0, err - max_error)**2 / max_error**2)
-    # allow free movement in depenence on realibility and max allowed error
-    new_scan = scan * (1 - W) + W * predicted_positions
+        position_options.initial_scan,
+        shift=False,
+    )
+    new_scan = scan * (1 - relax) + relax * predicted_positions
     return new_scan
 
 
@@ -762,13 +759,15 @@ def gaussian_gradient(
             sigma=sigma,
             order=1,
             axis=-2,
-            mode='nearest',
+            mode="nearest",
+            truncate=6.0,
         ),
         cupyx.scipy.ndimage.gaussian_filter1d(
             -x,
             sigma=sigma,
             order=1,
             axis=-1,
-            mode='nearest',
+            mode="nearest",
+            truncate=6.0,
         ),
     )
