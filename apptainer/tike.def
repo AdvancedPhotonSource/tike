@@ -21,7 +21,7 @@ CONDA_OVERRIDE_CUDA={{ cuda_version }} /opt/miniconda/bin/conda install cuda-ver
 /opt/miniconda/bin/pip check
 cd ..
 rm tike* -rf
-cd $CONDA_PREFIX
+cd /opt/miniconda
 rm -r man cmake lib/cmake lib/pkgconfig include share var
 
 %runscript
