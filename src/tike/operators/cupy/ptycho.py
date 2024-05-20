@@ -12,7 +12,8 @@ import cupy as cp
 from .operator import Operator
 from .propagation import Propagation
 from .convolution import Convolution
-from .multislice_fresnelspectprop import Multislice_FresnelSpectProp as Multislice
+from .fresnelspectprop import FresnelSpectProp
+from .multislice import Multislice      
 
 from . import objective
 
@@ -79,27 +80,47 @@ class Ptycho(Operator):
         multislice_propagator: npt.NDArray[np.csingle],
         propagation: typing.Type[Propagation] = Propagation,
         diffraction: typing.Type[Convolution] = Convolution,
+        fresnelspectprop: typing.Type[FresnelSpectProp] = FresnelSpectProp,
         multislice: typing.Type[Multislice] = Multislice,
         norm: str = 'ortho',
         **kwargs,
     ):
         """Please see help(Ptycho) for more info."""
-        self.propagation = propagation(             
+        self.propagation = propagation(                 # propagate from exitwave plane to detector plane  
             detector_shape=detector_shape,
             norm=norm,
             **kwargs,
         )
-        self.diffraction = diffraction(
+
+        # class composition of Convolution and FresnelSpectProp:
+        # (a) extract 2D slices vs scan position from 3D object and form "intermediate" exitwaves
+        # (b) propagate to next slice
+        # (c) keep going until last slice reached to form "final" exitwave
+        self.multislice = multislice(                 
+            probe_shape=probe_shape,
+            detector_shape=detector_shape,
+            nz=nz,
+            n=n,
+            norm=norm,
+            multislice_total_slices = multislice_total_slices,
+            multislice_propagator = multislice_propagator,
+            **kwargs,
+        )
+
+        self.diffraction = diffraction(                 # extract 2D slices from object and form exitwaves
             probe_shape=probe_shape,
             detector_shape=detector_shape,
             nz=nz,
             n=n,
             **kwargs,
         )
-        self.multislice = multislice(
+        
+        self.fresnelspectprop = fresnelspectprop(                   # propagate through 3D sample using 2D probe 
             norm=norm,
             multislice_propagator = multislice_propagator,
+            **kwargs,
         )
+        
         # TODO: Replace these with @property functions
         self.probe_shape = probe_shape
         self.detector_shape = detector_shape
@@ -111,12 +132,14 @@ class Ptycho(Operator):
         self.propagation.__enter__()
         self.diffraction.__enter__()
         self.multislice.__enter__()
+        self.fresnelspectprop.__enter__()
         return self
 
     def __exit__(self, type, value, traceback):
         self.propagation.__exit__(type, value, traceback)
         self.diffraction.__exit__(type, value, traceback)
         self.multislice.__exit__(type, value, traceback)
+        self.fresnelspectprop.__exit__(type, value, traceback)
 
     def fwd(
         self,
@@ -138,7 +161,9 @@ class Ptycho(Operator):
         #     overwrite=True,
         # )[..., None, :, :, :]
     
-  
+
+        A, B = self.multislice.fwd( psi, scan, probe, )
+
 
         multislice_probes = cp.zeros( ( psi.shape[0], scan.shape[-2], *probe.shape[-3:] ), dtype = cp.csingle )
         multislice_probes[ 0, ... ] = probe[..., 0, :, :, :]            # = cp.repeat( probe, scan.shape[0], axis = 0)[..., 0, :, :, :]
@@ -154,9 +179,9 @@ class Ptycho(Operator):
             if tt == ( psi.shape[0] - 1 ) :
                 break
 
-            multislice_probes[ tt + 1, ... ] = self.multislice.fwd(
+            multislice_probes[ tt + 1, ... ] = self.multislice.fwd(         # call this fresnel_spect_prop instead of multislice
                     multislice_inputplane = multislice_exwvs,
-                    multislice_propagator = self.multislice.multislice_propagator, 
+                    multislice_propagator = self.fresnelspectprop.multislice_propagator, 
                     overwrite=False,                
                 )
 

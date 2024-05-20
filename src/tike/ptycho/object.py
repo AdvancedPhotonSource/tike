@@ -88,8 +88,7 @@ class ObjectOptions:
         init=True,
         default_factory=lambda: None,
     )
-    """(WIDE, HIGH) complex64 The multislice propagation matrix for 
-    propagating a complex valued wavefield some short distance.
+    """(WIDE, HIGH) complex64 The multislice propagation array for propagating a complex valued wavefield some short distance through the 3D sample .
     (!!!NO CHECKING OF THIS SHORT DISTANCE CONDITION YET!!!)"""
 
     def copy_to_device(self, comm) -> ObjectOptions:

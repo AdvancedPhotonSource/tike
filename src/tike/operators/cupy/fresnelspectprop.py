@@ -13,8 +13,8 @@ from .cache import CachedFFT
 from .operator import Operator
 
 
-class Multislice_FresnelSpectProp(CachedFFT, Operator):
-    """Fresnel spectrum propagation (short range) diffraction based multislice propagation using CuPy.
+class FresnelSpectProp(CachedFFT, Operator):
+    """Fresnel spectrum propagation (short range) using CuPy.
 
     Take an (..., N, N) array and apply the Fourier transform to the last two
     dimensions.

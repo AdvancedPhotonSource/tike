@@ -317,8 +317,10 @@ class Reconstruction():
 
         self.data = data
         self.parameters = copy.deepcopy(parameters)
+
         self.device = cp.cuda.Device(
             num_gpu[0] if isinstance(num_gpu, tuple) else None)
+        
         self.operator = tike.operators.Ptycho(
             probe_shape=parameters.probe.shape[-1],
             detector_shape=data.shape[-1],
@@ -328,6 +330,7 @@ class Reconstruction():
             multislice_total_slices = parameters.psi.shape[0],
             multislice_propagator   = parameters.object_options.multislice_propagator,
         )
+        
         self.comm = tike.communicators.Comm(num_gpu, mpi)
 
     def __enter__(self):
@@ -337,7 +340,7 @@ class Reconstruction():
 
         # ??? COPY TO DEVICE ??? self.operator.multislice_propagator
         if self.operator.multislice_total_slices > 1:
-            self.operator.multislice.multislice_propagator = cp.asarray( self.operator.multislice.multislice_propagator )          
+            self.operator.fresnelspectprop.multislice_propagator = cp.asarray( self.operator.fresnelspectprop.multislice_propagator )          
 
         # Divide the inputs into regions
         if (not np.all(np.isfinite(self.data)) or np.any(self.data < 0)):
