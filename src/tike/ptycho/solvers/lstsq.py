@@ -633,68 +633,6 @@ def _get_nearplane_gradients(
 
         if position_options:
             m = 0
-
-            # # start section to compute position certainty metric
-            # TODO: Try adjusting gradient sigma property
-            # grad_x, grad_y = tike.ptycho.position.gaussian_gradient(
-            #     cp.angle(bpatches[blo:bhi]),
-            #     sigma=probe.shape[-1] / 6,
-            # )
-            # # FIXME: Try filtering preconditioner first, then just pick the middle one
-
-            # total_illumination = cupyx.scipy.ndimage.gaussian_filter(
-            #     object_preconditioner,
-            #     sigma=(probe.shape[-2] / 6, probe.shape[-1] / 6),
-            #     order=0,
-            #     mode='constant',
-            #     cval=0.0,
-            #     truncate=6.0,
-            # )
-            # # TODO: Do the picking out of the array?
-            # total_illumination /= np.max(total_illumination)
-
-            # total_illumination = op.diffraction.patch.fwd(
-            #     total_illumination,
-            #     positions=scan[lo:hi] + probe.shape[-1] / 2,
-            #     patch_width=1,
-            # )[:, 0, 0]
-
-            # grad_x = np.abs(grad_x)
-            # grad_y = np.abs(grad_y)
-            # grad_x /= np.max(grad_x)
-            # grad_y /= np.max(grad_y)
-
-            # weighted_average = tike.ptycho.probe.gaussian_kernel2D(
-            #     probe.shape[-1],
-            #     probe.shape[-1] // 6,
-            #     xp=cp,
-            # )
-            # dX = cp.sum(
-            #     grad_x[:, 0, 0, :, :] * weighted_average,
-            #     axis=(-2, -1),
-            #     keepdims=False,
-            # )
-            # dY = cp.sum(
-            #     grad_y[:, 0, 0, :, :] * weighted_average,
-            #     axis=(-2, -1),
-            #     keepdims=False,
-            # )
-
-            # total_variation = cp.stack(
-            #     [total_illumination.real, total_illumination.real],
-            #     axis=1,
-            # )
-            # normalized_variation = (
-            #     total_variation
-            #     / cp.max(
-            #         total_variation,
-            #         axis=0,
-            #     )
-            #     + 1e-6
-            # )
-            # position_options.confidence[lo:hi] = scan[lo:hi]
-            # # end section to compute position certainty metric
-
             grad_x, grad_y = tike.ptycho.position.gaussian_gradient(
                 bpatches[blo:bhi],
                 sigma=0.333,
