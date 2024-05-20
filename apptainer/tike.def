@@ -15,7 +15,7 @@ curl -L -o tike-source.zip https://github.com/AdvancedPhotonSource/tike/archive/
 /opt/miniconda/bin/unzip tike-source.zip
 rm tike-source.zip
 cd tike*
-CONDA_OVERRIDE_CUDA={{ cuda_version }} /opt/miniconda/bin/conda install cuda-version={{ cuda_version }} --file requirements.txt -c conda-forge --yes
+CONDA_OVERRIDE_CUDA={{ cuda_version }} /opt/miniconda/bin/conda install cuda-version={{ cuda_version }} --file requirements.txt --file requirements-container.txt -c conda-forge --yes
 /opt/miniconda/bin/conda clean --all --yes
 /opt/miniconda/bin/pip install . --no-deps --no-build-isolation
 /opt/miniconda/bin/pip check

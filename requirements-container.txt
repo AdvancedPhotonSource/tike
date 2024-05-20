@@ -1,0 +1,5 @@
+h5py
+hdf5-external-filter-plugins
+scikit-image
+scipy
+toml
