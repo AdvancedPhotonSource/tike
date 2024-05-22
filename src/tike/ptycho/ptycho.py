@@ -340,7 +340,10 @@ class Reconstruction():
 
         # ??? COPY TO DEVICE ??? self.operator.multislice_propagator
         if self.operator.multislice_total_slices > 1:
-            self.operator.fresnelspectprop.multislice_propagator = cp.asarray( self.operator.fresnelspectprop.multislice_propagator )          
+
+            self.operator.fresnelspectprop.multislice_propagator = cp.asarray( self.operator.fresnelspectprop.multislice_propagator ) 
+            
+            self.operator.multislice.fresnelspectprop.multislice_propagator = cp.asarray( self.operator.multislice.fresnelspectprop.multislice_propagator )          
 
         # Divide the inputs into regions
         if (not np.all(np.isfinite(self.data)) or np.any(self.data < 0)):

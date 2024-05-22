@@ -87,6 +87,14 @@ class Multislice(CachedFFT, Operator):
         self.n = n
         self.multislice_total_slices = multislice_total_slices
 
+    def __enter__(self):
+        self.diffraction.__enter__()    
+        self.fresnelspectprop.__enter__()
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.diffraction.__exit__(type, value, traceback)
+        self.fresnelspectprop.__exit__(type, value, traceback)
 
     def fwd(
         self,
@@ -95,7 +103,7 @@ class Multislice(CachedFFT, Operator):
         probe, 
         overwrite: bool = False,
         **kwargs,
-    ) -> npt.NDArray[np.csingle]:           # forward (parallel to beam direction) Fresnel spectrum propagtion operator 
+    ) -> npt.NDArray[np.csingle]:           # forward (parallel to beam direction) multislice problem
 
         multislice_probes = cp.zeros( ( psi.shape[0], scan.shape[-2], *probe.shape[-3:] ), dtype = cp.csingle )
         multislice_probes[ 0, ... ] = probe[..., 0, :, :, :]            # = cp.repeat( probe, scan.shape[0], axis = 0)[..., 0, :, :, :]
@@ -121,57 +129,42 @@ class Multislice(CachedFFT, Operator):
 
     def adj(
         self,
-        multislice_outputplane: npt.NDArray[np.csingle],
+        psi, 
+        scan, 
+        probe, 
+        diff,
+        multislice_probes,
         overwrite: bool = False,
         **kwargs,
-    ) -> npt.NDArray[np.csingle]:           # backward (anti-parallel to beam direction) Fresnel spectrum propagtion operator 
+    ) -> npt.NDArray[np.csingle]:           # backward (anti-parallel to beam direction) multislice propagation of exitwave update
           
         # self._check_shape(multislice_outputplane)
         # shape = multislice_outputplane.shape
 
-        # multislice_outputplane_fft2 = self._fft2( 
-        #     multislice_outputplane,
-        #     norm=self.norm,
-        #     axes=(-2, -1),
-        #     overwrite_x=overwrite,
-        # )
+        # multislice_exwv_update = cp.zeros( ( psi.shape[0], scan.shape[-2], *probe.shape[-3:] ), dtype = cp.csingle )
+        # multislice_exwv_update[ 0, ... ] = diff[..., 0, :, :, :]            # = cp.repeat( probe, scan.shape[0], axis = 0)[..., 0, :, :, :]
+ 
+        # for tt in cp.arange( 0, psi.shape[0], 1 ) :
 
-        # multislice_inputplane = self._ifft2(
-        #     multislice_outputplane_fft2 * cp.conj( self.multislice_propagator ),        # IS IT OK TO ALWAYS TAKE CONJ? OR SHOULD WE DO THIS ONCE AND REUSE?
-        #     norm=self.norm,
-        #     axes=(-2, -1),
-        #     overwrite_x=overwrite,
-        # )
+        #     multislice_exwv_update_fft2 = self._fft2( 
+        #         multislice_exwv_update[ tt, ... ],
+        #         norm=self.norm,
+        #         axes=(-2, -1),
+        #         overwrite_x=overwrite,
+        #     )
 
-        multislice_inputplane = 0
+        #     multislice_inputplane = self._ifft2(
+        #         multislice_exwv_update_fft2 * cp.conj( self.fresnelspectprop.multislice_propagator ),        # IS IT OK TO ALWAYS TAKE CONJ? OR SHOULD WE DO THIS ONCE AND REUSE?
+        #         norm=self.norm,
+        #         axes=(-2, -1),
+        #         overwrite_x=overwrite,
+        #     )
 
-        return multislice_inputplane
+        multislice_exwv_update = 0
+        return multislice_exwv_update
 
-    # def _check_shape(self, x: npt.NDArray) -> None:
-    #     assert type(x) is self.xp.ndarray, type(x)
-    #     shape = (-1, self.detector_shape, self.detector_shape)
-    #     if __debug__ and x.shape[-2:] != shape[-2:]:
-    #         raise ValueError(f"waves must have shape {shape} not {x.shape}.")
-
-# def create_fresnel_spectrum_propagator( 
-#         N: np.ndarray,                                      # probe dimensions ( WIDE, HIGH )
-#         beam_energy: float,                                 # x-ray energy ( eV )
-#         delta_z: float,                                     # meters
-#         detector_dist: float,                               # meters
-#         detector_pixel_width: float ) -> np.ndarray:        # meters
-
-#     rr2 = np.linspace( -0.5 * N[1], 0.5 * N[1] - 1, num = N[1] ) ** 2
-#     cc2 = np.linspace( -0.5 * N[0], 0.5 * N[0] - 1, num = N[0] ) ** 2
-
-#     wavelength = ( 12.4 / ( beam_energy / 1e3 )) * 1e-10      # x-ray energy ( eV ), wavelength ( meters )
-
-#     x       = wavelength * detector_dist / detector_pixel_width 
-#     prb_FOV = np.asarray( [ x, x ], dtype = np.float32 )
-
-#     x = -1j * np.pi * wavelength * delta_z
-#     rr2 = np.exp( x * rr2[ ..., None ] / ( prb_FOV[0] ** 2 ))
-#     cc2 = np.exp( x * cc2[ ..., None ] / ( prb_FOV[1] ** 2 ))
-
-#     fresnel_spectrum_propagator = np.ndarray.astype( np.fft.fftshift( np.outer( np.transpose( rr2 ), cc2 )), dtype = np.csingle )
-
-#     return fresnel_spectrum_propagator
+    def _check_shape(self, x: npt.NDArray) -> None:
+        assert type(x) is self.xp.ndarray, type(x)
+        shape = (-1, self.detector_shape, self.detector_shape)
+        if __debug__ and x.shape[-2:] != shape[-2:]:
+            raise ValueError(f"waves must have shape {shape} not {x.shape}.")

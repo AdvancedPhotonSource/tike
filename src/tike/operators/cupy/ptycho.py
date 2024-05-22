@@ -129,17 +129,22 @@ class Ptycho(Operator):
         self.multislice_total_slices = multislice_total_slices
 
     def __enter__(self):
+
         self.propagation.__enter__()
-        self.diffraction.__enter__()
         self.multislice.__enter__()
-        self.fresnelspectprop.__enter__()
+
+        self.diffraction.__enter__()            # DON'T NEED THIS HERE, JUST FOR TESTING
+        self.fresnelspectprop.__enter__()       # DON'T NEED THIS HERE, JUST FOR TESTING
+
         return self
 
     def __exit__(self, type, value, traceback):
+
         self.propagation.__exit__(type, value, traceback)
-        self.diffraction.__exit__(type, value, traceback)
         self.multislice.__exit__(type, value, traceback)
-        self.fresnelspectprop.__exit__(type, value, traceback)
+
+        self.diffraction.__exit__(type, value, traceback)           # DON'T NEED THIS HERE, JUST FOR TESTING
+        self.fresnelspectprop.__exit__(type, value, traceback)      # DON'T NEED THIS HERE, JUST FOR TESTING
 
     def fwd(
         self,
@@ -162,34 +167,10 @@ class Ptycho(Operator):
         # )[..., None, :, :, :]
     
 
-        A, B = self.multislice.fwd( psi, scan, probe, )
+        multislice_exwv, multislice_probes = self.multislice.fwd( psi, scan, probe, )
 
+        multislice_farfield = self.propagation.fwd( multislice_exwv, overwrite=True, )[..., None, :, :, :]
 
-        multislice_probes = cp.zeros( ( psi.shape[0], scan.shape[-2], *probe.shape[-3:] ), dtype = cp.csingle )
-        multislice_probes[ 0, ... ] = probe[..., 0, :, :, :]            # = cp.repeat( probe, scan.shape[0], axis = 0)[..., 0, :, :, :]
- 
-        for tt in cp.arange( 0, psi.shape[0], 1 ) :
-
-            multislice_exwvs = self.diffraction.fwd(
-                    psi   = psi[ tt, ... ],               
-                    scan  = scan,
-                    probe = multislice_probes[ tt, ... ],
-                )
-            
-            if tt == ( psi.shape[0] - 1 ) :
-                break
-
-            multislice_probes[ tt + 1, ... ] = self.multislice.fwd(         # call this fresnel_spect_prop instead of multislice
-                    multislice_inputplane = multislice_exwvs,
-                    multislice_propagator = self.fresnelspectprop.multislice_propagator, 
-                    overwrite=False,                
-                )
-
-        multislice_farfield = self.propagation.fwd(
-            multislice_exwvs,
-            overwrite=True,                     
-        )
-        multislice_farfield = multislice_farfield[..., None, :, :, :]
 
 
         ''' 
