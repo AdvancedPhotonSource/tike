@@ -317,33 +317,21 @@ class Reconstruction():
 
         self.data = data
         self.parameters = copy.deepcopy(parameters)
-
         self.device = cp.cuda.Device(
             num_gpu[0] if isinstance(num_gpu, tuple) else None)
-        
         self.operator = tike.operators.Ptycho(
             probe_shape=parameters.probe.shape[-1],
             detector_shape=data.shape[-1],
             nz=parameters.psi.shape[-2],
             n=parameters.psi.shape[-1],
             norm=parameters.exitwave_options.propagation_normalization,
-            multislice_total_slices = parameters.psi.shape[0],
-            multislice_propagator   = parameters.object_options.multislice_propagator,
         )
-        
         self.comm = tike.communicators.Comm(num_gpu, mpi)
 
     def __enter__(self):
         self.device.__enter__()
         self.operator.__enter__()
         self.comm.__enter__()
-
-        # ??? COPY TO DEVICE ??? self.operator.multislice_propagator
-        if self.operator.multislice_total_slices > 1:
-
-            self.operator.fresnelspectprop.multislice_propagator = cp.asarray( self.operator.fresnelspectprop.multislice_propagator ) 
-            
-            self.operator.multislice.fresnelspectprop.multislice_propagator = cp.asarray( self.operator.multislice.fresnelspectprop.multislice_propagator )          
 
         # Divide the inputs into regions
         if (not np.all(np.isfinite(self.data)) or np.any(self.data < 0)):
@@ -841,8 +829,8 @@ def _get_rescale(
     return sums
 
 
-def _rescale_probe(operator, comm, data, exitwave_options, psi, scan, probe, num_batch):
-
+def _rescale_probe(operator, comm, data, exitwave_options, psi, scan, probe,
+                   num_batch):
     """Rescale probe so model and measured intensity are similar magnitude.
 
     Rescales the probe so that the sum of modeled intensity at the detector is

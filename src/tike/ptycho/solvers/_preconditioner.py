@@ -42,55 +42,22 @@ def _psi_preconditioner(
         lo: int,
         hi: int,
     ) -> None:
-        
         nonlocal psi_update_denominator
 
-        # probe0 = cp.repeat( probe, scan[lo:hi].shape[0], axis = 0)[..., 0, :, :, :]
-        # probe_amp = _probe_amp_sum(probe0)
+        probe_amp = _probe_amp_sum(probe)[:, 0]
+        psi_update_denominator[...] = operator.diffraction.patch.adj(
+            patches=probe_amp,
+            images=psi_update_denominator,
+            positions=scan[lo:hi],
+        )
 
-        #probe_amp = _probe_amp_sum(probe)[:, 0]         # _probe_amp_sum(probe)[ :, 0 ] = _probe_amp_sum(probe)[ :, 0, ... ]
-
-        _, multislice_probes = operator.fwd( 
-            probe,
-            scan[lo:hi],
-            psi,
-        ) 
-
-        for tt in cp.arange( 0, psi.shape[0], 1 ) :
-
-            probe_amp = _probe_amp_sum( multislice_probes[ tt, ... ])    
-
-            psi_update_denominator[ tt, ... ] = operator.diffraction.patch.adj(
-                patches=probe_amp,
-                images=psi_update_denominator[ tt, ... ],
-                positions=scan[lo:hi],
-            )
-
-    tike.communicators.stream.stream_and_modify2(       # stream over scan positions
+    tike.communicators.stream.stream_and_modify2(
         f=make_certain_args_constant,
         ind_args=[],
         streams=streams,
         lo=0,
         hi=len(scan),
     )
-
-    ''' 
-
-    import matplotlib.pyplot as plt
-    #import numpy as np
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
-    import matplotlib as mpl
-    # mpl.use('Agg')
-    mpl.use('TKAgg')
-
-    A = cp.abs( psi_update_denominator[ 0, ... ] - psi_update_denominator[ 1, ... ])
-    fig, ax1 = plt.subplots( nrows = 1, ncols = 1, )
-    pos1 = ax1.imshow( A.get(), cmap = 'gray', ) 
-    plt.colorbar(pos1)
-    plt.show( block = False )
-    
-    '''
-
 
     return psi_update_denominator
 
@@ -114,7 +81,7 @@ def _probe_preconditioner(
 ) -> npt.NDArray:
 
     probe_update_denominator = cp.zeros(
-        shape=( psi.shape[0], *probe.shape[-2:] ),
+        shape=probe.shape[-2:],
         dtype=probe.dtype,
     )
 
@@ -123,41 +90,17 @@ def _probe_preconditioner(
         lo: int,
         hi: int,
     ) -> None:
-        
         nonlocal probe_update_denominator
 
-        # patches = cp.zeros( )
-        
-        for tt in cp.arange( 0, psi.shape[0], 1 ) :
+        patches = operator.diffraction.patch.fwd(
+            images=psi,
+            positions=scan[lo:hi],
+            patch_width=probe.shape[-1],
+        )
+        probe_update_denominator[...] += _patch_amp_sum(patches)
+        assert probe_update_denominator.ndim == 2
 
-            patches = operator.diffraction.patch.fwd(
-                images=psi[ tt, ... ],
-                positions=scan[lo:hi],
-                patch_width=probe.shape[-1],
-            )
-
-            probe_update_denominator[tt, ...] += _patch_amp_sum(patches)
-
-        assert probe_update_denominator.ndim == 3
-
-        ''' 
-
-        import matplotlib.pyplot as plt
-        #import numpy as np
-        from mpl_toolkits.axes_grid1 import make_axes_locatable
-        import matplotlib as mpl
-        # mpl.use('Agg')
-        mpl.use('TKAgg')
-
-        A = cp.abs( probe_update_denominator[ tt, ... ] )
-        fig, ax1 = plt.subplots( nrows = 1, ncols = 1, )
-        pos1 = ax1.imshow( A.get(), cmap = 'gray', ) 
-        plt.colorbar(pos1)
-        plt.show( block = False )
-        
-        '''
-
-    tike.communicators.stream.stream_and_modify2(       # stream over scan positions
+    tike.communicators.stream.stream_and_modify2(
         f=make_certain_args_constant,
         ind_args=[],
         streams=streams,
@@ -177,9 +120,7 @@ def update_preconditioners(
     object_options: typing.Optional[ObjectOptions] = None,
     probe_options: typing.Optional[ProbeOptions] = None,
 ) -> typing.Tuple[ObjectOptions, ProbeOptions]:
-    
     """Update the probe and object preconditioners."""
-
     if object_options:
 
         preconditioner = comm.pool.map(
