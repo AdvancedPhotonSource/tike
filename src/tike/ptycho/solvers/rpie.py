@@ -558,7 +558,7 @@ def _get_nearplane_gradients(
         unmeasured_pixels = cp.logical_not(measured_pixels)
         farplane[..., unmeasured_pixels] *= ( exitwave_options.unmeasured_pixels_scaling - 1.0 )    
 
-        pad, end = op.diffraction.pad, op.diffraction.end
+        pad, end = op.multislice.diffraction.pad, op.multislice.diffraction.end
 
         diff = op.propagation.adj(farplane, overwrite=True)[ ... , pad:end, pad:end ]      # back propagate from detector plane to exitwave plane
 
@@ -574,14 +574,14 @@ def _get_nearplane_gradients(
             grad_psi = (cp.conj(multislice_probes[ tt, :, None, ... ]) * diff / probe.shape[-3]).reshape( scan[lo:hi].shape[0] * probe.shape[-3], *probe.shape[-2:] )
             
             
-            psi_update_numerator[ tt, ... ] = op.diffraction.patch.adj(
+            psi_update_numerator[ tt, ... ] = op.multislice.diffraction.patch.adj(
                 patches=grad_psi,
                 images=psi_update_numerator[ tt, ... ],
                 positions=scan[lo:hi],
                 nrepeat=probe.shape[-3],
             )
 
-            patches = op.diffraction.patch.fwd(
+            patches = op.multislice.diffraction.patch.fwd(
                     patches=cp.zeros_like(diff[..., 0, 0, :, :]),
                     images=psi[ tt, ... ],
                     positions=scan[lo:hi],
@@ -596,7 +596,7 @@ def _get_nearplane_gradients(
             if tt == 0:
                 break
 
-            diff = op.fresnelspectprop.adj( diff )
+            diff = op.multislice.fresnelspectprop.adj( diff )
 
         # for slice 3, compute sample update direction grad_psi( slice = 3 ) and then psi_update_numerator( slice = 3 )
         # for slice 3, compute probe_update_numerator( slice = 3 )
@@ -629,13 +629,13 @@ def _get_nearplane_gradients(
         #         nrepeat=probe.shape[-3],
         #     )
 
-        if position_options or probe_options:
+        # if position_options or probe_options:
 
-            patches = op.diffraction.patch.fwd(
-                patches=cp.zeros_like(diff[..., 0, 0, :, :]),
-                images=psi[ 0, ... ],                           # just use first slice here for the time being
-                positions=scan[lo:hi],
-            )[..., None, None, :, :]
+        #     patches = op.multislice.diffraction.patch.fwd(
+        #         patches=cp.zeros_like(diff[..., 0, 0, :, :]),
+        #         images=psi[ 0, ... ],                           # just use first slice here for the time being
+        #         positions=scan[lo:hi],
+        #     )[..., None, None, :, :]
 
         # if recover_probe:
 
@@ -664,27 +664,32 @@ def _get_nearplane_gradients(
         #             0.1 * (eigen_numerator / eigen_denominator)
         #         )  # yapf: disable
 
-        # ???? I UNDERSTAND HOW 3PIE WORKS FOR PROBE AND SAMPLE UPDATES, NOT POSITIONS UPDATE ????
-        if position_options:
 
-            grad_x, grad_y = tike.ptycho.position.gaussian_gradient(patches)
 
-            position_update_numerator[lo:hi, ..., 0] = cp.sum(
-                cp.real(cp.conj(grad_x * unique_probe) * diff),
-                axis=(-4, -3, -2, -1),
-            )
-            position_update_denominator[lo:hi, ..., 0] = cp.sum(
-                cp.abs(grad_x * unique_probe)**2,
-                axis=(-4, -3, -2, -1),
-            )
-            position_update_numerator[lo:hi, ..., 1] = cp.sum(
-                cp.real(cp.conj(grad_y * unique_probe) * diff),
-                axis=(-4, -3, -2, -1),
-            )
-            position_update_denominator[lo:hi, ..., 1] = cp.sum(
-                cp.abs(grad_y * unique_probe)**2,
-                axis=(-4, -3, -2, -1),
-            )
+
+
+        # # ???? I UNDERSTAND HOW 3PIE WORKS FOR PROBE AND SAMPLE UPDATES, NOT POSITIONS UPDATE ????
+        # # ???? I THINK WE SHOULD DO AVERAGE OVER SLICES TO GET 2D SAMPLE FROM 3D SAMPLE AND USE THAT
+        # if position_options:
+
+        #     grad_x, grad_y = tike.ptycho.position.gaussian_gradient(patches)
+
+        #     position_update_numerator[lo:hi, ..., 0] = cp.sum(
+        #         cp.real(cp.conj(grad_x * unique_probe) * diff),
+        #         axis=(-4, -3, -2, -1),
+        #     )
+        #     position_update_denominator[lo:hi, ..., 0] = cp.sum(
+        #         cp.abs(grad_x * unique_probe)**2,
+        #         axis=(-4, -3, -2, -1),
+        #     )
+        #     position_update_numerator[lo:hi, ..., 1] = cp.sum(
+        #         cp.real(cp.conj(grad_y * unique_probe) * diff),
+        #         axis=(-4, -3, -2, -1),
+        #     )
+        #     position_update_denominator[lo:hi, ..., 1] = cp.sum(
+        #         cp.abs(grad_y * unique_probe)**2,
+        #         axis=(-4, -3, -2, -1),
+        #     )
 
     tike.communicators.stream.stream_and_modify2(
         f=keep_some_args_constant,

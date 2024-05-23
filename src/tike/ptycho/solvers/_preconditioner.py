@@ -60,7 +60,7 @@ def _psi_preconditioner(
 
             probe_amp = _probe_amp_sum( multislice_probes[ tt, ... ])    
 
-            psi_update_denominator[ tt, ... ] = operator.diffraction.patch.adj(
+            psi_update_denominator[ tt, ... ] = operator.multislice.diffraction.patch.adj(
                 patches=probe_amp,
                 images=psi_update_denominator[ tt, ... ],
                 positions=scan[lo:hi],
@@ -130,7 +130,7 @@ def _probe_preconditioner(
         
         for tt in cp.arange( 0, psi.shape[0], 1 ) :
 
-            patches = operator.diffraction.patch.fwd(
+            patches = operator.multislice.diffraction.patch.fwd(
                 images=psi[ tt, ... ],
                 positions=scan[lo:hi],
                 patch_width=probe.shape[-1],

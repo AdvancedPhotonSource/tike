@@ -45,8 +45,11 @@ class FresnelSpectProp(CachedFFT, Operator):
 
     """
 
-    def __init__( self, norm: str = "ortho", multislice_propagator = None, **kwargs ):
+    def __init__( self, detector_shape: int, norm: str = "ortho", multislice_propagator = None, **kwargs ):
+
+        self.detector_shape = detector_shape
         self.norm = norm
+        
         self.multislice_propagator = multislice_propagator
         # self.multislice_propagator_conj = cp.conj( multislice_propagator )
  
@@ -57,22 +60,22 @@ class FresnelSpectProp(CachedFFT, Operator):
         **kwargs,
     ) -> npt.NDArray[np.csingle]:           # forward (parallel to beam direction) Fresnel spectrum propagtion operator 
 
-            # self._check_shape(multislice_inputplane)
-            # shape = multislice_inputplane.shape
+            self._check_shape(multislice_inputplane)
+            shape = multislice_inputplane.shape
 
             multislice_inputplane_fft2 = self._fft2( 
                 multislice_inputplane,
                 norm=self.norm,
                 axes=(-2, -1),
                 overwrite_x=overwrite,
-            )
+            ) #.reshape(shape)
 
             multislice_outputplane = self._ifft2(
                 multislice_inputplane_fft2 * self.multislice_propagator,
                 norm=self.norm,
                 axes=(-2, -1),
                 overwrite_x=overwrite,
-            )
+            ) #.reshape(shape)
 
             return multislice_outputplane
 
@@ -83,8 +86,8 @@ class FresnelSpectProp(CachedFFT, Operator):
         **kwargs,
     ) -> npt.NDArray[np.csingle]:           # backward (anti-parallel to beam direction) Fresnel spectrum propagtion operator 
           
-        # self._check_shape(multislice_outputplane)
-        # shape = multislice_outputplane.shape
+        self._check_shape(multislice_outputplane)
+        shape = multislice_outputplane.shape
 
         multislice_outputplane_fft2 = self._fft2( 
             multislice_outputplane,
@@ -102,11 +105,11 @@ class FresnelSpectProp(CachedFFT, Operator):
 
         return multislice_inputplane
 
-    # def _check_shape(self, x: npt.NDArray) -> None:
-    #     assert type(x) is self.xp.ndarray, type(x)
-    #     shape = (-1, self.detector_shape, self.detector_shape)
-    #     if __debug__ and x.shape[-2:] != shape[-2:]:
-    #         raise ValueError(f"waves must have shape {shape} not {x.shape}.")
+    def _check_shape(self, x: npt.NDArray) -> None:
+        assert type(x) is self.xp.ndarray, type(x)
+        shape = (-1, self.detector_shape, self.detector_shape)
+        if __debug__ and x.shape[-2:] != shape[-2:]:
+            raise ValueError(f"waves must have shape {shape} not {x.shape}.")
 
 def create_fresnel_spectrum_propagator( 
         N: np.ndarray,                                      # probe dimensions ( WIDE, HIGH )

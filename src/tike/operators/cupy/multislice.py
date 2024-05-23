@@ -64,9 +64,6 @@ class Multislice(CachedFFT, Operator):
         **kwargs,
     ):
 
-        # self.norm = norm
-        # self.multislice_propagator = multislice_propagator
-  
         self.diffraction = diffraction(                 # extract 2D slices from object and form exitwaves
             probe_shape=probe_shape,
             detector_shape=detector_shape,
@@ -75,6 +72,7 @@ class Multislice(CachedFFT, Operator):
             **kwargs,
         )
         self.fresnelspectprop = fresnelspectprop(                   # propagate through 3D sample using 2D probe 
+            detector_shape=detector_shape,
             norm=norm,
             multislice_propagator = multislice_propagator,
             **kwargs,

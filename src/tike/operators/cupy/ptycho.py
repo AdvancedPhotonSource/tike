@@ -86,7 +86,9 @@ class Ptycho(Operator):
         **kwargs,
     ):
         """Please see help(Ptycho) for more info."""
-        self.propagation = propagation(                 # propagate from exitwave plane to detector plane  
+
+        # propagate from exitwave plane to detector plane via free space wave propagation
+        self.propagation = propagation(                 
             detector_shape=detector_shape,
             norm=norm,
             **kwargs,
@@ -107,19 +109,19 @@ class Ptycho(Operator):
             **kwargs,
         )
 
-        self.diffraction = diffraction(                 # extract 2D slices from object and form exitwaves
-            probe_shape=probe_shape,
-            detector_shape=detector_shape,
-            nz=nz,
-            n=n,
-            **kwargs,
-        )
+        # self.diffraction = diffraction(                 # extract 2D slices from object and form exitwaves
+        #     probe_shape=probe_shape,
+        #     detector_shape=detector_shape,
+        #     nz=nz,
+        #     n=n,
+        #     **kwargs,
+        # )
         
-        self.fresnelspectprop = fresnelspectprop(                   # propagate through 3D sample using 2D probe 
-            norm=norm,
-            multislice_propagator = multislice_propagator,
-            **kwargs,
-        )
+        # self.fresnelspectprop = fresnelspectprop(                   # propagate through 3D sample using 2D probe 
+        #     norm=norm,
+        #     multislice_propagator = multislice_propagator,
+        #     **kwargs,
+        # )
         
         # TODO: Replace these with @property functions
         self.probe_shape = probe_shape
@@ -133,8 +135,8 @@ class Ptycho(Operator):
         self.propagation.__enter__()
         self.multislice.__enter__()
 
-        self.diffraction.__enter__()            # DON'T NEED THIS HERE, JUST FOR TESTING
-        self.fresnelspectprop.__enter__()       # DON'T NEED THIS HERE, JUST FOR TESTING
+        # self.diffraction.__enter__()            # DON'T NEED THIS HERE, JUST FOR TESTING
+        # self.fresnelspectprop.__enter__()       # DON'T NEED THIS HERE, JUST FOR TESTING
 
         return self
 
@@ -143,8 +145,8 @@ class Ptycho(Operator):
         self.propagation.__exit__(type, value, traceback)
         self.multislice.__exit__(type, value, traceback)
 
-        self.diffraction.__exit__(type, value, traceback)           # DON'T NEED THIS HERE, JUST FOR TESTING
-        self.fresnelspectprop.__exit__(type, value, traceback)      # DON'T NEED THIS HERE, JUST FOR TESTING
+        # self.diffraction.__exit__(type, value, traceback)           # DON'T NEED THIS HERE, JUST FOR TESTING
+        # self.fresnelspectprop.__exit__(type, value, traceback)      # DON'T NEED THIS HERE, JUST FOR TESTING
 
     def fwd(
         self,
