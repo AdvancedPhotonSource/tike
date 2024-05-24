@@ -6,8 +6,6 @@ __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 import numpy.typing as npt
 import numpy as np
 
-import tike.operators.cupy.objective as objective
-
 from .cache import CachedFFT
 from .operator import Operator
 
@@ -22,10 +20,6 @@ class Propagation(CachedFFT, Operator):
     ----------
     detector_shape : int
         The pixel width and height of the nearplane and farplane waves.
-    cost : (data-like, farplane-like) -> float
-        The function to be minimized when solving a problem.
-    grad : (data-like, farplane-like) -> farplane-like
-        The gradient of cost.
 
     Parameters
     ----------
@@ -83,3 +77,42 @@ class Propagation(CachedFFT, Operator):
         shape = (-1, self.detector_shape, self.detector_shape)
         if __debug__ and x.shape[-2:] != shape[-2:]:
             raise ValueError(f"waves must have shape {shape} not {x.shape}.")
+
+
+class ZeroPropagation(Propagation):
+    """A zero-distance propagation using CuPy.
+
+    Take an (..., N, N) array and do nothing.
+
+    Attributes
+    ----------
+    detector_shape : int
+        The pixel width and height of the nearplane and farplane waves.
+
+    Parameters
+    ----------
+    nearplane: (..., detector_shape, detector_shape) complex64
+        The wavefronts after exiting the object.
+    farplane: (..., detector_shape, detector_shape) complex64
+        The wavefronts hitting the detector respectively. Shape for cost
+        functions and gradients is (nscan, 1, 1, detector_shape,
+        detector_shape).
+    """
+
+    def fwd(
+        self,
+        nearplane: npt.NDArray[np.csingle],
+        overwrite: bool = False,
+        **kwargs,
+    ) -> npt.NDArray[np.csingle]:
+        """Forward Fourier-based free-space propagation operator."""
+        return nearplane
+
+    def adj(
+        self,
+        farplane: npt.NDArray[np.csingle],
+        overwrite: bool = False,
+        **kwargs,
+    ) -> npt.NDArray[np.csingle]:
+        """Adjoint Fourier-based free-space propagation operator."""
+        return farplane
