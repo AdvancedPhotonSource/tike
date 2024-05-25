@@ -158,12 +158,12 @@ class PtychoParameters():
                              "It should be (1, 1, S, W, H) "
                              "where S >=1 is the number of probes, and "
                              "W, H >= 1 are the square probe grid dimensions.")
-        if (self.psi.ndim != 2 or np.any(
-                np.asarray(self.psi.shape) <= np.asarray(self.probe.shape[-2:]))
+        if (self.psi.ndim != 3 or np.any(
+                np.asarray(self.psi.shape[-2:]) <= np.asarray(self.probe.shape[-2:]))
            ):
             raise ValueError(
                 f"psi shape {self.psi.shape} is incorrect. "
-                "It should be (W, H) where W, H > probe.shape[-2:].")
+                "It should be (D, W, H) where W, H > probe.shape[-2:].")
         check_allowed_positions(
             self.scan,
             self.psi,

@@ -214,24 +214,22 @@ def _get_nearplane_gradients(
         nearplane = op.propagation.adj(farplane, overwrite=True)[..., pad:end,
                                                                  pad:end]
 
-        patches = op.diffraction.patch.fwd(
-            patches=cp.zeros_like(nearplane[..., 0, 0, :, :]),
-            images=psi,
-            positions=scan[lo:hi],
-        )[..., None, None, :, :]
-
         if object_options:
-
             grad_psi = (cp.conj(varying_probe) * nearplane).reshape(
                 (hi - lo) * probe.shape[-3], *probe.shape[-2:])
-            psi_update_numerator = op.diffraction.patch.adj(
+            psi_update_numerator[0] = op.diffraction.patch.adj(
                 patches=grad_psi,
-                images=psi_update_numerator,
+                images=psi_update_numerator[0],
                 positions=scan[lo:hi],
                 nrepeat=probe.shape[-3],
             )
 
         if probe_options:
+            patches = op.diffraction.patch.fwd(
+                patches=cp.zeros_like(nearplane[..., 0, 0, :, :]),
+                images=psi[0],
+                positions=scan[lo:hi],
+            )[..., None, None, :, :]
             probe_update_numerator += cp.sum(
                 cp.conj(patches) * nearplane,
                 axis=-5,

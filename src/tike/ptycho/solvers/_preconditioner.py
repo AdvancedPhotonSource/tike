@@ -32,8 +32,9 @@ def _psi_preconditioner(
     operator: tike.operators.Ptycho,
 ) -> npt.NDArray:
 
+    # FIXME: Generated only one preconditioner for all slices
     psi_update_denominator = cp.zeros(
-        shape=psi.shape,
+        shape=psi.shape[-2:],
         dtype=psi.dtype,
     )
 
@@ -92,8 +93,9 @@ def _probe_preconditioner(
     ) -> None:
         nonlocal probe_update_denominator
 
+        # FIXME: Only use the first slice for the probe preconditioner
         patches = operator.diffraction.patch.fwd(
-            images=psi,
+            images=psi[0],
             positions=scan[lo:hi],
             patch_width=probe.shape[-1],
         )

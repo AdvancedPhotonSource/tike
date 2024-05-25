@@ -97,8 +97,9 @@ class SingleSlice(Multislice):
         **kwargs,
     ) -> npt.NDArray[np.csingle]:
         """Please see help(SingleSlice) for more info."""
+        assert (psi.shape[0] == 1 and psi.ndim == 3)
         return self.diffraction.fwd(
-            psi=psi,
+            psi=psi[0],
             scan=scan,
             probe=probe,
         )
@@ -113,12 +114,22 @@ class SingleSlice(Multislice):
         **kwargs,
     ) -> npt.NDArray[np.csingle]:
         """Please see help(SingleSlice) for more info."""
+        assert psi is None or (psi.shape[0] == 1 and psi.ndim == 3)
         return self.diffraction.adj(
             nearplane=nearplane,
             probe=probe,
             scan=scan,
             overwrite=True,
-            psi=psi,
+            psi=psi[0] if psi is not None else None,
+        )[None, ...]
+
+    def adj_probe(self, nearplane, scan, psi, overwrite=False):
+        assert (psi.shape[0] == 1 and psi.ndim == 3)
+        return self.diffraction.adj_probe(
+            nearplane=nearplane,
+            scan=scan,
+            psi=psi[0],
+            overwrite=overwrite,
         )
 
     @property

@@ -174,7 +174,7 @@ class CNMPositionSetup():
             self.data = self.data[mask]
 
         self.psi = np.full(
-            (600, 600),
+            (1, 600, 600),
             dtype=np.complex64,
             fill_value=np.complex64(0.5 + 0j),
         )
