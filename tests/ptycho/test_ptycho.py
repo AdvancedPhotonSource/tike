@@ -124,7 +124,7 @@ class TestPtychoSimulate(unittest.TestCase):
         # Create a stack of phase-only images
         phase = libimage.load('satyre', width)
         amplitude = 1 - libimage.load('coins', width)
-        original = amplitude * np.exp(1j * phase * np.pi)
+        original = (amplitude * np.exp(1j * phase * np.pi))[None, ...]
         self.original = original.astype('complex64')
         leading = ()
 
