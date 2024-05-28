@@ -27,7 +27,7 @@ class Multislice(Operator):
         nslices: int = 1,
         **kwargs,
     ):
-        """Please see help(SingleSlice) for more info."""
+        """Please see help(Multislice) for more info."""
         self.diffraction = diffraction(
             probe_shape=probe_shape,
             detector_shape=detector_shape,

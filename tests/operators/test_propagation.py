@@ -4,7 +4,8 @@
 import unittest
 
 import numpy as np
-from tike.operators import Propagation, FresnelSpectProp
+from tike.operators import Propagation
+import tike.precision
 
 from .util import random_complex, OperatorTests
 
@@ -35,28 +36,6 @@ class TestPropagation(unittest.TestCase, OperatorTests):
         self.kwargs = {}
         print(self.operator)
 
-
-class TestFresnelSpectrumPropagation(unittest.TestCase, OperatorTests):
-    """Test the FresnelSpectProp operator."""
-
-    def setUp(self, nwaves=13, probe_shape=127):
-        """Load a dataset for reconstruction."""
-        self.operator = FresnelSpectProp(
-            nwaves=nwaves,
-            detector_shape=probe_shape,
-            probe_shape=probe_shape,
-        )
-        self.operator.__enter__()
-        self.xp = self.operator.xp
-        np.random.seed(0)
-        self.m = self.xp.asarray(
-            random_complex(nwaves, probe_shape, probe_shape))
-        self.m_name = 'nearplane'
-        self.d = self.xp.asarray(
-            random_complex(nwaves, probe_shape, probe_shape))
-        self.d_name = 'farplane'
-        self.kwargs = {}
-        print(self.operator)
 
 if __name__ == '__main__':
     unittest.main()
