@@ -2,6 +2,8 @@ import logging
 import typing
 
 import cupy as cp
+import cupyx.scipy.stats
+import numpy as np
 import numpy.typing as npt
 
 import tike.communicators
@@ -27,6 +29,7 @@ def lstsq_grad(
     batches: typing.List[npt.NDArray[cp.intc]],
     *,
     parameters: PtychoParameters,
+    epoch: int,
 ):
     """Solve the ptychography problem using Odstrcil et al's approach.
 
@@ -125,6 +128,7 @@ def lstsq_grad(
             patches,
             position_update_numerator,
             position_update_denominator,
+            position_options,
         ) = (list(a) for a in zip(*comm.pool.map(
             _get_nearplane_gradients,
             data,
@@ -136,8 +140,11 @@ def lstsq_grad(
             batches,
             position_update_numerator,
             position_update_denominator,
+            [None] * comm.pool.num_workers if position_options is
+            None else position_options,
             comm.streams,
             exitwave_options.measured_pixels,
+            object_options.preconditioner,
             batch_index=batch_index,
             num_batch=algorithm_options.num_batch,
             exitwave_options=exitwave_options,
@@ -146,6 +153,8 @@ def lstsq_grad(
             recover_probe=recover_probe,
             recover_positions=position_options is not None,
         )))
+        position_options = None if position_options[
+            0] is None else position_options
 
         if object_options is not None:
             object_upd_sum = comm.Allreduce(object_upd_sum)
@@ -291,6 +300,7 @@ def lstsq_grad(
             position_options,
             position_update_numerator,
             position_update_denominator,
+            epoch=epoch,
         ))
 
     algorithm_options.costs.append(batch_cost)
@@ -454,8 +464,10 @@ def _get_nearplane_gradients(
     batches,
     position_update_numerator,
     position_update_denominator,
+    position_options: PositionOptions,
     streams: typing.List[cp.cuda.Stream],
     measured_pixels: npt.NDArray,
+    object_preconditioner: npt.NDArray[cp.csingle],
     *,
     batch_index: int,
     num_batch: int,
@@ -619,30 +631,39 @@ def _get_nearplane_gradients(
             m_probe_update = None
             bpatches = None
 
-        if recover_positions:
+        if position_options:
             m = 0
-
             grad_x, grad_y = tike.ptycho.position.gaussian_gradient(
-                bpatches[blo:bhi])
-
+                bpatches[blo:bhi],
+                sigma=0.333,
+            )
+            crop = probe.shape[-1] // 4
             position_update_numerator[lo:hi, ..., 0] = cp.sum(
                 cp.real(
-                    cp.conj(grad_x * bunique_probe[blo:bhi, ..., m:m + 1, :, :])
-                    * bchi[blo:bhi, ..., m:m + 1, :, :]),
+                    cp.conj(grad_x[..., crop:-crop, crop:-crop] *
+                            bunique_probe[blo:bhi, ..., m:m + 1, crop:-crop,
+                                          crop:-crop]) *
+                    bchi[blo:bhi, ..., m:m + 1, crop:-crop, crop:-crop]),
                 axis=(-4, -3, -2, -1),
             )
             position_update_denominator[lo:hi, ..., 0] = cp.sum(
-                cp.abs(grad_x * bunique_probe[blo:bhi, ..., m:m + 1, :, :])**2,
+                cp.abs(grad_x[..., crop:-crop, crop:-crop] *
+                       bunique_probe[blo:bhi, ..., m:m + 1, crop:-crop,
+                                     crop:-crop])**2,
                 axis=(-4, -3, -2, -1),
             )
             position_update_numerator[lo:hi, ..., 1] = cp.sum(
                 cp.real(
-                    cp.conj(grad_y * bunique_probe[blo:bhi, ..., m:m + 1, :, :])
-                    * bchi[blo:bhi, ..., m:m + 1, :, :]),
+                    cp.conj(grad_y[..., crop:-crop, crop:-crop] *
+                            bunique_probe[blo:bhi, ..., m:m + 1, crop:-crop,
+                                          crop:-crop]) *
+                    bchi[blo:bhi, ..., m:m + 1, crop:-crop, crop:-crop]),
                 axis=(-4, -3, -2, -1),
             )
             position_update_denominator[lo:hi, ..., 1] = cp.sum(
-                cp.abs(grad_y * bunique_probe[blo:bhi, ..., m:m + 1, :, :])**2,
+                cp.abs(grad_y[..., crop:-crop, crop:-crop] *
+                       bunique_probe[blo:bhi, ..., m:m + 1, crop:-crop,
+                                     crop:-crop])**2,
                 axis=(-4, -3, -2, -1),
             )
 
@@ -666,6 +687,7 @@ def _get_nearplane_gradients(
         bpatches,
         position_update_numerator,
         position_update_denominator,
+        position_options,
     )
 
 
@@ -873,7 +895,11 @@ def _update_position(
     *,
     alpha=0.05,
     max_shift=1,
+    epoch=0,
 ):
+    if epoch < position_options.update_start:
+        return scan, position_options
+
     step = (position_update_numerator) / (
         (1 - alpha) * position_update_denominator +
         alpha * max(position_update_denominator.max(), 1e-6))
@@ -884,6 +910,9 @@ def _update_position(
             a_min=-position_options.update_magnitude_limit,
             a_max=position_options.update_magnitude_limit,
         )
+
+    # Remove outliars and subtract the mean
+    step = step - cupyx.scipy.stats.trim_mean(step, 0.05)
 
     if position_options.use_adaptive_moment:
         (

@@ -1,6 +1,7 @@
 import logging
 
 import cupy as cp
+import cupyx.scipy.stats
 import numpy.typing as npt
 
 import tike.communicators
@@ -27,6 +28,7 @@ def rpie(
     batches: typing.List[typing.List[npt.NDArray[cp.intc]]],
     *,
     parameters: PtychoParameters,
+    epoch: int,
 ) -> PtychoParameters:
     """Solve the ptychography problem using regularized ptychographical engine.
 
@@ -176,6 +178,7 @@ def rpie(
             position_update_denominator,
             max_shift=probe[0].shape[-1] * 0.1,
             alpha=algorithm_options.alpha,
+            epoch=epoch,
         )))
 
     if algorithm_options.batch_method == 'compact':
@@ -489,23 +492,44 @@ def _get_nearplane_gradients(
                 )  # yapf: disable
 
         if position_options:
-
             grad_x, grad_y = tike.ptycho.position.gaussian_gradient(patches)
 
+            crop = probe.shape[-1] // 4
+
             position_update_numerator[lo:hi, ..., 0] = cp.sum(
-                cp.real(cp.conj(grad_x * unique_probe) * diff),
+                cp.real(
+                    cp.conj(
+                        grad_x[..., crop:-crop, crop:-crop]
+                        * unique_probe[..., crop:-crop, crop:-crop]
+                    )
+                    * diff[..., crop:-crop, crop:-crop]
+                ),
                 axis=(-4, -3, -2, -1),
             )
             position_update_denominator[lo:hi, ..., 0] = cp.sum(
-                cp.abs(grad_x * unique_probe)**2,
+                cp.abs(
+                    grad_x[..., crop:-crop, crop:-crop]
+                    * unique_probe[..., crop:-crop, crop:-crop]
+                )
+                ** 2,
                 axis=(-4, -3, -2, -1),
             )
             position_update_numerator[lo:hi, ..., 1] = cp.sum(
-                cp.real(cp.conj(grad_y * unique_probe) * diff),
+                cp.real(
+                    cp.conj(
+                        grad_y[..., crop:-crop, crop:-crop]
+                        * unique_probe[..., crop:-crop, crop:-crop]
+                    )
+                    * diff[..., crop:-crop, crop:-crop]
+                ),
                 axis=(-4, -3, -2, -1),
             )
             position_update_denominator[lo:hi, ..., 1] = cp.sum(
-                cp.abs(grad_y * unique_probe)**2,
+                cp.abs(
+                    grad_y[..., crop:-crop, crop:-crop]
+                    * unique_probe[..., crop:-crop, crop:-crop]
+                )
+                ** 2,
                 axis=(-4, -3, -2, -1),
             )
 
@@ -537,7 +561,11 @@ def _update_position(
     *,
     alpha=0.05,
     max_shift=1,
+    epoch=0,
 ):
+    if epoch < position_options.update_start:
+        return scan, position_options
+
     step = (position_update_numerator) / (
         (1 - alpha) * position_update_denominator +
         alpha * max(position_update_denominator.max(), 1e-6))
@@ -548,6 +576,9 @@ def _update_position(
             a_min=-position_options.update_magnitude_limit,
             a_max=position_options.update_magnitude_limit,
         )
+
+    # Remove outliars and subtract the mean
+    step = step - cupyx.scipy.stats.trim_mean(step, 0.05)
 
     if position_options.use_adaptive_moment:
         (

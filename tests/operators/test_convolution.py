@@ -5,7 +5,7 @@ import time
 import unittest
 
 import numpy as np
-from tike.operators import Convolution
+from tike.operators import Convolution, ConvolutionFFT
 import tike.precision
 import tike.linalg
 import tike.random
@@ -14,7 +14,7 @@ from .util import OperatorTests
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
-__docformat__ = 'restructuredtext en'
+__docformat__ = "restructuredtext en"
 
 
 class TestConvolution(unittest.TestCase, OperatorTests):
@@ -44,31 +44,35 @@ class TestConvolution(unittest.TestCase, OperatorTests):
         np.random.seed(0)
         scan = np.random.rand(self.ntheta, self.nscan, 2) * (127 - 15 - 1)
         original = tike.random.numpy_complex(*self.original_shape)
-        nearplane = tike.random.numpy_complex(self.ntheta, self.nscan,
-                                              self.nprobe, self.detector_shape,
-                                              self.detector_shape)
+        nearplane = tike.random.numpy_complex(
+            self.ntheta,
+            self.nscan,
+            self.nprobe,
+            self.detector_shape,
+            self.detector_shape,
+        )
         kernel = tike.random.numpy_complex(self.ntheta, self.nscan, self.nprobe,
                                            self.probe_shape, self.probe_shape)
 
         self.m = self.xp.asarray(original)
-        self.m_name = 'psi'
+        self.m_name = "psi"
         self.kwargs = {
-            'scan': self.xp.asarray(scan, dtype=tike.precision.floating),
-            'probe': self.xp.asarray(kernel)
+            "scan": self.xp.asarray(scan, dtype=tike.precision.floating),
+            "probe": self.xp.asarray(kernel),
         }
 
         self.m1 = self.xp.asarray(kernel)
-        self.m1_name = 'probe'
+        self.m1_name = "probe"
         self.kwargs1 = {
-            'scan': self.xp.asarray(scan, dtype=tike.precision.floating),
-            'psi': self.xp.asarray(original)
+            "scan": self.xp.asarray(scan, dtype=tike.precision.floating),
+            "psi": self.xp.asarray(original),
         }
         self.kwargs2 = {
-            'scan': self.xp.asarray(scan, dtype=tike.precision.floating),
+            "scan": self.xp.asarray(scan, dtype=tike.precision.floating),
         }
 
         self.d = self.xp.asarray(nearplane)
-        self.d_name = 'nearplane'
+        self.d_name = "nearplane"
 
         print(self.operator)
 
@@ -81,8 +85,8 @@ class TestConvolution(unittest.TestCase, OperatorTests):
         a = tike.linalg.inner(d, self.d)
         b = tike.linalg.inner(self.m1, m)
         print()
-        print('<Fm,   m> = {:.6f}{:+.6f}j'.format(a.real.item(), a.imag.item()))
-        print('< d, F*d> = {:.6f}{:+.6f}j'.format(b.real.item(), b.imag.item()))
+        print("<Fm,   m> = {:.6f}{:+.6f}j".format(a.real.item(), a.imag.item()))
+        print("< d, F*d> = {:.6f}{:+.6f}j".format(b.real.item(), b.imag.item()))
         self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-3, atol=0)
         self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-3, atol=0)
 
@@ -93,9 +97,74 @@ class TestConvolution(unittest.TestCase, OperatorTests):
         elapsed = time.perf_counter() - start
         print(f"\n{elapsed:1.3e} seconds")
 
-    @unittest.skip('FIXME: This operator is not scaled.')
+    @unittest.skip("FIXME: This operator is not scaled.")
     def test_scaled(self):
         pass
 
-if __name__ == '__main__':
+
+class TestConvolutionFFT(unittest.TestCase, OperatorTests):
+    """Test the ConvolutionFFT operator."""
+
+    def setUp(self):
+        """Load a dataset for reconstruction."""
+
+        self.ntheta = 3
+        self.nscan = 27
+        self.nprobe = 3
+        self.original_shape = (self.ntheta, 128, 128)
+        self.probe_shape = 15
+        self.detector_shape = self.probe_shape * 3
+
+        self.operator = ConvolutionFFT(
+            ntheta=self.ntheta,
+            nscan=self.nscan,
+            nz=self.original_shape[-2],
+            n=self.original_shape[-1],
+            probe_shape=self.probe_shape,
+            detector_shape=self.detector_shape,
+        )
+        self.operator.__enter__()
+        self.xp = self.operator.xp
+
+        np.random.seed(0)
+        scan = np.random.rand(self.ntheta, self.nscan, 2) * (127 - 15 - 1)
+        original = tike.random.numpy_complex(*self.original_shape)
+        nearplane = tike.random.numpy_complex(
+            self.ntheta,
+            self.nscan,
+            self.nprobe,
+            self.detector_shape,
+            self.detector_shape,
+        )
+        kernel = tike.random.numpy_complex(self.ntheta, self.nscan, self.nprobe,
+                                           self.probe_shape, self.probe_shape)
+
+        self.m = self.xp.asarray(original)
+        self.m_name = "psi"
+        self.kwargs = {
+            "scan": self.xp.asarray(scan, dtype=tike.precision.floating),
+            "probe": self.xp.asarray(kernel),
+        }
+
+        self.m1 = self.xp.asarray(kernel)
+        self.m1_name = "probe"
+        self.kwargs1 = {
+            "scan": self.xp.asarray(scan, dtype=tike.precision.floating),
+            "psi": self.xp.asarray(original),
+        }
+        self.kwargs2 = {
+            "scan": self.xp.asarray(scan, dtype=tike.precision.floating),
+        }
+
+        self.d = self.xp.asarray(nearplane)
+        self.d_name = "nearplane"
+
+        print(self.operator)
+
+    @unittest.skip("FIXME: This operator is not scaled.")
+    def test_scaled(self):
+        pass
+
+
+if __name__ == "__main__":
     unittest.main()

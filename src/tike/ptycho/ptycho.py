@@ -496,6 +496,7 @@ class Reconstruction():
                 data=self.data,
                 batches=self.batches,
                 parameters=self.parameters,
+                epoch=len(self.parameters.algorithm_options.times),
             )
 
             if self.parameters.object_options.positivity_constraint:
@@ -564,14 +565,17 @@ class Reconstruction():
                     self.parameters.eigen_weights,
                 )
 
-            if (self.parameters.position_options and self.parameters
-                    .position_options[0].use_position_regularization):
-
-                (self.parameters.position_options
+            if self.parameters.position_options:
+                (
+                    self.parameters.scan,
+                    self.parameters.position_options,
                 ) = affine_position_regularization(
                     self.comm,
                     updated=self.parameters.scan,
                     position_options=self.parameters.position_options,
+                    regularization_enabled=self.parameters.position_options[
+                        0
+                    ].use_position_regularization,
                 )
 
             self.parameters.algorithm_options.times.append(time.perf_counter() -
@@ -599,6 +603,13 @@ class Reconstruction():
                 self.parameters.exitwave_options.noise_model,
                 np.mean(self.parameters.algorithm_options.costs[-1]),
             )
+
+    def get_scan(self):
+        reorder = np.argsort(np.concatenate(self.comm.order))
+        return self.comm.pool.gather_host(
+            self.parameters.scan,
+            axis=-2,
+        )[reorder]
 
     def get_result(self):
         """Return the current parameter estimates."""

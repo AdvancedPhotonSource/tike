@@ -1,0 +1,48 @@
+# This workflow builds an apptainer with tike installed
+
+name: Publish Apptainer
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+
+  publish-apptainer-to-ghcr:
+    runs-on: ubuntu-latest
+    strategy:
+        matrix:
+          cuda-version:
+            - "11.8"
+            - "12.0"
+          target-arch:
+            - "x86_64"
+            - "aarch64"
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: arm64
+    - uses: eWaterCycle/setup-apptainer@v2
+      with:
+        apptainer-version: 1.3.0
+    - name: Build container from definition
+      run: >
+        apptainer build
+        --build-arg cuda_version=${{ matrix.cuda-version }}
+        --build-arg target_arch=${{ matrix.target-arch }}
+        --build-arg pkg_version=${{ github.ref_name }}
+        apptainer.sif
+        apptainer/${{ github.event.repository.name }}.def
+    - name: Upload to container registry
+      run: |
+        echo ${{ secrets.GITHUB_TOKEN }} | apptainer registry login -u ${{ github.actor }} --password-stdin oras://ghcr.io
+        apptainer push apptainer.sif oras://ghcr.io/${GITHUB_REPOSITORY,,}:${{ github.ref_name }}-${{ matrix.target-arch }}-cuda${{ matrix.cuda-version }}
