@@ -115,22 +115,13 @@ class FresnelSpectProp(CachedFFT, Operator):
         distance: float = 1.0,
         wavelength: float = 1.0,
     ) -> np.ndarray:
-        """
-        Parameters
-        ----------
-        pixel_size : real width of pixel in meters
-        distance: propagation distance in meters
-        wavelength: wavelength of light in meters
-        """
         # FIXME: Check that dimension ordering is consistent
         rr2 = self.xp.linspace(-0.5 * N[1], 0.5 * N[1] - 1, num=N[1]) ** 2
         cc2 = self.xp.linspace(-0.5 * N[0], 0.5 * N[0] - 1, num=N[0]) ** 2
 
-        prb_FOV = self.xp.asarray([pixel_size, pixel_size], dtype=self.xp.float32)
-
         x = -1j * self.xp.pi * wavelength * distance
-        rr2 = self.xp.exp(x * rr2[..., None] / (prb_FOV[0] ** 2))
-        cc2 = self.xp.exp(x * cc2[..., None] / (prb_FOV[1] ** 2))
+        rr2 = self.xp.exp(x * rr2[..., None] / (pixel_size**2))
+        cc2 = self.xp.exp(x * cc2[..., None] / (pixel_size**2))
 
         fresnel_spectrum_propagator = self.xp.ndarray.astype(
             self.xp.fft.fftshift(self.xp.outer(self.xp.transpose(rr2), cc2)),
