@@ -46,6 +46,82 @@ class Multislice(Operator):
         self.n = n
         self.nslices = nslices
 
+    def __enter__(self):
+        self.propagation.__enter__()
+        self.diffraction.__enter__()
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.propagation.__exit__(type, value, traceback)
+        self.diffraction.__exit__(type, value, traceback)
+
+    def fwd(
+        self,
+        probe: npt.NDArray[np.csingle],
+        scan: npt.NDArray[np.single],
+        psi: npt.NDArray[np.csingle],
+        **kwargs,
+    ) -> npt.NDArray[np.csingle]:
+        """Please see help(SingleSlice) for more info."""
+        assert psi.shape[0] == self.nslices and psi.ndim == 3
+        exitwave = probe
+        for s in range(self.nslices):
+            exitwave = self.diffraction.fwd(
+                psi=psi[s],
+                scan=scan,
+                probe=exitwave,
+            )
+        return exitwave
+
+    def adj(
+        self,
+        nearplane: npt.NDArray[np.csingle],
+        probe: npt.NDArray[np.csingle],
+        scan: npt.NDArray[np.single],
+        psi: npt.NDArray[np.csingle],
+        overwrite: bool = False,
+        **kwargs,
+    ) -> npt.NDArray[np.csingle]:
+        """Please see help(SingleSlice) for more info."""
+        probe_adj = nearplane
+        psi_adj = self.xp.zeros_like(psi)
+        exitwave = [
+            None,
+        ] * len(psi)
+        exitwave[0] = probe
+        for s in range(1, self.nslices):
+            exitwave[s] = self.diffraction.fwd(
+                psi=psi[s - 1],
+                scan=scan,
+                probe=exitwave[s - 1],
+            )
+        for s in range(self.nslices - 1, -1, -1):
+            psi_adj[s] = self.diffraction.adj(
+                nearplane=probe_adj,
+                probe=exitwave[s],
+                scan=scan,
+                overwrite=False,
+            )
+            probe_adj = self.diffraction.adj_probe(
+                nearplane=probe_adj,
+                scan=scan,
+                psi=psi[s],
+            )
+        # FIXME: Why is division by nslices needed here?
+        return psi_adj / self.nslices, probe_adj
+
+    @property
+    def patch(self):
+        return self.diffraction.patch
+
+    @property
+    def pad(self):
+        return self.diffraction.pad
+
+    @property
+    def end(self):
+        return self.diffraction.end
+
 
 class SingleSlice(Multislice):
     """Single slice wavefield propgation"""
@@ -80,15 +156,6 @@ class SingleSlice(Multislice):
         self.n = n
         self.nslices = 1
 
-    def __enter__(self):
-        self.propagation.__enter__()
-        self.diffraction.__enter__()
-        return self
-
-    def __exit__(self, type, value, traceback):
-        self.propagation.__exit__(type, value, traceback)
-        self.diffraction.__exit__(type, value, traceback)
-
     def fwd(
         self,
         probe: npt.NDArray[np.csingle],
@@ -97,7 +164,7 @@ class SingleSlice(Multislice):
         **kwargs,
     ) -> npt.NDArray[np.csingle]:
         """Please see help(SingleSlice) for more info."""
-        assert (psi.shape[0] == 1 and psi.ndim == 3)
+        assert psi.shape[0] == 1 and psi.ndim == 3
         return self.diffraction.fwd(
             psi=psi[0],
             scan=scan,
@@ -115,31 +182,16 @@ class SingleSlice(Multislice):
     ) -> npt.NDArray[np.csingle]:
         """Please see help(SingleSlice) for more info."""
         assert psi is None or (psi.shape[0] == 1 and psi.ndim == 3)
-        return self.diffraction.adj(
+        psi_adj = self.diffraction.adj(
             nearplane=nearplane,
             probe=probe,
             scan=scan,
-            overwrite=True,
-            psi=psi[0] if psi is not None else None,
+            overwrite=False,
         )[None, ...]
-
-    def adj_probe(self, nearplane, scan, psi, overwrite=False):
-        assert (psi.shape[0] == 1 and psi.ndim == 3)
-        return self.diffraction.adj_probe(
+        probe_adj = self.diffraction.adj_probe(
             nearplane=nearplane,
             scan=scan,
             psi=psi[0],
-            overwrite=overwrite,
+            overwrite=False,
         )
-
-    @property
-    def patch(self):
-        return self.diffraction.patch
-
-    @property
-    def pad(self):
-        return self.diffraction.pad
-
-    @property
-    def end(self):
-        return self.diffraction.end
+        return psi_adj, probe_adj
