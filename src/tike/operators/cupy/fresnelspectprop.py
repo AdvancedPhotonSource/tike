@@ -15,23 +15,22 @@ from .operator import Operator
 class FresnelSpectProp(CachedFFT, Operator):
     """Fresnel spectrum propagation (short range) using CuPy.
 
-    Take an (..., N, N) array and apply the Fourier transform to the last two
-    dimensions.
+    Take an (..., W, H) compelx array representing a wavefront and propagate.
 
     Attributes
     ----------
     pixel_size : float
         The realspace size of a pixel in meters
-    delta_z : float
+    distance : float
         The realspace propagation distance in meters
     wavelength : float
         The wavelength of the light in meters
 
     Parameters
     ----------
-    nearplane: (..., detector_shape, detector_shape) complex64
+    nearplane: (..., W, H) complex64
         The wavefronts before propagation.
-    farplane: (..., detector_shape, detector_shape) complex64
+    farplane: (..., W, H) complex64
         The wavefronts after propagation.
     """
 
@@ -39,13 +38,13 @@ class FresnelSpectProp(CachedFFT, Operator):
         self,
         norm: str = "ortho",
         pixel_size: float = 1.0,
-        delta_z: float = 1.0,
+        distance: float = 1.0,
         wavelength: float = 1.0,
         **kwargs,
     ):
         self.norm = norm
         self.pixel_size = pixel_size
-        self.delta_z = delta_z
+        self.distance = distance
         self.wavelength = wavelength
 
     def fwd(
@@ -58,7 +57,7 @@ class FresnelSpectProp(CachedFFT, Operator):
         propagator = self._create_fresnel_spectrum_propagator(
             (nearplane.shape[-2], nearplane.shape[-1]),
             self.pixel_size,
-            self.delta_z,
+            self.distance,
             self.wavelength,
         )
 
@@ -88,7 +87,7 @@ class FresnelSpectProp(CachedFFT, Operator):
         propagator = self._create_fresnel_spectrum_propagator(
             (farplane.shape[-2], farplane.shape[-1]),
             self.pixel_size,
-            self.delta_z,
+            self.distance,
             self.wavelength,
         )
 
@@ -100,10 +99,8 @@ class FresnelSpectProp(CachedFFT, Operator):
         )
 
         nearplane = self._ifft2(
-            farplane_fft2
-            * self.xp.conj(
-                propagator,
-            ),  # IS IT OK TO ALWAYS TAKE CONJ? OR SHOULD WE DO THIS ONCE AND REUSE?
+            # FIXME: IS IT OK TO ALWAYS TAKE CONJ? OR SHOULD WE DO THIS ONCE AND REUSE?
+            farplane_fft2 * self.xp.conj(propagator),
             norm=self.norm,
             axes=(-2, -1),
             overwrite_x=overwrite,
@@ -115,14 +112,14 @@ class FresnelSpectProp(CachedFFT, Operator):
         self,
         N: typing.Tuple[int, int],
         pixel_size: float = 1.0,
-        delta_z: float = 1.0,
+        distance: float = 1.0,
         wavelength: float = 1.0,
     ) -> np.ndarray:
         """
         Parameters
         ----------
         pixel_size : real width of pixel in meters
-        delta_z: propagation distance in meters
+        distance: propagation distance in meters
         wavelength: wavelength of light in meters
         """
         # FIXME: Check that dimension ordering is consistent
@@ -131,7 +128,7 @@ class FresnelSpectProp(CachedFFT, Operator):
 
         prb_FOV = self.xp.asarray([pixel_size, pixel_size], dtype=self.xp.float32)
 
-        x = -1j * self.xp.pi * wavelength * delta_z
+        x = -1j * self.xp.pi * wavelength * distance
         rr2 = self.xp.exp(x * rr2[..., None] / (prb_FOV[0] ** 2))
         cc2 = self.xp.exp(x * cc2[..., None] / (prb_FOV[1] ** 2))
 
