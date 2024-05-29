@@ -21,7 +21,7 @@ class Multislice(Operator):
         probe_shape: int,
         nz: int,
         n: int,
-        propagation: typing.Type[Propagation] = ZeroPropagation,
+        propagation: typing.Type[Propagation] = Propagation,
         diffraction: typing.Type[Convolution] = Convolution,
         norm: str = "ortho",
         nslices: int = 1,
@@ -64,12 +64,16 @@ class Multislice(Operator):
     ) -> npt.NDArray[np.csingle]:
         """Please see help(SingleSlice) for more info."""
         assert psi.shape[0] == self.nslices and psi.ndim == 3
-        exitwave = probe
-        for s in range(self.nslices):
+        exitwave = self.diffraction.fwd(
+            psi=psi[0],
+            scan=scan,
+            probe=probe,
+        )
+        for s in range(1, self.nslices):
             exitwave = self.diffraction.fwd(
                 psi=psi[s],
                 scan=scan,
-                probe=exitwave,
+                probe=self.propagation.fwd(exitwave),
             )
         return exitwave
 
@@ -83,22 +87,35 @@ class Multislice(Operator):
         **kwargs,
     ) -> npt.NDArray[np.csingle]:
         """Please see help(SingleSlice) for more info."""
-        probe_adj = nearplane
         psi_adj = self.xp.zeros_like(psi)
-        exitwave = [
+        probes = [
             None,
         ] * len(psi)
-        exitwave[0] = probe
+        probes[0] = probe
         for s in range(1, self.nslices):
-            exitwave[s] = self.diffraction.fwd(
-                psi=psi[s - 1],
-                scan=scan,
-                probe=exitwave[s - 1],
+            probes[s] = self.propagation.fwd(
+                self.diffraction.fwd(
+                    psi=psi[s - 1],
+                    scan=scan,
+                    probe=probes[s - 1],
+                )
             )
-        for s in range(self.nslices - 1, -1, -1):
+        psi_adj[self.nslices - 1] = self.diffraction.adj(
+            nearplane=nearplane,
+            probe=probes[self.nslices - 1],
+            scan=scan,
+            overwrite=False,
+        )
+        probe_adj = self.diffraction.adj_probe(
+            nearplane=nearplane,
+            scan=scan,
+            psi=psi[self.nslices - 1],
+        )
+        for s in range(self.nslices - 2, -1, -1):
+            probe_adj = self.propagation.adj(probe_adj)
             psi_adj[s] = self.diffraction.adj(
                 nearplane=probe_adj,
-                probe=exitwave[s],
+                probe=probes[s],
                 scan=scan,
                 overwrite=False,
             )
