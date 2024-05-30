@@ -215,27 +215,19 @@ def _get_nearplane_gradients(
         nearplane = op.propagation.adj(farplane, overwrite=True)[..., pad:end,
                                                                  pad:end]
 
-        if object_options:
-            grad_psi = (cp.conj(varying_probe) * nearplane).reshape(
-                (hi - lo) * probe.shape[-3], *probe.shape[-2:])
-            psi_update_numerator[0] = op.diffraction.patch.adj(
-                patches=grad_psi,
-                images=psi_update_numerator[0],
-                positions=scan[lo:hi],
-                nrepeat=probe.shape[-3],
-            )
-
-        if probe_options:
-            patches = op.diffraction.patch.fwd(
-                patches=cp.zeros_like(nearplane[..., 0, 0, :, :]),
-                images=psi[0],
-                positions=scan[lo:hi],
-            )[..., None, None, :, :]
-            probe_update_numerator += cp.sum(
-                cp.conj(patches) * nearplane,
-                axis=-5,
-                keepdims=True,
-            )
+        grad_psi, grad_probe = op.diffraction.adj(
+            nearplane=nearplane[:, 0],
+            probe=varying_probe[:, 0],
+            scan=scan[lo:hi],
+            psi=psi,
+        )
+        grad_probe = cp.sum(
+            grad_probe[:, None],
+            axis=-5,
+            keepdims=True,
+        )
+        psi_update_numerator += grad_psi
+        probe_update_numerator += grad_probe
 
     tike.communicators.stream.stream_and_modify2(
         f=keep_some_args_constant,
