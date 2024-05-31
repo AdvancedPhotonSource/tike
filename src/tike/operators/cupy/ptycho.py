@@ -124,12 +124,12 @@ class Ptycho(Operator):
         farplane: npt.NDArray[np.csingle],
         probe: npt.NDArray[np.csingle],
         scan: npt.NDArray[np.single],
-        psi: npt.NDArray[np.csingle] = None,
+        psi: npt.NDArray[np.csingle],
         overwrite: bool = False,
         **kwargs,
     ) -> npt.NDArray[np.csingle]:
         """Please see help(Ptycho) for more info."""
-        return self.diffraction.adj(
+        psi_adj, probe_adj = self.diffraction.adj(
             nearplane=self.propagation.adj(
                 farplane,
                 overwrite=overwrite,
@@ -139,25 +139,7 @@ class Ptycho(Operator):
             overwrite=True,
             psi=psi,
         )
-
-    def adj_probe(
-        self,
-        farplane: npt.NDArray[np.csingle],
-        scan: npt.NDArray[np.single],
-        psi: npt.NDArray[np.csingle],
-        overwrite: bool = False,
-        **kwargs,
-    ) -> npt.NDArray[np.csingle]:
-        """Please see help(Ptycho) for more info."""
-        return self.diffraction.adj_probe(
-            psi=psi,
-            scan=scan,
-            nearplane=self.propagation.adj(
-                farplane=farplane,
-                overwrite=overwrite,
-            )[..., 0, :, :, :],
-            overwrite=True,
-        )[..., None, :, :, :]
+        return psi_adj, probe_adj[..., None, :, :, :]
 
     def _compute_intensity(
         self,
@@ -186,64 +168,3 @@ class Ptycho(Operator):
         """Please see help(Ptycho) for more info."""
         intensity, _ = self._compute_intensity(data, psi, scan, probe)
         return getattr(objective, model)(data, intensity)
-
-    def grad_psi(
-        self,
-        data: npt.NDArray,
-        psi: npt.NDArray[np.csingle],
-        scan: npt.NDArray[np.single],
-        probe: npt.NDArray[np.csingle],
-        *,
-        model: str,
-    ) -> npt.NDArray[np.csingle]:
-        """Please see help(Ptycho) for more info."""
-        intensity, farplane = self._compute_intensity(data, psi, scan, probe)
-        grad_obj = self.xp.zeros_like(psi)
-        grad_obj = self.adj(
-            farplane=getattr(objective, f'{model}_grad')(
-                data,
-                farplane,
-                intensity,
-            ),
-            probe=probe,
-            scan=scan,
-            psi=grad_obj,
-            overwrite=True,
-        )
-        return grad_obj
-
-    def grad_probe(
-        self,
-        data: npt.NDArray,
-        psi: npt.NDArray[np.csingle],
-        scan: npt.NDArray[np.single],
-        probe: npt.NDArray[np.csingle],
-        mode: typing.List[int] = None,
-        *,
-        model: str,
-    ) -> npt.NDArray[np.csingle]:
-        """Compute the gradient with respect to the probe(s).
-
-        Parameters
-        ----------
-        mode : list(int)
-            Only return the gradient with resepect to these probes.
-
-        """
-        mode = list(range(probe.shape[-3])) if mode is None else mode
-        intensity, farplane = self._compute_intensity(data, psi, scan, probe)
-        # Use the average gradient for all probe positions
-        return self.xp.mean(
-            self.adj_probe(
-                farplane=getattr(objective, f'{model}_grad')(
-                    data,
-                    farplane[..., mode, :, :],
-                    intensity,
-                ),
-                psi=psi,
-                scan=scan,
-                overwrite=True,
-            ),
-            axis=0,
-            keepdims=True,
-        )
