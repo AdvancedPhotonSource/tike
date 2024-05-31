@@ -16,7 +16,7 @@ __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 
 
-class TestPtycho(unittest.TestCase, OperatorTests):
+class TestPtycho(unittest.TestCase):
     """Test the ptychography operator."""
 
     def setUp(self, depth=1, pw=15, nscan=27):
@@ -46,46 +46,33 @@ class TestPtycho(unittest.TestCase, OperatorTests):
         self.operator.__enter__()
         self.xp = self.operator.xp
 
-        self.m = self.xp.asarray(original)
-        self.m_name = 'psi'
-        self.kwargs = {
-            'scan': self.xp.asarray(scan),
-            'probe': self.xp.asarray(probe)
+        self.mkwargs = {
+            "scan": self.xp.asarray(scan),
+            "probe": self.xp.asarray(probe),
+            "psi": self.xp.asarray(original),
+        }
+        self.dkwargs = {
+            "farplane": self.xp.asarray(farplane),
         }
 
-        self.m1 = self.xp.asarray(probe)
-        self.m1_name = 'probe'
-        self.kwargs1 = {
-            'scan': self.xp.asarray(scan),
-            'psi': self.xp.asarray(original)
-        }
-        self.kwargs2 = {
-            'scan': self.xp.asarray(scan),
-        }
-
-        self.d = self.xp.asarray(farplane)
-        self.d_name = 'farplane'
-
-    def test_adjoint_probe(self):
+    def test_adjoint(self):
         """Check that the adjoint operator is correct."""
-        d = self.operator.fwd(**{self.m1_name: self.m1}, **self.kwargs1)
-        assert d.shape == self.d.shape
-        m = self.operator.adj_probe(**{self.d_name: self.d}, **self.kwargs1)
-        assert m.shape == self.m1.shape
-        a = tike.linalg.inner(d, self.d)
-        b = tike.linalg.inner(self.m1, m)
+        d = self.operator.fwd(**self.mkwargs)
+        assert d.shape == self.dkwargs["farplane"].shape
+        m0, m1 = self.operator.adj(**self.dkwargs, **self.mkwargs)
+        assert m0.shape == self.mkwargs["psi"].shape
+        assert m1.shape == self.mkwargs["probe"].shape
+        a = tike.linalg.inner(d, self.dkwargs["farplane"])
+        b = tike.linalg.inner(self.mkwargs["psi"], m0)
+        c = tike.linalg.inner(self.mkwargs["probe"], m1)
         print()
-        print('<Fm,   m> = {:.5g}{:+.5g}j'.format(a.real.item(), a.imag.item()))
-        print('< d, F*d> = {:.5g}{:+.5g}j'.format(b.real.item(), b.imag.item()))
+        print("<Fm,    d> = {:.5g}{:+.5g}j".format(a.real.item(), a.imag.item()))
+        print("< m0, F*d> = {:.5g}{:+.5g}j".format(b.real.item(), b.imag.item()))
+        print("< m1, F*d> = {:.5g}{:+.5g}j".format(c.real.item(), c.imag.item()))
         self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-3, atol=0)
         self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-3, atol=0)
-
-    def test_adj_probe_time(self):
-        """Time the adjoint operation."""
-        start = time.perf_counter()
-        m = self.operator.adj_probe(**{self.d_name: self.d}, **self.kwargs1)
-        elapsed = time.perf_counter() - start
-        print(f"\n{elapsed:1.3e} seconds")
+        self.xp.testing.assert_allclose(a.real, c.real, rtol=1e-3, atol=0)
+        self.xp.testing.assert_allclose(a.imag, c.imag, rtol=1e-3, atol=0)
 
     @unittest.skip('FIXME: This operator is not scaled.')
     def test_scaled(self):
