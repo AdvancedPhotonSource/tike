@@ -17,6 +17,7 @@ from .pad import *
 from .patch import *
 from .propagation import *
 from .fresnelspectprop import *
+from .multislice import *
 from .ptycho import *
 from .rotate import *
 from .shift import *

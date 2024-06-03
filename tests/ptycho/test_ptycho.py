@@ -90,7 +90,7 @@ class TestPtychoUtils(unittest.TestCase):
         np.testing.assert_array_equal(weights, truth)
 
     def test_check_allowed_positions(self):
-        psi = np.empty((4, 9))
+        psi = np.empty((1, 4, 9))
         probe = np.empty((8, 2, 2))
         scan = np.array([[1, 1], [1, 6.9], [1.1, 1], [1.9, 5.5]])
         tike.ptycho.check_allowed_positions(scan, psi, probe.shape)
@@ -124,7 +124,7 @@ class TestPtychoSimulate(unittest.TestCase):
         # Create a stack of phase-only images
         phase = libimage.load('satyre', width)
         amplitude = 1 - libimage.load('coins', width)
-        original = amplitude * np.exp(1j * phase * np.pi)
+        original = (amplitude * np.exp(1j * phase * np.pi))[None, ...]
         self.original = original.astype('complex64')
         leading = ()
 

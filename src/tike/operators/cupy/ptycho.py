@@ -11,7 +11,7 @@ import cupy as cp
 
 from .operator import Operator
 from .propagation import Propagation
-from .convolution import Convolution
+from .multislice import Multislice, SingleSlice
 from . import objective
 
 
@@ -35,30 +35,31 @@ class Ptycho(Operator):
     ----------
     detector_shape : int
         The pixel width and height of the (square) detector grid.
-    nz, n : int
-        The pixel width and height of the reconstructed grid.
+    d, nz, n : int
+        The pixel depth, width, and height of the reconstructed grid.
     probe_shape : int
         The pixel width and height of the (square) probe illumination.
     propagation : :py:class:`Operator`
         The wave propagation operator being used.
     diffraction : :py:class:`Operator`
         The object probe interaction operator being used.
-    data : (..., FRAME, WIDE, HIGH) float32
+    data : (FRAME, WIDE, HIGH) float32
         The intensity (square of the absolute value) of the propagated
         wavefront; i.e. what the detector records.
-    farplane: (..., POSI, 1, SHARED, detector_shape, detector_shape) complex64
+    farplane: (POSI, 1, SHARED, detector_shape, detector_shape) complex64
         The wavefronts hitting the detector respectively.
-    probe : {(..., 1, 1, SHARED, WIDE, HIGH), (..., POSI, 1, SHARED, WIDE, HIGH)} complex64
+    probe : {(1, 1, SHARED, WIDE, HIGH), (POSI, 1, SHARED, WIDE, HIGH)} complex64
         The complex illumination function.
-    psi : (..., WIDE, HIGH) complex64
+    psi : (DEPTH, WIDE, HIGH) complex64
         The wavefront modulation coefficients of the object.
-    scan : (..., POSI, 2) float32
+    scan : (POSI, 2) float32
         Coordinates of the minimum corner of the probe grid for each
         measurement in the coordinate system of psi. Coordinate order
         consistent with WIDE, HIGH order.
 
 
     .. versionchanged:: 0.25.0 Removed the model and ntheta parameters.
+    .. versionchanged:: 0.26.0 Added depth dimension to psi array
 
     """
 
@@ -69,7 +70,7 @@ class Ptycho(Operator):
         nz: int,
         n: int,
         propagation: typing.Type[Propagation] = Propagation,
-        diffraction: typing.Type[Convolution] = Convolution,
+        diffraction: typing.Type[Multislice] = SingleSlice,
         norm: str = 'ortho',
         **kwargs,
     ):
@@ -246,26 +247,3 @@ class Ptycho(Operator):
             axis=0,
             keepdims=True,
         )
-
-    def adj_all(
-        self,
-        farplane: npt.NDArray[np.csingle],
-        probe: npt.NDArray[np.csingle],
-        scan: npt.NDArray[np.single],
-        psi: npt.NDArray[np.csingle],
-        overwrite: bool = False,
-        rpie: bool = False,
-    ) -> typing.Tuple[npt.NDArray, ...]:
-        """Please see help(Ptycho) for more info."""
-        result = self.diffraction.adj_all(
-            nearplane=self.propagation.adj(
-                farplane,
-                overwrite=overwrite,
-            )[..., 0, :, :, :],
-            probe=probe[..., 0, :, :, :],
-            scan=scan,
-            overwrite=True,
-            psi=psi,
-            rpie=rpie,
-        )
-        return (result[0], result[1][..., None, :, :, :], *result[2:])

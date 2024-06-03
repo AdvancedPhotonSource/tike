@@ -600,10 +600,10 @@ def _get_nearplane_gradients(
             # (24b)
             object_update_proj = cp.conj(bunique_probe[blo:bhi]) * bchi[blo:bhi]
             # (25b) Common object gradient.
-            object_upd_sum = op.diffraction.patch.adj(
+            object_upd_sum[0] = op.diffraction.patch.adj(
                 patches=object_update_proj.reshape(
                     len(scan[lo:hi]) * bchi.shape[-3], *bchi.shape[-2:]),
-                images=object_upd_sum,
+                images=object_upd_sum[0],
                 positions=scan[lo:hi],
                 nrepeat=bchi.shape[-3],
             )
@@ -613,7 +613,7 @@ def _get_nearplane_gradients(
         if recover_probe:
             bpatches[blo:bhi] = op.diffraction.patch.fwd(
                 patches=cp.zeros_like(bchi[blo:bhi, ..., 0, 0, :, :]),
-                images=psi,
+                images=psi[0],
                 positions=scan[lo:hi],
             )[..., None, None, :, :]
             # (24a)
@@ -746,7 +746,7 @@ def _precondition_nearplane_gradients(
 
         object_update_proj = op.diffraction.patch.fwd(
             patches=cp.zeros_like(nearplane[..., 0, 0, :, :]),
-            images=object_update_precond,
+            images=object_update_precond[0],
             positions=scan[lo:hi],
         )
         dOP = object_update_proj[..., None,
