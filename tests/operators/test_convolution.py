@@ -101,41 +101,6 @@ class TestConvolution(unittest.TestCase, OperatorTests):
     def test_scaled(self):
         pass
 
-    def test_adjoint_all(self):
-        """Check that the adjoint operator is correct."""
-        d = self.operator.fwd(
-            **{
-                self.m_name: self.m,
-                self.m1_name: self.m1
-            },
-            **self.kwargs2,
-        )
-        assert d.shape == self.d.shape
-        m, m1 = self.operator.adj_all(
-            **{
-                self.d_name: self.d,
-                self.m_name: self.m,
-                self.m1_name: self.m1
-            },
-            **self.kwargs2,
-        )
-        assert m.shape == self.m.shape
-        assert m1.shape == self.m1.shape
-        a = tike.linalg.inner(d, self.d)
-        b = tike.linalg.inner(self.m, m)
-        c = tike.linalg.inner(self.m1, m1)
-        print()
-        print("< Fm,    m> = {:.6f}{:+.6f}j".format(a.real.item(),
-                                                    a.imag.item()))
-        print("< d0, F*d0> = {:.6f}{:+.6f}j".format(b.real.item(),
-                                                    b.imag.item()))
-        print("< d1, F*d1> = {:.6f}{:+.6f}j".format(c.real.item(),
-                                                    c.imag.item()))
-        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-3, atol=0)
-        self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-3, atol=0)
-        self.xp.testing.assert_allclose(a.real, c.real, rtol=1e-3, atol=0)
-        self.xp.testing.assert_allclose(a.imag, c.imag, rtol=1e-3, atol=0)
-
 
 class TestConvolutionFFT(unittest.TestCase, OperatorTests):
     """Test the ConvolutionFFT operator."""

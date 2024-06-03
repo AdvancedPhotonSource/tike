@@ -108,7 +108,7 @@ def _save_ptycho_result(result, algorithm):
             plt.close(fig)
         plt.imsave(
             f'{fname}/{0}-phase.png',
-            np.angle(result.psi).astype('float32'),
+            np.sum(np.angle(result.psi).astype('float32'), axis=0),
             # The output of np.angle is locked to (-pi, pi]
             cmap=plt.cm.twilight,
             vmin=-np.pi,
@@ -116,7 +116,7 @@ def _save_ptycho_result(result, algorithm):
         )
         plt.imsave(
             f'{fname}/{0}-ampli.png',
-            np.abs(result.psi).astype('float32'),
+            np.sum(np.abs(result.psi).astype('float32'), axis=0),
             cmap=plt.cm.gray,
         )
         _save_probe(fname, result.probe, result.probe_options, algorithm)

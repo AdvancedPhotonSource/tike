@@ -97,7 +97,6 @@ def _compute_intensity(
     eigen_probe=None,
     fly=1,
 ):
-    leading = psi.shape[:-2]
     intensity = 0
     for m in range(probe.shape[-3]):
         farplane = operator.fwd(
@@ -111,7 +110,6 @@ def _compute_intensity(
         )
         intensity += np.sum(
             np.square(np.abs(farplane)).reshape(
-                *leading,
                 scan.shape[-2] // fly,
                 fly,
                 operator.detector_shape,

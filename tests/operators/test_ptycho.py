@@ -19,15 +19,14 @@ __docformat__ = 'restructuredtext en'
 class TestPtycho(unittest.TestCase, OperatorTests):
     """Test the ptychography operator."""
 
-    def setUp(self, ntheta=3, pw=15, nscan=27):
+    def setUp(self, depth=1, pw=15, nscan=27):
         """Load a dataset for reconstruction."""
         self.nscan = nscan
-        self.ntheta = ntheta
         self.nprobe = 3
-        self.probe_shape = (ntheta, nscan, 1, self.nprobe, pw, pw)
+        self.probe_shape = (nscan, 1, self.nprobe, pw, pw)
         self.detector_shape = (pw * 3, pw * 3)
-        self.original_shape = (ntheta, 128, 128)
-        self.scan_shape = (ntheta, nscan, 2)
+        self.original_shape = (depth, 128, 128)
+        self.scan_shape = (nscan, 2)
         print(Ptycho)
 
         np.random.seed(0)
@@ -43,7 +42,6 @@ class TestPtycho(unittest.TestCase, OperatorTests):
             detector_shape=self.detector_shape[-1],
             nz=self.original_shape[-2],
             n=self.original_shape[-1],
-            ntheta=self.ntheta,
         )
         self.operator.__enter__()
         self.xp = self.operator.xp
@@ -92,41 +90,6 @@ class TestPtycho(unittest.TestCase, OperatorTests):
     @unittest.skip('FIXME: This operator is not scaled.')
     def test_scaled(self):
         pass
-
-    def test_adjoint_all(self):
-        """Check that the adjoint operator is correct."""
-        d = self.operator.fwd(
-            **{
-                self.m_name: self.m,
-                self.m1_name: self.m1
-            },
-            **self.kwargs2,
-        )
-        assert d.shape == self.d.shape
-        m, m1 = self.operator.adj_all(
-            **{
-                self.d_name: self.d,
-                self.m_name: self.m,
-                self.m1_name: self.m1
-            },
-            **self.kwargs2,
-        )
-        assert m.shape == self.m.shape
-        assert m1.shape == self.m1.shape
-        a = tike.linalg.inner(d, self.d)
-        b = tike.linalg.inner(self.m, m)
-        c = tike.linalg.inner(self.m1, m1)
-        print()
-        print('< Fm,    m> = {:.5g}{:+.5g}j'.format(a.real.item(),
-                                                    a.imag.item()))
-        print('< d0, F*d0> = {:.5g}{:+.5g}j'.format(b.real.item(),
-                                                    b.imag.item()))
-        print('< d1, F*d1> = {:.5g}{:+.5g}j'.format(c.real.item(),
-                                                    c.imag.item()))
-        self.xp.testing.assert_allclose(a.real, b.real, rtol=1e-3, atol=0)
-        self.xp.testing.assert_allclose(a.imag, b.imag, rtol=1e-3, atol=0)
-        self.xp.testing.assert_allclose(a.real, c.real, rtol=1e-3, atol=0)
-        self.xp.testing.assert_allclose(a.imag, c.imag, rtol=1e-3, atol=0)
 
 
 if __name__ == '__main__':
