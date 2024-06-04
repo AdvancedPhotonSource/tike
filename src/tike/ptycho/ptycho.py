@@ -228,6 +228,18 @@ def reconstruct(
             use_mpi,
     ) as context:
         context.iterate(parameters.algorithm_options.num_iter)
+
+    if (
+        logger.getEffectiveLevel() <= logging.INFO
+    ) and context.parameters.position_options:
+        mean_scaling = 0.5 * (
+            context.parameters.position_options.transform.scale0
+            + context.parameters.position_options.transform.scale1
+        )
+        logger.info(
+            f"Global scaling estimate {mean_scaling:.3e} from position correction"
+        )
+
     return context.parameters
 
 
@@ -923,6 +935,16 @@ def reconstruct_multigrid(
             context.iterate(resampled_parameters.algorithm_options.num_iter)
 
         if level == 0:
+            if (
+                logger.getEffectiveLevel() <= logging.INFO
+            ) and context.parameters.position_options:
+                mean_scaling = 0.5 * (
+                    context.parameters.position_options.transform.scale0
+                    + context.parameters.position_options.transform.scale1
+                )
+                logger.info(
+                    f"Global scaling estimate {mean_scaling:.3e} from position correction"
+                )
             return context.parameters
 
         # Upsample result to next grid
