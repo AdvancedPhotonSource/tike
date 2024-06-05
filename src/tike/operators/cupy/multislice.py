@@ -6,22 +6,24 @@ __copyright__ = "Copyright (c) 2024, UChicago Argonne, LLC."
 import typing
 import numpy.typing as npt
 import numpy as np
-import cupy as cp
 
 from .operator import Operator
 
+from .fresnelspectprop import FresnelSpectProp
 from .propagation import Propagation, ZeroPropagation
 from .convolution import Convolution
 
 
 class Multislice(Operator):
+    """Multiple slice wavefield propgation"""
+
     def __init__(
         self,
         detector_shape: int,
         probe_shape: int,
         nz: int,
         n: int,
-        propagation: typing.Type[Propagation] = Propagation,
+        propagation: typing.Type[Propagation] = FresnelSpectProp,
         diffraction: typing.Type[Convolution] = Convolution,
         norm: str = "ortho",
         nslices: int = 1,
@@ -62,7 +64,7 @@ class Multislice(Operator):
         psi: npt.NDArray[np.csingle],
         **kwargs,
     ) -> npt.NDArray[np.csingle]:
-        """Please see help(SingleSlice) for more info."""
+        """Please see help(Multislice) for more info."""
         assert psi.shape[0] == self.nslices and psi.ndim == 3
         exitwave = self.diffraction.fwd(
             psi=psi[0],
@@ -86,7 +88,7 @@ class Multislice(Operator):
         overwrite: bool = False,
         **kwargs,
     ) -> npt.NDArray[np.csingle]:
-        """Please see help(SingleSlice) for more info."""
+        """Please see help(Multislice) for more info."""
         psi_adj = self.xp.zeros_like(psi)
         probes = [
             None,
