@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import time
 import unittest
 
 import numpy as np
@@ -9,11 +8,11 @@ from tike.operators import Ptycho
 import tike.precision
 import tike.linalg
 
-from .util import random_complex, OperatorTests
+from .util import random_complex
 
 __author__ = "Daniel Ching"
 __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
-__docformat__ = 'restructuredtext en'
+__docformat__ = "restructuredtext en"
 
 
 class TestPtycho(unittest.TestCase):
@@ -30,8 +29,9 @@ class TestPtycho(unittest.TestCase):
         print(Ptycho)
 
         np.random.seed(0)
-        scan = np.random.rand(*self.scan_shape).astype(
-            tike.precision.floating) * (127 - 16)
+        scan = np.random.rand(*self.scan_shape).astype(tike.precision.floating) * (
+            127 - 16
+        )
         probe = random_complex(*self.probe_shape)
         original = random_complex(*self.original_shape)
         farplane = random_complex(*self.probe_shape[:-2], *self.detector_shape)
@@ -74,10 +74,10 @@ class TestPtycho(unittest.TestCase):
         self.xp.testing.assert_allclose(a.real, c.real, rtol=1e-3, atol=0)
         self.xp.testing.assert_allclose(a.imag, c.imag, rtol=1e-3, atol=0)
 
-    @unittest.skip('FIXME: This operator is not scaled.')
+    @unittest.skip("FIXME: This operator is not scaled.")
     def test_scaled(self):
         pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
