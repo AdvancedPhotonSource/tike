@@ -124,7 +124,7 @@ class Multislice(Operator):
                 scan=scan,
                 psi=psi[s],
             )
-        # FIXME: Why is division by nslices needed here?
+        # FIXME: Why does correct adjoint require division by nslices?
         return psi_adj / self.nslices, probe_adj
 
     @property
