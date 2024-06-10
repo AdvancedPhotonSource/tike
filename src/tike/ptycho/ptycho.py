@@ -237,7 +237,7 @@ def reconstruct(
         logger.info(
             f"Global scaling of {mean_scaling:.3e} detected from position correction."
             " Probably your estimate of photon energy and/or sample to detector "
-            "distance is off by that ammount."
+            "distance is off by that amount."
         )
 
     return context.parameters
@@ -945,7 +945,7 @@ def reconstruct_multigrid(
                 logger.info(
                     f"Global scaling of {mean_scaling:.3e} detected from position correction."
                     " Probably your estimate of photon energy and/or sample to detector "
-                    "distance is off by that ammount."
+                    "distance is off by that amount."
                 )
             return context.parameters
 
