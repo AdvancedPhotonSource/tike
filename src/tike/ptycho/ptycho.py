@@ -237,7 +237,9 @@ def reconstruct(
             + context.parameters.position_options.transform.scale1
         )
         logger.info(
-            f"Global scaling estimate {mean_scaling:.3e} from position correction"
+            f"Global scaling of {mean_scaling:.3e} detected from position correction."
+            " Probably your estimate of photon energy and/or sample to detector "
+            "distance is off by that ammount."
         )
 
     return context.parameters
@@ -943,7 +945,9 @@ def reconstruct_multigrid(
                     + context.parameters.position_options.transform.scale1
                 )
                 logger.info(
-                    f"Global scaling estimate {mean_scaling:.3e} from position correction"
+                    f"Global scaling of {mean_scaling:.3e} detected from position correction."
+                    " Probably your estimate of photon energy and/or sample to detector "
+                    "distance is off by that ammount."
                 )
             return context.parameters
 
