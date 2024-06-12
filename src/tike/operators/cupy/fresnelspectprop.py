@@ -37,9 +37,9 @@ class FresnelSpectProp(CachedFFT, Operator):
     def __init__(
         self,
         norm: str = "ortho",
-        pixel_size: float = 1e-7,
-        distance: float = 1e-6,
-        wavelength: float = 1e-9,
+        pixel_size: float = 1,
+        distance: float = 1,
+        wavelength: float = 1,
         **kwargs,
     ):
         self.norm = norm
