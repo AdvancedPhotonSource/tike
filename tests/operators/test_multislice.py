@@ -4,7 +4,7 @@
 import unittest
 
 import numpy as np
-from tike.operators import Ptycho
+from tike.operators import Multislice, SingleSlice
 import tike.precision
 import tike.linalg
 
@@ -15,18 +15,18 @@ __copyright__ = "Copyright (c) 2020, UChicago Argonne, LLC."
 __docformat__ = "restructuredtext en"
 
 
-class TestPtycho(unittest.TestCase):
-    """Test the ptychography operator."""
+class TestMultiSlice(unittest.TestCase):
+    """Test the MultiSlice operator."""
 
-    def setUp(self, depth=1, pw=15, nscan=27):
+    def setUp(self, depth=7, pw=15, nscan=27):
         """Load a dataset for reconstruction."""
         self.nscan = nscan
         self.nprobe = 3
-        self.probe_shape = (nscan, 1, self.nprobe, pw, pw)
-        self.detector_shape = (pw * 3, pw * 3)
+        self.probe_shape = (nscan, self.nprobe, pw, pw)
+        self.detector_shape = (pw, pw)
         self.original_shape = (depth, 128, 128)
         self.scan_shape = (nscan, 2)
-        print(Ptycho)
+        print(Multislice)
 
         np.random.seed(0)
         scan = np.random.rand(*self.scan_shape).astype(tike.precision.floating) * (
@@ -36,33 +36,34 @@ class TestPtycho(unittest.TestCase):
         original = random_complex(*self.original_shape)
         farplane = random_complex(*self.probe_shape[:-2], *self.detector_shape)
 
-        self.operator = Ptycho(
+        self.operator = Multislice(
             nscan=self.scan_shape[-2],
             probe_shape=self.probe_shape[-1],
             detector_shape=self.detector_shape[-1],
             nz=self.original_shape[-2],
             n=self.original_shape[-1],
+            nslices=depth,
         )
         self.operator.__enter__()
         self.xp = self.operator.xp
 
         self.mkwargs = {
-            "scan": self.xp.asarray(scan),
             "probe": self.xp.asarray(probe),
             "psi": self.xp.asarray(original),
+            "scan": self.xp.asarray(scan),
         }
         self.dkwargs = {
-            "farplane": self.xp.asarray(farplane),
+            "nearplane": self.xp.asarray(farplane),
         }
 
     def test_adjoint(self):
         """Check that the adjoint operator is correct."""
         d = self.operator.fwd(**self.mkwargs)
-        assert d.shape == self.dkwargs["farplane"].shape
+        assert d.shape == self.dkwargs["nearplane"].shape
         m0, m1 = self.operator.adj(**self.dkwargs, **self.mkwargs)
         assert m0.shape == self.mkwargs["psi"].shape
         assert m1.shape == self.mkwargs["probe"].shape
-        a = tike.linalg.inner(d, self.dkwargs["farplane"])
+        a = tike.linalg.inner(d, self.dkwargs["nearplane"])
         b = tike.linalg.inner(self.mkwargs["psi"], m0)
         c = tike.linalg.inner(self.mkwargs["probe"], m1)
         print()
@@ -77,6 +78,48 @@ class TestPtycho(unittest.TestCase):
     @unittest.skip("FIXME: This operator is not scaled.")
     def test_scaled(self):
         pass
+
+
+class TestSingleSlice(TestMultiSlice):
+    """Test the SingleSlice operator."""
+
+    def setUp(self, depth=1, pw=15, nscan=27):
+        """Load a dataset for reconstruction."""
+        self.nscan = nscan
+        self.nprobe = 3
+        self.probe_shape = (nscan, self.nprobe, pw, pw)
+        self.detector_shape = (pw, pw)
+        self.original_shape = (depth, 128, 128)
+        self.scan_shape = (nscan, 2)
+        print(SingleSlice)
+
+        np.random.seed(0)
+        scan = np.random.rand(*self.scan_shape).astype(tike.precision.floating) * (
+            127 - 16
+        )
+        probe = random_complex(*self.probe_shape)
+        original = random_complex(*self.original_shape)
+        farplane = random_complex(*self.probe_shape[:-2], *self.detector_shape)
+
+        self.operator = SingleSlice(
+            nscan=self.scan_shape[-2],
+            probe_shape=self.probe_shape[-1],
+            detector_shape=self.detector_shape[-1],
+            nz=self.original_shape[-2],
+            n=self.original_shape[-1],
+            nslices=depth,
+        )
+        self.operator.__enter__()
+        self.xp = self.operator.xp
+
+        self.mkwargs = {
+            "probe": self.xp.asarray(probe),
+            "psi": self.xp.asarray(original),
+            "scan": self.xp.asarray(scan),
+        }
+        self.dkwargs = {
+            "nearplane": self.xp.asarray(farplane),
+        }
 
 
 if __name__ == "__main__":

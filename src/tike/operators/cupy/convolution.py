@@ -102,9 +102,9 @@ class Convolution(Operator):
 
     def adj(self, nearplane, scan, probe, psi=None, overwrite=False):
         """Combine probe shaped patches into a psi shaped grid by addition."""
-        assert probe.shape[:-4] == scan.shape[:-2]
+        assert probe.shape[:-4] == scan.shape[:-2], (probe.shape, scan.shape)
         assert probe.shape[-4] == 1 or probe.shape[-4] == scan.shape[-2]
-        assert nearplane.shape[:-3] == scan.shape[:-1]
+        assert nearplane.shape[:-3] == scan.shape[:-1], (nearplane.shape, scan.shape)
         if not overwrite:
             nearplane = nearplane.copy()
         nearplane[..., self.pad:self.end, self.pad:self.end] *= probe.conj()
