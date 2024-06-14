@@ -26,7 +26,6 @@ class Multislice(Operator):
         propagation: typing.Type[Propagation] = FresnelSpectProp,
         diffraction: typing.Type[Convolution] = Convolution,
         norm: str = "ortho",
-        nslices: int = 1,
         **kwargs,
     ):
         """Please see help(Multislice) for more info."""
@@ -46,7 +45,6 @@ class Multislice(Operator):
         self.detector_shape = detector_shape
         self.nz = nz
         self.n = n
-        self.nslices = nslices
 
     def __enter__(self):
         self.propagation.__enter__()
@@ -175,7 +173,6 @@ class SingleSlice(Multislice):
         self.detector_shape = detector_shape
         self.nz = nz
         self.n = n
-        self.nslices = 1
 
     def fwd(
         self,

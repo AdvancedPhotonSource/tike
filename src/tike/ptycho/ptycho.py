@@ -162,7 +162,6 @@ def simulate(
             detector_shape=int(detector_shape),
             nz=psi.shape[-2],
             n=psi.shape[-1],
-            nslices=psi.shape[0],
             **kwargs,
     ) as operator:
         scan = operator.asarray(scan, dtype=tike.precision.floating)
@@ -338,7 +337,6 @@ class Reconstruction():
             nz=parameters.psi.shape[-2],
             n=parameters.psi.shape[-1],
             norm=parameters.exitwave_options.propagation_normalization,
-            nslices=parameters.psi.shape[0],
         )
         self.comm = tike.communicators.Comm(num_gpu, mpi)
 
