@@ -123,8 +123,8 @@ def _apply_update(
                 dpsi,
                 object_options.v,
                 object_options.m,
-            ) = tike.opt.adam(
-                g=(dpsi),
+            ) = tike.opt.momentum(
+                g=dpsi,
                 v=object_options.v,
                 m=object_options.m,
                 vdecay=object_options.vdecay,
@@ -187,7 +187,7 @@ def _get_nearplane_gradients(
         hi,
     ):
         (data,) = ind_args
-        nonlocal cost, psi_update_numerator, probe_update_numerator
+        nonlocal cost, psi_update_numerator, probe_update_numerator, count
 
         varying_probe = probe
 
