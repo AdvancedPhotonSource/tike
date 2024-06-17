@@ -374,8 +374,11 @@ class PtychoRecon(
             probe_options=ProbeOptions(
                 force_orthogonality=True,
                 use_adaptive_moment=True,
+                probe_support=0.1,
             ),
-            object_options=ObjectOptions(use_adaptive_moment=True,),
+            object_options=ObjectOptions(
+                use_adaptive_moment=True,
+            ),
         )
 
         _save_ptycho_result(
@@ -583,8 +586,13 @@ class PtychoRecon(
                 num_batch=5,
                 num_iter=16,
             ),
-            probe_options=ProbeOptions(force_orthogonality=True,),
-            object_options=ObjectOptions(smoothness_constraint=0.01,),
+            probe_options=ProbeOptions(
+                force_orthogonality=True,
+                probe_support=0.1,
+            ),
+            object_options=ObjectOptions(
+                smoothness_constraint=0.01,
+            ),
         )
 
         _save_ptycho_result(
