@@ -241,6 +241,12 @@ def reconstruct(
             " Probably your estimate of photon energy and/or sample to detector "
             "distance is off by that amount."
         )
+        t = context.parameters.position_options.transform.asarray()
+        logger.info(f"""Affine transform parameters:
+
+{t[0,0]: .3e}, {t[0,1]: .3e}
+{t[1,0]: .3e}, {t[1,1]: .3e}
+""")
 
     return context.parameters
 
@@ -949,6 +955,12 @@ def reconstruct_multigrid(
                     " Probably your estimate of photon energy and/or sample to detector "
                     "distance is off by that amount."
                 )
+                t = context.parameters.position_options.transform.asarray()
+                logger.info(f"""Affine transform parameters:
+
+{t[0,0]: .3e}, {t[0,1]: .3e}
+{t[1,0]: .3e}, {t[1,1]: .3e}
+""")
             return context.parameters
 
         # Upsample result to next grid
