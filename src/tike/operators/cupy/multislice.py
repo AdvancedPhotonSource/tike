@@ -38,6 +38,7 @@ class Multislice(Operator):
         )
         self.propagation = propagation(
             detector_shape=detector_shape,
+            **kwargs,
         )
 
         # TODO: Replace these with @property functions
