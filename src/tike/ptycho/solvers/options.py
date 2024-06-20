@@ -6,6 +6,7 @@ import typing
 import numpy as np
 import numpy.typing as npt
 import scipy.ndimage
+import cupy as cp
 
 from tike.ptycho.object import ObjectOptions
 from tike.ptycho.position import PositionOptions, check_allowed_positions
@@ -199,6 +200,78 @@ class PtychoParameters():
             exitwave_options=self.exitwave_options.resample(factor)
             if self.exitwave_options is not None else None,
         )
+
+    def copy_to_device(self) -> PtychoParameters:
+        """Copy to the current device."""
+        return PtychoParameters(
+            probe=cp.asarray(self.probe),
+            psi=cp.asarray(self.psi),
+            scan=cp.asarray(self.scan),
+            eigen_probe=cp.asarray(self.eigen_probe)
+            if self.eigen_probe is not None
+            else None,
+            eigen_weights=cp.asarray(self.eigen_weights)
+            if self.eigen_weights is not None
+            else None,
+            algorithm_options=self.algorithm_options,
+            exitwave_options=self.exitwave_options.copy_to_device()
+            if self.exitwave_options is not None
+            else None,
+            probe_options=self.probe_options.copy_to_device()
+            if self.probe_options is not None
+            else None,
+            object_options=self.object_options.copy_to_device()
+            if self.object_options is not None
+            else None,
+            position_options=self.position_options.copy_to_device()
+            if self.position_options is not None
+            else None,
+        )
+
+    def copy_to_host(self) -> PtychoParameters:
+        """Copy to the host."""
+        return PtychoParameters(
+            probe=cp.asnumpy(self.probe),
+            psi=cp.asnumpy(self.psi),
+            scan=cp.asnumpy(self.scan),
+            eigen_probe=cp.asnumpy(self.eigen_probe)
+            if self.eigen_probe is not None
+            else None,
+            eigen_weights=cp.asnumpy(self.eigen_weights)
+            if self.eigen_weights is not None
+            else None,
+            algorithm_options=self.algorithm_options,
+            exitwave_options=self.exitwave_options.copy_to_host()
+            if self.exitwave_options is not None
+            else None,
+            probe_options=self.probe_options.copy_to_host()
+            if self.probe_options is not None
+            else None,
+            object_options=self.object_options.copy_to_host()
+            if self.object_options is not None
+            else None,
+            position_options=self.position_options.copy_to_host()
+            if self.position_options is not None
+            else None,
+        )
+
+    def split(self, indices: npt.NDArray[np.int]) -> PtychoParameters:
+        """Return a new PtychoParameters with only the data from the indices"""
+        return PtychoParameters(
+            probe=self.probe,
+            psi=self.psi,
+            scan=self.scan[indices],
+            eigen_probe=self.eigen_probe,
+            eigen_weights=self.eigen_weights[indices]
+            if self.eigen_weights is not None
+            else None,
+            algorithm_options=self.algorithm_options,
+            exitwave_options=self.exitwave_options,
+            probe_options=self.probe_options,
+            object_options=self.object_options,
+            position_options=self.position_options,
+        )
+
 
 
 def _resize_spline(x: np.ndarray, f: float) -> np.ndarray:

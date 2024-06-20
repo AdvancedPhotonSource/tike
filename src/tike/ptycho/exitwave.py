@@ -78,18 +78,18 @@ class ExitWaveOptions:
 
     """
 
-    def copy_to_device(self, comm) -> ExitWaveOptions:
+    def copy_to_device(self) -> ExitWaveOptions:
         """Copy to the current GPU memory."""
         options = copy.copy(self)
         if self.measured_pixels is not None:
-            options.measured_pixels = comm.pool.bcast([self.measured_pixels])
+            options.measured_pixels = cp.asarray(self.measured_pixels)
         return options
 
     def copy_to_host(self) -> ExitWaveOptions:
         """Copy to the host CPU memory."""
         options = copy.copy(self)
         if self.measured_pixels is not None:
-            options.measured_pixels = cp.asnumpy(self.measured_pixels[0])
+            options.measured_pixels = cp.asnumpy(self.measured_pixels)
         return options
 
     def resample(self, factor: float) -> ExitWaveOptions:
@@ -103,9 +103,9 @@ class ExitWaveOptions:
                 self.measured_pixels,
                 int(self.measured_pixels.shape[-1] * factor),
             ),
-            unmeasured_pixels_scaling=self.unmeasured_pixels_scaling, 
-            propagation_normalization=self.propagation_normalization )
-
+            unmeasured_pixels_scaling=self.unmeasured_pixels_scaling,
+            propagation_normalization=self.propagation_normalization,
+        )
 
 def poisson_steplength_all_modes(
     xi,

@@ -80,7 +80,7 @@ class ObjectOptions:
     clip_magnitude: bool = False
     """Whether to force the object magnitude to remain <= 1."""
 
-    def copy_to_device(self, comm) -> ObjectOptions:
+    def copy_to_device(self) -> ObjectOptions:
         """Copy to the current GPU memory."""
         options = copy.copy(self)
         options.update_mnorm = copy.copy(self.update_mnorm)
@@ -89,7 +89,7 @@ class ObjectOptions:
         if self.m is not None:
             options.m = cp.asarray(self.m)
         if self.preconditioner is not None:
-            options.preconditioner = comm.pool.bcast([self.preconditioner])
+            options.preconditioner = cp.asarray(self.preconditioner)
         return options
 
     def copy_to_host(self) -> ObjectOptions:
@@ -101,7 +101,7 @@ class ObjectOptions:
         if self.m is not None:
             options.m = cp.asnumpy(self.m)
         if self.preconditioner is not None:
-            options.preconditioner = cp.asnumpy(self.preconditioner[0])
+            options.preconditioner = cp.asnumpy(self.preconditioner)
         return options
 
     def resample(self, factor: float, interp) -> ObjectOptions:
@@ -118,7 +118,6 @@ class ObjectOptions:
         options.update_mnorm = copy.copy(self.update_mnorm)
         return options
         # Momentum reset to zero when grid scale changes
-
 
 def positivity_constraint(x, r):
     """Constrains the amplitude of x to be positive with sum of abs(x) and x.

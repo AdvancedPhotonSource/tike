@@ -139,7 +139,7 @@ class ProbeOptions:
     """
 
     median_filter_abs_probe: bool = False
-    """Binary switch on whether to apply a median filter to absolute value of 
+    """Binary switch on whether to apply a median filter to absolute value of
     each shared probe mode.
     """
 
@@ -163,7 +163,7 @@ class ProbeOptions:
     )
     """The power of the primary probe modes at each iteration."""
 
-    def copy_to_device(self, comm) -> ProbeOptions:
+    def copy_to_device(self) -> ProbeOptions:
         """Copy to the current GPU memory."""
         options = copy.copy(self)
         if self.v is not None:
@@ -171,7 +171,7 @@ class ProbeOptions:
         if self.m is not None:
             options.m = cp.asarray(self.m)
         if self.preconditioner is not None:
-            options.preconditioner = comm.pool.bcast([self.preconditioner])
+            options.preconditioner = cp.asarray(self.preconditioner)
         return options
 
     def copy_to_host(self) -> ProbeOptions:
@@ -182,7 +182,7 @@ class ProbeOptions:
         if self.m is not None:
             options.m = cp.asnumpy(self.m)
         if self.preconditioner is not None:
-            options.preconditioner = cp.asnumpy(self.preconditioner[0])
+            options.preconditioner = cp.asnumpy(self.preconditioner)
         return options
 
     def resample(self, factor: float, interp) -> ProbeOptions:
@@ -202,12 +202,11 @@ class ProbeOptions:
             probe_support=self.probe_support,
             probe_support_degree=self.probe_support_degree,
             probe_support_radius=self.probe_support_radius,
-            median_filter_abs_probe=self.median_filter_abs_probe, 
+            median_filter_abs_probe=self.median_filter_abs_probe,
             median_filter_abs_probe_px=self.median_filter_abs_probe_px,
         )
         return options
         # Momentum reset to zero when grid scale changes
-
 
 def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
     """Construct the varying probes.

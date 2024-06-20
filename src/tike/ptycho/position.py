@@ -413,7 +413,7 @@ class PositionOptions:
             new._momentum = np.empty((0, 4))
         return new
 
-    def split(self, indices):
+    def split(self, indices) -> PositionOptions:
         """Split the PositionOption meta-data along indices."""
         new = PositionOptions(
             self.initial_scan[..., indices, :],
@@ -569,8 +569,12 @@ def check_allowed_positions(scan: np.array, psi: np.array, probe_shape: tuple):
     valid_min_corner = (1, 1)
     valid_max_corner = (psi.shape[-2] - probe_shape[-2] - 1,
                         psi.shape[-1] - probe_shape[-1] - 1)
-    if (np.any(min_corner < valid_min_corner)
-            or np.any(max_corner > valid_max_corner)):
+    if (
+        min_corner[0] < valid_min_corner[0]
+        or min_corner[1] < valid_min_corner[1]
+        or max_corner[0] > valid_max_corner[0]
+        or max_corner[1] > valid_max_corner[1]
+    ):
         raise ValueError(
             "Scan positions must be >= 1 and "
             "scan positions + 1 + probe.shape must be <= psi.shape. "
