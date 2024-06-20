@@ -171,17 +171,15 @@ def by_scan_stripes(
 
 
 def by_scan_stripes_contiguous(
-    *args,
     pool: tike.communicators.ThreadPool,
     shape: typing.Tuple[int],
-    dtype: typing.List[npt.DTypeLike],
-    destination: typing.List[str],
     scan: npt.NDArray[np.float32],
-    fly: int = 1,
     batch_method,
     num_batch: int,
-) -> typing.Tuple[typing.List[npt.NDArray],
-                  typing.List[typing.List[npt.NDArray]]]:
+) -> typing.Tuple[
+    typing.List[npt.NDArray],
+    typing.List[typing.List[npt.NDArray]],
+]:
     """Split data by into stripes and create contiguously ordered batches.
 
     Divide the field of view into one stripe per devices; within each stripe,
@@ -206,13 +204,10 @@ def by_scan_stripes_contiguous(
     Returns
     -------
     order : List[array[int]]
-        The locations of the inputs in the original arrays.
+        For each worker in pool, the indices of the data
     batches : List[List[array[int]]]
-        The locations of the elements of each batch
-    scan : List[array[float32]]
-        The divided 2D coordinates of the scan positions.
-    args : List[array[float32]] or None
-        Each input divided into regions or None if arg was None.
+        For each worker in pool, for each batch, the indices of the elements of
+        each batch
 
     """
     if len(shape) != 2:
@@ -247,26 +242,13 @@ def by_scan_stripes_contiguous(
                 batch_breaks,
             ))
 
-    split_args = []
-    for arg, t, dest in zip([scan, *args], dtype, destination):
-        if arg is None:
-            split_args.append(None)
-        else:
-            split_args.append(
-                pool.map(
-                    _split_gpu if dest == 'gpu' else _split_pinned,
-                    map_to_gpu_contiguous,
-                    x=arg,
-                    dtype=t,
-                ))
-
     if __debug__:
         for device in batches_contiguous:
             assert len(device) == num_batch, (
                 f"There should be {num_batch} batches, found {len(device)}"
             )
 
-    return (map_to_gpu_contiguous, batches_contiguous, *split_args)
+    return (map_to_gpu_contiguous, batches_contiguous)
 
 
 def stripes_equal_count(
