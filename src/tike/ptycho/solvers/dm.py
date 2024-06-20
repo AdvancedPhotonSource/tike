@@ -13,16 +13,21 @@ import tike.ptycho.position
 import tike.ptycho.probe
 import tike.random
 
-from .options import *
+from .options import (
+    ExitWaveOptions,
+    ObjectOptions,
+    ProbeOptions,
+    PtychoParameters,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def dm(
     op: tike.operators.Ptycho,
-    comm: tike.communicators.Comm,
-    data: typing.List[npt.NDArray],
-    batches: typing.List[typing.List[npt.NDArray[cp.intc]]],
+    streams: typing.List[cp.cuda.Stream],
+    data: npt.NDArray,
+    batches: typing.List[npt.NDArray[cp.intc]],
     *,
     parameters: PtychoParameters,
     epoch: int,
@@ -35,13 +40,13 @@ def dm(
         A ptychography operator.
     comm : :py:class:`tike.communicators.Comm`
         An object which manages communications between GPUs and nodes.
-    data : list((FRAME, WIDE, HIGH) float32, ...)
-        A list of unique CuPy arrays for each device containing
+    data : (FRAME, WIDE, HIGH) float32
+        A unique CuPy array containing
         the intensity (square of the absolute value) of the propagated
         wavefront; i.e. what the detector records. FFT-shifted so the
         diffraction peak is at the corners.
-    batches : list(list((BATCH_SIZE, ) int, ...), ...)
-        A list of list of indices along the FRAME axis of `data` for
+    batches : list((BATCH_SIZE, ) int, ...)
+        A list of indices along the FRAME axis of `data` for
         each device which define the batches of `data` to process
         simultaneously.
     parameters : :py:class:`tike.ptycho.solvers.PtychoParameters`
@@ -61,15 +66,19 @@ def dm(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
-    psi_update_numerator = [None] * comm.pool.num_workers
-    probe_update_numerator = [None] * comm.pool.num_workers
+    assert isinstance(op, tike.operators.Operator)
+    assert isinstance(data, npt.ArrayLike)
+    assert isinstance(parameters, PtychoParameters)
+    assert isinstance(epoch, int)
+    assert isinstance(batches, list)
+    psi_update_numerator = None
+    probe_update_numerator = None
 
     (
         cost,
         psi_update_numerator,
         probe_update_numerator,
-    ) = (list(a) for a in zip(*comm.pool.map(
-        _get_nearplane_gradients,
+    ) = _get_nearplane_gradients(
         data,
         parameters.scan,
         parameters.psi,
@@ -77,20 +86,19 @@ def dm(
         parameters.exitwave_options.measured_pixels,
         psi_update_numerator,
         probe_update_numerator,
-        comm.streams,
+        streams,
         op=op,
         object_options=parameters.object_options,
         probe_options=parameters.probe_options,
         exitwave_options=parameters.exitwave_options,
-    )))
+    )
 
-    cost = comm.Allreduce_mean(cost).get()
+    cost = cost.get()
 
     (
         parameters.psi,
         parameters.probe,
     ) = _apply_update(
-        comm,
         psi_update_numerator,
         probe_update_numerator,
         parameters.psi,
@@ -104,7 +112,6 @@ def dm(
 
 
 def _apply_update(
-    comm,
     psi_update_numerator,
     probe_update_numerator,
     psi,
@@ -112,49 +119,41 @@ def _apply_update(
     object_options,
     probe_options,
 ):
-
     if object_options:
-        psi_update_numerator = comm.Allreduce_reduce_gpu(
-            psi_update_numerator)[0]
-
-        new_psi = psi_update_numerator / (object_options.preconditioner[0] +
-                                          1e-9)
+        new_psi = psi_update_numerator / (object_options.preconditioner + 1e-9)
         if object_options.use_adaptive_moment:
             (
                 dpsi,
                 object_options.v,
                 object_options.m,
             ) = tike.opt.adam(
-                g=(new_psi - psi[0]),
+                g=(new_psi - psi),
                 v=object_options.v,
                 m=object_options.m,
                 vdecay=object_options.vdecay,
                 mdecay=object_options.mdecay,
             )
-            new_psi = dpsi + psi[0]
-        psi = comm.pool.bcast([new_psi])
+            new_psi = dpsi + psi
+        psi = new_psi
+    else:
+        print('object update skipped')
 
     if probe_options:
-
-        probe_update_numerator = comm.Allreduce_reduce_gpu(
-            probe_update_numerator)[0]
-
-        new_probe = probe_update_numerator / (probe_options.preconditioner[0] +
-                                              1e-9)
+        new_probe = probe_update_numerator / (probe_options.preconditioner + 1e-9)
         if probe_options.use_adaptive_moment:
             (
                 dprobe,
                 probe_options.v,
                 probe_options.m,
             ) = tike.opt.adam(
-                g=(new_probe - probe[0]),
+                g=(new_probe - probe),
                 v=probe_options.v,
                 m=probe_options.m,
                 vdecay=probe_options.vdecay,
                 mdecay=probe_options.mdecay,
             )
-            new_probe = dprobe + probe[0]
-        probe = comm.pool.bcast([new_probe])
+            new_probe = dprobe + probe
+        probe = new_probe
 
     return psi, probe
 
