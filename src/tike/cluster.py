@@ -306,7 +306,10 @@ def stripes_equal_count(
     )
 
 
-def wobbly_center(population, num_cluster):
+def wobbly_center(
+    population: npt.ArrayLike,
+    num_cluster: int,
+) -> typing.List[npt.NDArray]:
     """Return the indices that divide population into heterogenous clusters.
 
     Uses a contrarian approach to clustering by maximizing the heterogeneity
@@ -382,7 +385,7 @@ def wobbly_center(population, num_cluster):
 
 
 def wobbly_center_random_bootstrap(
-    population,
+    population: npt.ArrayLike,
     num_cluster: int,
     boot_fraction: float = 0.95,
 ) -> typing.List[npt.NDArray]:
@@ -466,7 +469,11 @@ def wobbly_center_random_bootstrap(
     return [cp.asnumpy(xp.flatnonzero(labels == c)) for c in range(num_cluster)]
 
 
-def compact(population, num_cluster, max_iter=500):
+def compact(
+    population: npt.ArrayLike,
+    num_cluster: int,
+    max_iter: int = 500,
+) -> typing.List[npt.NDArray]:
     """Return the indices that divide population into compact clusters.
 
     Uses an approach that is inspired by the naive k-means algorithm, but it
