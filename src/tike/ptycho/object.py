@@ -119,6 +119,55 @@ class ObjectOptions:
         return options
         # Momentum reset to zero when grid scale changes
 
+    @staticmethod
+    def join_psi(
+        x: typing.Iterable[np.ndarray],
+        stripe_start: typing.Iterable[int],
+        probe_width: int,
+    ) -> np.ndarray:
+        joined_psi = x[0]
+        for i in range(1, len(x)):
+            lo = stripe_start[i] + probe_width
+            hi = stripe_start[i + 1] + probe_width if i + 1 < len(x) else x[0].shape[1]
+            joined_psi[:, lo:hi, :] = x[i][:, lo:hi, :]
+        return joined_psi
+
+    @staticmethod
+    def join(
+        x: typing.Iterable[ObjectOptions],
+        stripe_start: typing.Iterable[int],
+        probe_width: int,
+    ) -> ObjectOptions:
+        options = ObjectOptions(
+            convergence_tolerance=x[0].convergence_tolerance,
+            positivity_constraint=x[0].positivity_constraint,
+            smoothness_constraint=x[0].smoothness_constraint,
+            use_adaptive_moment=x[0].use_adaptive_moment,
+            vdecay=x[0].vdecay,
+            mdecay=x[0].mdecay,
+            clip_magnitude=x[0].clip_magnitude,
+        )
+        options.update_mnorm = copy.copy(x[0].update_mnorm)
+        if x[0].v is not None:
+            options.v = ObjectOptions.join_psi(
+                [e.v for e in x],
+                stripe_start,
+                probe_width,
+            )
+        if x[0].m is not None:
+            options.m = ObjectOptions.join_psi(
+                [e.m for e in x],
+                stripe_start,
+                probe_width,
+            )
+        if x[0].preconditioner is not None:
+            options.preconditioner = ObjectOptions.join_psi(
+                [e.preconditioner for e in x],
+                stripe_start,
+                probe_width,
+            )
+
+
 def positivity_constraint(x, r):
     """Constrains the amplitude of x to be positive with sum of abs(x) and x.
 

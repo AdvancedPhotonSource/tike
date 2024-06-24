@@ -286,16 +286,13 @@ class PtychoParameters():
         reorder: npt.NDArray[np.intc],
         stripe_start: typing.List[int],
     ) -> PtychoParameters:
-        joined_psi = x[0].psi
-        pw = x[0].probe.shape[-2] // 2
-        for i in range(1, len(x)):
-            lo = stripe_start[i] + pw
-            hi = stripe_start[i + 1] + pw if i + 1 < len(x) else x[0].psi.shape[1]
-            joined_psi[:, lo:hi, :] = x[i].psi[:, lo:hi, :]
-
         return PtychoParameters(
             probe=x[0].probe,
-            psi=joined_psi,
+            psi=ObjectOptions.join_psi(
+                [e.psi for e in x],
+                probe_width=x[0].probe.shape[-2] // 2,
+                stripe_start=stripe_start,
+            ),
             scan=np.concatenate(
                 [e.scan for e in x],
                 axis=0,
