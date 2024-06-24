@@ -124,6 +124,7 @@ import copy
 import cupy as cp
 import cupyx.scipy.ndimage
 import numpy as np
+import numpy.typing as npt
 
 import tike.communicators
 import tike.linalg
@@ -413,7 +414,7 @@ class PositionOptions:
             new._momentum = np.empty((0, 4))
         return new
 
-    def split(self, indices) -> PositionOptions:
+    def split(self, indices: npt.NDArray[np.intc]) -> PositionOptions:
         """Split the PositionOption meta-data along indices."""
         new = PositionOptions(
             self.initial_scan[..., indices, :],
@@ -439,34 +440,40 @@ class PositionOptions:
             self._momentum[..., indices, :] = other._momentum
         return self
 
-    def join(self, other, indices):
-        """Replace the PositionOption meta-data with other data."""
-        len_scan = self.initial_scan.shape[-2]
-        max_index = max(indices.max() + 1, len_scan)
-        new_initial_scan = np.empty(
-            (*self.initial_scan.shape[:-2], max_index, 2),
-            dtype=self.initial_scan.dtype,
+    @staticmethod
+    def join(
+        x: typing.Iterable[PositionOptions | None],
+        reorder: npt.NDArray[np.intc],
+    ) -> PositionOptions | None:
+        if None in x:
+            return None
+        new = PositionOptions(
+            initial_scan=np.concatenate(
+                [e.initial_scan for e in x],
+                axis=0,
+            )[reorder],
+            use_adaptive_moment=x[0].use_adaptive_moment,
+            vdecay=x[0].vdecay,
+            mdecay=x[0].mdecay,
+            use_position_regularization=x[0].use_position_regularization,
+            update_magnitude_limit=x[0].update_magnitude_limit,
+            transform=x[0].transform,
         )
-        new_initial_scan[..., :len_scan, :] = self.initial_scan
-        new_initial_scan[..., indices, :] = other.initial_scan
-        self.initial_scan = new_initial_scan
-        if self.confidence is not None:
-            new_confidence = np.empty(
-                (*self.initial_scan.shape[:-2], max_index, 2),
-                dtype=self.initial_scan.dtype,
+        if x[0].confidence is not None:
+            new.confidence = (
+                np.concatenate(
+                    [e.confidence for e in x],
+                    axis=0,
+                )[reorder],
             )
-            new_confidence[..., :len_scan, :] = self.confidence
-            new_confidence[..., indices, :] = other.confidence
-            self.confidence = new_confidence
-        if self.use_adaptive_moment:
-            new_momentum = np.empty(
-                (*self.initial_scan.shape[:-2], max_index, 4),
-                dtype=self.initial_scan.dtype,
+        if x[0].use_adaptive_moment:
+            new._momentum = (
+                np.concatenate(
+                    [e._momentum for e in x],
+                    axis=0,
+                )[reorder],
             )
-            new_momentum[..., :len_scan, :] = self._momentum
-            new_momentum[..., indices, :] = other._momentum
-            self._momentum = new_momentum
-        return self
+        return new
 
     def copy_to_device(self):
         """Copy to the current GPU memory."""

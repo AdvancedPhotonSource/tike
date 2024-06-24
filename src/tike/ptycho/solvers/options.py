@@ -2,6 +2,7 @@ from __future__ import annotations
 import abc
 import dataclasses
 import typing
+import copy
 
 import numpy as np
 import numpy.typing as npt
@@ -255,23 +256,66 @@ class PtychoParameters():
             else None,
         )
 
-    def split(self, indices: npt.NDArray[np.int]) -> PtychoParameters:
+    @staticmethod
+    def split(
+        indices: npt.NDArray[np.intc],
+        *,
+        x: PtychoParameters,
+    ) -> PtychoParameters:
         """Return a new PtychoParameters with only the data from the indices"""
         return PtychoParameters(
-            probe=self.probe,
-            psi=self.psi,
-            scan=self.scan[indices],
-            eigen_probe=self.eigen_probe,
-            eigen_weights=self.eigen_weights[indices]
-            if self.eigen_weights is not None
+            probe=x.probe,
+            psi=x.psi,
+            scan=x.scan[indices],
+            eigen_probe=x.eigen_probe,
+            eigen_weights=x.eigen_weights[indices]
+            if x.eigen_weights is not None
             else None,
-            algorithm_options=self.algorithm_options,
-            exitwave_options=self.exitwave_options,
-            probe_options=self.probe_options,
-            object_options=self.object_options,
-            position_options=self.position_options,
+            algorithm_options=copy.deepcopy(x.algorithm_options),
+            exitwave_options=x.exitwave_options,
+            probe_options=x.probe_options,
+            object_options=x.object_options,
+            position_options=x.position_options.split(indices)
+            if x.position_options is not None
+            else None,
         )
 
+    @staticmethod
+    def join(
+        x: typing.Iterable[PtychoParameters],
+        reorder: npt.NDArray[np.intc],
+        stripe_start: typing.List[int],
+    ) -> PtychoParameters:
+        joined_psi = x[0].psi
+        pw = x[0].probe.shape[-2] // 2
+        for i in range(1, len(x)):
+            lo = stripe_start[i] + pw
+            hi = stripe_start[i + 1] + pw if i + 1 < len(x) else x[0].psi.shape[1]
+            joined_psi[:, lo:hi, :] = x[i].psi[:, lo:hi, :]
+
+        return PtychoParameters(
+            probe=x[0].probe,
+            psi=joined_psi,
+            scan=np.concatenate(
+                [e.scan for e in x],
+                axis=0,
+            )[reorder],
+            eigen_probe=x[0].eigen_probe,
+            eigen_weights=np.concatenate(
+                [e.eigen_weights for e in x],
+                axis=0,
+            )[reorder]
+            if x[0].eigen_weights is not None
+            else None,
+            algorithm_options=x[0].algorithm_options,
+            exitwave_options=x[0].exitwave_options,
+            probe_options=x[0].probe_options,
+            object_options=x[0].object_options,
+            position_options=PositionOptions.join(
+                [e.position_options for e in x],
+                reorder,
+            ),
+        )
 
 
 def _resize_spline(x: np.ndarray, f: float) -> np.ndarray:

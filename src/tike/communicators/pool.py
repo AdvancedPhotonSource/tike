@@ -404,3 +404,38 @@ class ThreadPool():
         workers = self.workers if workers is None else workers
 
         return list(self.executor.map(f, workers, *iterables))
+
+    def swap_edges(
+        self,
+        x: typing.List[cp.ndarray],
+        overlap: int,
+        edges: typing.List[int],
+    ):
+        """Swap edge:(edge + overlap) between neighbors in-place
+
+        For example, given overlap=1 and edges=[4, 8, 12, 16], the following
+        swap would be returned:
+
+        ```
+        [[0 0 0 1 1 0 0 0 0 0 0 0 0 0 0 0]]
+        [[1 1 1 0 0 1 1 2 2 1 1 1 1 1 1 1]]
+        [[2 2 2 2 2 2 2 1 1 2 2 3 3 2 2 2]]
+        [[3 3 3 3 3 3 3 3 3 3 3 2 2 3 3 3]]
+        ```
+
+        Note that the minimum swapped region is 2 wide.
+
+        """
+        if overlap < 1:
+            msg = f"Overlap for swap_edges cannot be less than 1: {overlap}"
+            raise ValueError(msg)
+        for i in range(self.num_workers - 1):
+            lo = edges[i + 1]
+            hi = lo + overlap
+            temp0 = self._copy_to(x[i][:, lo:hi], self.workers[i + 1])
+            temp1 = self._copy_to(x[i + 1][:, lo:hi], self.workers[i])
+            with self.Device(self.workers[i]):
+                x[i][:, lo:hi] = temp1
+            with self.Device(self.workers[i + 1]):
+                x[i + 1][:, lo:hi] = temp0
+        return x

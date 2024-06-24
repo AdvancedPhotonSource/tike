@@ -83,6 +83,7 @@ from .probe import (
     constrain_probe_sparsity,
     get_varying_probe,
     apply_median_filter_abs_probe,
+    orthogonalize_eig,
 )
 
 logger = logging.getLogger(__name__)
@@ -333,8 +334,10 @@ class Reconstruction():
         else:
             mpi = tike.communicators.NoMPIComm
 
-        self.data = data
-        self.parameters = copy.deepcopy(parameters)
+        self.data: typing.List[npt.ArrayLike] = [data]
+        self.parameters: typing.List[solvers.PtychoParameters] = [
+            copy.deepcopy(parameters)
+        ]
         self.device = cp.cuda.Device(
             num_gpu[0] if isinstance(num_gpu, tuple) else None)
         self.operator = tike.operators.Ptycho(
@@ -352,7 +355,7 @@ class Reconstruction():
         self.comm.__enter__()
 
         # Divide the inputs into regions
-        if (not np.all(np.isfinite(self.data)) or np.any(self.data < 0)):
+        if not np.all(np.isfinite(self.data[0])) or np.any(self.data[0] < 0):
             warnings.warn(
                 "Diffraction patterns contain invalid data. "
                 "All data should be non-negative and finite.", UserWarning)
@@ -360,322 +363,258 @@ class Reconstruction():
         (
             self.comm.order,
             self.batches,
-            self.parameters.scan,
-            self.data,
-            self.parameters.eigen_weights,
+            self.comm.stripe_start,
         ) = tike.cluster.by_scan_stripes_contiguous(
-            self.data,
-            self.parameters.eigen_weights,
-            scan=self.parameters.scan,
+            scan=self.parameters[0].scan,
             pool=self.comm.pool,
             shape=(self.comm.pool.num_workers, 1),
-            dtype=(
-                tike.precision.floating,
-                tike.precision.floating
-                if self.data.itemsize > 2 else self.data.dtype,
-                tike.precision.floating,
-            ),
-            destination=('gpu', 'pinned', 'gpu'),
-            batch_method=self.parameters.algorithm_options.batch_method,
-            num_batch=self.parameters.algorithm_options.num_batch,
+            batch_method=self.parameters[0].algorithm_options.batch_method,
+            num_batch=self.parameters[0].algorithm_options.num_batch,
         )
 
-        self.parameters.psi = self.comm.pool.bcast(
-            [self.parameters.psi.astype(tike.precision.cfloating)])
+        self.data = self.comm.pool.map(
+            tike.cluster._split_pinned,
+            self.comm.order,
+            x=self.data[0],
+            dtype=tike.precision.floating
+            if self.data[0].itemsize > 2
+            else self.data[0].dtype,
+        )
 
-        self.parameters.probe = self.comm.pool.bcast(
-            [self.parameters.probe.astype(tike.precision.cfloating)])
+        self.parameters = self.comm.pool.map(
+            solvers.PtychoParameters.split,
+            self.comm.order,
+            x=self.parameters[0],
+        )
+        assert len(self.parameters) == self.comm.pool.num_workers, (
+            len(self.parameters),
+            self.comm.pool.num_workers,
+        )
 
-        if self.parameters.probe_options is not None:
-            self.parameters.probe_options = self.parameters.probe_options.copy_to_device(
-                self.comm,)
+        self.parameters = self.comm.pool.map(
+            solvers.PtychoParameters.copy_to_device,
+            self.parameters,
+        )
+        assert len(self.parameters) == self.comm.pool.num_workers, (
+            len(self.parameters),
+            self.comm.pool.num_workers,
+        )
 
-        if self.parameters.object_options is not None:
-            self.parameters.object_options = self.parameters.object_options.copy_to_device(
-                self.comm,)
-
-        if self.parameters.exitwave_options is not None:
-            self.parameters.exitwave_options = self.parameters.exitwave_options.copy_to_device(
-                self.comm,)
-
-        if self.parameters.eigen_probe is not None:
-            self.parameters.eigen_probe = self.comm.pool.bcast(
-                [self.parameters.eigen_probe.astype(tike.precision.cfloating)])
-
-        if self.parameters.position_options is not None:
-            # TODO: Consider combining put/split, get/join operations?
-            self.parameters.position_options = self.comm.pool.map(
-                PositionOptions.copy_to_device,
-                (self.parameters.position_options.split(x)
-                 for x in self.comm.order),
-            )
-
-        if self.parameters.probe_options is not None:
-
-            if self.parameters.probe_options.init_rescale_from_measurements:
-                self.parameters.probe = _rescale_probe(
+        if self.parameters[0].probe_options is not None:
+            if self.parameters[0].probe_options.init_rescale_from_measurements:
+                self.parameters = _rescale_probe(
                     self.operator,
                     self.comm,
                     self.data,
-                    self.parameters.exitwave_options,
-                    self.parameters.psi,
-                    self.parameters.scan,
-                    self.parameters.probe,
-                    num_batch=self.parameters.algorithm_options.num_batch,
+                    self.parameters,
                 )
-
-            if np.isnan(self.parameters.probe_options.probe_photons):
-                self.parameters.probe_options.probe_photons = np.sum(
-                    np.abs(self.parameters.probe[0].get())**2)
 
         return self
 
     def iterate(self, num_iter: int) -> None:
         """Advance the reconstruction by num_iter epochs."""
         start = time.perf_counter()
-        psi_previous = self.parameters.psi[0].copy()
+        # psi_previous = self.parameters[0].psi.copy()
         for i in range(num_iter):
 
             if (
-                np.sum(self.parameters.algorithm_options.times)
-                > self.parameters.algorithm_options.time_limit
+                np.sum(self.parameters[0].algorithm_options.times)
+                > self.parameters[0].algorithm_options.time_limit
             ):
                 logger.info("Maximum reconstruction time exceeded.")
                 break
 
-            logger.info(f"{self.parameters.algorithm_options.name} epoch "
-                        f"{len(self.parameters.algorithm_options.times):,d}")
+            logger.info(
+                f"{self.parameters[0].algorithm_options.name} epoch "
+                f"{len(self.parameters[0].algorithm_options.times):,d}"
+            )
 
-            total_epochs = len(self.parameters.algorithm_options.times)
+            total_epochs = len(self.parameters[0].algorithm_options.times)
 
-            if self.parameters.probe_options is not None:
-                self.parameters.probe_options.recover_probe = (
-                    total_epochs >= self.parameters.probe_options.update_start
-                    and (total_epochs % self.parameters.probe_options.update_period) == 0
-                )  # yapf: disable
+            # if self.parameters.probe_options is not None:
+            #     self.parameters.probe_options.recover_probe = (
+            #         total_epochs >= self.parameters.probe_options.update_start
+            #         and (total_epochs % self.parameters.probe_options.update_period) == 0
+            #     )  # yapf: disable
 
-            if self.parameters.probe_options is not None:
-                if self.parameters.probe_options.recover_probe:
+            self.parameters = self.comm.pool.map(
+                _apply_probe_constraints,
+                self.parameters,
+            )
 
-                    if self.parameters.probe_options.median_filter_abs_probe:
-                        self.parameters.probe = self.comm.pool.map(
-                            apply_median_filter_abs_probe,
-                            self.parameters.probe,
-                            med_filt_px = self.parameters.probe_options.median_filter_abs_probe_px
-                        )
-
-                    if self.parameters.probe_options.force_centered_intensity:
-                        self.parameters.probe = self.comm.pool.map(
-                            constrain_center_peak,
-                            self.parameters.probe,
-                        )
-
-                    if self.parameters.probe_options.force_sparsity < 1:
-                        self.parameters.probe = self.comm.pool.map(
-                            constrain_probe_sparsity,
-                            self.parameters.probe,
-                            f=self.parameters.probe_options.force_sparsity,
-                        )
-
-                    if self.parameters.probe_options.force_orthogonality:
-                        (
-                            self.parameters.probe,
-                            power,
-                        ) = (list(a) for a in zip(*self.comm.pool.map(
-                            tike.ptycho.probe.orthogonalize_eig,
-                            self.parameters.probe,
-                        )))
-                    else:
-                        power = self.comm.pool.map(
-                            tike.ptycho.probe.power,
-                            self.parameters.probe,
-                        )
-
-                    self.parameters.probe_options.power.append(
-                        power[0].get())
-
-            (
-                self.parameters.object_options,
-                self.parameters.probe_options,
-            ) = solvers.update_preconditioners(
+            self.parameters = solvers.update_preconditioners(
                 comm=self.comm,
-                operator=self.operator,
-                scan=self.parameters.scan,
-                probe=self.parameters.probe,
-                psi=self.parameters.psi,
-                object_options=self.parameters.object_options,
-                probe_options=self.parameters.probe_options,
-            )
-
-            self.parameters = getattr(
-                solvers,
-                self.parameters.algorithm_options.name,
-            )(
-                self.operator,
-                self.comm,
-                data=self.data,
-                batches=self.batches,
                 parameters=self.parameters,
-                epoch=len(self.parameters.algorithm_options.times),
+                operator=self.operator,
             )
 
-            if self.parameters.object_options.positivity_constraint:
-                self.parameters.psi = self.comm.pool.map(
-                    tike.ptycho.object.positivity_constraint,
-                    self.parameters.psi,
-                    r=self.parameters.object_options.positivity_constraint,
+            self.parameters = self.comm.pool.map(
+                solvers.dm,
+                self.parameters,
+                self.data,
+                self.batches,
+                self.comm.streams,
+                op=self.operator,
+                epoch=len(self.parameters[0].algorithm_options.times),
+            )
+
+            for i, reduced_probe in enumerate(
+                self.comm.Allreduce_mean(
+                    [e.probe[None, ...] for e in self.parameters],
+                    axis=0,
                 )
+            ):
+                self.parameters[i].probe = reduced_probe
 
-            if self.parameters.object_options.smoothness_constraint:
-                self.parameters.psi = self.comm.pool.map(
-                    tike.ptycho.object.smoothness_constraint,
-                    self.parameters.psi,
-                    a=self.parameters.object_options.smoothness_constraint,
-                )
+            pw = self.parameters[0].probe.shape[-2]
+            for swapped, parameters in zip(
+                # TODO: Try blending edges during swap instead of replacing
+                self.comm.swap_edges(
+                    [e.psi for e in self.parameters],
+                    # reduce overlap to stay away from edge noise
+                    overlap=pw // 5,
+                    # The actual edge is centered on the probe
+                    edges=[e + pw // 2 for e in self.comm.stripe_start],
+                ),
+                self.parameters,
+            ):
+                parameters.psi = swapped
 
-            if self.parameters.object_options.clip_magnitude:
-                self.parameters.psi = self.comm.pool.map(
-                    _clip_magnitude,
-                    self.parameters.psi,
-                    a_max=1.0,
-                )
+            # if self.parameters.object_options.positivity_constraint:
+            #     self.parameters.psi = self.comm.pool.map(
+            #         tike.ptycho.object.positivity_constraint,
+            #         self.parameters.psi,
+            #         r=self.parameters.object_options.positivity_constraint,
+            #     )
 
-            if (
-                self.parameters.algorithm_options.name != 'dm'
-                and self.parameters.algorithm_options.rescale_method == 'mean_of_abs_object'
-                and self.parameters.object_options.preconditioner is not None
-                and len(self.parameters.algorithm_options.costs) % self.parameters.algorithm_options.rescale_period == 0
-            ):  # yapf: disable
-                (
-                    self.parameters.psi,
-                    self.parameters.probe,
-                ) = (list(a) for a in zip(*self.comm.pool.map(
-                    tike.ptycho.object.remove_object_ambiguity,
-                    self.parameters.psi,
-                    self.parameters.probe,
-                    self.parameters.object_options.preconditioner,
-                )))
+            # if self.parameters.object_options.smoothness_constraint:
+            #     self.parameters.psi = self.comm.pool.map(
+            #         tike.ptycho.object.smoothness_constraint,
+            #         self.parameters.psi,
+            #         a=self.parameters.object_options.smoothness_constraint,
+            #     )
 
-            elif self.parameters.probe_options is not None:
-                if (
-                    self.parameters.probe_options.recover_probe
-                    and self.parameters.algorithm_options.rescale_method == 'constant_probe_photons'
-                    and len(self.parameters.algorithm_options.costs) % self.parameters.algorithm_options.rescale_period == 0
-                ):  # yapf: disable
+            # if self.parameters.object_options.clip_magnitude:
+            #     self.parameters.psi = self.comm.pool.map(
+            #         _clip_magnitude,
+            #         self.parameters.psi,
+            #         a_max=1.0,
+            #     )
 
-                    self.parameters.probe = self.comm.pool.map(
-                        tike.ptycho.probe
-                        .rescale_probe_using_fixed_intensity_photons,
-                        self.parameters.probe,
-                        Nphotons=self.parameters.probe_options.probe_photons,
-                        probe_power_fraction=None,
-                    )
+            # if (
+            #     self.parameters.algorithm_options.name != 'dm'
+            #     and self.parameters.algorithm_options.rescale_method == 'mean_of_abs_object'
+            #     and self.parameters.object_options.preconditioner is not None
+            #     and len(self.parameters.algorithm_options.costs) % self.parameters.algorithm_options.rescale_period == 0
+            # ):  # yapf: disable
+            #     (
+            #         self.parameters.psi,
+            #         self.parameters.probe,
+            #     ) = (list(a) for a in zip(*self.comm.pool.map(
+            #         tike.ptycho.object.remove_object_ambiguity,
+            #         self.parameters.psi,
+            #         self.parameters.probe,
+            #         self.parameters.object_options.preconditioner,
+            #     )))
 
-            if (
-                self.parameters.probe_options is not None
-                and self.parameters.eigen_probe is not None
-                and self.parameters.probe_options.recover_probe
-            ):  #yapf: disable
-                (
-                    self.parameters.eigen_probe,
-                    self.parameters.eigen_weights,
-                ) = tike.ptycho.probe.constrain_variable_probe(
-                    self.comm,
-                    self.parameters.eigen_probe,
-                    self.parameters.eigen_weights,
-                )
+            # elif self.parameters.probe_options is not None:
+            #     if (
+            #         self.parameters.probe_options.recover_probe
+            #         and self.parameters.algorithm_options.rescale_method == 'constant_probe_photons'
+            #         and len(self.parameters.algorithm_options.costs) % self.parameters.algorithm_options.rescale_period == 0
+            #     ):  # yapf: disable
 
-            if self.parameters.position_options:
-                (
-                    self.parameters.scan,
-                    self.parameters.position_options,
-                ) = affine_position_regularization(
-                    self.comm,
-                    updated=self.parameters.scan,
-                    position_options=self.parameters.position_options,
-                    regularization_enabled=self.parameters.position_options[
-                        0
-                    ].use_position_regularization,
-                )
+            #         self.parameters.probe = self.comm.pool.map(
+            #             tike.ptycho.probe
+            #             .rescale_probe_using_fixed_intensity_photons,
+            #             self.parameters.probe,
+            #             Nphotons=self.parameters.probe_options.probe_photons,
+            #             probe_power_fraction=None,
+            #         )
 
-            self.parameters.algorithm_options.times.append(time.perf_counter() -
-                                                           start)
+            # if (
+            #     self.parameters.probe_options is not None
+            #     and self.parameters.eigen_probe is not None
+            #     and self.parameters.probe_options.recover_probe
+            # ):  #yapf: disable
+            #     (
+            #         self.parameters.eigen_probe,
+            #         self.parameters.eigen_weights,
+            #     ) = tike.ptycho.probe.constrain_variable_probe(
+            #         self.comm,
+            #         self.parameters.eigen_probe,
+            #         self.parameters.eigen_weights,
+            #     )
+
+            # if self.parameters.position_options:
+            #     (
+            #         self.parameters.scan,
+            #         self.parameters.position_options,
+            #     ) = affine_position_regularization(
+            #         self.comm,
+            #         updated=self.parameters.scan,
+            #         position_options=self.parameters.position_options,
+            #         regularization_enabled=self.parameters.position_options[
+            #             0
+            #         ].use_position_regularization,
+            #     )
+
+            self.parameters[0].algorithm_options.times.append(
+                time.perf_counter() - start
+            )
             start = time.perf_counter()
 
-            update_norm = tike.linalg.mnorm(self.parameters.psi[0] -
-                                            psi_previous)
+            # update_norm = tike.linalg.mnorm(self.parameters.psi[0] -
+            #                                 psi_previous)
 
-            self.parameters.object_options.update_mnorm.append(
-                update_norm.get())
+            # self.parameters.object_options.update_mnorm.append(
+            #     update_norm.get())
 
-            logger.info(f"The object update mean-norm is {update_norm:.3e}")
+            # logger.info(f"The object update mean-norm is {update_norm:.3e}")
 
-            if (np.mean(self.parameters.object_options.update_mnorm[-5:])
-                    < self.parameters.object_options.convergence_tolerance):
-                logger.info(
-                    f"The object seems converged. {update_norm:.3e} < "
-                    f"{self.parameters.object_options.convergence_tolerance:.3e}"
-                )
-                break
+            # if (np.mean(self.parameters.object_options.update_mnorm[-5:])
+            #         < self.parameters.object_options.convergence_tolerance):
+            #     logger.info(
+            #         f"The object seems converged. {update_norm:.3e} < "
+            #         f"{self.parameters.object_options.convergence_tolerance:.3e}"
+            #     )
+            #     break
 
             logger.info(
-                '%10s cost is %+1.3e',
-                self.parameters.exitwave_options.noise_model,
-                np.mean(self.parameters.algorithm_options.costs[-1]),
+                "%10s cost is %+1.3e",
+                self.parameters[0].exitwave_options.noise_model,
+                np.mean(self.parameters[0].algorithm_options.costs[-1]),
             )
 
-    def get_scan(self):
+    def get_scan(self) -> npt.NDArray:
         reorder = np.argsort(np.concatenate(self.comm.order))
         return self.comm.pool.gather_host(
             self.parameters.scan,
             axis=-2,
         )[reorder]
 
-    def get_result(self):
+    def get_result(self) -> solvers.PtychoParameters:
         """Return the current parameter estimates."""
         reorder = np.argsort(np.concatenate(self.comm.order))
-        parameters = solvers.PtychoParameters(
-            probe=self.parameters.probe[0].get(),
-            psi=self.parameters.psi[0].get(),
-            scan=self.comm.pool.gather_host(
-                self.parameters.scan,
-                axis=-2,
-            )[reorder],
-            algorithm_options=self.parameters.algorithm_options,
+
+        assert len(self.parameters) == self.comm.pool.num_workers, (
+            len(self.parameters),
+            self.comm.pool.num_workers,
         )
 
-        if self.parameters.eigen_probe is not None:
-            parameters.eigen_probe = self.parameters.eigen_probe[0].get()
+        parameters = self.comm.pool.map(
+            solvers.PtychoParameters.copy_to_host,
+            self.parameters,
+        )
 
-        if self.parameters.eigen_weights is not None:
-            parameters.eigen_weights = self.comm.pool.gather(
-                self.parameters.eigen_weights,
-                axis=-3,
-            )[reorder].get()
+        parameters = solvers.PtychoParameters.join(
+            parameters,
+            reorder,
+            stripe_start=self.comm.stripe_start,
+        )
 
-        if self.parameters.probe_options is not None:
-            parameters.probe_options = self.parameters.probe_options.copy_to_host(
-            )
-
-        if self.parameters.object_options is not None:
-            parameters.object_options = self.parameters.object_options.copy_to_host(
-            )
-
-        if self.parameters.exitwave_options is not None:
-            parameters.exitwave_options = self.parameters.exitwave_options.copy_to_host(
-            )
-
-        if self.parameters.position_options is not None:
-            host_position_options = self.parameters.position_options[0].empty()
-            for x, o in zip(
-                    self.comm.pool.map(
-                        PositionOptions.copy_to_host,
-                        self.parameters.position_options,
-                    ),
-                    self.comm.order,
-            ):
-                host_position_options = host_position_options.join(x, o)
-            parameters.position_options = host_position_options
+        print(np.array(parameters.algorithm_options.costs).shape)
+        print(np.array(parameters.algorithm_options.times).shape)
 
         return parameters
 
@@ -806,18 +745,54 @@ class Reconstruction():
                 new_scan,
             )
 
+def _apply_probe_constraints(
+    parameters: solvers.PtychoParameters,
+) -> solvers.PtychoParameters:
+    if parameters.probe_options is not None:
+        if parameters.probe_options.recover_probe:
+
+            if parameters.probe_options.median_filter_abs_probe:
+                parameters.probe = apply_median_filter_abs_probe(
+                    parameters.probe,
+                    med_filt_px=parameters.probe_options.median_filter_abs_probe_px,
+                )
+
+            if parameters.probe_options.force_centered_intensity:
+                parameters.probe = constrain_center_peak(
+                    parameters.probe,
+                )
+
+            if parameters.probe_options.force_sparsity < 1:
+                parameters.probe = constrain_probe_sparsity(
+                    parameters.probe,
+                    f=parameters.probe_options.force_sparsity,
+                )
+
+            if parameters[0].probe_options.force_orthogonality:
+                (
+                    parameters.probe,
+                    power,
+                ) = orthogonalize_eig(
+                    parameters.probe,
+                )
+            else:
+                power = tike.ptycho.probe.power(
+                    parameters.probe,
+                )
+
+            parameters.probe_options.power.append(power[0].get())
+
+    return parameters
+
 
 def _order_join(a, b):
     return np.append(a, b + len(a))
 
 
 def _get_rescale(
-    data,
-    measured_pixels,
-    psi,
-    scan,
-    probe,
-    streams,
+    data: npt.ArrayLike,
+    parameters: solvers.PtychoParameters,
+    streams: typing.List[cp.cuda.Stream],
     *,
     operator: tike.operators.Ptycho,
 ):
@@ -833,17 +808,21 @@ def _get_rescale(
         (
             data,
         ) = ind_args
-        nonlocal sums, scan
+        nonlocal sums
 
         intensity, _ = operator._compute_intensity(
             None,
-            psi,
-            scan[lo:hi],
-            probe,
+            parameters.psi,
+            parameters.scan[lo:hi],
+            parameters.probe,
         )
 
-        sums[0] += cp.sum(data[:, measured_pixels], dtype=np.double)
-        sums[1] += cp.sum(intensity[:, measured_pixels], dtype=np.double)
+        sums[0] += cp.sum(
+            data[:, parameters.exitwave_options.measured_pixels], dtype=np.double
+        )
+        sums[1] += cp.sum(
+            intensity[:, parameters.exitwave_options.measured_pixels], dtype=np.double
+        )
 
     tike.communicators.stream.stream_and_modify2(
         f=make_certain_args_constant,
@@ -858,8 +837,12 @@ def _get_rescale(
     return sums
 
 
-def _rescale_probe(operator, comm, data, exitwave_options, psi, scan, probe,
-                   num_batch):
+def _rescale_probe(
+    operator: tike.operators.Ptycho,
+    comm: tike.communicators.Comm,
+    data: typing.List[npt.ArrayLike],
+    parameters: typing.List[solvers.PtychoParameters],
+):
     """Rescale probe so model and measured intensity are similar magnitude.
 
     Rescales the probe so that the sum of modeled intensity at the detector is
@@ -869,10 +852,7 @@ def _rescale_probe(operator, comm, data, exitwave_options, psi, scan, probe,
         n = comm.pool.map(
             _get_rescale,
             data,
-            exitwave_options.measured_pixels,
-            psi,
-            scan,
-            probe,
+            parameters,
             comm.streams,
             operator=operator,
         )
@@ -888,9 +868,26 @@ def _rescale_probe(operator, comm, data, exitwave_options, psi, scan, probe,
 
     logger.info("Probe rescaled by %f", rescale)
 
-    probe[0] *= rescale
+    rescale = comm.pool.bcast([rescale])
+    return comm.pool.map(
+        _rescale_probe_helper,
+        parameters,
+        rescale,
+    )
 
-    return comm.pool.bcast([probe[0]])
+
+def _rescale_probe_helper(
+    parameters: solvers.PtychoParameters,
+    rescale: float,
+) -> solvers.PtychoParameters:
+    parameters.probe = parameters.probe * rescale
+
+    if np.isnan(parameters.probe_options.probe_photons):
+        parameters.probe_options.probe_photons = cp.sum(
+            cp.square(cp.abs(parameters.probe))
+        ).get()
+
+    return parameters
 
 
 def reconstruct_multigrid(

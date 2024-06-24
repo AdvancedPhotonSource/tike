@@ -179,6 +179,7 @@ def by_scan_stripes_contiguous(
 ) -> typing.Tuple[
     typing.List[npt.NDArray],
     typing.List[typing.List[npt.NDArray]],
+    typing.List[int],
 ]:
     """Split data by into stripes and create contiguously ordered batches.
 
@@ -208,7 +209,10 @@ def by_scan_stripes_contiguous(
     batches : List[List[array[int]]]
         For each worker in pool, for each batch, the indices of the elements of
         each batch
-
+    stripe_start : List[int]
+        The coorinates of the leading edge of each stripe along the 0th
+        dimension in the scan coordinates. e.g the minimum coordinate of the
+        scan positions in each stripe.
     """
     if len(shape) != 2:
         raise ValueError('The grid shape must have two dimensions.')
@@ -224,6 +228,7 @@ def by_scan_stripes_contiguous(
         x=scan,
         dtype=scan.dtype,
     )
+    stripe_start = [int(np.floor(np.min(x[:, 0]))) for x in split_scan]
     batches_noncontiguous: typing.List[typing.List[npt.NDArray]] = pool.map(
         getattr(tike.cluster, batch_method),
         split_scan,
@@ -248,7 +253,7 @@ def by_scan_stripes_contiguous(
                 f"There should be {num_batch} batches, found {len(device)}"
             )
 
-    return (map_to_gpu_contiguous, batches_contiguous)
+    return (map_to_gpu_contiguous, batches_contiguous, stripe_start)
 
 
 def stripes_equal_count(

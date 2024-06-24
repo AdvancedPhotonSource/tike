@@ -139,3 +139,16 @@ class Comm:
                 buf.append(
                     self.mpi.Allreduce(src[self.pool.workers.index(worker)]))
         return buf
+
+    def swap_edges(
+        self,
+        x: typing.List[cp.ndarray],
+        overlap: int,
+        edges: typing.List[int],
+    ) -> typing.List[cp.ndarray]:
+        # FIXME: Swap edges between MPI nodes
+        return self.pool.swap_edges(
+            x=x,
+            overlap=overlap,
+            edges=edges,
+        )

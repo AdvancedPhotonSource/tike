@@ -3,6 +3,7 @@ import typing
 
 import cupy as cp
 import numpy.typing as npt
+import numpy as np
 
 import tike.communicators
 import tike.linalg
@@ -24,12 +25,12 @@ logger = logging.getLogger(__name__)
 
 
 def dm(
-    op: tike.operators.Ptycho,
-    streams: typing.List[cp.cuda.Stream],
+    parameters: PtychoParameters,
     data: npt.NDArray,
     batches: typing.List[npt.NDArray[cp.intc]],
+    streams: typing.List[cp.cuda.Stream],
     *,
-    parameters: PtychoParameters,
+    op: tike.operators.Ptycho,
     epoch: int,
 ) -> PtychoParameters:
     """Solve the ptychography problem using the difference map approach.
@@ -41,7 +42,7 @@ def dm(
     comm : :py:class:`tike.communicators.Comm`
         An object which manages communications between GPUs and nodes.
     data : (FRAME, WIDE, HIGH) float32
-        A unique CuPy array containing
+        A CuPy pinned host memory array containing
         the intensity (square of the absolute value) of the propagated
         wavefront; i.e. what the detector records. FFT-shifted so the
         diffraction peak is at the corners.
@@ -67,7 +68,7 @@ def dm(
 
     """
     assert isinstance(op, tike.operators.Operator)
-    assert isinstance(data, npt.ArrayLike)
+    assert isinstance(data, np.ndarray), type(data)
     assert isinstance(parameters, PtychoParameters)
     assert isinstance(epoch, int)
     assert isinstance(batches, list)
