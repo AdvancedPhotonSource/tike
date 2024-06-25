@@ -144,15 +144,6 @@ class PtychoParameters():
     position_options: typing.Union[PositionOptions, None] = None
     """A class containing settings related to position correction."""
 
-    pixel_size: float = 1.0
-    """The realspace size of a pixel in meters"""
-
-    slice_spacing: float = 1.0
-    """The realspace propagation distance in meters"""
-
-    wavelength: float = 1.0
-    """The wavelength of the light in meters"""
-
     def __post_init__(self):
         if (self.scan.ndim != 2 or self.scan.shape[1] != 2
                 or np.any(np.asarray(self.scan.shape) < 1)):

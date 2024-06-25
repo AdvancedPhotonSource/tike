@@ -32,7 +32,6 @@ def _psi_preconditioner(
     operator: tike.operators.Ptycho,
 ) -> npt.NDArray:
 
-    # FIXME: Generated only one preconditioner for all slices
     psi_update_denominator = cp.zeros(
         shape=psi.shape,
         dtype=psi.dtype,
