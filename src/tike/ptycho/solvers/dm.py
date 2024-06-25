@@ -117,20 +117,21 @@ def _apply_update(
         psi_update_numerator = comm.Allreduce_reduce_gpu(
             psi_update_numerator)[0]
 
-        dpsi = psi_update_numerator  #/ (object_options.preconditioner[0] + 1e-9)
+        new_psi = psi_update_numerator / (object_options.preconditioner[0] +
+                                          1e-9)
         if object_options.use_adaptive_moment:
             (
                 dpsi,
                 object_options.v,
                 object_options.m,
-            ) = tike.opt.momentum(
-                g=dpsi,
+            ) = tike.opt.adam(
+                g=(new_psi - psi[0]),
                 v=object_options.v,
                 m=object_options.m,
                 vdecay=object_options.vdecay,
                 mdecay=object_options.mdecay,
             )
-        new_psi = psi[0] + dpsi
+            new_psi = dpsi + psi[0]
         psi = comm.pool.bcast([new_psi])
 
     if probe_options:
@@ -187,7 +188,7 @@ def _get_nearplane_gradients(
         hi,
     ):
         (data,) = ind_args
-        nonlocal cost, psi_update_numerator, probe_update_numerator, count
+        nonlocal cost, psi_update_numerator, probe_update_numerator
 
         varying_probe = probe
 
@@ -205,34 +206,36 @@ def _get_nearplane_gradients(
         )
         cost += cp.sum(each_cost) * count
 
-        farplane[..., measured_pixels] = -getattr(
-            tike.operators, f"{exitwave_options.noise_model}_grad"
-        )(
-            data,
-            farplane,
-            intensity,
-        )[..., measured_pixels]
+        farplane[..., measured_pixels] *= ((
+            cp.sqrt(data) / (cp.sqrt(intensity) + 1e-9))[..., None, None,
+                                                         measured_pixels])
         farplane[..., ~measured_pixels] = 0
 
         pad, end = op.diffraction.pad, op.diffraction.end
         nearplane = op.propagation.adj(farplane, overwrite=True)[..., pad:end,
                                                                  pad:end]
 
-        assert nearplane.shape[1] == 1
-        assert varying_probe.shape[1] == 1
-        grad_psi, grad_probe = op.diffraction.adj(
-            nearplane=nearplane[:, 0],
-            probe=varying_probe[:, 0],
-            scan=scan[lo:hi],
-            psi=psi,
-        )
-        grad_probe = cp.sum(
-            grad_probe[:, None],
-            axis=-5,
-            keepdims=True,
-        )
-        psi_update_numerator += grad_psi
-        probe_update_numerator += grad_probe
+        if object_options:
+            grad_psi = (cp.conj(varying_probe) * nearplane).reshape(
+                (hi - lo) * probe.shape[-3], *probe.shape[-2:])
+            psi_update_numerator[0] = op.diffraction.patch.adj(
+                patches=grad_psi,
+                images=psi_update_numerator[0],
+                positions=scan[lo:hi],
+                nrepeat=probe.shape[-3],
+            )
+
+        if probe_options:
+            patches = op.diffraction.patch.fwd(
+                patches=cp.zeros_like(nearplane[..., 0, 0, :, :]),
+                images=psi[0],
+                positions=scan[lo:hi],
+            )[..., None, None, :, :]
+            probe_update_numerator += cp.sum(
+                cp.conj(patches) * nearplane,
+                axis=-5,
+                keepdims=True,
+            )
 
     tike.communicators.stream.stream_and_modify2(
         f=keep_some_args_constant,
