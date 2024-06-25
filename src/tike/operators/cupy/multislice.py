@@ -26,7 +26,6 @@ class Multislice(Operator):
         propagation: typing.Type[Propagation] = FresnelSpectProp,
         diffraction: typing.Type[Convolution] = Convolution,
         norm: str = "ortho",
-        nslices: int = 1,
         **kwargs,
     ):
         """Please see help(Multislice) for more info."""
@@ -39,6 +38,7 @@ class Multislice(Operator):
         )
         self.propagation = propagation(
             detector_shape=detector_shape,
+            **kwargs,
         )
 
         # TODO: Replace these with @property functions
@@ -46,7 +46,6 @@ class Multislice(Operator):
         self.detector_shape = detector_shape
         self.nz = nz
         self.n = n
-        self.nslices = nslices
 
     def __enter__(self):
         self.propagation.__enter__()
@@ -65,13 +64,13 @@ class Multislice(Operator):
         **kwargs,
     ) -> npt.NDArray[np.csingle]:
         """Please see help(Multislice) for more info."""
-        assert psi.shape[0] == self.nslices and psi.ndim == 3
+        assert psi.ndim == 3
         exitwave = self.diffraction.fwd(
             psi=psi[0],
             scan=scan,
             probe=probe,
         )
-        for s in range(1, self.nslices):
+        for s in range(1, len(psi)):
             exitwave = self.diffraction.fwd(
                 psi=psi[s],
                 scan=scan,
@@ -89,12 +88,14 @@ class Multislice(Operator):
         **kwargs,
     ) -> npt.NDArray[np.csingle]:
         """Please see help(Multislice) for more info."""
+        assert psi.ndim == 3
+        nslices = len(psi)
         psi_adj = self.xp.zeros_like(psi)
         probes = [
             None,
         ] * len(psi)
         probes[0] = probe
-        for s in range(1, self.nslices):
+        for s in range(1, nslices):
             probes[s] = self.propagation.fwd(
                 self.diffraction.fwd(
                     psi=psi[s - 1],
@@ -102,18 +103,18 @@ class Multislice(Operator):
                     probe=probes[s - 1],
                 )
             )
-        psi_adj[self.nslices - 1] = self.diffraction.adj(
+        psi_adj[nslices - 1] = self.diffraction.adj(
             nearplane=nearplane,
-            probe=probes[self.nslices - 1],
+            probe=probes[nslices - 1],
             scan=scan,
             overwrite=False,
         )
         probe_adj = self.diffraction.adj_probe(
             nearplane=nearplane,
             scan=scan,
-            psi=psi[self.nslices - 1],
+            psi=psi[nslices - 1],
         )
-        for s in range(self.nslices - 2, -1, -1):
+        for s in range(nslices - 2, -1, -1):
             probe_adj = self.propagation.adj(probe_adj)
             psi_adj[s] = self.diffraction.adj(
                 nearplane=probe_adj,
@@ -127,7 +128,7 @@ class Multislice(Operator):
                 psi=psi[s],
             )
         # FIXME: Why does correct adjoint require division by nslices?
-        return psi_adj / self.nslices, probe_adj
+        return psi_adj / nslices, probe_adj
 
     @property
     def patch(self):
@@ -173,7 +174,6 @@ class SingleSlice(Multislice):
         self.detector_shape = detector_shape
         self.nz = nz
         self.n = n
-        self.nslices = 1
 
     def fwd(
         self,

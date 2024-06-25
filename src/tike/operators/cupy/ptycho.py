@@ -70,7 +70,7 @@ class Ptycho(Operator):
         nz: int,
         n: int,
         propagation: typing.Type[Propagation] = Propagation,
-        diffraction: typing.Type[Multislice] = SingleSlice,
+        diffraction: typing.Type[Multislice] = Multislice,
         norm: str = 'ortho',
         **kwargs,
     ):
