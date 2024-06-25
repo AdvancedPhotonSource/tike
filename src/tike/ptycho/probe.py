@@ -293,7 +293,7 @@ def _constrain_variable_probe2(variable_probe, weights, power):
     return variable_probe, weights
 
 
-def constrain_variable_probe(comm, variable_probe, weights):
+def constrain_variable_probe(variable_probe, weights):
     """Add the following constraints to variable probe weights
 
     1. Remove outliars from weights
@@ -307,21 +307,16 @@ def constrain_variable_probe(comm, variable_probe, weights):
     # sorting and synchronizing the weights with the host OR implementing
     # smoothing of non-gridded data with splines using device-local data only.
 
-    variable_probe, weights, power = zip(*comm.pool.map(
-        _constrain_variable_probe1,
+    variable_probe, weights, power = _constrain_variable_probe1(
         variable_probe,
         weights,
-    ))
+    )
 
-    # reduce power by sum across all devices
-    power = comm.pool.allreduce(power)
-
-    variable_probe, weights = (list(a) for a in zip(*comm.pool.map(
-        _constrain_variable_probe2,
+    variable_probe, weights = _constrain_variable_probe2(
         variable_probe,
         weights,
         power,
-    )))
+    )
 
     return variable_probe, weights
 

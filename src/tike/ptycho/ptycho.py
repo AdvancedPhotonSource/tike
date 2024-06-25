@@ -77,6 +77,7 @@ from .position import (
     PositionOptions,
     check_allowed_positions,
     affine_position_regularization,
+    AffineTransform,
 )
 from .probe import (
     constrain_center_peak,
@@ -435,7 +436,7 @@ class Reconstruction():
             #     self.parameters.probe_options.recover_probe = (
             #         total_epochs >= self.parameters.probe_options.update_start
             #         and (total_epochs % self.parameters.probe_options.update_period) == 0
-            #     )  # yapf: disable
+            #     )
 
             self.parameters = self.comm.pool.map(
                 _apply_probe_constraints,
@@ -458,6 +459,16 @@ class Reconstruction():
                 epoch=len(self.parameters[0].algorithm_options.times),
             )
 
+            self.parameters = self.comm.pool.map(
+                _apply_object_constraints,
+                self.parameters,
+            )
+
+            self.parameters = self.comm.pool.map(
+                _apply_position_constraints,
+                self.parameters,
+            )
+
             for i, reduced_probe in enumerate(
                 self.comm.Allreduce_mean(
                     [e.probe[None, ...] for e in self.parameters],
@@ -465,6 +476,15 @@ class Reconstruction():
                 )
             ):
                 self.parameters[i].probe = reduced_probe
+
+            if self.parameters[0].eigen_probe is not None:
+                for i, reduced_probe in enumerate(
+                    self.comm.Allreduce_mean(
+                        [e.eigen_probe[None, ...] for e in self.parameters],
+                        axis=0,
+                    )
+                ):
+                    self.parameters[i].eigen_probe = reduced_probe
 
             pw = self.parameters[0].probe.shape[-2]
             for swapped, parameters in zip(
@@ -480,84 +500,21 @@ class Reconstruction():
             ):
                 parameters.psi = swapped
 
-            # if self.parameters.object_options.positivity_constraint:
-            #     self.parameters.psi = self.comm.pool.map(
-            #         tike.ptycho.object.positivity_constraint,
-            #         self.parameters.psi,
-            #         r=self.parameters.object_options.positivity_constraint,
-            #     )
-
-            # if self.parameters.object_options.smoothness_constraint:
-            #     self.parameters.psi = self.comm.pool.map(
-            #         tike.ptycho.object.smoothness_constraint,
-            #         self.parameters.psi,
-            #         a=self.parameters.object_options.smoothness_constraint,
-            #     )
-
-            # if self.parameters.object_options.clip_magnitude:
-            #     self.parameters.psi = self.comm.pool.map(
-            #         _clip_magnitude,
-            #         self.parameters.psi,
-            #         a_max=1.0,
-            #     )
-
-            # if (
-            #     self.parameters.algorithm_options.name != 'dm'
-            #     and self.parameters.algorithm_options.rescale_method == 'mean_of_abs_object'
-            #     and self.parameters.object_options.preconditioner is not None
-            #     and len(self.parameters.algorithm_options.costs) % self.parameters.algorithm_options.rescale_period == 0
-            # ):  # yapf: disable
-            #     (
-            #         self.parameters.psi,
-            #         self.parameters.probe,
-            #     ) = (list(a) for a in zip(*self.comm.pool.map(
-            #         tike.ptycho.object.remove_object_ambiguity,
-            #         self.parameters.psi,
-            #         self.parameters.probe,
-            #         self.parameters.object_options.preconditioner,
-            #     )))
-
-            # elif self.parameters.probe_options is not None:
-            #     if (
-            #         self.parameters.probe_options.recover_probe
-            #         and self.parameters.algorithm_options.rescale_method == 'constant_probe_photons'
-            #         and len(self.parameters.algorithm_options.costs) % self.parameters.algorithm_options.rescale_period == 0
-            #     ):  # yapf: disable
-
-            #         self.parameters.probe = self.comm.pool.map(
-            #             tike.ptycho.probe
-            #             .rescale_probe_using_fixed_intensity_photons,
-            #             self.parameters.probe,
-            #             Nphotons=self.parameters.probe_options.probe_photons,
-            #             probe_power_fraction=None,
-            #         )
-
-            # if (
-            #     self.parameters.probe_options is not None
-            #     and self.parameters.eigen_probe is not None
-            #     and self.parameters.probe_options.recover_probe
-            # ):  #yapf: disable
-            #     (
-            #         self.parameters.eigen_probe,
-            #         self.parameters.eigen_weights,
-            #     ) = tike.ptycho.probe.constrain_variable_probe(
-            #         self.comm,
-            #         self.parameters.eigen_probe,
-            #         self.parameters.eigen_weights,
-            #     )
-
-            # if self.parameters.position_options:
-            #     (
-            #         self.parameters.scan,
-            #         self.parameters.position_options,
-            #     ) = affine_position_regularization(
-            #         self.comm,
-            #         updated=self.parameters.scan,
-            #         position_options=self.parameters.position_options,
-            #         regularization_enabled=self.parameters.position_options[
-            #             0
-            #         ].use_position_regularization,
-            #     )
+            if self.parameters[0].position_options is not None:
+                for i, reduced_transform in enumerate(
+                    self.comm.Allreduce_mean(
+                        [
+                            e.position_options.transform.asbuffer()[None, ...]
+                            for e in self.parameters
+                        ],
+                        axis=0,
+                    )
+                ):
+                    self.parameters[
+                        i
+                    ].position_options.transform = AffineTransform.frombuffer(
+                        reduced_transform
+                    )
 
             self.parameters[0].algorithm_options.times.append(
                 time.perf_counter() - start
@@ -781,6 +738,89 @@ def _apply_probe_constraints(
                 )
 
             parameters.probe_options.power.append(power[0].get())
+
+        if parameters.algorithm_options.rescale_method == "constant_probe_photons" and (
+            len(parameters.algorithm_options.costs)
+            % parameters.algorithm_options.rescale_period
+            == 0
+        ):
+            parameters.probe = (
+                tike.ptycho.probe.rescale_probe_using_fixed_intensity_photons(
+                    parameters.probe,
+                    Nphotons=parameters.probe_options.probe_photons,
+                    probe_power_fraction=None,
+                )
+            )
+
+        if (
+            parameters.eigen_probe is not None
+            and parameters.probe_options.recover_probe
+        ):
+            (
+                parameters.eigen_probe,
+                parameters.eigen_weights,
+            ) = tike.ptycho.probe.constrain_variable_probe(
+                parameters.eigen_probe,
+                parameters.eigen_weights,
+            )
+
+    return parameters
+
+
+def _apply_object_constraints(
+    parameters: solvers.PtychoParameters,
+) -> solvers.PtychoParameters:
+    if parameters.object_options.positivity_constraint:
+        parameters.psi = tike.ptycho.object.positivity_constraint(
+            parameters.psi,
+            r=parameters.object_options.positivity_constraint,
+        )
+
+    if parameters.object_options.smoothness_constraint:
+        parameters.psi = tike.ptycho.object.smoothness_constraint(
+            parameters.psi,
+            a=parameters.object_options.smoothness_constraint,
+        )
+
+    if parameters.object_options.clip_magnitude:
+        parameters.psi = _clip_magnitude(
+            parameters.psi,
+            a_max=1.0,
+        )
+
+    if (
+        parameters.algorithm_options.name != "dm"
+        and parameters.algorithm_options.rescale_method == "mean_of_abs_object"
+        and parameters.object_options.preconditioner is not None
+        and (
+            len(parameters.algorithm_options.costs)
+            % parameters.algorithm_options.rescale_period
+            == 0
+        )
+    ):
+        (
+            parameters.psi,
+            parameters.probe,
+        ) = tike.ptycho.object.remove_object_ambiguity(
+            parameters.psi,
+            parameters.probe,
+            parameters.object_options.preconditioner,
+        )
+
+    return parameters
+
+
+def _apply_position_constraints(
+    parameters: solvers.PtychoParameters,
+) -> solvers.PtychoParameters:
+    if parameters.position_options:
+        (
+            parameters.scan,
+            parameters.position_options,
+        ) = affine_position_regularization(
+            updated=parameters.scan,
+            position_options=parameters.position_options,
+        )
 
     return parameters
 

@@ -157,7 +157,15 @@ class AffineTransform:
         )
 
     @classmethod
-    def fromarray(self, T: np.ndarray) -> AffineTransform:
+    def frombuffer(cls, buffer: np.ndarray) -> AffineTransform:
+        return AffineTransform(*buffer)
+
+    def asbuffer(self) -> np.ndarray:
+        """Return the constructor parameters in a tuple."""
+        return np.array(self.astuple())
+
+    @classmethod
+    def fromarray(cls, T: np.ndarray) -> AffineTransform:
         """Return an Affine Transfrom from a 2x2 matrix.
 
         Use decomposition method from Graphics Gems 2 Section 7.1
@@ -181,8 +189,8 @@ class AffineTransform:
             scale1=float(scale1),
             shear1=float(shear1),
             angle=float(angle),
-            t0=T[2, 0] if T.shape[0] > 2 else 0,
-            t1=T[2, 1] if T.shape[0] > 2 else 0,
+            t0=float(T[2, 0] if T.shape[0] > 2 else 0),
+            t1=float(T[2, 1] if T.shape[0] > 2 else 0),
         )
 
     def asarray(self, xp=np) -> np.ndarray:
@@ -348,7 +356,10 @@ class PositionOptions:
     transform: AffineTransform = AffineTransform()
     """Global transform of positions."""
 
-    origin: tuple[float, float] = (0, 0)
+    origin: npt.ArrayLike = dataclasses.field(
+        init=True,
+        default_factory=lambda: np.zeros(2),
+    )
     """The rotation center of the transformation. This shift is applied to the
     scan positions before computing the global transformation."""
 
@@ -360,6 +371,11 @@ class PositionOptions:
 
     update_start: int = 0
     """Start position updates at this epoch."""
+
+    _momentum: np.ndarray = dataclasses.field(
+        init=False,
+        default_factory=lambda: None,
+    )
 
     def __post_init__(self):
         self.initial_scan = self.initial_scan.astype(tike.precision.floating)
@@ -460,25 +476,24 @@ class PositionOptions:
             transform=x[0].transform,
         )
         if x[0].confidence is not None:
-            new.confidence = (
-                np.concatenate(
-                    [e.confidence for e in x],
-                    axis=0,
-                )[reorder],
-            )
+            new.confidence = np.concatenate(
+                [e.confidence for e in x],
+                axis=0,
+            )[reorder]
+
         if x[0].use_adaptive_moment:
-            new._momentum = (
-                np.concatenate(
-                    [e._momentum for e in x],
-                    axis=0,
-                )[reorder],
-            )
+            new._momentum = np.concatenate(
+                [e._momentum for e in x],
+                axis=0,
+            )[reorder]
+
         return new
 
     def copy_to_device(self):
         """Copy to the current GPU memory."""
         options = copy.copy(self)
         options.initial_scan = cp.asarray(self.initial_scan)
+        options.origin = cp.array(self.origin)
         if self.confidence is not None:
             options.confidence = cp.asarray(self.confidence)
         if self.use_adaptive_moment:
@@ -489,6 +504,7 @@ class PositionOptions:
         """Copy to the host CPU memory."""
         options = copy.copy(self)
         options.initial_scan = cp.asnumpy(self.initial_scan)
+        options.origin = cp.asnumpy(self.origin)
         if self.confidence is not None:
             options.confidence = cp.asnumpy(self.confidence)
         if self.use_adaptive_moment:
@@ -691,12 +707,10 @@ def _affine_position_helper(
 
 # TODO: What is a good default value for max_error?
 def affine_position_regularization(
-    comm: tike.communicators.Comm,
-    updated: typing.List[cp.ndarray],
-    position_options: typing.List[PositionOptions],
+    updated: cp.ndarray,
+    position_options: PositionOptions,
     max_error: float = 32,
-    regularization_enabled: bool = False,
-) -> typing.Tuple[typing.List[cp.ndarray], typing.List[PositionOptions]]:
+) -> typing.Tuple[cp.ndarray, PositionOptions]:
     """Regularize position updates with an affine deformation constraint.
 
     Assume that the true position updates are a global affine transformation
@@ -718,30 +732,20 @@ def affine_position_regularization(
 
     """
     # Gather all of the scanning positions on one host
-    positions0 = comm.pool.gather_host(
-        [x.initial_scan for x in position_options], axis=0)
-    positions1 = comm.pool.gather_host(updated, axis=0)
-    positions0 = comm.mpi.Gather(positions0, axis=0, root=0)
-    positions1 = comm.mpi.Gather(positions1, axis=0, root=0)
+    positions0 = position_options.initial_scan
+    positions1 = updated
 
-    if comm.mpi.rank == 0:
-        new_transform, _ = estimate_global_transformation_ransac(
-            positions0=positions0 - position_options[0].origin,
-            positions1=positions1 - position_options[0].origin,
-            transform=position_options[0].transform,
-            max_error=max_error,
-        )
-    else:
-        new_transform = None
+    new_transform, _ = estimate_global_transformation_ransac(
+        positions0=positions0 - position_options.origin,
+        positions1=positions1 - position_options.origin,
+        transform=position_options.transform,
+        max_error=max_error,
+    )
 
-    new_transform = comm.mpi.bcast(new_transform, root=0)
+    position_options.transform = new_transform
 
-    for i in range(len(position_options)):
-        position_options[i].transform = new_transform
-
-    if regularization_enabled:
-        updated = comm.pool.map(
-            _affine_position_helper,
+    if position_options.use_position_regularization:
+        updated = _affine_position_helper(
             updated,
             position_options,
             max_error=max_error,
