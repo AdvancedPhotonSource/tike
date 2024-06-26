@@ -136,8 +136,6 @@ def _apply_update(
             )
             new_psi = dpsi + psi
         psi = new_psi
-    else:
-        print('object update skipped')
 
     if probe_options:
         new_probe = probe_update_numerator / (probe_options.preconditioner + 1e-9)

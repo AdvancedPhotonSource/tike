@@ -978,7 +978,7 @@ def _momentum_checked(
         ).real.flatten()
         if np.all(previous_update_correlation > 0):
             friction, _ = tike.opt.fit_line_least_squares(
-                x=np.arange(len(previous_update_correlation) + 1),
+                x=list(range(len(previous_update_correlation) + 1)),
                 y=[
                     0,
                 ] + np.log(previous_update_correlation).tolist(),

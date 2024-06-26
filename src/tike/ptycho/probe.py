@@ -935,7 +935,13 @@ def constrain_probe_sparsity(probe, f):
     return probe
 
 
-def finite_probe_support(probe, *, radius=0.5, degree=5, p=1.0):
+def finite_probe_support(
+    probe,
+    *,
+    radius: float = 0.5,
+    degree: float = 5.0,
+    p: float = 1.0,
+):
     """Returns a supergaussian penalty function for finite probe support.
 
     A mask which provides an illumination penalty is determined by the equation:

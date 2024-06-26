@@ -501,20 +501,23 @@ class Reconstruction():
                 parameters.psi = swapped
 
             if self.parameters[0].position_options is not None:
-                for i, reduced_transform in enumerate(
-                    self.comm.Allreduce_mean(
-                        [
-                            e.position_options.transform.asbuffer()[None, ...]
-                            for e in self.parameters
-                        ],
-                        axis=0,
-                    )
-                ):
+                # FIXME: Synchronize across nodes
+                reduced_transform = np.mean(
+                    [e.position_options.transform.asbuffer() for e in self.parameters],
+                    axis=0,
+                )
+                for i in range(len(self.parameters)):
                     self.parameters[
                         i
                     ].position_options.transform = AffineTransform.frombuffer(
                         reduced_transform
                     )
+
+            reduced_cost = np.mean(
+                [e.algorithm_options.costs[-1] for e in self.parameters],
+            )
+            for i in range(len(self.parameters)):
+                self.parameters[i].algorithm_options.costs[-1] = [reduced_cost]
 
             self.parameters[0].algorithm_options.times.append(
                 time.perf_counter() - start
@@ -569,9 +572,6 @@ class Reconstruction():
             reorder,
             stripe_start=self.comm.stripe_start,
         )
-
-        print(np.array(parameters.algorithm_options.costs).shape)
-        print(np.array(parameters.algorithm_options.times).shape)
 
         return parameters
 
