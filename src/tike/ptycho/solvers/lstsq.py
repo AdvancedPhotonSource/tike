@@ -17,25 +17,18 @@ import tike.ptycho.object
 import tike.ptycho.exitwave
 import tike.precision
 
-from .options import (
-    ExitWaveOptions,
-    ObjectOptions,
-    PositionOptions,
-    ProbeOptions,
-    PtychoParameters,
-    LstsqOptions,
-)
+from .options import *
 
 logger = logging.getLogger(__name__)
 
 
 def lstsq_grad(
-    parameters: PtychoParameters,
-    data: npt.NDArray,
-    batches: typing.List[npt.NDArray[cp.intc]],
-    streams: typing.List[cp.cuda.Stream],
-    *,
     op: tike.operators.Ptycho,
+    comm: tike.communicators.Comm,
+    data: typing.List[npt.NDArray],
+    batches: typing.List[npt.NDArray[cp.intc]],
+    *,
+    parameters: PtychoParameters,
     epoch: int,
 ):
     """Solve the ptychography problem using Odstrcil et al's approach.
@@ -76,25 +69,54 @@ def lstsq_grad(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
-    print('helloworld3')
+    data0 = data[0]
+    batches0 = batches[0]
 
+    probe = parameters.probe[0]
+    scan = parameters.scan[0]
+    psi = parameters.psi[0]
+    algorithm_options = parameters.algorithm_options
+    exitwave_options = parameters.exitwave_options
+    probe_options = parameters.probe_options
+    recover_probe = True
+
+    if parameters.position_options is None:
+        position_options = None
+    else:
+        position_options = parameters.position_options[0]
+    object_options = parameters.object_options
+    if parameters.eigen_probe is None:
+        eigen_probe = None
+    else:
+        eigen_probe = parameters.eigen_probe[0]
+    if parameters.eigen_weights is None:
+        eigen_weights = None
+    else:
+        eigen_weights = parameters.eigen_weights[0]
+
+    measured_pixels = exitwave_options.measured_pixels[0]
+
+    streams0 = comm.streams[0]
+
+    probe_options.preconditioner = probe_options.preconditioner[0]
+    object_options.preconditioner = object_options.preconditioner[0]
+
+    # CONVERSTION AREA ABOVE ---------------------------------------
 
     if parameters.algorithm_options.batch_method == 'compact':
         order = range
     else:
         order = tike.random.randomizer_np.permutation
 
-    psi_combined_update: None | cp.ndarray = None
-    probe_combined_update: None | cp.ndarray = None
-    position_update_numerator: None | cp.ndarray = None
-    position_update_denominator: None | cp.ndarray = None
+    object_combined_update = cp.zeros_like(psi)
+    probe_combined_update = cp.zeros_like(probe)
+    position_update_numerator = None
+    position_update_denominator = None
 
-    recover_probe: bool = parameters.probe_options is not None
-
-    batch_cost = []
-    beta_object = []
-    beta_probe = []
-    for batch_index in order(parameters.algorithm_options.num_batch):
+    batch_cost: typing.List[float] = []
+    beta_object: typing.List[float] = []
+    beta_probe: typing.List[float] = []
+    for batch_index in order(algorithm_options.num_batch):
         (
             diff,
             unique_probe,
@@ -105,45 +127,50 @@ def lstsq_grad(
             patches,
             position_update_numerator,
             position_update_denominator,
-            parameters.position_options,
+            position_options,
         ) = _get_nearplane_gradients(
-            data,
-            parameters.psi,
-            parameters.scan,
-            parameters.probe,
-            parameters.eigen_probe,
-            parameters.eigen_weights,
-            batches,
+            data0,
+            psi,
+            scan,
+            probe,
+            eigen_probe,
+            eigen_weights,
+            batches0,
             position_update_numerator,
             position_update_denominator,
-            parameters.position_options,
-            streams,
-            parameters.exitwave_options.measured_pixels,
-            parameters.object_options.preconditioner,
+            position_options,
+            streams0,
+            measured_pixels,
+            object_options.preconditioner,
             batch_index=batch_index,
-            num_batch=parameters.algorithm_options.num_batch,
-            exitwave_options=parameters.exitwave_options,
+            num_batch=algorithm_options.num_batch,
+            exitwave_options=exitwave_options,
             op=op,
-            recover_psi=parameters.object_options is not None,
+            recover_psi=object_options is not None,
             recover_probe=recover_probe,
-            recover_positions=parameters.position_options is not None,
+            recover_positions=position_options is not None,
         )
 
-        if parameters.probe_options:
+        if recover_probe:
+            m_probe_update = cp.mean(
+                m_probe_update,
+                axis=-5,
+            )
+
             (
-                parameters.eigen_probe,
-                parameters.eigen_weights,
+                eigen_probe,
+                eigen_weights,
             ) = _update_nearplane(
                 diff,
                 probe_update,
                 m_probe_update,
-                parameters.probe,
-                parameters.eigen_probe,
-                parameters.eigen_weights,
+                probe,
+                eigen_probe,
+                eigen_weights,
                 patches,
-                batches,
+                batches0,
                 batch_index=batch_index,
-                num_batch=parameters.algorithm_options.num_batch,
+                num_batch=algorithm_options.num_batch,
             )
 
         (
@@ -155,23 +182,23 @@ def lstsq_grad(
             b2,
         ) = _precondition_nearplane_gradients(
             diff,
-            parameters.scan,
+            scan,
             unique_probe,
-            parameters.probe,
+            probe,
             object_upd_sum,
             m_probe_update,
-            parameters.object_options.preconditioner,
+            object_options.preconditioner,
             patches,
-            batches,
+            batches0,
             batch_index=batch_index,
             op=op,
             m=0,
-            recover_psi=parameters.object_options is not None,
+            recover_psi=object_options is not None,
             recover_probe=recover_probe,
-            probe_options=parameters.probe_options,
+            probe_options=probe_options,
         )
 
-        if parameters.object_options is not None:
+        if object_options is not None:
             A1_delta = cp.mean(A1, axis=-3)
         else:
             A1_delta = None
@@ -192,12 +219,12 @@ def lstsq_grad(
             b2,
             A1_delta,
             A4_delta,
-            recover_psi=parameters.object_options is not None,
+            recover_psi=object_options is not None,
             recover_probe=recover_probe,
             m=0,
         )
 
-        if parameters.object_options is not None:
+        if object_options is not None:
             bbeta_object = cp.mean(
                 weighted_step_psi,
                 axis=-5,
@@ -209,127 +236,135 @@ def lstsq_grad(
                 axis=-5,
             )
 
-        print('helloworld1')
-
         # Update each direction
-        if parameters.object_options is not None:
-
-            print('helloworld')
-
-            if parameters.algorithm_options.batch_method != "compact":
+        if object_options is not None:
+            if algorithm_options.batch_method != 'compact':
                 # (27b) Object update
                 dpsi = bbeta_object * object_update_precond
 
-                print(dpsi.shape, parameters.psi.shape)
-
-                if parameters.object_options.use_adaptive_moment:
+                if object_options.use_adaptive_moment:
                     (
                         dpsi,
-                        parameters.object_options.v,
-                        parameters.object_options.m,
+                        object_options.v,
+                        object_options.m,
                     ) = tike.opt.momentum(
                         g=dpsi,
-                        v=parameters.object_options.v,
-                        m=parameters.object_options.m,
-                        vdecay=parameters.object_options.vdecay,
-                        mdecay=parameters.object_options.mdecay,
+                        v=object_options.v,
+                        m=object_options.m,
+                        vdecay=object_options.vdecay,
+                        mdecay=object_options.mdecay,
                     )
-                parameters.psi = parameters.psi + dpsi
+                psi = psi + dpsi
             else:
-                psi_combined_update += object_upd_sum
+                object_combined_update += object_upd_sum
 
-        if recover_probe:
-            dprobe = bbeta_probe * m_probe_update
-            probe_combined_update += dprobe / parameters.algorithm_options.num_batch
-            # (27a) Probe update
-            parameters.probe += dprobe
-
-        for c in costs:
-            batch_cost = batch_cost + c.tolist()
-
-        if parameters.object_options is not None:
             beta_object.append(bbeta_object)
 
         if recover_probe:
+            dprobe = bbeta_probe * m_probe_update
+            probe_combined_update += dprobe / algorithm_options.num_batch
+            # (27a) Probe update
+            probe += dprobe
+
             beta_probe.append(bbeta_probe)
 
-    if parameters.position_options:
-        parameters.scan, parameters.position_options = _update_position(
-            parameters.scan,
-            parameters.position_options,
+        batch_cost += costs.tolist()
+
+    if (
+        position_options is not None
+        and position_update_numerator is not None
+        and position_update_denominator is not None
+    ):
+        scan, position_options = _update_position(
+            scan,
+            position_options,
             position_update_numerator,
             position_update_denominator,
             epoch=epoch,
         )
 
-    parameters.algorithm_options.costs.append(batch_cost)
+    algorithm_options.costs.append(batch_cost)
 
-    if (
-        parameters.object_options
-        and parameters.algorithm_options.batch_method == "compact"
-    ):
+    if object_options and algorithm_options.batch_method == 'compact':
         object_update_precond = _precondition_object_update(
-            psi_combined_update,
-            parameters.object_options.preconditioner,
+            object_combined_update,
+            object_options.preconditioner,
         )
 
         # (27b) Object update
         beta_object = cp.mean(cp.stack(beta_object))
         dpsi = beta_object * object_update_precond
-        parameters.psi = psi + dpsi
+        psi = psi + dpsi
 
-        if parameters.object_options.use_adaptive_moment:
+        if object_options.use_adaptive_moment:
             (
                 dpsi,
-                parameters.object_options.v,
-                parameters.object_options.m,
+                object_options.v,
+                object_options.m,
             ) = _momentum_checked(
                 g=dpsi,
-                v=parameters.object_options.v,
-                m=parameters.object_options.m,
-                mdecay=parameters.object_options.mdecay,
-                errors=list(
-                    float(np.mean(x)) for x in parameters.algorithm_options.costs[-3:]
-                ),
+                v=object_options.v,
+                m=object_options.m,
+                mdecay=object_options.mdecay,
+                errors=list(float(np.mean(x)) for x in algorithm_options.costs[-3:]),
                 beta=beta_object,
                 memory_length=3,
             )
-            weight = parameters.object_options.preconditioner
+            weight = object_options.preconditioner
             weight = weight / (0.1 * weight.max() + weight)
-            parameters.psi = parameters.psi + weight * dpsi
+            psi = psi + weight * dpsi
 
     if recover_probe:
-        if parameters.probe_options.use_adaptive_moment:
+        if probe_options.use_adaptive_moment:
             beta_probe = cp.mean(cp.stack(beta_probe))
             dprobe = probe_combined_update
-            if parameters.probe_options.v is None:
-                parameters.probe_options.v = np.zeros_like(
+            if probe_options.v is None:
+                probe_options.v = np.zeros_like(
                     dprobe,
                     shape=(3, *dprobe.shape),
                 )
-            if parameters.probe_options.m is None:
-                parameters.probe_options.m = np.zeros_like(
-                    dprobe,
-                )
+            if probe_options.m is None:
+                probe_options.m = np.zeros_like(dprobe,)
             # ptychoshelves only applies momentum to the main probe
             mode = 0
             (
                 d,
-                parameters.probe_options.v[..., mode, :, :],
-                parameters.probe_options.m[..., mode, :, :],
+                probe_options.v[..., mode, :, :],
+                probe_options.m[..., mode, :, :],
             ) = _momentum_checked(
                 g=dprobe[..., mode, :, :],
-                v=parameters.probe_options.v[..., mode, :, :],
-                m=parameters.probe_options.m[..., mode, :, :],
-                mdecay=parameters.probe_options.mdecay,
-                errors=list(
-                    float(np.mean(x)) for x in parameters.algorithm_options.costs[-3:]
-                ),
+                v=probe_options.v[..., mode, :, :],
+                m=probe_options.m[..., mode, :, :],
+                mdecay=probe_options.mdecay,
+                errors=list(float(np.mean(x)) for x in algorithm_options.costs[-3:]),
                 beta=beta_probe,
                 memory_length=3,
             )
-            parameters.probe[..., mode, :, :] = parameters.probe[..., mode, :, :] + d
+            probe[..., mode, :, :] = probe[..., mode, :, :] + d
 
+    # CONVERSION AREA BELOW ----------------------
+
+    probe_options.preconditioner = [probe_options.preconditioner]
+    object_options.preconditioner = [object_options.preconditioner]
+
+    parameters.probe[0] = probe
+    parameters.psi[0] = psi
+    parameters.scan[0] = scan
+    parameters.algorithm_options = algorithm_options
+    parameters.probe_options = probe_options
+    parameters.object_options = object_options
+    if position_options is None:
+        parameters.position_options = None
+    else:
+        parameters.position_options[0] = position_options
+    if eigen_probe is None:
+        parameters.eigen_probe = None
+    else:
+        parameters.eigen_probe[0] = eigen_probe
+    if eigen_weights is None:
+        parameters.eigen_weights = None
+    else:
+        parameters.eigen_weights[0] = eigen_weights
     return parameters
 
 
@@ -341,7 +376,7 @@ def _update_nearplane(
     eigen_probe: npt.NDArray[cp.csingle],
     eigen_weights: npt.NDArray[cp.single],
     patches: npt.NDArray[cp.csingle],
-    batches: typing.List[npt.NDArray[np.intc]],
+    batches,
     *,
     batch_index: int,
     num_batch: int,
@@ -408,11 +443,11 @@ def _get_nearplane_gradients(
     psi: npt.NDArray[cp.csingle],
     scan: npt.NDArray[cp.single],
     probe: npt.NDArray[cp.csingle],
-    eigen_probe: npt.NDArray[cp.csingle],
-    eigen_weights: npt.NDArray[cp.csingle],
-    batches: typing.List[npt.NDArray[np.intc]],
-    position_update_numerator: npt.NDArray[cp.csingle],
-    position_update_denominator: npt.NDArray[cp.csingle],
+    eigen_probe,
+    eigen_weights,
+    batches,
+    position_update_numerator,
+    position_update_denominator,
     position_options: PositionOptions,
     streams: typing.List[cp.cuda.Stream],
     measured_pixels: npt.NDArray,
@@ -559,13 +594,12 @@ def _get_nearplane_gradients(
         else:
             object_upd_sum = None
 
-        bpatches[blo:bhi] = op.diffraction.patch.fwd(
-            patches=cp.zeros_like(bchi[blo:bhi, ..., 0, 0, :, :]),
-            images=psi[0],
-            positions=scan[lo:hi],
-        )[..., None, None, :, :]
-
         if recover_probe:
+            bpatches[blo:bhi] = op.diffraction.patch.fwd(
+                patches=cp.zeros_like(bchi[blo:bhi, ..., 0, 0, :, :]),
+                images=psi[0],
+                positions=scan[lo:hi],
+            )[..., None, None, :, :]
             # (24a)
             bprobe_update[blo:bhi] = cp.conj(bpatches[blo:bhi]) * bchi[blo:bhi]
             # (25a) Common probe gradient. Use simple average instead of
@@ -579,6 +613,7 @@ def _get_nearplane_gradients(
         else:
             bprobe_update = None
             m_probe_update = None
+            bpatches = None
 
         if position_options:
             m = 0
@@ -655,23 +690,23 @@ def _precondition_object_update(
 
 
 def _precondition_nearplane_gradients(
-    nearplane: npt.NDArray[cp.csingle],
-    scan: npt.NDArray[cp.single],
-    unique_probe: npt.NDArray[cp.csingle],
-    probe: npt.NDArray[cp.csingle],
-    object_upd_sum: npt.NDArray[cp.csingle],
-    m_probe_update: npt.NDArray[cp.csingle],
-    psi_update_denominator: npt.NDArray[cp.csingle],
-    patches: npt.NDArray[cp.csingle],
-    batches: typing.List[npt.NDArray[np.intc]],
+    nearplane,
+    scan,
+    unique_probe,
+    probe,
+    object_upd_sum,
+    m_probe_update,
+    psi_update_denominator,
+    patches,
+    batches,
     *,
     batch_index: int,
-    op: tike.operators.Ptycho,
-    m: int,
-    recover_psi: bool,
-    recover_probe: bool,
-    alpha: float = 0.05,
-    probe_options: ProbeOptions,
+    op,
+    m,
+    recover_psi,
+    recover_probe,
+    alpha=0.05,
+    probe_options,
 ):
     lo = batches[batch_index][0]
     hi = lo + len(batches[batch_index])
@@ -686,7 +721,6 @@ def _precondition_nearplane_gradients(
     dOP = None
     dPO = None
     object_update_proj = None
-    object_update_precond = None
 
     if recover_psi:
         object_update_precond = _precondition_object_update(
@@ -719,7 +753,7 @@ def _precondition_nearplane_gradients(
                 1,
                 probe[0].shape[-3],
                 dtype=tike.precision.floating,
-            )[..., m : m + 1, None, None] # type: ignore
+            )[..., m : m + 1, None, None]
         )
 
         m_probe_update = m_probe_update - (b0 + b1) * probe[..., m : m + 1, :, :]
@@ -737,16 +771,16 @@ def _precondition_nearplane_gradients(
         dPO = m_probe_update[..., m:m + 1, :, :] * patches
         A4 = cp.sum((dPO * dPO.conj()).real + eps, axis=(-2, -1))
 
-    if dOP is not None and dPO is not None:
+    if recover_psi and recover_probe:
         b1 = cp.sum((dOP.conj() * nearplane[..., m:m + 1, :, :]).real,
                     axis=(-2, -1))
         b2 = cp.sum((dPO.conj() * nearplane[..., m:m + 1, :, :]).real,
                     axis=(-2, -1))
         A2 = cp.sum((dOP * dPO.conj()), axis=(-2, -1))
-    elif dOP is not None:
+    elif recover_psi:
         b1 = cp.sum((dOP.conj() * nearplane[..., m:m + 1, :, :]).real,
                     axis=(-2, -1))
-    elif dPO is not None:
+    elif recover_probe:
         b2 = cp.sum((dPO.conj() * nearplane[..., m:m + 1, :, :]).real,
                     axis=(-2, -1))
 
@@ -760,18 +794,9 @@ def _precondition_nearplane_gradients(
     )
 
 
-def _get_nearplane_steps(
-    A1,
-    A2,
-    A4,
-    b1,
-    b2,
-    A1_delta,
-    A4_delta,
-    recover_psi,
-    recover_probe,
-    m,
-) -> typing.Tuple[npt.NDArray | None, npt.NDArray | None]:
+def _get_nearplane_steps(A1, A2, A4, b1, b2, A1_delta, A4_delta, recover_psi,
+                         recover_probe, m):
+
     if recover_psi:
         A1 += 0.5 * A1_delta
     if recover_probe:
@@ -791,7 +816,7 @@ def _get_nearplane_steps(
         x1 = None
         x2 = None
 
-    if x1 is not None:
+    if recover_psi:
         step = 0.9 * cp.maximum(0, x1[..., None, None].real)
 
         # (27b) Object update
@@ -799,7 +824,7 @@ def _get_nearplane_steps(
     else:
         beta_object = None
 
-    if x2 is not None:
+    if recover_probe:
         step = 0.9 * cp.maximum(0, x2[..., None, None].real)
 
         beta_probe = cp.mean(step, axis=-5, keepdims=True)
@@ -861,7 +886,7 @@ def _update_position(
     alpha=0.05,
     max_shift=1,
     epoch=0,
-) -> typing.Tuple[npt.NDArray, PositionOptions]:
+):
     if epoch < position_options.update_start:
         return scan, position_options
 
@@ -937,10 +962,10 @@ def _momentum_checked(
         ).real.flatten()
         if np.all(previous_update_correlation > 0):
             friction, _ = tike.opt.fit_line_least_squares(
-                x=np.arange(len(previous_update_correlation) + 1, dtype=np.floating),
-                y=np.array(
-                    [0,
-                ] + np.log(previous_update_correlation).tolist()),
+                x=np.arange(len(previous_update_correlation) + 1),
+                y=[
+                    0,
+                ] + np.log(previous_update_correlation).tolist(),
             )
             friction = 0.5 * max(-friction, 0)
             m = (1 - friction) * m + g
