@@ -405,7 +405,6 @@ def _get_weights_mean(n, d, d_mean, weights, batches, *, batch_index, c, m):
 
 
 def update_eigen_probe(
-    comm,
     R,
     eigen_probe,
     weights,
@@ -453,14 +452,13 @@ def update_eigen_probe(
     least-squares solver for generalized maximum-likelihood ptychography.
     Optics Express. 2018.
     """
-    assert R[0].shape[-3] == R[0].shape[-4] == 1
-    assert 1 == eigen_probe[0].shape[-5]
-    assert R[0].shape[:-5] == eigen_probe[0].shape[:-5] == weights[0].shape[:-3]
-    assert weights[0][batches[0][batch_index], :, :].shape[-3] == R[0].shape[-5]
-    assert R[0].shape[-2:] == eigen_probe[0].shape[-2:]
+    assert R.shape[-3] == R.shape[-4] == 1
+    assert 1 == eigen_probe.shape[-5]
+    assert R.shape[:-5] == eigen_probe.shape[:-5] == weights.shape[:-3]
+    assert weights[batches[batch_index], :, :].shape[-3] == R.shape[-5]
+    assert R.shape[-2:] == eigen_probe.shape[-2:]
 
-    update = comm.pool.map(
-        _get_update,
+    update = _get_update(
         R,
         eigen_probe,
         weights,
@@ -469,13 +467,12 @@ def update_eigen_probe(
         c=c,
         m=m,
     )
-    update = comm.pool.bcast([comm.Allreduce_mean(
+    update = cp.mean(
         update,
         axis=-5,
-    )])
+    )
 
-    (eigen_probe, n, d, d_mean) = (list(a) for a in zip(*comm.pool.map(
-        _get_d,
+    (eigen_probe, n, d, d_mean) = _get_d(
         patches,
         diff,
         eigen_probe,
@@ -483,25 +480,23 @@ def update_eigen_probe(
         β=β,
         c=c,
         m=m,
-    )))
+    )
 
-    d_mean = comm.pool.bcast([comm.Allreduce_mean(
+    d_mean = cp.mean(
         d_mean,
         axis=-3,
-    )])
+    )
 
-    weights = list(
-        comm.pool.map(
-            _get_weights_mean,
-            n,
-            d,
-            d_mean,
-            weights,
-            batches,
-            batch_index=batch_index,
-            c=c,
-            m=m,
-        ))
+    weights = _get_weights_mean(
+        n,
+        d,
+        d_mean,
+        weights,
+        batches,
+        batch_index=batch_index,
+        c=c,
+        m=m,
+    )
 
     return eigen_probe, weights
 
