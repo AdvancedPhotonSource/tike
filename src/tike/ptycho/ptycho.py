@@ -450,7 +450,7 @@ class Reconstruction():
             )
 
             self.parameters = self.comm.pool.map(
-                solvers.dm,
+                getattr(solvers, self.parameters[0].algorithm_options.name),
                 self.parameters,
                 self.data,
                 self.batches,

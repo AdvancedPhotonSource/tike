@@ -134,7 +134,7 @@ class PtychoParameters():
         default_factory=RpieOptions,)
     """A class containing algorithm specific parameters"""
 
-    exitwave_options: typing.Union[ExitWaveOptions, None] = None
+    exitwave_options: ExitWaveOptions = None
     """A class containing settings related to exitwave updates."""
 
     probe_options: typing.Union[ProbeOptions, None] = None
@@ -304,8 +304,10 @@ class PtychoParameters():
             )[reorder]
             if x[0].eigen_weights is not None
             else None,
+            # TODO: costs and times should be joined somehow?
             algorithm_options=x[0].algorithm_options,
             exitwave_options=x[0].exitwave_options,
+            # TODO: synchronize probe momentum elsewhere
             probe_options=x[0].probe_options,
             object_options=x[0].object_options,
             position_options=PositionOptions.join(

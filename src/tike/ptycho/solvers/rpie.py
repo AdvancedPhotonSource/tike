@@ -176,7 +176,8 @@ def _update(
     errors: typing.Union[None, typing.List[float]] = None,
 ) -> PtychoParameters:
     if parameters.object_options:
-        dpsi = psi_update_numerator / (
+        dpsi = psi_update_numerator
+        deno = (
             (1 - parameters.algorithm_options.alpha)
             * parameters.object_options.preconditioner
             + parameters.algorithm_options.alpha
@@ -185,6 +186,7 @@ def _update(
                 keepdims=True,
             )
         )
+        parameters.psi = parameters.psi + dpsi / deno
         if parameters.object_options.use_adaptive_moment:
             if errors is not None:
                 (
@@ -211,7 +213,7 @@ def _update(
                     vdecay=parameters.object_options.vdecay,
                     mdecay=parameters.object_options.mdecay,
                 )
-        parameters.psi = parameters.psi + dpsi
+            parameters.psi = parameters.psi + dpsi / deno
 
     if recover_probe and parameters.probe_options is not None:
         b0 = tike.ptycho.probe.finite_probe_support(
@@ -229,7 +231,8 @@ def _update(
                 dtype="float32",
             )[..., None, None]
         )
-        dprobe = (probe_update_numerator - (b1 + b0) * parameters.probe) / (
+        dprobe = (probe_update_numerator - (b1 + b0) * parameters.probe)
+        deno = (
             (1 - parameters.algorithm_options.alpha)
             * parameters.probe_options.preconditioner
             + parameters.algorithm_options.alpha
@@ -240,6 +243,7 @@ def _update(
             + b0
             + b1
         )
+        parameters.probe = parameters.probe + dprobe / deno
         if parameters.probe_options.use_adaptive_moment:
             # ptychoshelves only applies momentum to the main probe
             mode = 0
@@ -268,7 +272,7 @@ def _update(
                     vdecay=parameters.probe_options.vdecay,
                     mdecay=parameters.probe_options.mdecay,
                 )
-        parameters.probe = parameters.probe + dprobe
+            parameters.probe = parameters.probe + dprobe / deno
 
     return parameters
 
@@ -416,9 +420,9 @@ def _get_nearplane_gradients(
                 parameters.scan[lo:hi].shape[0] * parameters.probe.shape[-3],
                 *parameters.probe.shape[-2:],
             )
-            psi_update_numerator = op.diffraction.patch.adj(
+            psi_update_numerator[0] = op.diffraction.patch.adj(
                 patches=grad_psi,
-                images=psi_update_numerator,
+                images=psi_update_numerator[0],
                 positions=parameters.scan[lo:hi],
                 nrepeat=parameters.probe.shape[-3],
             )
@@ -426,7 +430,7 @@ def _get_nearplane_gradients(
         if parameters.position_options or parameters.probe_options:
             patches = op.diffraction.patch.fwd(
                 patches=cp.zeros_like(diff[..., 0, 0, :, :]),
-                images=parameters.psi,
+                images=parameters.psi[0],
                 positions=parameters.scan[lo:hi],
             )[..., None, None, :, :]
 
@@ -436,7 +440,7 @@ def _get_nearplane_gradients(
                 axis=-5,
                 keepdims=True,
             )
-            if parameters.eigen_weights:
+            if parameters.eigen_weights is not None:
                 m: int = 0
                 OP = patches * parameters.probe[..., m : m + 1, :, :]
                 eigen_numerator = cp.sum(
