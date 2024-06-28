@@ -23,14 +23,14 @@ logger = logging.getLogger(__name__)
 
 
 def lstsq_grad(
-    op: tike.operators.Ptycho,
-    comm: tike.communicators.Comm,
-    data: typing.List[npt.NDArray],
-    batches: typing.List[npt.NDArray[cp.intc]],
-    *,
     parameters: PtychoParameters,
+    data: npt.NDArray,
+    batches: typing.List[npt.NDArray[cp.intc]],
+    streams: typing.List[cp.cuda.Stream],
+    *,
+    op: tike.operators.Ptycho,
     epoch: int,
-):
+) -> PtychoParameters:
     """Solve the ptychography problem using Odstrcil et al's approach.
 
     Object and probe are updated simultaneously using optimal step sizes
@@ -69,37 +69,18 @@ def lstsq_grad(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
-    data0 = data[0]
-    batches0 = batches[0]
-
-    probe = parameters.probe[0]
-    scan = parameters.scan[0]
-    psi = parameters.psi[0]
+    scan = parameters.scan
+    psi = parameters.psi
+    probe = parameters.probe
     algorithm_options = parameters.algorithm_options
+    eigen_weights = parameters.eigen_weights
+    eigen_probe = parameters.eigen_probe
+    measured_pixels = parameters.exitwave_options.measured_pixels
     exitwave_options = parameters.exitwave_options
-    probe_options = parameters.probe_options
-    recover_probe = True
-
-    if parameters.position_options is None:
-        position_options = None
-    else:
-        position_options = parameters.position_options[0]
+    position_options = parameters.position_options
     object_options = parameters.object_options
-    if parameters.eigen_probe is None:
-        eigen_probe = None
-    else:
-        eigen_probe = parameters.eigen_probe[0]
-    if parameters.eigen_weights is None:
-        eigen_weights = None
-    else:
-        eigen_weights = parameters.eigen_weights[0]
-
-    measured_pixels = exitwave_options.measured_pixels[0]
-
-    streams0 = comm.streams[0]
-
-    probe_options.preconditioner = probe_options.preconditioner[0]
-    object_options.preconditioner = object_options.preconditioner[0]
+    probe_options = parameters.probe_options
+    recover_probe = probe_options is not None and epoch >= probe_options.update_start
 
     # CONVERSTION AREA ABOVE ---------------------------------------
 
@@ -129,17 +110,17 @@ def lstsq_grad(
             position_update_denominator,
             position_options,
         ) = _get_nearplane_gradients(
-            data0,
+            data,
             psi,
             scan,
             probe,
             eigen_probe,
             eigen_weights,
-            batches0,
+            batches,
             position_update_numerator,
             position_update_denominator,
             position_options,
-            streams0,
+            streams,
             measured_pixels,
             object_options.preconditioner,
             batch_index=batch_index,
@@ -168,7 +149,7 @@ def lstsq_grad(
                 eigen_probe,
                 eigen_weights,
                 patches,
-                batches0,
+                batches,
                 batch_index=batch_index,
                 num_batch=algorithm_options.num_batch,
             )
@@ -189,7 +170,7 @@ def lstsq_grad(
             m_probe_update,
             object_options.preconditioner,
             patches,
-            batches0,
+            batches,
             batch_index=batch_index,
             op=op,
             m=0,
@@ -344,27 +325,17 @@ def lstsq_grad(
 
     # CONVERSION AREA BELOW ----------------------
 
-    probe_options.preconditioner = [probe_options.preconditioner]
-    object_options.preconditioner = [object_options.preconditioner]
-
-    parameters.probe[0] = probe
-    parameters.psi[0] = psi
-    parameters.scan[0] = scan
+    parameters.scan = scan
+    parameters.psi = psi
+    parameters.probe = probe
     parameters.algorithm_options = algorithm_options
-    parameters.probe_options = probe_options
+    parameters.eigen_weights = eigen_weights
+    parameters.eigen_probe = eigen_probe
+    parameters.exitwave_options = exitwave_options
+    parameters.position_options = position_options
     parameters.object_options = object_options
-    if position_options is None:
-        parameters.position_options = None
-    else:
-        parameters.position_options[0] = position_options
-    if eigen_probe is None:
-        parameters.eigen_probe = None
-    else:
-        parameters.eigen_probe[0] = eigen_probe
-    if eigen_weights is None:
-        parameters.eigen_weights = None
-    else:
-        parameters.eigen_weights[0] = eigen_weights
+    parameters.probe_options = probe_options
+
     return parameters
 
 
