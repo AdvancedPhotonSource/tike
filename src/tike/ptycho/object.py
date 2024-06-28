@@ -121,10 +121,11 @@ class ObjectOptions:
 
     @staticmethod
     def join_psi(
-        x: typing.Iterable[np.ndarray],
-        stripe_start: typing.Iterable[int],
+        x: typing.List[np.ndarray],
+        stripe_start: typing.List[int],
         probe_width: int,
     ) -> np.ndarray:
+        """Recombine `x`, a list of psi, from a split reconstruction."""
         joined_psi = x[0]
         for i in range(1, len(x)):
             lo = stripe_start[i] + probe_width
@@ -134,10 +135,11 @@ class ObjectOptions:
 
     @staticmethod
     def join(
-        x: typing.Iterable[ObjectOptions],
-        stripe_start: typing.Iterable[int],
+        x: typing.List[ObjectOptions],
+        stripe_start: typing.List[int],
         probe_width: int,
     ) -> ObjectOptions:
+        """Recombine `x`, a list of ObjectOptions, from split ObjectOptions"""
         options = ObjectOptions(
             convergence_tolerance=x[0].convergence_tolerance,
             positivity_constraint=x[0].positivity_constraint,
@@ -166,6 +168,7 @@ class ObjectOptions:
                 stripe_start,
                 probe_width,
             )
+        return options
 
 
 def positivity_constraint(x, r):
