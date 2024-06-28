@@ -32,9 +32,8 @@ def _psi_preconditioner(
     operator: tike.operators.Ptycho,
 ) -> npt.NDArray:
 
-    # FIXME: Generated only one preconditioner for all slices
     psi_update_denominator = cp.zeros(
-        shape=psi.shape[-2:],
+        shape=psi.shape,
         dtype=psi.dtype,
     )
 
@@ -45,12 +44,27 @@ def _psi_preconditioner(
     ) -> None:
         nonlocal psi_update_denominator
 
-        probe_amp = _probe_amp_sum(probe)[:, 0]
-        psi_update_denominator[...] = operator.diffraction.patch.adj(
+        probe_amp = _probe_amp_sum(probe[:, 0])
+        psi_update_denominator[0] = operator.diffraction.patch.adj(
             patches=probe_amp,
-            images=psi_update_denominator,
+            images=psi_update_denominator[0],
             positions=scan[lo:hi],
         )
+
+        probe1 = probe[:, 0]
+        for i in range(1, len(psi)):
+            probe1 = operator.diffraction.diffraction.fwd(
+                probe=probe1,
+                scan=scan[lo:hi],
+                psi=psi[i-1],
+            )
+            probe1 = operator.diffraction.propagation.fwd(probe1)
+            probe_amp = _probe_amp_sum(probe1)
+            psi_update_denominator[i] = operator.diffraction.patch.adj(
+                patches=probe_amp,
+                images=psi_update_denominator[i],
+                positions=scan[lo:hi],
+            )
 
     tike.communicators.stream.stream_and_modify2(
         f=make_certain_args_constant,
