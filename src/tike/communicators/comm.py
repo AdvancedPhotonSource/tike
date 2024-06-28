@@ -150,8 +150,7 @@ class Comm:
 
         Given iterable x, a list of ND arrays; edges, the coordinates in x
         along dimension -2; and overlap, the width of the region to swap around
-        the edge; trade [..., edge-overlap:edge] with [..., edge:edge+overlap]
-        between neighbors.
+        the edge; trade [..., edge:(edge + overlap), :] between neighbors.
         """
         # FIXME: Swap edges between MPI nodes
         return self.pool.swap_edges(

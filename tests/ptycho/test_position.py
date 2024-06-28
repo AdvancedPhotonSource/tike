@@ -27,6 +27,7 @@ def test_position_join(N=245, num_batch=11):
     assert np.amax(indices) == N - 1
     np.random.shuffle(indices)
     batches = np.array_split(indices, num_batch)
+    reorder = np.argsort(np.concatenate(batches))
 
     opts = tike.ptycho.PositionOptions(
         scan,
@@ -35,19 +36,17 @@ def test_position_join(N=245, num_batch=11):
 
     optsb = [opts.split(b) for b in batches]
 
-    # Copies non-array params into new object
-    new_opts = optsb[0].split([])
+    joined = PositionOptions.join(optsb, reorder=reorder)
 
-    for b, i in zip(optsb, batches):
-        new_opts = new_opts.join(b, i)
+    assert joined is not None
 
     np.testing.assert_array_equal(
-        new_opts.initial_scan,
+        joined.initial_scan,
         opts.initial_scan,
     )
 
     np.testing.assert_array_equal(
-        new_opts._momentum,
+        joined._momentum,
         opts._momentum,
     )
 

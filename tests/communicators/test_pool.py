@@ -143,19 +143,31 @@ class TestThreadPool(unittest.TestCase):
     def test_swap_edges(self):
 
         def init(i):
-            return self.xp.ones((1, 4 * self.pool.num_workers), dtype=int) * i
+            return self.xp.ones((1, 4 * self.pool.num_workers, 1), dtype=int) * i
 
         x = self.pool.map(init, list(range(self.pool.num_workers)))
 
+        edges = np.arange(self.pool.num_workers, dtype=int) * 4
+        overlap = 3
+
         x1 = self.pool.swap_edges(
             x,
-            overlap=1,
-            edges=np.arange(self.pool.num_workers, dtype=int) * 4,
+            overlap=overlap,
+            edges=edges,
         )
 
         print()
-        for element in x1:
-            print(element)
+        for i, element in enumerate(x1):
+            print(element.flatten())
+            truth = self.xp.ones((1, 4 * self.pool.num_workers, 1), dtype=int) * i
+            if i > 0:
+                truth[..., edges[i] : edges[i] + overlap, :] = i - 1
+            if i < len(x1) - 1:
+                truth[..., edges[i + 1] : (edges[i + 1] + overlap), :] = i + 1
+            self.xp.testing.assert_array_equal(
+                element,
+                truth,
+            )
 
 
 class TestSoloThreadPool(TestThreadPool):
