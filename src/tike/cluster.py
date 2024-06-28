@@ -17,6 +17,7 @@ def _split_gpu(
     x: npt.ArrayLike,
     dtype: npt.DTypeLike,
 ) -> npt.ArrayLike:
+    """Return x[m] as a CuPy array on the current device."""
     return cp.asarray(x[m], dtype=dtype)
 
 
@@ -25,6 +26,7 @@ def _split_host(
     x: npt.ArrayLike,
     dtype: npt.DTypeLike,
 ) -> npt.ArrayLike:
+    """Return x[m] as a NumPy array."""
     return np.asarray(x[m], dtype=dtype)
 
 
@@ -33,6 +35,7 @@ def _split_pinned(
     x: npt.ArrayLike,
     dtype: npt.DTypeLike,
 ) -> npt.ArrayLike:
+    """Return x[m] as a CuPy pinned host memory array."""
     pinned = cupyx.empty_pinned(shape=(len(m), *x.shape[1:]), dtype=dtype)
     pinned[...] = x[m]
     return pinned
@@ -174,18 +177,21 @@ def by_scan_stripes_contiguous(
     pool: tike.communicators.ThreadPool,
     shape: typing.Tuple[int],
     scan: npt.NDArray[np.float32],
-    batch_method,
+    batch_method: typing.Literal[
+        "compact", "wobbly_center", "wobbly_center_random_bootstrap"
+    ],
     num_batch: int,
 ) -> typing.Tuple[
     typing.List[npt.NDArray],
     typing.List[typing.List[npt.NDArray]],
     typing.List[int],
 ]:
-    """Split data by into stripes and create contiguously ordered batches.
+    """Return the indices that will split `scan` into 2D stripes of equal count
+    and create contiguously ordered batches within those stripes.
 
-    Divide the field of view into one stripe per devices; within each stripe,
-    create batches according to the batch_method loading the batches into
-    contiguous blocks in device memory.
+    Divide the field of view into one stripe per worker in `pool`; within each
+    stripe, create batches according to the batch_method loading the batches
+    into contiguous blocks in device memory.
 
     Parameters
     ----------
