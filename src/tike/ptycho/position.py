@@ -180,8 +180,8 @@ class AffineTransform:
             scale1=float(scale1),
             shear1=float(shear1),
             angle=float(angle),
-            t0=T[2, 0],
-            t1=T[2, 1],
+            t0=T[2, 0] if T.shape[0] > 2 else 0,
+            t1=T[2, 1] if T.shape[0] > 2 else 0,
         )
 
     def asarray(self, xp=np) -> np.ndarray:

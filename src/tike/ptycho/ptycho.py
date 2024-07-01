@@ -228,6 +228,26 @@ def reconstruct(
             use_mpi,
     ) as context:
         context.iterate(parameters.algorithm_options.num_iter)
+
+    if (
+        logger.getEffectiveLevel() <= logging.INFO
+    ) and context.parameters.position_options:
+        mean_scaling = 0.5 * (
+            context.parameters.position_options.transform.scale0
+            + context.parameters.position_options.transform.scale1
+        )
+        logger.info(
+            f"Global scaling of {mean_scaling:.3e} detected from position correction."
+            " Probably your estimate of photon energy and/or sample to detector "
+            "distance is off by that amount."
+        )
+        t = context.parameters.position_options.transform.asarray()
+        logger.info(f"""Affine transform parameters:
+
+{t[0,0]: .3e}, {t[0,1]: .3e}
+{t[1,0]: .3e}, {t[1,1]: .3e}
+""")
+
     return context.parameters
 
 
@@ -923,6 +943,24 @@ def reconstruct_multigrid(
             context.iterate(resampled_parameters.algorithm_options.num_iter)
 
         if level == 0:
+            if (
+                logger.getEffectiveLevel() <= logging.INFO
+            ) and context.parameters.position_options:
+                mean_scaling = 0.5 * (
+                    context.parameters.position_options.transform.scale0
+                    + context.parameters.position_options.transform.scale1
+                )
+                logger.info(
+                    f"Global scaling of {mean_scaling:.3e} detected from position correction."
+                    " Probably your estimate of photon energy and/or sample to detector "
+                    "distance is off by that amount."
+                )
+                t = context.parameters.position_options.transform.asarray()
+                logger.info(f"""Affine transform parameters:
+
+{t[0,0]: .3e}, {t[0,1]: .3e}
+{t[1,0]: .3e}, {t[1,1]: .3e}
+""")
             return context.parameters
 
         # Upsample result to next grid
