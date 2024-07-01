@@ -36,7 +36,6 @@ allowed to vary.
 """
 
 from __future__ import annotations
-import copy
 import dataclasses
 import logging
 import typing
@@ -146,12 +145,6 @@ class ProbeOptions:
     median_filter_abs_probe_px: typing.Tuple[float, float] = ( 1.0, 1.0 )
     """A 2-element tuple with the median filter pixel widths along each dimension."""
 
-    probe_update_sum: typing.Union[npt.NDArray, None] = dataclasses.field(
-        init=False,
-        default_factory=lambda: None,
-    )
-    """Used for momentum updates."""
-
     preconditioner: typing.Union[npt.NDArray, None] = dataclasses.field(
         init=False,
         default_factory=lambda: None,
@@ -165,7 +158,26 @@ class ProbeOptions:
 
     def copy_to_device(self) -> ProbeOptions:
         """Copy to the current GPU memory."""
-        options = copy.copy(self)
+        options = ProbeOptions(
+            recover_probe=self.recover_probe,
+            update_start=self.update_start,
+            update_period=self.update_period,
+            init_rescale_from_measurements=self.init_rescale_from_measurements,
+            probe_photons=self.probe_photons,
+            force_orthogonality=self.force_orthogonality,
+            force_centered_intensity=self.force_centered_intensity,
+            force_sparsity=self.force_sparsity,
+            use_adaptive_moment=self.use_adaptive_moment,
+            vdecay=self.vdecay,
+            mdecay=self.mdecay,
+            probe_support=self.probe_support,
+            probe_support_radius=self.probe_support_radius,
+            probe_support_degree=self.probe_support_degree,
+            additional_probe_penalty=self.additional_probe_penalty,
+            median_filter_abs_probe=self.median_filter_abs_probe,
+            median_filter_abs_probe_px=self.median_filter_abs_probe_px,
+        )
+        options.power=self.power
         if self.v is not None:
             options.v = cp.asarray(self.v)
         if self.m is not None:
@@ -176,7 +188,26 @@ class ProbeOptions:
 
     def copy_to_host(self) -> ProbeOptions:
         """Copy to the host CPU memory."""
-        options = copy.copy(self)
+        options = ProbeOptions(
+            recover_probe=self.recover_probe,
+            update_start=self.update_start,
+            update_period=self.update_period,
+            init_rescale_from_measurements=self.init_rescale_from_measurements,
+            probe_photons=self.probe_photons,
+            force_orthogonality=self.force_orthogonality,
+            force_centered_intensity=self.force_centered_intensity,
+            force_sparsity=self.force_sparsity,
+            use_adaptive_moment=self.use_adaptive_moment,
+            vdecay=self.vdecay,
+            mdecay=self.mdecay,
+            probe_support=self.probe_support,
+            probe_support_radius=self.probe_support_radius,
+            probe_support_degree=self.probe_support_degree,
+            additional_probe_penalty=self.additional_probe_penalty,
+            median_filter_abs_probe=self.median_filter_abs_probe,
+            median_filter_abs_probe_px=self.median_filter_abs_probe_px,
+        )
+        options.power=self.power
         if self.v is not None:
             options.v = cp.asnumpy(self.v)
         if self.m is not None:
@@ -200,11 +231,13 @@ class ProbeOptions:
             vdecay=self.vdecay,
             mdecay=self.mdecay,
             probe_support=self.probe_support,
-            probe_support_degree=self.probe_support_degree,
             probe_support_radius=self.probe_support_radius,
+            probe_support_degree=self.probe_support_degree,
+            additional_probe_penalty=self.additional_probe_penalty,
             median_filter_abs_probe=self.median_filter_abs_probe,
             median_filter_abs_probe_px=self.median_filter_abs_probe_px,
         )
+        options.power=self.power
         return options
         # Momentum reset to zero when grid scale changes
 

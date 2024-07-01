@@ -71,18 +71,20 @@ class ObjectOptions:
     )
     """The magnitude of the illumination used for conditioning the object updates."""
 
-    combined_update: typing.Union[npt.NDArray, None] = dataclasses.field(
-        init=False,
-        default_factory=lambda: None,
-    )
-    """Used for compact batch updates."""
-
     clip_magnitude: bool = False
     """Whether to force the object magnitude to remain <= 1."""
 
     def copy_to_device(self) -> ObjectOptions:
         """Copy to the current GPU memory."""
-        options = copy.copy(self)
+        options = ObjectOptions(
+            convergence_tolerance=self.convergence_tolerance,
+            positivity_constraint=self.positivity_constraint,
+            smoothness_constraint=self.smoothness_constraint,
+            use_adaptive_moment=self.use_adaptive_moment,
+            vdecay=self.vdecay,
+            mdecay=self.mdecay,
+            clip_magnitude=self.clip_magnitude,
+        )
         options.update_mnorm = copy.copy(self.update_mnorm)
         if self.v is not None:
             options.v = cp.asarray(self.v)
@@ -94,7 +96,15 @@ class ObjectOptions:
 
     def copy_to_host(self) -> ObjectOptions:
         """Copy to the host CPU memory."""
-        options = copy.copy(self)
+        options = ObjectOptions(
+            convergence_tolerance=self.convergence_tolerance,
+            positivity_constraint=self.positivity_constraint,
+            smoothness_constraint=self.smoothness_constraint,
+            use_adaptive_moment=self.use_adaptive_moment,
+            vdecay=self.vdecay,
+            mdecay=self.mdecay,
+            clip_magnitude=self.clip_magnitude,
+        )
         options.update_mnorm = copy.copy(self.update_mnorm)
         if self.v is not None:
             options.v = cp.asnumpy(self.v)

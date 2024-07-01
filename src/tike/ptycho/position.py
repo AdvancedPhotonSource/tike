@@ -356,7 +356,7 @@ class PositionOptions:
     transform: AffineTransform = AffineTransform()
     """Global transform of positions."""
 
-    origin: npt.ArrayLike = dataclasses.field(
+    origin: npt.NDArray = dataclasses.field(
         init=True,
         default_factory=lambda: np.zeros(2),
     )
@@ -491,9 +491,18 @@ class PositionOptions:
 
     def copy_to_device(self):
         """Copy to the current GPU memory."""
-        options = copy.copy(self)
-        options.initial_scan = cp.asarray(self.initial_scan)
-        options.origin = cp.array(self.origin)
+        options = PositionOptions(
+            initial_scan=cp.asarray(self.initial_scan),
+            use_adaptive_moment=self.use_adaptive_moment,
+            vdecay=self.vdecay,
+            mdecay=self.mdecay,
+            use_position_regularization=self.use_position_regularization,
+            update_magnitude_limit=self.update_magnitude_limit,
+            transform=self.transform,
+            confidence=self.confidence,
+            update_start=self.update_start,
+            origin=cp.asarray(self.origin),
+        )
         if self.confidence is not None:
             options.confidence = cp.asarray(self.confidence)
         if self.use_adaptive_moment:
@@ -502,9 +511,18 @@ class PositionOptions:
 
     def copy_to_host(self):
         """Copy to the host CPU memory."""
-        options = copy.copy(self)
-        options.initial_scan = cp.asnumpy(self.initial_scan)
-        options.origin = cp.asnumpy(self.origin)
+        options = PositionOptions(
+            initial_scan=cp.asnumpy(self.initial_scan),
+            use_adaptive_moment=self.use_adaptive_moment,
+            vdecay=self.vdecay,
+            mdecay=self.mdecay,
+            use_position_regularization=self.use_position_regularization,
+            update_magnitude_limit=self.update_magnitude_limit,
+            transform=self.transform,
+            confidence=self.confidence,
+            update_start=self.update_start,
+            origin=cp.asnumpy(self.origin),
+        )
         if self.confidence is not None:
             options.confidence = cp.asnumpy(self.confidence)
         if self.use_adaptive_moment:
@@ -522,6 +540,8 @@ class PositionOptions:
             update_magnitude_limit=self.update_magnitude_limit,
             transform=self.transform.resample(factor),
             confidence=self.confidence,
+            update_start=self.update_start,
+            origin=self.origin * factor,
         )
         # Momentum reset to zero when grid scale changes
         return new

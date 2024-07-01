@@ -5,6 +5,7 @@ the wavefield after any and all interaction with the sample and thus there's
 just free space propagation to the detector.
 
 """
+
 from __future__ import annotations
 
 import copy
@@ -67,7 +68,7 @@ class ExitWaveOptions:
     exitwave updates in Fourier space. `1.0` for no scaling.
     """
 
-    propagation_normalization: str = 'ortho'
+    propagation_normalization: str = "ortho"
     """Choose the scaling of the FFT in the forward model:
 
         "ortho" - the forward and adjoint operations are divided by sqrt(n)
@@ -80,17 +81,27 @@ class ExitWaveOptions:
 
     def copy_to_device(self) -> ExitWaveOptions:
         """Copy to the current GPU memory."""
-        options = copy.copy(self)
-        if self.measured_pixels is not None:
-            options.measured_pixels = cp.asarray(self.measured_pixels)
-        return options
+        return ExitWaveOptions(
+            measured_pixels=cp.asarray(self.measured_pixels),
+            noise_model=self.noise_model,
+            propagation_normalization=self.propagation_normalization,
+            step_length_start=self.step_length_start,
+            step_length_usemodes=self.step_length_usemodes,
+            step_length_weight=self.step_length_weight,
+            unmeasured_pixels_scaling=self.unmeasured_pixels_scaling,
+        )
 
     def copy_to_host(self) -> ExitWaveOptions:
         """Copy to the host CPU memory."""
-        options = copy.copy(self)
-        if self.measured_pixels is not None:
-            options.measured_pixels = cp.asnumpy(self.measured_pixels)
-        return options
+        return ExitWaveOptions(
+            measured_pixels=cp.asnumpy(self.measured_pixels),
+            noise_model=self.noise_model,
+            propagation_normalization=self.propagation_normalization,
+            step_length_start=self.step_length_start,
+            step_length_usemodes=self.step_length_usemodes,
+            step_length_weight=self.step_length_weight,
+            unmeasured_pixels_scaling=self.unmeasured_pixels_scaling,
+        )
 
     def resample(self, factor: float) -> ExitWaveOptions:
         """Return a new `ExitWaveOptions` with the parameters rescaled."""
@@ -106,6 +117,7 @@ class ExitWaveOptions:
             unmeasured_pixels_scaling=self.unmeasured_pixels_scaling,
             propagation_normalization=self.propagation_normalization,
         )
+
 
 def poisson_steplength_all_modes(
     xi,
