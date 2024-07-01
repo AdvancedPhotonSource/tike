@@ -547,6 +547,7 @@ class Reconstruction():
             )
 
     def get_scan(self) -> npt.NDArray:
+        raise NotImplementedError()
         reorder = np.argsort(np.concatenate(self.comm.order))
         return self.comm.pool.gather_host(
             self.parameters.scan,
@@ -576,7 +577,10 @@ class Reconstruction():
         return parameters
 
     def __exit__(self, type, value, traceback):
-        self.parameters = self.get_result()
+        self.parameters = self.comm.pool.map(
+            solvers.PtychoParameters.copy_to_host,
+            self.parameters,
+        )
         self.comm.__exit__(type, value, traceback)
         self.operator.__exit__(type, value, traceback)
         self.device.__exit__(type, value, traceback)
@@ -589,6 +593,7 @@ class Reconstruction():
         self
     ) -> typing.Tuple[typing.List[typing.List[float]], typing.List[float]]:
         """Return the cost function values and times as a tuple."""
+        raise NotImplementedError()
         return (
             self.parameters.algorithm_options.costs,
             self.parameters.algorithm_options.times,
@@ -596,10 +601,12 @@ class Reconstruction():
 
     def get_psi(self) -> np.array:
         """Return the current object estimate as a numpy array."""
+        raise NotImplementedError()
         return self.parameters.psi[0].get()
 
     def get_probe(self) -> typing.Tuple[np.array, np.array, np.array]:
         """Return the current probe, eigen_probe, weights as numpy arrays."""
+        raise NotImplementedError()
         reorder = np.argsort(np.concatenate(self.comm.order))
         if self.parameters.eigen_probe is None:
             eigen_probe = None
@@ -621,6 +628,7 @@ class Reconstruction():
         Parameters returned in a tuple of object, probe, eigen_probe,
         eigen_weights.
         """
+        raise NotImplementedError()
         psi = self.get_psi()
         probe, eigen_probe, eigen_weights = self.get_probe()
         return psi, probe, eigen_probe, eigen_weights
