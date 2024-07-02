@@ -541,8 +541,7 @@ class Reconstruction():
                 )
 
             if (
-                self.parameters.algorithm_options.name != 'dm'
-                and self.parameters.algorithm_options.rescale_method == 'mean_of_abs_object'
+                self.parameters.algorithm_options.rescale_method == 'mean_of_abs_object'
                 and self.parameters.object_options.preconditioner is not None
                 and len(self.parameters.algorithm_options.costs) % self.parameters.algorithm_options.rescale_period == 0
             ):  # yapf: disable

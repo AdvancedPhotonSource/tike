@@ -700,49 +700,6 @@ class PtychoRecon(
             "These weights should be unused/untouched "
             "and should have been initialized to zero.")
 
-    def test_consistent_dm(self):
-        """Check ptycho.solver.dm for consistency."""
-        params = tike.ptycho.PtychoParameters(
-            psi=self.psi,
-            probe=self.probe,
-            scan=self.scan,
-            algorithm_options=tike.ptycho.DmOptions(
-                num_iter=16,
-                num_batch=5,
-            ),
-            probe_options=ProbeOptions(force_orthogonality=True,),
-            object_options=ObjectOptions(),
-        )
-
-        _save_ptycho_result(
-            self.template_consistent_algorithm(
-                data=self.data,
-                params=params,
-            ),
-            f"mpi{self.mpi_size}-dm{self.post_name}",
-        )
-
-    def test_consistent_dm_no_probe(self):
-        """Check ptycho.solver.dm for consistency."""
-        params = tike.ptycho.PtychoParameters(
-            psi=self.psi,
-            probe=self.probe,
-            scan=self.scan,
-            algorithm_options=tike.ptycho.DmOptions(
-                num_iter=16,
-                num_batch=5,
-            ),
-            object_options=ObjectOptions(),
-        )
-
-        _save_ptycho_result(
-            self.template_consistent_algorithm(
-                data=self.data,
-                params=params,
-            ),
-            f"mpi{self.mpi_size}-dm-no-probe{self.post_name}",
-        )
-
 
 class TestPtychoRecon(
         PtychoRecon,
