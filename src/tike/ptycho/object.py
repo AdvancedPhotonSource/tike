@@ -87,11 +87,20 @@ class ObjectOptions:
         )
         options.update_mnorm = copy.copy(self.update_mnorm)
         if self.v is not None:
-            options.v = cp.asarray(self.v)
+            options.v = cp.asarray(
+                self.v,
+                dtype=tike.precision.floating,
+            )
         if self.m is not None:
-            options.m = cp.asarray(self.m)
+            options.m = cp.asarray(
+                self.m,
+                dtype=tike.precision.floating,
+            )
         if self.preconditioner is not None:
-            options.preconditioner = cp.asarray(self.preconditioner)
+            options.preconditioner = cp.asarray(
+                self.preconditioner,
+                dtype=tike.precision.cfloating,
+            )
         return options
 
     def copy_to_host(self) -> ObjectOptions:

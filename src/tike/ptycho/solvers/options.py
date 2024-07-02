@@ -9,6 +9,7 @@ import numpy.typing as npt
 import scipy.ndimage
 import cupy as cp
 
+import tike.precision
 from tike.ptycho.object import ObjectOptions
 from tike.ptycho.position import PositionOptions, check_allowed_positions
 from tike.ptycho.probe import ProbeOptions
@@ -205,13 +206,28 @@ class PtychoParameters():
     def copy_to_device(self) -> PtychoParameters:
         """Copy to the current device."""
         return PtychoParameters(
-            probe=cp.asarray(self.probe),
-            psi=cp.asarray(self.psi),
-            scan=cp.asarray(self.scan),
-            eigen_probe=cp.asarray(self.eigen_probe)
+            probe=cp.asarray(
+                self.probe,
+                dtype=tike.precision.cfloating,
+            ),
+            psi=cp.asarray(
+                self.psi,
+                dtype=tike.precision.cfloating,
+            ),
+            scan=cp.asarray(
+                self.scan,
+                dtype=tike.precision.floating,
+            ),
+            eigen_probe=cp.asarray(
+                self.eigen_probe,
+                dtype=tike.precision.cfloating,
+            )
             if self.eigen_probe is not None
             else None,
-            eigen_weights=cp.asarray(self.eigen_weights)
+            eigen_weights=cp.asarray(
+                self.eigen_weights,
+                dtype=tike.precision.floating,
+            )
             if self.eigen_weights is not None
             else None,
             algorithm_options=self.algorithm_options,
@@ -264,11 +280,13 @@ class PtychoParameters():
     ) -> PtychoParameters:
         """Return a new PtychoParameters with only the data from the indices"""
         return PtychoParameters(
-            probe=x.probe,
-            psi=x.psi,
-            scan=x.scan[indices],
-            eigen_probe=x.eigen_probe,
-            eigen_weights=x.eigen_weights[indices]
+            probe=x.probe.astype(tike.precision.cfloating),
+            psi=x.psi.astype(tike.precision.cfloating),
+            scan=x.scan[indices].astype(tike.precision.floating),
+            eigen_probe=x.eigen_probe.astype(tike.precision.cfloating)
+            if x.eigen_probe is not None
+            else None,
+            eigen_weights=x.eigen_weights[indices].astype(tike.precision.floating)
             if x.eigen_weights is not None
             else None,
             algorithm_options=copy.deepcopy(x.algorithm_options),

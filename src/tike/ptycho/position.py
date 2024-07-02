@@ -506,7 +506,10 @@ class PositionOptions:
         if self.confidence is not None:
             options.confidence = cp.asarray(self.confidence)
         if self.use_adaptive_moment:
-            options._momentum = cp.asarray(self._momentum)
+            options._momentum = cp.asarray(
+                self._momentum,
+                dtype=tike.precision.floating,
+            )
         return options
 
     def copy_to_host(self):

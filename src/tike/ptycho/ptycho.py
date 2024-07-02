@@ -391,6 +391,9 @@ class Reconstruction():
             len(self.parameters),
             self.comm.pool.num_workers,
         )
+        assert self.parameters[0].psi.dtype == tike.precision.cfloating, self.parameters[0].psi.dtype
+        assert self.parameters[0].probe.dtype == tike.precision.cfloating, self.parameters[0].probe.dtype
+        assert self.parameters[0].scan.dtype == tike.precision.floating, self.parameters[0].probe.dtype
 
         self.parameters = self.comm.pool.map(
             solvers.PtychoParameters.copy_to_device,
@@ -400,6 +403,9 @@ class Reconstruction():
             len(self.parameters),
             self.comm.pool.num_workers,
         )
+        assert self.parameters[0].psi.dtype == tike.precision.cfloating, self.parameters[0].psi.dtype
+        assert self.parameters[0].probe.dtype == tike.precision.cfloating, self.parameters[0].probe.dtype
+        assert self.parameters[0].scan.dtype == tike.precision.floating, self.parameters[0].probe.dtype
 
         if self.parameters[0].probe_options is not None:
             if self.parameters[0].probe_options.init_rescale_from_measurements:
@@ -409,6 +415,9 @@ class Reconstruction():
                     self.data,
                     self.parameters,
                 )
+        assert self.parameters[0].psi.dtype == tike.precision.cfloating, self.parameters[0].psi.dtype
+        assert self.parameters[0].probe.dtype == tike.precision.cfloating, self.parameters[0].probe.dtype
+        assert self.parameters[0].scan.dtype == tike.precision.floating, self.parameters[0].probe.dtype
 
         return self
 
@@ -563,9 +572,13 @@ class Reconstruction():
             self.comm.pool.num_workers,
         )
 
-        parameters = self.comm.pool.map(
-            solvers.PtychoParameters.copy_to_host,
-            self.parameters,
+        # Use plain map here instead of threaded map so this method can be
+        # called when the context is closed.
+        parameters = list(
+            map(
+                solvers.PtychoParameters.copy_to_host,
+                self.parameters,
+            )
         )
 
         parameters = solvers.PtychoParameters.join(
@@ -912,7 +925,8 @@ def _rescale_probe(
 
     n = np.sqrt(comm.Allreduce_reduce_cpu(n))
 
-    rescale = cp.asarray(n[0] / n[1])
+    # Force precision to prevent type promotion downstream
+    rescale = cp.asarray(n[0] / n[1], dtype=tike.precision.floating)
 
     logger.info("Probe rescaled by %f", rescale)
 

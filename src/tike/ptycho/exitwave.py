@@ -82,7 +82,7 @@ class ExitWaveOptions:
     def copy_to_device(self) -> ExitWaveOptions:
         """Copy to the current GPU memory."""
         return ExitWaveOptions(
-            measured_pixels=cp.asarray(self.measured_pixels),
+            measured_pixels=cp.asarray(self.measured_pixels, dtype=bool),
             noise_model=self.noise_model,
             propagation_normalization=self.propagation_normalization,
             step_length_start=self.step_length_start,
