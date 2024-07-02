@@ -437,7 +437,33 @@ class ThreadPool():
             temp0 = self._copy_to(x[i][..., lo:hi, :], self.workers[i + 1])
             temp1 = self._copy_to(x[i + 1][..., lo:hi, :], self.workers[i])
             with self.Device(self.workers[i]):
-                x[i][..., lo:hi, :] = temp1
+                rampu = cp.linspace(
+                    0.0,
+                    1.0,
+                    overlap + 2,
+                    endpoint=True,
+                )[1:-1][..., None]
+                rampd = cp.linspace(
+                    1.0,
+                    0.0,
+                    overlap + 2,
+                    endpoint=True,
+                )[1:-1][..., None]
+                x[i][..., lo:hi, :] = rampd * x[i][..., lo:hi, :] + rampu * temp1
             with self.Device(self.workers[i + 1]):
-                x[i + 1][..., lo:hi, :] = temp0
+                rampu = cp.linspace(
+                    0.0,
+                    1.0,
+                    overlap + 2,
+                    endpoint=True,
+                )[1:-1][..., None]
+                rampd = cp.linspace(
+                    1.0,
+                    0.0,
+                    overlap + 2,
+                    endpoint=True,
+                )[1:-1][..., None]
+                x[i + 1][..., lo:hi, :] = (
+                    rampd * temp0 + rampu * x[i + 1][..., lo:hi, :]
+                )
         return x

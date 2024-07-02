@@ -501,9 +501,9 @@ class Reconstruction():
                 self.comm.swap_edges(
                     [e.psi for e in self.parameters],
                     # reduce overlap to stay away from edge noise
-                    overlap=pw // 5,
+                    overlap=pw-1,
                     # The actual edge is centered on the probe
-                    edges=[e + pw // 2 for e in self.comm.stripe_start],
+                    edges=self.comm.stripe_start,
                 ),
                 self.parameters,
             ):

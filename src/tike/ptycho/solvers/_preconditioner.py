@@ -73,7 +73,7 @@ def _psi_preconditioner(
         hi=len(parameters.scan),
     )
 
-    return psi_update_denominator
+    return psi_update_denominator[None, ...]
 
 
 @cp.fuse()

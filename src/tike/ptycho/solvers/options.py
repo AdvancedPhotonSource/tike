@@ -308,7 +308,7 @@ class PtychoParameters():
             probe=x[0].probe,
             psi=ObjectOptions.join_psi(
                 [e.psi for e in x],
-                probe_width=x[0].probe.shape[-2] // 2,
+                probe_width=x[0].probe.shape[-2],
                 stripe_start=stripe_start,
             ),
             scan=np.concatenate(
@@ -327,7 +327,11 @@ class PtychoParameters():
             exitwave_options=x[0].exitwave_options,
             # TODO: synchronize probe momentum elsewhere
             probe_options=x[0].probe_options,
-            object_options=x[0].object_options,
+            object_options=ObjectOptions.join(
+                [e.object_options for e in x],
+                stripe_start=stripe_start,
+                probe_width=x[0].probe.shape[-2],
+            ),
             position_options=PositionOptions.join(
                 [e.position_options for e in x],
                 reorder,

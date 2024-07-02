@@ -146,9 +146,10 @@ class ObjectOptions:
     ) -> np.ndarray:
         """Recombine `x`, a list of psi, from a split reconstruction."""
         joined_psi = x[0]
+        w = probe_width // 2
         for i in range(1, len(x)):
-            lo = stripe_start[i] + probe_width
-            hi = stripe_start[i + 1] + probe_width if i + 1 < len(x) else x[0].shape[1]
+            lo = stripe_start[i] + w
+            hi = stripe_start[i + 1] + w if i + 1 < len(x) else x[0].shape[1]
             joined_psi[:, lo:hi, :] = x[i][:, lo:hi, :]
         return joined_psi
 
