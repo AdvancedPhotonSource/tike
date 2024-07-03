@@ -338,89 +338,6 @@ def constrain_variable_probe(variable_probe, weights):
     return variable_probe, weights
 
 
-def _get_update(R, eigen_probe, weights, batches, *, batch_index, c, m):
-    """
-    Parameters
-    ----------
-    R :         (B, 1, 1, H, W)
-    eigen_probe (1, C, M, H, W)
-    weights :   (B, C, M)
-    """
-    lo = batches[batch_index][0]
-    hi = lo + len(batches[batch_index])
-    # (POSI, 1, 1, 1, 1) to match other arrays
-    weights = weights[lo:hi, c:c + 1, m:m + 1, None, None]
-    eigen_probe = eigen_probe[:, c - 1:c, m:m + 1, :, :]
-    norm_weights = tike.linalg.norm(weights, axis=-5, keepdims=True)**2
-
-    if np.all(norm_weights == 0):
-        raise ValueError('eigen_probe weights cannot all be zero?')
-
-    # FIXME: What happens when weights is zero!?
-    proj = (np.real(R.conj() * eigen_probe) + weights) / norm_weights
-    return np.mean(
-        R * np.mean(proj, axis=(-2, -1), keepdims=True),
-        axis=-5,
-        keepdims=True,
-    )
-
-
-def _get_d(patches, diff, eigen_probe, update, *, β, c, m):
-    """
-    Parameters
-    ----------
-    patches :   (B, 1, 1, H, W)
-    diff :      (B, 1, M, H, W)
-    eigen_probe (1, C, M, H, W)
-    update :    (1, 1, 1, H, W)
-    """
-    eigen_probe[:, c - 1:c, m:m + 1, :, :] += β * update / tike.linalg.mnorm(
-        update,
-        axis=(-2, -1),
-        keepdims=True,
-    )
-    eigen_probe[:, c - 1:c, m:m + 1, :, :] /= tike.linalg.mnorm(
-        eigen_probe[:, c - 1:c, m:m + 1, :, :],
-        axis=(-2, -1),
-        keepdims=True,
-    )
-    assert np.all(np.isfinite(eigen_probe))
-
-    # Determine new eigen_weights for the updated eigen probe
-    phi = patches * eigen_probe[:, c - 1:c, m:m + 1, :, :]
-    n = np.mean(
-        np.real(diff[:, :, m:m + 1, :, :] * phi.conj()),
-        axis=(-1, -2),
-        keepdims=False,
-    )
-    d = np.mean(np.square(np.abs(phi)), axis=(-1, -2), keepdims=False)
-    d_mean = np.mean(d, axis=-3, keepdims=True)
-    return eigen_probe, n, d, d_mean
-
-
-def _get_weights_mean(n, d, d_mean, weights, batches, *, batch_index, c, m):
-    """
-    Parameters
-    ----------
-    n :       (B, 1, 1)
-    d :       (B, 1, 1)
-    d_mean :  (1, 1, 1)
-    weights : (B, C, M)
-    """
-    lo = batches[batch_index][0]
-    hi = lo + len(batches[batch_index])
-    # yapf: disable
-    weight_update = (
-        n / (d + 0.1 * d_mean)
-    ).reshape(*weights[lo:hi, c:c + 1, m:m + 1].shape)
-    # yapf: enable
-    assert np.all(np.isfinite(weight_update))
-
-    # (33) The sum of all previous steps constrained to zero-mean
-    weights[lo:hi, c:c + 1, m:m + 1] += weight_update
-    return weights
-
-
 def update_eigen_probe(
     R,
     eigen_probe,
@@ -473,51 +390,67 @@ def update_eigen_probe(
     assert weights[batches[batch_index], :, :].shape[-3] == R.shape[-5]
     assert R.shape[-2:] == eigen_probe.shape[-2:]
 
-    update = _get_update(
-        R,
-        eigen_probe,
-        weights,
-        batches,
-        batch_index=batch_index,
-        c=c,
-        m=m,
+    lo = batches[batch_index][0]
+    hi = lo + len(batches[batch_index])
+    # (POSI, 1, 1, 1, 1) to match other arrays
+    norm_weights = (
+        tike.linalg.norm(
+            weights[lo:hi, c : c + 1, m : m + 1, None, None],
+            axis=-5,
+            keepdims=True,
+        )
+        ** 2
     )
 
-    update = cp.mean(
-        update,
+    if np.all(norm_weights == 0):
+        raise ValueError("eigen_probe weights cannot all be zero?")
+
+    # FIXME: What happens when weights is zero!?
+    proj = (
+        np.real(R.conj() * eigen_probe[:, c - 1 : c, m : m + 1, :, :])
+        + weights[lo:hi, c : c + 1, m : m + 1, None, None]
+    ) / norm_weights
+    update = np.mean(
+        R * np.mean(proj, axis=(-2, -1), keepdims=True),
         axis=-5,
+        keepdims=False,
     )
 
-    (
-        eigen_probe,
-        n,
-        d,
-        d_mean,
-    ) = _get_d(
-        patches,
-        diff,
-        eigen_probe,
-        update,
-        β=β,
-        c=c,
-        m=m,
+    eigen_probe[:, c - 1 : c, m : m + 1, :, :] += (
+        β
+        * update
+        / tike.linalg.mnorm(
+            update,
+            axis=(-2, -1),
+            keepdims=True,
+        )
     )
+    eigen_probe[:, c - 1 : c, m : m + 1, :, :] /= tike.linalg.mnorm(
+        eigen_probe[:, c - 1 : c, m : m + 1, :, :],
+        axis=(-2, -1),
+        keepdims=True,
+    )
+    assert np.all(np.isfinite(eigen_probe))
 
-    d_mean = cp.mean(
-        d_mean,
-        axis=-3,
+    # Determine new eigen_weights for the updated eigen probe
+    phi = patches * eigen_probe[:, c - 1 : c, m : m + 1, :, :]
+    n = np.mean(
+        np.real(diff[:, :, m : m + 1, :, :] * phi.conj()),
+        axis=(-1, -2),
+        keepdims=False,
     )
+    d = np.mean(np.square(np.abs(phi)), axis=(-1, -2), keepdims=False)
+    d_mean = np.mean(d, axis=-3, keepdims=False)
 
-    weights = _get_weights_mean(
-        n,
-        d,
-        d_mean,
-        weights,
-        batches,
-        batch_index=batch_index,
-        c=c,
-        m=m,
-    )
+    # yapf: disable
+    weight_update = (
+        n / (d + 0.1 * d_mean)
+    ).reshape(*weights[lo:hi, c:c + 1, m:m + 1].shape)
+    # yapf: enable
+    assert np.all(np.isfinite(weight_update))
+
+    # (33) The sum of all previous steps constrained to zero-mean
+    weights[lo:hi, c : c + 1, m : m + 1] += weight_update
 
     return eigen_probe, weights
 
