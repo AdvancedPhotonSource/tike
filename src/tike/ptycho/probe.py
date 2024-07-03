@@ -56,9 +56,6 @@ logger = logging.getLogger(__name__)
 class ProbeOptions:
     """Manage data and setting related to probe correction."""
 
-    recover_probe: bool = False
-    """Boolean switch used to indicate whether to update probe or not."""
-
     update_start: int = 0
     """Start probe updates at this epoch."""
 
@@ -156,10 +153,13 @@ class ProbeOptions:
     )
     """The power of the primary probe modes at each iteration."""
 
+    def recover_probe(self, epoch: int) -> bool:
+        """Return whether to update probe or not."""
+        return (epoch >= self.update_start) and (epoch % self.update_period == 0)
+
     def copy_to_device(self) -> ProbeOptions:
         """Copy to the current GPU memory."""
         options = ProbeOptions(
-            recover_probe=self.recover_probe,
             update_start=self.update_start,
             update_period=self.update_period,
             init_rescale_from_measurements=self.init_rescale_from_measurements,
@@ -198,7 +198,6 @@ class ProbeOptions:
     def copy_to_host(self) -> ProbeOptions:
         """Copy to the host CPU memory."""
         options = ProbeOptions(
-            recover_probe=self.recover_probe,
             update_start=self.update_start,
             update_period=self.update_period,
             init_rescale_from_measurements=self.init_rescale_from_measurements,
@@ -228,7 +227,6 @@ class ProbeOptions:
     def resample(self, factor: float, interp) -> ProbeOptions:
         """Return a new `ProbeOptions` with the parameters rescaled."""
         options = ProbeOptions(
-            recover_probe=self.recover_probe,
             update_start=self.update_start,
             update_period=self.update_period,
             init_rescale_from_measurements=self.init_rescale_from_measurements,
@@ -284,8 +282,19 @@ def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
         return shared_probe.copy()
 
 
-def _constrain_variable_probe1(variable_probe, weights):
-    """Help use the thread pool with constrain_variable_probe"""
+def constrain_variable_probe(variable_probe, weights):
+    """Add the following constraints to variable probe weights
+
+    1. Remove outliars from weights
+    2. Enforce orthogonality once per epoch
+    3. Sort the variable probes by their total energy
+    4. Normalize the variable probes so the energy is contained in the weight
+
+    """
+    # TODO: No smoothing of variable probe weights yet because the weights are
+    # not stored consecutively in device memory. Smoothing would require either
+    # sorting and synchronizing the weights with the host OR implementing
+    # smoothing of non-gridded data with splines using device-local data only.
 
     # Normalize variable probes
     vnorm = tike.linalg.mnorm(variable_probe, axis=(-2, -1), keepdims=True)
@@ -307,12 +316,6 @@ def _constrain_variable_probe1(variable_probe, weights):
         axis=-3,
     )**2
 
-    return variable_probe, weights, power
-
-
-def _constrain_variable_probe2(variable_probe, weights, power):
-    """Help use the thread pool with constrain_variable_probe"""
-
     # Sort the probes by energy
     probes_with_modes = variable_probe.shape[-3]
     for i in range(probes_with_modes):
@@ -331,39 +334,6 @@ def _constrain_variable_probe2(variable_probe, weights, power):
             keepdims=True,
         ).astype(weights.dtype),
     ) * cp.sign(weights)
-
-    return variable_probe, weights
-
-
-def constrain_variable_probe(comm, variable_probe, weights):
-    """Add the following constraints to variable probe weights
-
-    1. Remove outliars from weights
-    2. Enforce orthogonality once per epoch
-    3. Sort the variable probes by their total energy
-    4. Normalize the variable probes so the energy is contained in the weight
-
-    """
-    # TODO: No smoothing of variable probe weights yet because the weights are
-    # not stored consecutively in device memory. Smoothing would require either
-    # sorting and synchronizing the weights with the host OR implementing
-    # smoothing of non-gridded data with splines using device-local data only.
-
-    variable_probe, weights, power = zip(*comm.pool.map(
-        _constrain_variable_probe1,
-        variable_probe,
-        weights,
-    ))
-
-    # reduce power by sum across all devices
-    power = comm.pool.allreduce(power)
-
-    variable_probe, weights = (list(a) for a in zip(*comm.pool.map(
-        _constrain_variable_probe2,
-        variable_probe,
-        weights,
-        power,
-    )))
 
     return variable_probe, weights
 
@@ -473,8 +443,6 @@ def update_eigen_probe(
 
     Parameters
     ----------
-    comm : :py:class:`tike.communicators.Comm`
-        An object which manages communications between both GPUs and nodes.
     R : (POSI, 1, 1, WIDE, HIGH) complex64
         Residual probe updates; what's left after subtracting the shared probe
         update from the varying probe updates for each position

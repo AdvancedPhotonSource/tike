@@ -442,15 +442,10 @@ class Reconstruction():
 
             total_epochs = len(self.parameters[0].algorithm_options.times)
 
-            # if self.parameters.probe_options is not None:
-            #     self.parameters.probe_options.recover_probe = (
-            #         total_epochs >= self.parameters.probe_options.update_start
-            #         and (total_epochs % self.parameters.probe_options.update_period) == 0
-            #     )
-
             self.parameters = self.comm.pool.map(
                 _apply_probe_constraints,
                 self.parameters,
+                epoch=total_epochs
             )
 
             self.parameters = solvers.update_preconditioners(
@@ -715,9 +710,11 @@ class Reconstruction():
 
 def _apply_probe_constraints(
     parameters: solvers.PtychoParameters,
+    *,
+    epoch: int,
 ) -> solvers.PtychoParameters:
     if parameters.probe_options is not None:
-        if parameters.probe_options.recover_probe:
+        if parameters.probe_options.recover_probe(epoch):
 
             if parameters.probe_options.median_filter_abs_probe:
                 parameters.probe = apply_median_filter_abs_probe(
@@ -736,7 +733,7 @@ def _apply_probe_constraints(
                     f=parameters.probe_options.force_sparsity,
                 )
 
-            if parameters[0].probe_options.force_orthogonality:
+            if parameters.probe_options.force_orthogonality:
                 (
                     parameters.probe,
                     power,
@@ -748,7 +745,7 @@ def _apply_probe_constraints(
                     parameters.probe,
                 )
 
-            parameters.probe_options.power.append(power[0].get())
+            parameters.probe_options.power.append(cp.asnumpy(power))
 
         if parameters.algorithm_options.rescale_method == "constant_probe_photons" and (
             len(parameters.algorithm_options.costs)
@@ -765,7 +762,7 @@ def _apply_probe_constraints(
 
         if (
             parameters.eigen_probe is not None
-            and parameters.probe_options.recover_probe
+            and parameters.probe_options.recover_probe(epoch)
         ):
             (
                 parameters.eigen_probe,
