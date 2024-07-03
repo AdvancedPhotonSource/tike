@@ -557,11 +557,10 @@ class Reconstruction():
             )
 
     def get_scan(self) -> npt.NDArray:
-        raise NotImplementedError()
         reorder = np.argsort(np.concatenate(self.comm.order))
-        return self.comm.pool.gather_host(
-            self.parameters.scan,
-            axis=-2,
+        return np.concatenate(
+            [cp.asnumpy(e.scan) for e in self.parameters],
+            axis=0,
         )[reorder]
 
     def get_result(self) -> solvers.PtychoParameters:
@@ -607,45 +606,35 @@ class Reconstruction():
         self
     ) -> typing.Tuple[typing.List[typing.List[float]], typing.List[float]]:
         """Return the cost function values and times as a tuple."""
-        raise NotImplementedError()
         return (
-            self.parameters.algorithm_options.costs,
-            self.parameters.algorithm_options.times,
+            self.parameters[0].algorithm_options.costs,
+            self.parameters[0].algorithm_options.times,
         )
 
     def get_psi(self) -> np.array:
         """Return the current object estimate as a numpy array."""
-        raise NotImplementedError()
-        return self.parameters.psi[0].get()
+        return ObjectOptions.join_psi(
+            [cp.asnumpy(e.psi) for e in self.parameters],
+            probe_width=self.parameters[0].probe.shape[-2],
+            stripe_start=self.comm.stripe_start,
+        )
 
     def get_probe(self) -> typing.Tuple[np.array, np.array, np.array]:
         """Return the current probe, eigen_probe, weights as numpy arrays."""
-        raise NotImplementedError()
-        reorder = np.argsort(np.concatenate(self.comm.order))
-        if self.parameters.eigen_probe is None:
+        if self.parameters[0].eigen_probe is None:
             eigen_probe = None
         else:
-            eigen_probe = self.parameters.eigen_probe[0].get()
+            eigen_probe = self.parameters[0].eigen_probe.get()
         if self.parameters.eigen_weights is None:
             eigen_weights = None
         else:
+            reorder = np.argsort(np.concatenate(self.comm.order))
             eigen_weights = self.comm.pool.gather(
                 self.parameters.eigen_weights,
                 axis=-3,
             )[reorder].get()
-        probe = self.parameters.probe[0].get()
+        probe = self.parameters[0].probe.get()
         return probe, eigen_probe, eigen_weights
-
-    def peek(self) -> typing.Tuple[np.array, np.array, np.array, np.array]:
-        """Return the curent values of object and probe as numpy arrays.
-
-        Parameters returned in a tuple of object, probe, eigen_probe,
-        eigen_weights.
-        """
-        raise NotImplementedError()
-        psi = self.get_psi()
-        probe, eigen_probe, eigen_weights = self.get_probe()
-        return psi, probe, eigen_probe, eigen_weights
 
     def append_new_data(
         self,
