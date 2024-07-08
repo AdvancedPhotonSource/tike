@@ -135,7 +135,7 @@ def update_preconditioners(
         preconditioner = comm.pool.map(
             _psi_preconditioner,
             parameters,
-            comm.streams,
+            comm.pool.streams,
             operator=operator,
         )
 
@@ -151,7 +151,7 @@ def update_preconditioners(
         preconditioner = comm.pool.map(
             _probe_preconditioner,
             parameters,
-            comm.streams,
+            comm.pool.streams,
             operator=operator,
         )
 

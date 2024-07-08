@@ -459,7 +459,7 @@ class Reconstruction():
                 self.parameters,
                 self.data,
                 self.batches,
-                self.comm.streams,
+                self.comm.pool.streams,
                 op=self.operator,
                 epoch=len(self.parameters[0].algorithm_options.times),
             )
@@ -901,7 +901,7 @@ def _rescale_probe(
             _get_rescale,
             data,
             parameters,
-            comm.streams,
+            comm.pool.streams,
             operator=operator,
         )
     except cp.cuda.memory.OutOfMemoryError:

@@ -89,6 +89,12 @@ class ThreadPool():
             self.num_workers) if self.num_workers > 1 else NoPoolExecutor(
                 self.num_workers)
 
+        def f(worker):
+            with self.Device(worker):
+                return [cp.cuda.Stream() for _ in range(2)]
+
+        self.streams = list(self.executor.map(f, self.workers))
+
     def __enter__(self):
         if self.workers[0] != cp.cuda.Device().id:
             raise ValueError(
@@ -397,13 +403,14 @@ class ThreadPool():
     ) -> list:
         """ThreadPoolExecutor.map, but wraps call in a cuda.Device context."""
 
-        def f(worker, *args):
+        def f(worker, streams, *args):
             with self.Device(worker):
-                return func(*args, **kwargs)
+                with streams[1]:
+                    return func(*args, **kwargs)
 
         workers = self.workers if workers is None else workers
 
-        return list(self.executor.map(f, workers, *iterables))
+        return list(self.executor.map(f, workers, self.streams, *iterables))
 
     def swap_edges(
         self,
