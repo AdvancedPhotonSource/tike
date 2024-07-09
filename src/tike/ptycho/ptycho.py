@@ -464,16 +464,6 @@ class Reconstruction():
                 epoch=len(self.parameters[0].algorithm_options.times),
             )
 
-            self.parameters = self.comm.pool.map(
-                _apply_object_constraints,
-                self.parameters,
-            )
-
-            self.parameters = self.comm.pool.map(
-                _apply_position_constraints,
-                self.parameters,
-            )
-
             for i, reduced_probe in enumerate(
                 self.comm.Allreduce_mean(
                     [e.probe[None, ...] for e in self.parameters],
@@ -493,7 +483,6 @@ class Reconstruction():
 
             pw = self.parameters[0].probe.shape[-2]
             for swapped, parameters in zip(
-                # TODO: Try blending edges during swap instead of replacing
                 self.comm.swap_edges(
                     [e.psi for e in self.parameters],
                     # reduce overlap to stay away from edge noise
@@ -517,6 +506,16 @@ class Reconstruction():
                     ].position_options.transform = AffineTransform.frombuffer(
                         reduced_transform
                     )
+
+            self.parameters = self.comm.pool.map(
+                _apply_object_constraints,
+                self.parameters,
+            )
+
+            self.parameters = self.comm.pool.map(
+                _apply_position_constraints,
+                self.parameters,
+            )
 
             reduced_cost = np.mean(
                 [e.algorithm_options.costs[-1] for e in self.parameters],
