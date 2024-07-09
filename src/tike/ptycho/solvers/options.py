@@ -80,15 +80,6 @@ class IterativeOptions(abc.ABC):
 
 
 @dataclasses.dataclass
-class DmOptions(IterativeOptions):
-    name: str = dataclasses.field(default='dm', init=False)
-
-    num_batch: int = 1
-    """The dataset is divided into this number of groups where each group is
-    processed simultaneously."""
-
-
-@dataclasses.dataclass
 class RpieOptions(IterativeOptions):
     name: str = dataclasses.field(default='rpie', init=False)
 

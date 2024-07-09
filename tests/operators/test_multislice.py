@@ -42,7 +42,6 @@ class TestMultiSlice(unittest.TestCase):
             detector_shape=self.detector_shape[-1],
             nz=self.original_shape[-2],
             n=self.original_shape[-1],
-            nslices=depth,
         )
         self.operator.__enter__()
         self.xp = self.operator.xp
@@ -107,7 +106,6 @@ class TestSingleSlice(TestMultiSlice):
             detector_shape=self.detector_shape[-1],
             nz=self.original_shape[-2],
             n=self.original_shape[-1],
-            nslices=depth,
         )
         self.operator.__enter__()
         self.xp = self.operator.xp
