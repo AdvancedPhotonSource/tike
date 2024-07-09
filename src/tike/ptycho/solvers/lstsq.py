@@ -287,7 +287,7 @@ def lstsq_grad(
                 v=object_options.v,
                 m=object_options.m,
                 mdecay=object_options.mdecay,
-                errors=list(float(cp.mean(x)) for x in algorithm_options.costs[-3:]),
+                errors=list(float(np.mean(x)) for x in algorithm_options.costs[-3:]),
                 beta=beta_object,
                 memory_length=3,
             )

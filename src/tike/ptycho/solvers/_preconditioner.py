@@ -46,7 +46,7 @@ def _psi_preconditioner(
 ) -> npt.NDArray:
 
     psi_update_denominator = cp.zeros(
-        shape=parameters.psi.shape[-2:],
+        shape=parameters.psi.shape,
         dtype=parameters.psi.dtype,
     )
 
@@ -58,25 +58,25 @@ def _psi_preconditioner(
         nonlocal psi_update_denominator
 
         probe_amp = _probe_amp_sum(parameters.probe)[:, 0]
-        psi_update_denominator[...] = operator.diffraction.patch.adj(
+        psi_update_denominator[0] = operator.diffraction.patch.adj(
             patches=probe_amp,
-            images=psi_update_denominator,
+            images=psi_update_denominator[0],
             positions=parameters.scan[lo:hi],
         )
 
-        probe1 = probe[:, 0]
-        for i in range(1, len(psi)):
+        probe1 = parameters.probe[:, 0]
+        for i in range(1, len(parameters.psi)):
             probe1 = operator.diffraction.diffraction.fwd(
                 probe=probe1,
-                scan=scan[lo:hi],
-                psi=psi[i-1],
+                scan=parameters.scan[lo:hi],
+                psi=parameters.psi[i-1],
             )
             probe1 = operator.diffraction.propagation.fwd(probe1)
             probe_amp = _probe_amp_sum(probe1)
             psi_update_denominator[i] = operator.diffraction.patch.adj(
                 patches=probe_amp,
                 images=psi_update_denominator[i],
-                positions=scan[lo:hi],
+                positions=parameters.scan[lo:hi],
             )
 
     tike.communicators.stream.stream_and_modify2(
@@ -87,7 +87,7 @@ def _psi_preconditioner(
         hi=len(parameters.scan),
     )
 
-    return psi_update_denominator[None, ...]
+    return psi_update_denominator
 
 
 @cp.fuse()
