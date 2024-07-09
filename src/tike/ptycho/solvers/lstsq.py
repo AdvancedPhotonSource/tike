@@ -94,7 +94,7 @@ def lstsq_grad(
     position_update_numerator = None
     position_update_denominator = None
 
-    batch_cost: typing.List[float] = []
+    batch_cost = cp.empty(algorithm_options.num_batch, dtype=tike.precision.floating)
     beta_object: typing.List[float] = []
     beta_probe: typing.List[float] = []
     for batch_index in order(algorithm_options.num_batch):
@@ -249,7 +249,7 @@ def lstsq_grad(
 
             beta_probe.append(bbeta_probe)
 
-        batch_cost += costs.tolist()
+        batch_cost[batch_index] = cp.mean(costs)
 
     if (
         position_options is not None
@@ -264,7 +264,7 @@ def lstsq_grad(
             epoch=epoch,
         )
 
-    algorithm_options.costs.append(batch_cost)
+    algorithm_options.costs.append(batch_cost.tolist())
 
     if object_options and algorithm_options.batch_method == 'compact':
         object_update_precond = _precondition_object_update(
@@ -287,7 +287,7 @@ def lstsq_grad(
                 v=object_options.v,
                 m=object_options.m,
                 mdecay=object_options.mdecay,
-                errors=list(float(np.mean(x)) for x in algorithm_options.costs[-3:]),
+                errors=list(float(cp.mean(x)) for x in algorithm_options.costs[-3:]),
                 beta=beta_object,
                 memory_length=3,
             )
@@ -300,12 +300,12 @@ def lstsq_grad(
             beta_probe = cp.mean(cp.stack(beta_probe))
             dprobe = probe_combined_update
             if probe_options.v is None:
-                probe_options.v = np.zeros_like(
+                probe_options.v = cp.zeros_like(
                     dprobe,
                     shape=(3, *dprobe.shape),
                 )
             if probe_options.m is None:
-                probe_options.m = np.zeros_like(dprobe,)
+                probe_options.m = cp.zeros_like(dprobe,)
             # ptychoshelves only applies momentum to the main probe
             mode = 0
             (
