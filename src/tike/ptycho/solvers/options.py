@@ -2,11 +2,14 @@ from __future__ import annotations
 import abc
 import dataclasses
 import typing
+import copy
 
 import numpy as np
 import numpy.typing as npt
 import scipy.ndimage
+import cupy as cp
 
+import tike.precision
 from tike.ptycho.object import ObjectOptions
 from tike.ptycho.position import PositionOptions, check_allowed_positions
 from tike.ptycho.probe import ProbeOptions
@@ -123,7 +126,7 @@ class PtychoParameters():
         default_factory=RpieOptions,)
     """A class containing algorithm specific parameters"""
 
-    exitwave_options: typing.Union[ExitWaveOptions, None] = None
+    exitwave_options: ExitWaveOptions = None
     """A class containing settings related to exitwave updates."""
 
     probe_options: typing.Union[ProbeOptions, None] = None
@@ -189,6 +192,141 @@ class PtychoParameters():
             if self.position_options is not None else None,
             exitwave_options=self.exitwave_options.resample(factor)
             if self.exitwave_options is not None else None,
+        )
+
+    def copy_to_device(self) -> PtychoParameters:
+        """Copy to the current device."""
+        return PtychoParameters(
+            probe=cp.asarray(
+                self.probe,
+                dtype=tike.precision.cfloating,
+            ),
+            psi=cp.asarray(
+                self.psi,
+                dtype=tike.precision.cfloating,
+            ),
+            scan=cp.asarray(
+                self.scan,
+                dtype=tike.precision.floating,
+            ),
+            eigen_probe=cp.asarray(
+                self.eigen_probe,
+                dtype=tike.precision.cfloating,
+            )
+            if self.eigen_probe is not None
+            else None,
+            eigen_weights=cp.asarray(
+                self.eigen_weights,
+                dtype=tike.precision.floating,
+            )
+            if self.eigen_weights is not None
+            else None,
+            algorithm_options=self.algorithm_options,
+            exitwave_options=self.exitwave_options.copy_to_device()
+            if self.exitwave_options is not None
+            else None,
+            probe_options=self.probe_options.copy_to_device()
+            if self.probe_options is not None
+            else None,
+            object_options=self.object_options.copy_to_device()
+            if self.object_options is not None
+            else None,
+            position_options=self.position_options.copy_to_device()
+            if self.position_options is not None
+            else None,
+        )
+
+    def copy_to_host(self) -> PtychoParameters:
+        """Copy to the host."""
+        return PtychoParameters(
+            probe=cp.asnumpy(self.probe),
+            psi=cp.asnumpy(self.psi),
+            scan=cp.asnumpy(self.scan),
+            eigen_probe=cp.asnumpy(self.eigen_probe)
+            if self.eigen_probe is not None
+            else None,
+            eigen_weights=cp.asnumpy(self.eigen_weights)
+            if self.eigen_weights is not None
+            else None,
+            algorithm_options=self.algorithm_options,
+            exitwave_options=self.exitwave_options.copy_to_host()
+            if self.exitwave_options is not None
+            else None,
+            probe_options=self.probe_options.copy_to_host()
+            if self.probe_options is not None
+            else None,
+            object_options=self.object_options.copy_to_host()
+            if self.object_options is not None
+            else None,
+            position_options=self.position_options.copy_to_host()
+            if self.position_options is not None
+            else None,
+        )
+
+    @staticmethod
+    def split(
+        indices: npt.NDArray[np.intc],
+        *,
+        x: PtychoParameters,
+    ) -> PtychoParameters:
+        """Return a new PtychoParameters with only the data from the indices"""
+        return PtychoParameters(
+            probe=x.probe.astype(tike.precision.cfloating),
+            psi=x.psi.astype(tike.precision.cfloating),
+            scan=x.scan[indices].astype(tike.precision.floating),
+            eigen_probe=x.eigen_probe.astype(tike.precision.cfloating)
+            if x.eigen_probe is not None
+            else None,
+            eigen_weights=x.eigen_weights[indices].astype(tike.precision.floating)
+            if x.eigen_weights is not None
+            else None,
+            algorithm_options=copy.deepcopy(x.algorithm_options),
+            exitwave_options=x.exitwave_options,
+            probe_options=x.probe_options,
+            object_options=x.object_options,
+            position_options=x.position_options.split(indices)
+            if x.position_options is not None
+            else None,
+        )
+
+    @staticmethod
+    def join(
+        x: typing.Iterable[PtychoParameters],
+        reorder: npt.NDArray[np.intc],
+        stripe_start: typing.List[int],
+    ) -> PtychoParameters:
+        return PtychoParameters(
+            probe=x[0].probe,
+            psi=ObjectOptions.join_psi(
+                [e.psi for e in x],
+                probe_width=x[0].probe.shape[-2],
+                stripe_start=stripe_start,
+            ),
+            scan=np.concatenate(
+                [e.scan for e in x],
+                axis=0,
+            )[reorder],
+            eigen_probe=x[0].eigen_probe,
+            eigen_weights=np.concatenate(
+                [e.eigen_weights for e in x],
+                axis=0,
+            )[reorder]
+            if x[0].eigen_weights is not None
+            else None,
+            # TODO: costs and times should be joined somehow?
+            algorithm_options=x[0].algorithm_options,
+            exitwave_options=x[0].exitwave_options,
+            # TODO: synchronize probe momentum elsewhere
+            probe_options=x[0].probe_options,
+            object_options=ObjectOptions.join(
+                [e.object_options for e in x],
+                stripe_start=stripe_start,
+                probe_width=x[0].probe.shape[-2],
+            ),
+            position_options=PositionOptions.join(
+                [e.position_options for e in x],
+                reorder,
+            ),
         )
 
 

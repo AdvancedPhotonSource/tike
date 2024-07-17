@@ -27,29 +27,21 @@ class TestProbe(unittest.TestCase):
         high = 21
         posi = 53
         eigen = 1
-        comm = Comm(2)
 
-        R = comm.pool.bcast([np.random.rand(*leading, posi, 1, 1, wide, high)])
-        eigen_probe = comm.pool.bcast(
-            [np.random.rand(*leading, 1, eigen, 1, wide, high)])
+        R = np.random.rand(*leading, posi, 1, 1, wide, high)
+        eigen_probe = np.random.rand(*leading, 1, eigen, 1, wide, high)
         weights = np.random.rand(*leading, posi, eigen + 1, 1)
         weights -= np.mean(weights, axis=-3, keepdims=True)
-        weights = comm.pool.bcast([weights])
-        patches = comm.pool.bcast(
-            [np.random.rand(*leading, posi, 1, 1, wide, high)])
-        diff = comm.pool.bcast(
-            [np.random.rand(*leading, posi, 1, 1, wide, high)])
+        patches = np.random.rand(*leading, posi, 1, 1, wide, high)
+        diff = np.random.rand(*leading, posi, 1, 1, wide, high)
 
         new_probe, new_weights = tike.ptycho.probe.update_eigen_probe(
-            comm=comm,
             R=R,
             eigen_probe=eigen_probe,
             weights=weights,
             patches=patches,
             diff=diff,
-            batches=[[
-                list(range(53)),
-            ]],
+            batches=[list(range(53))],
             batch_index=0,
             c=1,
             m=0,

@@ -89,6 +89,12 @@ class ThreadPool():
             self.num_workers) if self.num_workers > 1 else NoPoolExecutor(
                 self.num_workers)
 
+        def f(worker):
+            with self.Device(worker):
+                return [cp.cuda.Stream() for _ in range(2)]
+
+        self.streams = list(self.executor.map(f, self.workers))
+
     def __enter__(self):
         if self.workers[0] != cp.cuda.Device().id:
             raise ValueError(
@@ -397,10 +403,74 @@ class ThreadPool():
     ) -> list:
         """ThreadPoolExecutor.map, but wraps call in a cuda.Device context."""
 
-        def f(worker, *args):
+        def f(worker, streams, *args):
             with self.Device(worker):
-                return func(*args, **kwargs)
+                with streams[1]:
+                    return func(*args, **kwargs)
 
         workers = self.workers if workers is None else workers
 
-        return list(self.executor.map(f, workers, *iterables))
+        return list(self.executor.map(f, workers, self.streams, *iterables))
+
+    def swap_edges(
+        self,
+        x: typing.List[cp.ndarray],
+        overlap: int,
+        edges: typing.List[int],
+    ):
+        """Swap [..., edge:(edge + overlap), :] between neighbors in-place
+
+        For example, given overlap=3 and edges=[0, 4, 8, 12], the following
+        swap would be returned:
+
+        ```
+          0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+
+        [[0 0 0 0 1 1 1 0 0 0 0 0 0 0 0 0]]
+        [[1 1 1 1 0 0 0 1 2 2 2 1 1 1 1 1]]
+        [[2 2 2 2 2 2 2 2 1 1 1 2 3 3 3 2]]
+        [[3 3 3 3 3 3 3 3 3 3 3 3 2 2 2 3]]
+        ```
+
+        Note that the minimum swapped region is 1 wide.
+
+        """
+        if overlap < 1:
+            msg = f"Overlap for swap_edges cannot be less than 1: {overlap}"
+            raise ValueError(msg)
+        for i in range(self.num_workers - 1):
+            lo = edges[i + 1]
+            hi = lo + overlap
+            temp0 = self._copy_to(x[i][..., lo:hi, :], self.workers[i + 1])
+            temp1 = self._copy_to(x[i + 1][..., lo:hi, :], self.workers[i])
+            with self.Device(self.workers[i]):
+                rampu = cp.linspace(
+                    0.0,
+                    1.0,
+                    overlap + 2,
+                    endpoint=True,
+                )[1:-1][..., None]
+                rampd = cp.linspace(
+                    1.0,
+                    0.0,
+                    overlap + 2,
+                    endpoint=True,
+                )[1:-1][..., None]
+                x[i][..., lo:hi, :] = rampd * x[i][..., lo:hi, :] + rampu * temp1
+            with self.Device(self.workers[i + 1]):
+                rampu = cp.linspace(
+                    0.0,
+                    1.0,
+                    overlap + 2,
+                    endpoint=True,
+                )[1:-1][..., None]
+                rampd = cp.linspace(
+                    1.0,
+                    0.0,
+                    overlap + 2,
+                    endpoint=True,
+                )[1:-1][..., None]
+                x[i + 1][..., lo:hi, :] = (
+                    rampd * temp0 + rampu * x[i + 1][..., lo:hi, :]
+                )
+        return x

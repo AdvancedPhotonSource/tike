@@ -71,37 +71,56 @@ class ObjectOptions:
     )
     """The magnitude of the illumination used for conditioning the object updates."""
 
-    combined_update: typing.Union[npt.NDArray, None] = dataclasses.field(
-        init=False,
-        default_factory=lambda: None,
-    )
-    """Used for compact batch updates."""
-
     clip_magnitude: bool = False
     """Whether to force the object magnitude to remain <= 1."""
 
-    def copy_to_device(self, comm) -> ObjectOptions:
+    def copy_to_device(self) -> ObjectOptions:
         """Copy to the current GPU memory."""
-        options = copy.copy(self)
+        options = ObjectOptions(
+            convergence_tolerance=self.convergence_tolerance,
+            positivity_constraint=self.positivity_constraint,
+            smoothness_constraint=self.smoothness_constraint,
+            use_adaptive_moment=self.use_adaptive_moment,
+            vdecay=self.vdecay,
+            mdecay=self.mdecay,
+            clip_magnitude=self.clip_magnitude,
+        )
         options.update_mnorm = copy.copy(self.update_mnorm)
         if self.v is not None:
-            options.v = cp.asarray(self.v)
+            options.v = cp.asarray(
+                self.v,
+                dtype=tike.precision.floating,
+            )
         if self.m is not None:
-            options.m = cp.asarray(self.m)
+            options.m = cp.asarray(
+                self.m,
+                dtype=tike.precision.floating,
+            )
         if self.preconditioner is not None:
-            options.preconditioner = comm.pool.bcast([self.preconditioner])
+            options.preconditioner = cp.asarray(
+                self.preconditioner,
+                dtype=tike.precision.cfloating,
+            )
         return options
 
     def copy_to_host(self) -> ObjectOptions:
         """Copy to the host CPU memory."""
-        options = copy.copy(self)
+        options = ObjectOptions(
+            convergence_tolerance=self.convergence_tolerance,
+            positivity_constraint=self.positivity_constraint,
+            smoothness_constraint=self.smoothness_constraint,
+            use_adaptive_moment=self.use_adaptive_moment,
+            vdecay=self.vdecay,
+            mdecay=self.mdecay,
+            clip_magnitude=self.clip_magnitude,
+        )
         options.update_mnorm = copy.copy(self.update_mnorm)
         if self.v is not None:
             options.v = cp.asnumpy(self.v)
         if self.m is not None:
             options.m = cp.asnumpy(self.m)
         if self.preconditioner is not None:
-            options.preconditioner = cp.asnumpy(self.preconditioner[0])
+            options.preconditioner = cp.asnumpy(self.preconditioner)
         return options
 
     def resample(self, factor: float, interp) -> ObjectOptions:
@@ -118,6 +137,58 @@ class ObjectOptions:
         options.update_mnorm = copy.copy(self.update_mnorm)
         return options
         # Momentum reset to zero when grid scale changes
+
+    @staticmethod
+    def join_psi(
+        x: typing.List[np.ndarray],
+        stripe_start: typing.List[int],
+        probe_width: int,
+    ) -> np.ndarray:
+        """Recombine `x`, a list of psi, from a split reconstruction."""
+        joined_psi = x[0]
+        w = probe_width // 2
+        for i in range(1, len(x)):
+            lo = stripe_start[i] + w
+            hi = stripe_start[i + 1] + w if i + 1 < len(x) else x[0].shape[1]
+            joined_psi[:, lo:hi, :] = x[i][:, lo:hi, :]
+        return joined_psi
+
+    @staticmethod
+    def join(
+        x: typing.List[ObjectOptions],
+        stripe_start: typing.List[int],
+        probe_width: int,
+    ) -> ObjectOptions:
+        """Recombine `x`, a list of ObjectOptions, from split ObjectOptions"""
+        options = ObjectOptions(
+            convergence_tolerance=x[0].convergence_tolerance,
+            positivity_constraint=x[0].positivity_constraint,
+            smoothness_constraint=x[0].smoothness_constraint,
+            use_adaptive_moment=x[0].use_adaptive_moment,
+            vdecay=x[0].vdecay,
+            mdecay=x[0].mdecay,
+            clip_magnitude=x[0].clip_magnitude,
+        )
+        options.update_mnorm = copy.copy(x[0].update_mnorm)
+        if x[0].v is not None:
+            options.v = ObjectOptions.join_psi(
+                [e.v for e in x],
+                stripe_start,
+                probe_width,
+            )
+        if x[0].m is not None:
+            options.m = ObjectOptions.join_psi(
+                [e.m for e in x],
+                stripe_start,
+                probe_width,
+            )
+        if x[0].preconditioner is not None:
+            options.preconditioner = ObjectOptions.join_psi(
+                [e.preconditioner for e in x],
+                stripe_start,
+                probe_width,
+            )
+        return options
 
 
 def positivity_constraint(x, r):

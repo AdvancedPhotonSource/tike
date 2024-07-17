@@ -1,7 +1,9 @@
 import logging
+import typing
 
 import cupy as cp
 import cupyx.scipy.stats
+import numpy as np
 import numpy.typing as npt
 
 import tike.communicators
@@ -22,12 +24,12 @@ logger = logging.getLogger(__name__)
 
 
 def rpie(
-    op: tike.operators.Ptycho,
-    comm: tike.communicators.Comm,
-    data: typing.List[npt.NDArray],
-    batches: typing.List[typing.List[npt.NDArray[cp.intc]]],
-    *,
     parameters: PtychoParameters,
+    data: npt.NDArray,
+    batches: typing.List[npt.NDArray[cp.intc]],
+    streams: typing.List[cp.cuda.Stream],
+    *,
+    op: tike.operators.Ptycho,
     epoch: int,
 ) -> PtychoParameters:
     """Solve the ptychography problem using regularized ptychographical engine.
@@ -74,67 +76,54 @@ def rpie(
     .. seealso:: :py:mod:`tike.ptycho`
 
     """
-    probe = parameters.probe
     scan = parameters.scan
     psi = parameters.psi
+    probe = parameters.probe
     algorithm_options = parameters.algorithm_options
+    eigen_weights = parameters.eigen_weights
+    eigen_probe = parameters.eigen_probe
+    measured_pixels = parameters.exitwave_options.measured_pixels
     exitwave_options = parameters.exitwave_options
-    probe_options = parameters.probe_options
-    if probe_options is None:
-        recover_probe = False
-    else:
-        recover_probe = probe_options.recover_probe
-
     position_options = parameters.position_options
     object_options = parameters.object_options
-    eigen_probe = parameters.eigen_probe
-    eigen_weights = parameters.eigen_weights
+    probe_options = parameters.probe_options
+    recover_probe = probe_options is not None and epoch >= probe_options.update_start
 
-    if eigen_probe is None:
-        beigen_probe = [None] * comm.pool.num_workers
-    else:
-        beigen_probe = eigen_probe
-
-    if eigen_weights is None:
-        beigen_weights = [None] * comm.pool.num_workers
-    else:
-        beigen_weights = eigen_weights
+    # CONVERSTION AREA ABOVE ---------------------------------------
 
     if parameters.algorithm_options.batch_method == 'compact':
         order = range
     else:
         order = tike.random.randomizer_np.permutation
 
-    psi_update_numerator = [None] * comm.pool.num_workers
-    probe_update_numerator = [None] * comm.pool.num_workers
-    position_update_numerator = [None] * comm.pool.num_workers
-    position_update_denominator = [None] * comm.pool.num_workers
+    psi_update_numerator = None
+    probe_update_numerator = None
+    position_update_numerator = None
+    position_update_denominator = None
 
     batch_cost: typing.List[float] = []
     for n in order(algorithm_options.num_batch):
-
         (
             cost,
             psi_update_numerator,
             probe_update_numerator,
             position_update_numerator,
             position_update_denominator,
-            beigen_weights,
-        ) = (list(a) for a in zip(*comm.pool.map(
-            _get_nearplane_gradients,
+            eigen_weights,
+        ) = _get_nearplane_gradients(
             data,
             scan,
             psi,
             probe,
-            exitwave_options.measured_pixels,
+            measured_pixels,
             psi_update_numerator,
             probe_update_numerator,
             position_update_numerator,
             position_update_denominator,
-            beigen_probe,
-            beigen_weights,
+            eigen_probe,
+            eigen_weights,
             batches,
-            comm.streams,
+            streams,
             n=n,
             op=op,
             object_options=object_options,
@@ -142,16 +131,15 @@ def rpie(
             recover_probe=recover_probe,
             position_options=position_options,
             exitwave_options=exitwave_options,
-        )))
+        )
 
-        batch_cost.append(comm.Allreduce_mean(cost, axis=None).get())
+        batch_cost.append(cost)
 
         if algorithm_options.batch_method != 'compact':
             (
                 psi,
                 probe,
             ) = _update(
-                comm,
                 psi,
                 probe,
                 psi_update_numerator,
@@ -161,8 +149,8 @@ def rpie(
                 recover_probe,
                 algorithm_options,
             )
-            psi_update_numerator = [None] * comm.pool.num_workers
-            probe_update_numerator = [None] * comm.pool.num_workers
+            psi_update_numerator = None
+            probe_update_numerator = None
 
     algorithm_options.costs.append(batch_cost)
 
@@ -170,8 +158,7 @@ def rpie(
         (
             scan,
             position_options,
-        ) = (list(a) for a in zip(*comm.pool.map(
-            _update_position,
+        ) = _update_position(
             scan,
             position_options,
             position_update_numerator,
@@ -179,14 +166,13 @@ def rpie(
             max_shift=probe[0].shape[-1] * 0.1,
             alpha=algorithm_options.alpha,
             epoch=epoch,
-        )))
+        )
 
     if algorithm_options.batch_method == 'compact':
         (
             psi,
             probe,
         ) = _update(
-            comm,
             psi,
             probe,
             psi_update_numerator,
@@ -195,23 +181,27 @@ def rpie(
             probe_options,
             recover_probe,
             algorithm_options,
-            errors=list(np.mean(x) for x in algorithm_options.costs[-3:]),
+            errors=[float(np.mean(x)) for x in algorithm_options.costs[-3:]],
         )
 
     if eigen_weights is not None:
-        eigen_weights = comm.pool.map(
-            _normalize_eigen_weights,
-            beigen_weights,
+        eigen_weights = _normalize_eigen_weights(
+            eigen_weights,
         )
 
-    parameters.probe = probe
-    parameters.psi = psi
+    # CONVERSION AREA BELOW ----------------------
+
     parameters.scan = scan
+    parameters.psi = psi
+    parameters.probe = probe
     parameters.algorithm_options = algorithm_options
-    parameters.probe_options = probe_options
-    parameters.object_options = object_options
-    parameters.position_options = position_options
     parameters.eigen_weights = eigen_weights
+    parameters.eigen_probe = eigen_probe
+    parameters.exitwave_options = exitwave_options
+    parameters.position_options = position_options
+    parameters.object_options = object_options
+    parameters.probe_options = probe_options
+
     return parameters
 
 
@@ -224,7 +214,6 @@ def _normalize_eigen_weights(eigen_weights):
 
 
 def _update(
-    comm: tike.communicators.Comm,
     psi: npt.NDArray[cp.csingle],
     probe: npt.NDArray[cp.csingle],
     psi_update_numerator: npt.NDArray[cp.csingle],
@@ -233,19 +222,19 @@ def _update(
     probe_options: ProbeOptions,
     recover_probe: bool,
     algorithm_options: RpieOptions,
-    errors: typing.Union[None, typing.List[float]] = None,
-):
+    errors: typing.Union[None, npt.NDArray] = None,
+) -> typing.Tuple[npt.NDArray[cp.csingle], npt.NDArray[cp.csingle]]:
     if object_options:
-        psi_update_numerator = comm.Allreduce_reduce_gpu(
-            psi_update_numerator)[0]
         dpsi = psi_update_numerator
         deno = (
-            (1 - algorithm_options.alpha) * object_options.preconditioner[0] +
-            algorithm_options.alpha * object_options.preconditioner[0].max(
+            (1 - algorithm_options.alpha) * object_options.preconditioner
+            + algorithm_options.alpha
+            * object_options.preconditioner.max(
                 axis=(-2, -1),
                 keepdims=True,
-            ))
-        psi[0] = psi[0] + dpsi / deno
+            )
+        )
+        psi = psi + dpsi / deno
         if object_options.use_adaptive_moment:
             if errors:
                 (
@@ -272,29 +261,31 @@ def _update(
                     vdecay=object_options.vdecay,
                     mdecay=object_options.mdecay,
                 )
-            psi[0] = psi[0] + dpsi / deno
-        psi = comm.pool.bcast([psi[0]])
+            psi = psi + dpsi / deno
 
     if recover_probe:
-
-        probe_update_numerator = comm.Allreduce_reduce_gpu(
-            probe_update_numerator)[0]
         b0 = tike.ptycho.probe.finite_probe_support(
-            probe[0],
+            probe,
             p=probe_options.probe_support,
             radius=probe_options.probe_support_radius,
             degree=probe_options.probe_support_degree,
         )
-        b1 = probe_options.additional_probe_penalty * cp.linspace(
-            0, 1, probe[0].shape[-3], dtype='float32')[..., None, None]
-        dprobe = (probe_update_numerator - (b1 + b0) * probe[0])
+        b1 = (
+            probe_options.additional_probe_penalty
+            * cp.linspace(0, 1, probe.shape[-3], dtype="float32")[..., None, None]
+        )
+        dprobe = probe_update_numerator - (b1 + b0) * probe
         deno = (
-            (1 - algorithm_options.alpha) * probe_options.preconditioner[0] +
-            algorithm_options.alpha * probe_options.preconditioner[0].max(
+            (1 - algorithm_options.alpha) * probe_options.preconditioner
+            + algorithm_options.alpha
+            * probe_options.preconditioner.max(
                 axis=(-2, -1),
                 keepdims=True,
-            ) + b0 + b1)
-        probe[0] = probe[0] + dprobe / deno
+            )
+            + b0
+            + b1
+        )
+        probe = probe + dprobe / deno
         if probe_options.use_adaptive_moment:
             # ptychoshelves only applies momentum to the main probe
             mode = 0
@@ -323,8 +314,7 @@ def _update(
                     vdecay=probe_options.vdecay,
                     mdecay=probe_options.mdecay,
                 )
-            probe[0] = probe[0] + dprobe / deno
-        probe = comm.pool.bcast([probe[0]])
+            probe = probe + dprobe / deno
 
     return psi, probe
 
@@ -341,7 +331,7 @@ def _get_nearplane_gradients(
     position_update_denominator: typing.Union[None, npt.NDArray],
     eigen_probe: typing.Union[None, npt.NDArray],
     eigen_weights: typing.Union[None, npt.NDArray],
-    batches: typing.List[typing.List[int]],
+    batches: typing.List[npt.NDArray[np.intc]],
     streams: typing.List[cp.cuda.Stream],
     *,
     n: int,
@@ -351,10 +341,11 @@ def _get_nearplane_gradients(
     recover_probe: bool,
     position_options: typing.Union[None, PositionOptions],
     exitwave_options: ExitWaveOptions,
-) -> typing.List[npt.NDArray]:
-
-    cost = 0.0
-    count = 1.0 / len(batches[n])
+) -> typing.Tuple[
+    float, npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray | None
+]:
+    cost: float = 0.0
+    count: float = 1.0 / len(batches[n])
     psi_update_numerator = cp.zeros_like(
         psi) if psi_update_numerator is None else psi_update_numerator
     probe_update_numerator = cp.zeros_like(
@@ -544,7 +535,7 @@ def _get_nearplane_gradients(
     )
 
     return (
-        cost,
+        float(cost),
         psi_update_numerator,
         probe_update_numerator,
         position_update_numerator,
@@ -559,10 +550,10 @@ def _update_position(
     position_update_numerator: npt.NDArray,
     position_update_denominator: npt.NDArray,
     *,
-    alpha=0.05,
-    max_shift=1,
-    epoch=0,
-):
+    alpha: float = 0.05,
+    max_shift: float = 1.0,
+    epoch: int = 0,
+) -> typing.Tuple[cp.ndarray, PositionOptions]:
     if epoch < position_options.update_start:
         return scan, position_options
 
