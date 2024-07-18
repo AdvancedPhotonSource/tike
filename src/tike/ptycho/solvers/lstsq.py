@@ -264,7 +264,7 @@ def lstsq_grad(
             epoch=epoch,
         )
 
-    algorithm_options.costs.append(batch_cost.tolist())
+    algorithm_options.costs.append([float(batch_cost.mean().get())])
 
     if object_options and algorithm_options.batch_method == 'compact':
         object_update_precond = _precondition_object_update(

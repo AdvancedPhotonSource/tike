@@ -57,6 +57,7 @@ __all__ = [
 ]
 
 import copy
+import itertools
 import logging
 import time
 import typing
@@ -517,11 +518,18 @@ class Reconstruction():
                 self.parameters,
             )
 
-            reduced_cost = np.mean(
-                [e.algorithm_options.costs[-1] for e in self.parameters],
+            # FIXME: We don't want to reduce the cost until the end because it
+            # will mess with the convergence detection of momentum
+            # acceleration. For example one device could have a cost higher
+            # than the average but it's still decreasing. If we compare this
+            # cost with the average cost, then it will appear to be increasing.
+            reduced_cost = list(
+                itertools.chain(
+                    *(e.algorithm_options.costs[-1] for e in self.parameters)
+                )
             )
             for i in range(len(self.parameters)):
-                self.parameters[i].algorithm_options.costs[-1] = [reduced_cost]
+                self.parameters[i].algorithm_options.costs[-1] = reduced_cost
 
             self.parameters[0].algorithm_options.times.append(
                 time.perf_counter() - start

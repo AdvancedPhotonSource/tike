@@ -101,10 +101,10 @@ def rpie(
     position_update_numerator = None
     position_update_denominator = None
 
-    batch_cost: typing.List[float] = []
+    batch_cost = cp.empty(algorithm_options.num_batch, dtype=tike.precision.floating)
     for n in order(algorithm_options.num_batch):
         (
-            cost,
+            costs,
             psi_update_numerator,
             probe_update_numerator,
             position_update_numerator,
@@ -133,7 +133,7 @@ def rpie(
             exitwave_options=exitwave_options,
         )
 
-        batch_cost.append(cost)
+        batch_cost[n] = cp.mean(costs)
 
         if algorithm_options.batch_method != 'compact':
             (
@@ -152,7 +152,7 @@ def rpie(
             psi_update_numerator = None
             probe_update_numerator = None
 
-    algorithm_options.costs.append(batch_cost)
+    algorithm_options.costs.append([float(batch_cost.mean().get())])
 
     if position_options is not None:
         (
@@ -344,8 +344,9 @@ def _get_nearplane_gradients(
 ) -> typing.Tuple[
     float, npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray | None
 ]:
-    cost: float = 0.0
-    count: float = 1.0 / len(batches[n])
+    batch_start = batches[n][0]
+    batch_size = len(batches[n])
+    bcosts = cp.empty(shape=batch_size, dtype=tike.precision.floating)
     psi_update_numerator = cp.zeros_like(
         psi) if psi_update_numerator is None else psi_update_numerator
     probe_update_numerator = cp.zeros_like(
@@ -363,9 +364,12 @@ def _get_nearplane_gradients(
         hi: int,
     ):
         (data,) = ind_args
-        nonlocal cost, psi_update_numerator, probe_update_numerator
+        nonlocal bcosts, psi_update_numerator, probe_update_numerator
         nonlocal position_update_numerator, position_update_denominator
         nonlocal eigen_weights, scan
+
+        blo = lo - batch_start
+        bhi = hi - batch_start
 
         unique_probe = tike.ptycho.probe.get_varying_probe(
             probe,
@@ -378,14 +382,13 @@ def _get_nearplane_gradients(
             cp.square(cp.abs(farplane)),
             axis=list(range(1, farplane.ndim - 2)),
         )
-        each_cost = getattr(
+        bcosts[blo:bhi] = getattr(
             tike.operators,
             f'{exitwave_options.noise_model}_each_pattern',
         )(
             data[:, measured_pixels][:, None, :],
             intensity[:, measured_pixels][:, None, :],
         )
-        cost += cp.sum(each_cost) * count
 
         if exitwave_options.noise_model == 'poisson':
 
@@ -535,7 +538,7 @@ def _get_nearplane_gradients(
     )
 
     return (
-        float(cost),
+        bcosts,
         psi_update_numerator,
         probe_update_numerator,
         position_update_numerator,
