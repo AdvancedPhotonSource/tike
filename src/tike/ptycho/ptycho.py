@@ -85,6 +85,7 @@ from .probe import (
     get_varying_probe,
     apply_median_filter_abs_probe,
     orthogonalize_eig,
+    finite_probe_support,
 )
 
 logger = logging.getLogger(__name__)
@@ -714,6 +715,27 @@ def _apply_probe_constraints(
 ) -> solvers.PtychoParameters:
     if parameters.probe_options is not None:
         if parameters.probe_options.recover_probe(epoch):
+
+            if parameters.probe_options.probe_support > 0:
+                b0 = finite_probe_support(
+                    parameters.probe,
+                    p=parameters.probe_options.probe_support,
+                    radius=parameters.probe_options.probe_support_radius,
+                    degree=parameters.probe_options.probe_support_degree,
+                )
+                parameters.probe -= b0 * cp.conj(b0 * parameters.probe)
+
+            if parameters.probe_options.additional_probe_penalty > 0:
+                b1 = (
+                    parameters.probe_options.additional_probe_penalty
+                    * cp.linspace(
+                        0,
+                        1,
+                        parameters.probe.shape[-3],
+                        dtype=tike.precision.floating,
+                    )[..., None, None]
+                )
+                parameters.probe -= b1 * cp.conj(b1 * parameters.probe)
 
             if parameters.probe_options.median_filter_abs_probe:
                 parameters.probe = apply_median_filter_abs_probe(
