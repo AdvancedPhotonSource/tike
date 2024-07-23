@@ -124,6 +124,7 @@ import copy
 import cupy as cp
 import cupyx.scipy.ndimage
 import numpy as np
+import numpy.typing as npt
 
 import tike.communicators
 import tike.linalg
@@ -156,7 +157,15 @@ class AffineTransform:
         )
 
     @classmethod
-    def fromarray(self, T: np.ndarray) -> AffineTransform:
+    def frombuffer(cls, buffer: np.ndarray) -> AffineTransform:
+        return AffineTransform(*buffer)
+
+    def asbuffer(self) -> np.ndarray:
+        """Return the constructor parameters in a tuple."""
+        return np.array(self.astuple())
+
+    @classmethod
+    def fromarray(cls, T: np.ndarray) -> AffineTransform:
         """Return an Affine Transfrom from a 2x2 matrix.
 
         Use decomposition method from Graphics Gems 2 Section 7.1
@@ -180,8 +189,8 @@ class AffineTransform:
             scale1=float(scale1),
             shear1=float(shear1),
             angle=float(angle),
-            t0=T[2, 0] if T.shape[0] > 2 else 0,
-            t1=T[2, 1] if T.shape[0] > 2 else 0,
+            t0=float(T[2, 0] if T.shape[0] > 2 else 0),
+            t1=float(T[2, 1] if T.shape[0] > 2 else 0),
         )
 
     def asarray(self, xp=np) -> np.ndarray:
@@ -347,7 +356,10 @@ class PositionOptions:
     transform: AffineTransform = AffineTransform()
     """Global transform of positions."""
 
-    origin: tuple[float, float] = (0, 0)
+    origin: npt.NDArray = dataclasses.field(
+        init=True,
+        default_factory=lambda: np.zeros(2),
+    )
     """The rotation center of the transformation. This shift is applied to the
     scan positions before computing the global transformation."""
 
@@ -359,6 +371,11 @@ class PositionOptions:
 
     update_start: int = 0
     """Start position updates at this epoch."""
+
+    _momentum: np.ndarray = dataclasses.field(
+        init=False,
+        default_factory=lambda: None,
+    )
 
     def __post_init__(self):
         self.initial_scan = self.initial_scan.astype(tike.precision.floating)
@@ -413,7 +430,7 @@ class PositionOptions:
             new._momentum = np.empty((0, 4))
         return new
 
-    def split(self, indices):
+    def split(self, indices: npt.NDArray[np.intc]) -> PositionOptions:
         """Split the PositionOption meta-data along indices."""
         new = PositionOptions(
             self.initial_scan[..., indices, :],
@@ -439,49 +456,76 @@ class PositionOptions:
             self._momentum[..., indices, :] = other._momentum
         return self
 
-    def join(self, other, indices):
-        """Replace the PositionOption meta-data with other data."""
-        len_scan = self.initial_scan.shape[-2]
-        max_index = max(indices.max() + 1, len_scan)
-        new_initial_scan = np.empty(
-            (*self.initial_scan.shape[:-2], max_index, 2),
-            dtype=self.initial_scan.dtype,
+    @staticmethod
+    def join(
+        x: typing.Iterable[PositionOptions | None],
+        reorder: npt.NDArray[np.intc],
+    ) -> PositionOptions | None:
+        if None in x:
+            return None
+        new = PositionOptions(
+            initial_scan=np.concatenate(
+                [e.initial_scan for e in x],
+                axis=0,
+            )[reorder],
+            use_adaptive_moment=x[0].use_adaptive_moment,
+            vdecay=x[0].vdecay,
+            mdecay=x[0].mdecay,
+            use_position_regularization=x[0].use_position_regularization,
+            update_magnitude_limit=x[0].update_magnitude_limit,
+            transform=x[0].transform,
         )
-        new_initial_scan[..., :len_scan, :] = self.initial_scan
-        new_initial_scan[..., indices, :] = other.initial_scan
-        self.initial_scan = new_initial_scan
-        if self.confidence is not None:
-            new_confidence = np.empty(
-                (*self.initial_scan.shape[:-2], max_index, 2),
-                dtype=self.initial_scan.dtype,
-            )
-            new_confidence[..., :len_scan, :] = self.confidence
-            new_confidence[..., indices, :] = other.confidence
-            self.confidence = new_confidence
-        if self.use_adaptive_moment:
-            new_momentum = np.empty(
-                (*self.initial_scan.shape[:-2], max_index, 4),
-                dtype=self.initial_scan.dtype,
-            )
-            new_momentum[..., :len_scan, :] = self._momentum
-            new_momentum[..., indices, :] = other._momentum
-            self._momentum = new_momentum
-        return self
+        if x[0].confidence is not None:
+            new.confidence = np.concatenate(
+                [e.confidence for e in x],
+                axis=0,
+            )[reorder]
+
+        if x[0].use_adaptive_moment:
+            new._momentum = np.concatenate(
+                [e._momentum for e in x],
+                axis=0,
+            )[reorder]
+
+        return new
 
     def copy_to_device(self):
         """Copy to the current GPU memory."""
-        options = copy.copy(self)
-        options.initial_scan = cp.asarray(self.initial_scan)
+        options = PositionOptions(
+            initial_scan=cp.asarray(self.initial_scan),
+            use_adaptive_moment=self.use_adaptive_moment,
+            vdecay=self.vdecay,
+            mdecay=self.mdecay,
+            use_position_regularization=self.use_position_regularization,
+            update_magnitude_limit=self.update_magnitude_limit,
+            transform=self.transform,
+            confidence=self.confidence,
+            update_start=self.update_start,
+            origin=cp.asarray(self.origin),
+        )
         if self.confidence is not None:
             options.confidence = cp.asarray(self.confidence)
         if self.use_adaptive_moment:
-            options._momentum = cp.asarray(self._momentum)
+            options._momentum = cp.asarray(
+                self._momentum,
+                dtype=tike.precision.floating,
+            )
         return options
 
     def copy_to_host(self):
         """Copy to the host CPU memory."""
-        options = copy.copy(self)
-        options.initial_scan = cp.asnumpy(self.initial_scan)
+        options = PositionOptions(
+            initial_scan=cp.asnumpy(self.initial_scan),
+            use_adaptive_moment=self.use_adaptive_moment,
+            vdecay=self.vdecay,
+            mdecay=self.mdecay,
+            use_position_regularization=self.use_position_regularization,
+            update_magnitude_limit=self.update_magnitude_limit,
+            transform=self.transform,
+            confidence=self.confidence,
+            update_start=self.update_start,
+            origin=cp.asnumpy(self.origin),
+        )
         if self.confidence is not None:
             options.confidence = cp.asnumpy(self.confidence)
         if self.use_adaptive_moment:
@@ -499,6 +543,8 @@ class PositionOptions:
             update_magnitude_limit=self.update_magnitude_limit,
             transform=self.transform.resample(factor),
             confidence=self.confidence,
+            update_start=self.update_start,
+            origin=self.origin * factor,
         )
         # Momentum reset to zero when grid scale changes
         return new
@@ -569,8 +615,12 @@ def check_allowed_positions(scan: np.array, psi: np.array, probe_shape: tuple):
     valid_min_corner = (1, 1)
     valid_max_corner = (psi.shape[-2] - probe_shape[-2] - 1,
                         psi.shape[-1] - probe_shape[-1] - 1)
-    if (np.any(min_corner < valid_min_corner)
-            or np.any(max_corner > valid_max_corner)):
+    if (
+        min_corner[0] < valid_min_corner[0]
+        or min_corner[1] < valid_min_corner[1]
+        or max_corner[0] > valid_max_corner[0]
+        or max_corner[1] > valid_max_corner[1]
+    ):
         raise ValueError(
             "Scan positions must be >= 1 and "
             "scan positions + 1 + probe.shape must be <= psi.shape. "
@@ -680,12 +730,10 @@ def _affine_position_helper(
 
 # TODO: What is a good default value for max_error?
 def affine_position_regularization(
-    comm: tike.communicators.Comm,
-    updated: typing.List[cp.ndarray],
-    position_options: typing.List[PositionOptions],
+    updated: cp.ndarray,
+    position_options: PositionOptions,
     max_error: float = 32,
-    regularization_enabled: bool = False,
-) -> typing.Tuple[typing.List[cp.ndarray], typing.List[PositionOptions]]:
+) -> typing.Tuple[cp.ndarray, PositionOptions]:
     """Regularize position updates with an affine deformation constraint.
 
     Assume that the true position updates are a global affine transformation
@@ -707,30 +755,20 @@ def affine_position_regularization(
 
     """
     # Gather all of the scanning positions on one host
-    positions0 = comm.pool.gather_host(
-        [x.initial_scan for x in position_options], axis=0)
-    positions1 = comm.pool.gather_host(updated, axis=0)
-    positions0 = comm.mpi.Gather(positions0, axis=0, root=0)
-    positions1 = comm.mpi.Gather(positions1, axis=0, root=0)
+    positions0 = position_options.initial_scan
+    positions1 = updated
 
-    if comm.mpi.rank == 0:
-        new_transform, _ = estimate_global_transformation_ransac(
-            positions0=positions0 - position_options[0].origin,
-            positions1=positions1 - position_options[0].origin,
-            transform=position_options[0].transform,
-            max_error=max_error,
-        )
-    else:
-        new_transform = None
+    new_transform, _ = estimate_global_transformation_ransac(
+        positions0=positions0 - position_options.origin,
+        positions1=positions1 - position_options.origin,
+        transform=position_options.transform,
+        max_error=max_error,
+    )
 
-    new_transform = comm.mpi.bcast(new_transform, root=0)
+    position_options.transform = new_transform
 
-    for i in range(len(position_options)):
-        position_options[i].transform = new_transform
-
-    if regularization_enabled:
-        updated = comm.pool.map(
-            _affine_position_helper,
+    if position_options.use_position_regularization:
+        updated = _affine_position_helper(
             updated,
             position_options,
             max_error=max_error,

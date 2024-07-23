@@ -13,10 +13,6 @@ from .mpi import MPIComm, NoMPIComm
 from .pool import ThreadPool
 
 
-def _init_streams():
-    return [cp.cuda.Stream() for _ in range(2)]
-
-
 class Comm:
     """A Ptychography communicator.
 
@@ -47,7 +43,6 @@ class Comm:
             self.use_mpi = True
         self.mpi = mpi()
         self.pool = pool(gpu_count)
-        self.streams = self.pool.map(_init_streams)
 
     def __enter__(self):
         self.mpi.__enter__()
@@ -139,3 +134,22 @@ class Comm:
                 buf.append(
                     self.mpi.Allreduce(src[self.pool.workers.index(worker)]))
         return buf
+
+    def swap_edges(
+        self,
+        x: typing.List[cp.ndarray],
+        overlap: int,
+        edges: typing.List[int],
+    ) -> typing.List[cp.ndarray]:
+        """Swap the region of each x with its neighbor around the given edges.
+
+        Given iterable x, a list of ND arrays; edges, the coordinates in x
+        along dimension -2; and overlap, the width of the region to swap around
+        the edge; trade [..., edge:(edge + overlap), :] between neighbors.
+        """
+        # FIXME: Swap edges between MPI nodes
+        return self.pool.swap_edges(
+            x=x,
+            overlap=overlap,
+            edges=edges,
+        )

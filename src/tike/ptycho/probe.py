@@ -36,7 +36,6 @@ allowed to vary.
 """
 
 from __future__ import annotations
-import copy
 import dataclasses
 import logging
 import typing
@@ -56,9 +55,6 @@ logger = logging.getLogger(__name__)
 @dataclasses.dataclass
 class ProbeOptions:
     """Manage data and setting related to probe correction."""
-
-    recover_probe: bool = False
-    """Boolean switch used to indicate whether to update probe or not."""
 
     update_start: int = 0
     """Start probe updates at this epoch."""
@@ -139,18 +135,12 @@ class ProbeOptions:
     """
 
     median_filter_abs_probe: bool = False
-    """Binary switch on whether to apply a median filter to absolute value of 
+    """Binary switch on whether to apply a median filter to absolute value of
     each shared probe mode.
     """
 
     median_filter_abs_probe_px: typing.Tuple[float, float] = ( 1.0, 1.0 )
     """A 2-element tuple with the median filter pixel widths along each dimension."""
-
-    probe_update_sum: typing.Union[npt.NDArray, None] = dataclasses.field(
-        init=False,
-        default_factory=lambda: None,
-    )
-    """Used for momentum updates."""
 
     preconditioner: typing.Union[npt.NDArray, None] = dataclasses.field(
         init=False,
@@ -163,32 +153,13 @@ class ProbeOptions:
     )
     """The power of the primary probe modes at each iteration."""
 
-    def copy_to_device(self, comm) -> ProbeOptions:
+    def recover_probe(self, epoch: int) -> bool:
+        """Return whether to update probe or not."""
+        return (epoch >= self.update_start) and (epoch % self.update_period == 0)
+
+    def copy_to_device(self) -> ProbeOptions:
         """Copy to the current GPU memory."""
-        options = copy.copy(self)
-        if self.v is not None:
-            options.v = cp.asarray(self.v)
-        if self.m is not None:
-            options.m = cp.asarray(self.m)
-        if self.preconditioner is not None:
-            options.preconditioner = comm.pool.bcast([self.preconditioner])
-        return options
-
-    def copy_to_host(self) -> ProbeOptions:
-        """Copy to the host CPU memory."""
-        options = copy.copy(self)
-        if self.v is not None:
-            options.v = cp.asnumpy(self.v)
-        if self.m is not None:
-            options.m = cp.asnumpy(self.m)
-        if self.preconditioner is not None:
-            options.preconditioner = cp.asnumpy(self.preconditioner[0])
-        return options
-
-    def resample(self, factor: float, interp) -> ProbeOptions:
-        """Return a new `ProbeOptions` with the parameters rescaled."""
         options = ProbeOptions(
-            recover_probe=self.recover_probe,
             update_start=self.update_start,
             update_period=self.update_period,
             init_rescale_from_measurements=self.init_rescale_from_measurements,
@@ -200,14 +171,82 @@ class ProbeOptions:
             vdecay=self.vdecay,
             mdecay=self.mdecay,
             probe_support=self.probe_support,
-            probe_support_degree=self.probe_support_degree,
             probe_support_radius=self.probe_support_radius,
-            median_filter_abs_probe=self.median_filter_abs_probe, 
+            probe_support_degree=self.probe_support_degree,
+            additional_probe_penalty=self.additional_probe_penalty,
+            median_filter_abs_probe=self.median_filter_abs_probe,
             median_filter_abs_probe_px=self.median_filter_abs_probe_px,
         )
+        options.power=self.power
+        if self.v is not None:
+            options.v = cp.asarray(
+                self.v,
+                dtype=tike.precision.floating,
+            )
+        if self.m is not None:
+            options.m = cp.asarray(
+                self.m,
+                dtype=tike.precision.floating,
+            )
+        if self.preconditioner is not None:
+            options.preconditioner = cp.asarray(
+                self.preconditioner,
+                dtype=tike.precision.cfloating,
+            )
+        return options
+
+    def copy_to_host(self) -> ProbeOptions:
+        """Copy to the host CPU memory."""
+        options = ProbeOptions(
+            update_start=self.update_start,
+            update_period=self.update_period,
+            init_rescale_from_measurements=self.init_rescale_from_measurements,
+            probe_photons=self.probe_photons,
+            force_orthogonality=self.force_orthogonality,
+            force_centered_intensity=self.force_centered_intensity,
+            force_sparsity=self.force_sparsity,
+            use_adaptive_moment=self.use_adaptive_moment,
+            vdecay=self.vdecay,
+            mdecay=self.mdecay,
+            probe_support=self.probe_support,
+            probe_support_radius=self.probe_support_radius,
+            probe_support_degree=self.probe_support_degree,
+            additional_probe_penalty=self.additional_probe_penalty,
+            median_filter_abs_probe=self.median_filter_abs_probe,
+            median_filter_abs_probe_px=self.median_filter_abs_probe_px,
+        )
+        options.power=self.power
+        if self.v is not None:
+            options.v = cp.asnumpy(self.v)
+        if self.m is not None:
+            options.m = cp.asnumpy(self.m)
+        if self.preconditioner is not None:
+            options.preconditioner = cp.asnumpy(self.preconditioner)
+        return options
+
+    def resample(self, factor: float, interp) -> ProbeOptions:
+        """Return a new `ProbeOptions` with the parameters rescaled."""
+        options = ProbeOptions(
+            update_start=self.update_start,
+            update_period=self.update_period,
+            init_rescale_from_measurements=self.init_rescale_from_measurements,
+            probe_photons=self.probe_photons,
+            force_orthogonality=self.force_orthogonality,
+            force_centered_intensity=self.force_centered_intensity,
+            force_sparsity=self.force_sparsity,
+            use_adaptive_moment=self.use_adaptive_moment,
+            vdecay=self.vdecay,
+            mdecay=self.mdecay,
+            probe_support=self.probe_support,
+            probe_support_radius=self.probe_support_radius,
+            probe_support_degree=self.probe_support_degree,
+            additional_probe_penalty=self.additional_probe_penalty,
+            median_filter_abs_probe=self.median_filter_abs_probe,
+            median_filter_abs_probe_px=self.median_filter_abs_probe_px,
+        )
+        options.power=self.power
         return options
         # Momentum reset to zero when grid scale changes
-
 
 def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
     """Construct the varying probes.
@@ -243,8 +282,19 @@ def get_varying_probe(shared_probe, eigen_probe=None, weights=None):
         return shared_probe.copy()
 
 
-def _constrain_variable_probe1(variable_probe, weights):
-    """Help use the thread pool with constrain_variable_probe"""
+def constrain_variable_probe(variable_probe, weights):
+    """Add the following constraints to variable probe weights
+
+    1. Remove outliars from weights
+    2. Enforce orthogonality once per epoch
+    3. Sort the variable probes by their total energy
+    4. Normalize the variable probes so the energy is contained in the weight
+
+    """
+    # TODO: No smoothing of variable probe weights yet because the weights are
+    # not stored consecutively in device memory. Smoothing would require either
+    # sorting and synchronizing the weights with the host OR implementing
+    # smoothing of non-gridded data with splines using device-local data only.
 
     # Normalize variable probes
     vnorm = tike.linalg.mnorm(variable_probe, axis=(-2, -1), keepdims=True)
@@ -265,12 +315,6 @@ def _constrain_variable_probe1(variable_probe, weights):
         keepdims=True,
         axis=-3,
     )**2
-
-    return variable_probe, weights, power
-
-
-def _constrain_variable_probe2(variable_probe, weights, power):
-    """Help use the thread pool with constrain_variable_probe"""
 
     # Sort the probes by energy
     probes_with_modes = variable_probe.shape[-3]
@@ -294,124 +338,7 @@ def _constrain_variable_probe2(variable_probe, weights, power):
     return variable_probe, weights
 
 
-def constrain_variable_probe(comm, variable_probe, weights):
-    """Add the following constraints to variable probe weights
-
-    1. Remove outliars from weights
-    2. Enforce orthogonality once per epoch
-    3. Sort the variable probes by their total energy
-    4. Normalize the variable probes so the energy is contained in the weight
-
-    """
-    # TODO: No smoothing of variable probe weights yet because the weights are
-    # not stored consecutively in device memory. Smoothing would require either
-    # sorting and synchronizing the weights with the host OR implementing
-    # smoothing of non-gridded data with splines using device-local data only.
-
-    variable_probe, weights, power = zip(*comm.pool.map(
-        _constrain_variable_probe1,
-        variable_probe,
-        weights,
-    ))
-
-    # reduce power by sum across all devices
-    power = comm.pool.allreduce(power)
-
-    variable_probe, weights = (list(a) for a in zip(*comm.pool.map(
-        _constrain_variable_probe2,
-        variable_probe,
-        weights,
-        power,
-    )))
-
-    return variable_probe, weights
-
-
-def _get_update(R, eigen_probe, weights, batches, *, batch_index, c, m):
-    """
-    Parameters
-    ----------
-    R :         (B, 1, 1, H, W)
-    eigen_probe (1, C, M, H, W)
-    weights :   (B, C, M)
-    """
-    lo = batches[batch_index][0]
-    hi = lo + len(batches[batch_index])
-    # (POSI, 1, 1, 1, 1) to match other arrays
-    weights = weights[lo:hi, c:c + 1, m:m + 1, None, None]
-    eigen_probe = eigen_probe[:, c - 1:c, m:m + 1, :, :]
-    norm_weights = tike.linalg.norm(weights, axis=-5, keepdims=True)**2
-
-    if np.all(norm_weights == 0):
-        raise ValueError('eigen_probe weights cannot all be zero?')
-
-    # FIXME: What happens when weights is zero!?
-    proj = (np.real(R.conj() * eigen_probe) + weights) / norm_weights
-    return np.mean(
-        R * np.mean(proj, axis=(-2, -1), keepdims=True),
-        axis=-5,
-        keepdims=True,
-    )
-
-
-def _get_d(patches, diff, eigen_probe, update, *, β, c, m):
-    """
-    Parameters
-    ----------
-    patches :   (B, 1, 1, H, W)
-    diff :      (B, 1, M, H, W)
-    eigen_probe (1, C, M, H, W)
-    update :    (1, 1, 1, H, W)
-    """
-    eigen_probe[:, c - 1:c, m:m + 1, :, :] += β * update / tike.linalg.mnorm(
-        update,
-        axis=(-2, -1),
-        keepdims=True,
-    )
-    eigen_probe[:, c - 1:c, m:m + 1, :, :] /= tike.linalg.mnorm(
-        eigen_probe[:, c - 1:c, m:m + 1, :, :],
-        axis=(-2, -1),
-        keepdims=True,
-    )
-    assert np.all(np.isfinite(eigen_probe))
-
-    # Determine new eigen_weights for the updated eigen probe
-    phi = patches * eigen_probe[:, c - 1:c, m:m + 1, :, :]
-    n = np.mean(
-        np.real(diff[:, :, m:m + 1, :, :] * phi.conj()),
-        axis=(-1, -2),
-        keepdims=False,
-    )
-    d = np.mean(np.square(np.abs(phi)), axis=(-1, -2), keepdims=False)
-    d_mean = np.mean(d, axis=-3, keepdims=True)
-    return eigen_probe, n, d, d_mean
-
-
-def _get_weights_mean(n, d, d_mean, weights, batches, *, batch_index, c, m):
-    """
-    Parameters
-    ----------
-    n :       (B, 1, 1)
-    d :       (B, 1, 1)
-    d_mean :  (1, 1, 1)
-    weights : (B, C, M)
-    """
-    lo = batches[batch_index][0]
-    hi = lo + len(batches[batch_index])
-    # yapf: disable
-    weight_update = (
-        n / (d + 0.1 * d_mean)
-    ).reshape(*weights[lo:hi, c:c + 1, m:m + 1].shape)
-    # yapf: enable
-    assert np.all(np.isfinite(weight_update))
-
-    # (33) The sum of all previous steps constrained to zero-mean
-    weights[lo:hi, c:c + 1, m:m + 1] += weight_update
-    return weights
-
-
 def update_eigen_probe(
-    comm,
     R,
     eigen_probe,
     weights,
@@ -433,8 +360,6 @@ def update_eigen_probe(
 
     Parameters
     ----------
-    comm : :py:class:`tike.communicators.Comm`
-        An object which manages communications between both GPUs and nodes.
     R : (POSI, 1, 1, WIDE, HIGH) complex64
         Residual probe updates; what's left after subtracting the shared probe
         update from the varying probe updates for each position
@@ -459,55 +384,73 @@ def update_eigen_probe(
     least-squares solver for generalized maximum-likelihood ptychography.
     Optics Express. 2018.
     """
-    assert R[0].shape[-3] == R[0].shape[-4] == 1
-    assert 1 == eigen_probe[0].shape[-5]
-    assert R[0].shape[:-5] == eigen_probe[0].shape[:-5] == weights[0].shape[:-3]
-    assert weights[0][batches[0][batch_index], :, :].shape[-3] == R[0].shape[-5]
-    assert R[0].shape[-2:] == eigen_probe[0].shape[-2:]
+    assert R.shape[-3] == R.shape[-4] == 1
+    assert 1 == eigen_probe.shape[-5]
+    assert R.shape[:-5] == eigen_probe.shape[:-5] == weights.shape[:-3]
+    assert weights[batches[batch_index], :, :].shape[-3] == R.shape[-5]
+    assert R.shape[-2:] == eigen_probe.shape[-2:]
 
-    update = comm.pool.map(
-        _get_update,
-        R,
-        eigen_probe,
-        weights,
-        batches,
-        batch_index=batch_index,
-        c=c,
-        m=m,
+    lo = batches[batch_index][0]
+    hi = lo + len(batches[batch_index])
+    # (POSI, 1, 1, 1, 1) to match other arrays
+    norm_weights = (
+        tike.linalg.norm(
+            weights[lo:hi, c : c + 1, m : m + 1, None, None],
+            axis=-5,
+            keepdims=True,
+        )
+        ** 2
     )
-    update = comm.pool.bcast([comm.Allreduce_mean(
-        update,
+
+    if np.all(norm_weights == 0):
+        raise ValueError("eigen_probe weights cannot all be zero?")
+
+    # FIXME: What happens when weights is zero!?
+    proj = (
+        np.real(R.conj() * eigen_probe[:, c - 1 : c, m : m + 1, :, :])
+        + weights[lo:hi, c : c + 1, m : m + 1, None, None]
+    ) / norm_weights
+    update = np.mean(
+        R * np.mean(proj, axis=(-2, -1), keepdims=True),
         axis=-5,
-    )])
+        keepdims=False,
+    )
 
-    (eigen_probe, n, d, d_mean) = (list(a) for a in zip(*comm.pool.map(
-        _get_d,
-        patches,
-        diff,
-        eigen_probe,
-        update,
-        β=β,
-        c=c,
-        m=m,
-    )))
+    eigen_probe[:, c - 1 : c, m : m + 1, :, :] += (
+        β
+        * update
+        / tike.linalg.mnorm(
+            update,
+            axis=(-2, -1),
+            keepdims=True,
+        )
+    )
+    eigen_probe[:, c - 1 : c, m : m + 1, :, :] /= tike.linalg.mnorm(
+        eigen_probe[:, c - 1 : c, m : m + 1, :, :],
+        axis=(-2, -1),
+        keepdims=True,
+    )
+    assert np.all(np.isfinite(eigen_probe))
 
-    d_mean = comm.pool.bcast([comm.Allreduce_mean(
-        d_mean,
-        axis=-3,
-    )])
+    # Determine new eigen_weights for the updated eigen probe
+    phi = patches * eigen_probe[:, c - 1 : c, m : m + 1, :, :]
+    n = np.mean(
+        np.real(diff[:, :, m : m + 1, :, :] * phi.conj()),
+        axis=(-1, -2),
+        keepdims=False,
+    )
+    d = np.mean(np.square(np.abs(phi)), axis=(-1, -2), keepdims=False)
+    d_mean = np.mean(d, axis=-3, keepdims=False)
 
-    weights = list(
-        comm.pool.map(
-            _get_weights_mean,
-            n,
-            d,
-            d_mean,
-            weights,
-            batches,
-            batch_index=batch_index,
-            c=c,
-            m=m,
-        ))
+    # yapf: disable
+    weight_update = (
+        n / (d + 0.1 * d_mean)
+    ).reshape(*weights[lo:hi, c:c + 1, m:m + 1].shape)
+    # yapf: enable
+    assert np.all(np.isfinite(weight_update))
+
+    # (33) The sum of all previous steps constrained to zero-mean
+    weights[lo:hi, c : c + 1, m : m + 1] += weight_update
 
     return eigen_probe, weights
 
@@ -941,7 +884,13 @@ def constrain_probe_sparsity(probe, f):
     return probe
 
 
-def finite_probe_support(probe, *, radius=0.5, degree=5, p=1.0):
+def finite_probe_support(
+    probe,
+    *,
+    radius: float = 0.5,
+    degree: float = 5.0,
+    p: float = 1.0,
+):
     """Returns a supergaussian penalty function for finite probe support.
 
     A mask which provides an illumination penalty is determined by the equation:

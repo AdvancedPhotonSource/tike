@@ -381,9 +381,9 @@ def conjugate_gradient(
 
 
 def fit_line_least_squares(
-    y: typing.List[float],
-    x: typing.List[float],
-) -> typing.Tuple[float, float]:
+    y: npt.NDArray[np.floating],
+    x: npt.NDArray[np.floating],
+) -> typing.Tuple[np.floating, np.floating]:
     """Return the `slope`, `intercept` pair that best fits `y`, `x` to a line.
 
     y = slope * x + intercept

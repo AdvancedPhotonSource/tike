@@ -39,7 +39,49 @@ class SiemensStarSetup():
             self.data = self.data[mask]
 
         self.psi = np.full(
-            (600, 600),
+            (1, 600, 600),
+            dtype=np.complex64,
+            fill_value=np.complex64(0.5 + 0j),
+        )
+
+
+class SingersSetup:
+    """Implements a setUp function which loads a simulated multislice dataset."""
+
+    def setUp(self):
+        """Load a dataset for reconstruction."""
+        with bz2.open(os.path.join(data_dir, "singers.npz.bz2"), "rb") as f:
+            psi = np.load(f)
+        with bz2.open(os.path.join(data_dir, "siemens-star-small.npz.bz2"), "rb") as f:
+            archive = np.load(f)
+            probe = archive["probe"][0]
+        scan = (
+            np.random.rand(1024, 2)
+            * np.array(
+                [
+                    psi.shape[-2] - probe.shape[-2] - 2,
+                    psi.shape[-1] - probe.shape[-1] - 2,
+                ]
+            )
+            + 1
+        )
+        data = tike.ptycho.simulate(probe.shape[-1], probe=probe, scan=scan, psi=psi)
+        self.data = data
+        self.probe = probe
+        self.scan = scan
+
+        with tike.communicators.Comm(1, mpi=tike.communicators.MPIComm) as comm:
+            mask = tike.cluster.by_scan_stripes(
+                self.scan,
+                n=comm.mpi.size,
+                fly=1,
+                axis=0,
+            )[comm.mpi.rank]
+            self.scan = self.scan[mask]
+            self.data = self.data[mask]
+
+        self.psi = np.full(
+            psi.shape,
             dtype=np.complex64,
             fill_value=np.complex64(0.5 + 0j),
         )

@@ -17,6 +17,7 @@ def _split_gpu(
     x: npt.ArrayLike,
     dtype: npt.DTypeLike,
 ) -> npt.ArrayLike:
+    """Return x[m] as a CuPy array on the current device."""
     return cp.asarray(x[m], dtype=dtype)
 
 
@@ -25,6 +26,7 @@ def _split_host(
     x: npt.ArrayLike,
     dtype: npt.DTypeLike,
 ) -> npt.ArrayLike:
+    """Return x[m] as a NumPy array."""
     return np.asarray(x[m], dtype=dtype)
 
 
@@ -33,6 +35,7 @@ def _split_pinned(
     x: npt.ArrayLike,
     dtype: npt.DTypeLike,
 ) -> npt.ArrayLike:
+    """Return x[m] as a CuPy pinned host memory array."""
     pinned = cupyx.empty_pinned(shape=(len(m), *x.shape[1:]), dtype=dtype)
     pinned[...] = x[m]
     return pinned
@@ -171,22 +174,24 @@ def by_scan_stripes(
 
 
 def by_scan_stripes_contiguous(
-    *args,
     pool: tike.communicators.ThreadPool,
     shape: typing.Tuple[int],
-    dtype: typing.List[npt.DTypeLike],
-    destination: typing.List[str],
     scan: npt.NDArray[np.float32],
-    fly: int = 1,
-    batch_method,
+    batch_method: typing.Literal[
+        "compact", "wobbly_center", "wobbly_center_random_bootstrap"
+    ],
     num_batch: int,
-) -> typing.Tuple[typing.List[npt.NDArray],
-                  typing.List[typing.List[npt.NDArray]]]:
-    """Split data by into stripes and create contiguously ordered batches.
+) -> typing.Tuple[
+    typing.List[npt.NDArray],
+    typing.List[typing.List[npt.NDArray]],
+    typing.List[int],
+]:
+    """Return the indices that will split `scan` into 2D stripes of equal count
+    and create contiguously ordered batches within those stripes.
 
-    Divide the field of view into one stripe per devices; within each stripe,
-    create batches according to the batch_method loading the batches into
-    contiguous blocks in device memory.
+    Divide the field of view into one stripe per worker in `pool`; within each
+    stripe, create batches according to the batch_method loading the batches
+    into contiguous blocks in device memory.
 
     Parameters
     ----------
@@ -206,14 +211,14 @@ def by_scan_stripes_contiguous(
     Returns
     -------
     order : List[array[int]]
-        The locations of the inputs in the original arrays.
+        For each worker in pool, the indices of the data
     batches : List[List[array[int]]]
-        The locations of the elements of each batch
-    scan : List[array[float32]]
-        The divided 2D coordinates of the scan positions.
-    args : List[array[float32]] or None
-        Each input divided into regions or None if arg was None.
-
+        For each worker in pool, for each batch, the indices of the elements of
+        each batch
+    stripe_start : List[int]
+        The coorinates of the leading edge of each stripe along the 0th
+        dimension in the scan coordinates. e.g the minimum coordinate of the
+        scan positions in each stripe.
     """
     if len(shape) != 2:
         raise ValueError('The grid shape must have two dimensions.')
@@ -229,6 +234,7 @@ def by_scan_stripes_contiguous(
         x=scan,
         dtype=scan.dtype,
     )
+    stripe_start = [int(np.floor(np.min(x[:, 0]))) for x in split_scan]
     batches_noncontiguous: typing.List[typing.List[npt.NDArray]] = pool.map(
         getattr(tike.cluster, batch_method),
         split_scan,
@@ -247,26 +253,13 @@ def by_scan_stripes_contiguous(
                 batch_breaks,
             ))
 
-    split_args = []
-    for arg, t, dest in zip([scan, *args], dtype, destination):
-        if arg is None:
-            split_args.append(None)
-        else:
-            split_args.append(
-                pool.map(
-                    _split_gpu if dest == 'gpu' else _split_pinned,
-                    map_to_gpu_contiguous,
-                    x=arg,
-                    dtype=t,
-                ))
-
     if __debug__:
         for device in batches_contiguous:
             assert len(device) == num_batch, (
                 f"There should be {num_batch} batches, found {len(device)}"
             )
 
-    return (map_to_gpu_contiguous, batches_contiguous, *split_args)
+    return (map_to_gpu_contiguous, batches_contiguous, stripe_start)
 
 
 def stripes_equal_count(
@@ -306,7 +299,10 @@ def stripes_equal_count(
     )
 
 
-def wobbly_center(population, num_cluster):
+def wobbly_center(
+    population: npt.ArrayLike,
+    num_cluster: int,
+) -> typing.List[npt.NDArray]:
     """Return the indices that divide population into heterogenous clusters.
 
     Uses a contrarian approach to clustering by maximizing the heterogeneity
@@ -382,7 +378,7 @@ def wobbly_center(population, num_cluster):
 
 
 def wobbly_center_random_bootstrap(
-    population,
+    population: npt.ArrayLike,
     num_cluster: int,
     boot_fraction: float = 0.95,
 ) -> typing.List[npt.NDArray]:
@@ -466,7 +462,11 @@ def wobbly_center_random_bootstrap(
     return [cp.asnumpy(xp.flatnonzero(labels == c)) for c in range(num_cluster)]
 
 
-def compact(population, num_cluster, max_iter=500):
+def compact(
+    population: npt.ArrayLike,
+    num_cluster: int,
+    max_iter: int = 500,
+) -> typing.List[npt.NDArray]:
     """Return the indices that divide population into compact clusters.
 
     Uses an approach that is inspired by the naive k-means algorithm, but it

@@ -90,7 +90,7 @@ class TestPtychoUtils(unittest.TestCase):
         np.testing.assert_array_equal(weights, truth)
 
     def test_check_allowed_positions(self):
-        psi = np.empty((4, 9))
+        psi = np.empty((1, 4, 9))
         probe = np.empty((8, 2, 2))
         scan = np.array([[1, 1], [1, 6.9], [1.1, 1], [1.9, 5.5]])
         tike.ptycho.check_allowed_positions(scan, psi, probe.shape)
@@ -124,7 +124,7 @@ class TestPtychoSimulate(unittest.TestCase):
         # Create a stack of phase-only images
         phase = libimage.load('satyre', width)
         amplitude = 1 - libimage.load('coins', width)
-        original = amplitude * np.exp(1j * phase * np.pi)
+        original = (amplitude * np.exp(1j * phase * np.pi))[None, ...]
         self.original = original.astype('complex64')
         leading = ()
 
@@ -374,8 +374,11 @@ class PtychoRecon(
             probe_options=ProbeOptions(
                 force_orthogonality=True,
                 use_adaptive_moment=True,
+                probe_support=0.1,
             ),
-            object_options=ObjectOptions(use_adaptive_moment=True,),
+            object_options=ObjectOptions(
+                use_adaptive_moment=True,
+            ),
         )
 
         _save_ptycho_result(
@@ -583,8 +586,13 @@ class PtychoRecon(
                 num_batch=5,
                 num_iter=16,
             ),
-            probe_options=ProbeOptions(force_orthogonality=True,),
-            object_options=ObjectOptions(smoothness_constraint=0.01,),
+            probe_options=ProbeOptions(
+                force_orthogonality=True,
+                probe_support=0.1,
+            ),
+            object_options=ObjectOptions(
+                smoothness_constraint=0.01,
+            ),
         )
 
         _save_ptycho_result(
@@ -691,49 +699,6 @@ class PtychoRecon(
         assert np.all(result.eigen_weights[..., 1:, probes_with_modes:] == 0), (
             "These weights should be unused/untouched "
             "and should have been initialized to zero.")
-
-    def test_consistent_dm(self):
-        """Check ptycho.solver.dm for consistency."""
-        params = tike.ptycho.PtychoParameters(
-            psi=self.psi,
-            probe=self.probe,
-            scan=self.scan,
-            algorithm_options=tike.ptycho.DmOptions(
-                num_iter=16,
-                num_batch=5,
-            ),
-            probe_options=ProbeOptions(force_orthogonality=True,),
-            object_options=ObjectOptions(),
-        )
-
-        _save_ptycho_result(
-            self.template_consistent_algorithm(
-                data=self.data,
-                params=params,
-            ),
-            f"mpi{self.mpi_size}-dm{self.post_name}",
-        )
-
-    def test_consistent_dm_no_probe(self):
-        """Check ptycho.solver.dm for consistency."""
-        params = tike.ptycho.PtychoParameters(
-            psi=self.psi,
-            probe=self.probe,
-            scan=self.scan,
-            algorithm_options=tike.ptycho.DmOptions(
-                num_iter=16,
-                num_batch=5,
-            ),
-            object_options=ObjectOptions(),
-        )
-
-        _save_ptycho_result(
-            self.template_consistent_algorithm(
-                data=self.data,
-                params=params,
-            ),
-            f"mpi{self.mpi_size}-dm-no-probe{self.post_name}",
-        )
 
 
 class TestPtychoRecon(

@@ -4,23 +4,25 @@ From: registry.fedoraproject.org/fedora-minimal:40-{{ target_arch }}
 %arguments
 target_arch=x86_64
 cuda_version=12.0
-tike_version=main
+pkg_version=main
 
 %post
 curl -L -o conda-installer.sh https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-{{ target_arch }}.sh
 bash conda-installer.sh -b -p "/opt/miniconda"
 rm conda-installer.sh
 /opt/miniconda/bin/conda install unzip --yes
-curl -L -o tike-source.zip https://github.com/AdvancedPhotonSource/tike/archive/{{ tike_version }}.zip
-/opt/miniconda/bin/unzip tike-source.zip
-rm tike-source.zip
+curl -L -o source.zip https://github.com/AdvancedPhotonSource/tike/archive/{{ pkg_version }}.zip
+/opt/miniconda/bin/unzip source.zip
+rm source.zip
 cd tike*
-CONDA_OVERRIDE_CUDA={{ cuda_version }} /opt/miniconda/bin/conda install cuda-version={{ cuda_version }} --file requirements.txt -c conda-forge --yes
+CONDA_OVERRIDE_CUDA={{ cuda_version }} /opt/miniconda/bin/conda install cuda-version={{ cuda_version }} --file requirements.txt --file requirements-container.txt -c conda-forge --yes
 /opt/miniconda/bin/conda clean --all --yes
 /opt/miniconda/bin/pip install . --no-deps --no-build-isolation
 /opt/miniconda/bin/pip check
 cd ..
 rm tike* -rf
+cd /opt/miniconda
+rm -r man cmake lib/cmake lib/pkgconfig include share var
 
 %runscript
 /opt/miniconda/bin/python "$@"
