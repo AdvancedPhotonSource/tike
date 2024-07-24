@@ -28,6 +28,7 @@ def rpie(
     data: npt.NDArray,
     batches: typing.List[npt.NDArray[cp.intc]],
     streams: typing.List[cp.cuda.Stream],
+    worker_index: int,
     *,
     op: tike.operators.Ptycho,
     epoch: int,
@@ -181,7 +182,7 @@ def rpie(
             probe_options,
             recover_probe,
             algorithm_options,
-            errors=[float(np.mean(x)) for x in algorithm_options.costs[-3:]],
+            errors=[float(x[worker_index]) for x in algorithm_options.costs[-3:]],
         )
 
     if eigen_weights is not None:

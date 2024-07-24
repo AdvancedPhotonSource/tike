@@ -461,6 +461,7 @@ class Reconstruction():
                 self.data,
                 self.batches,
                 self.comm.pool.streams,
+                range(self.comm.pool.num_workers),
                 op=self.operator,
                 epoch=len(self.parameters[0].algorithm_options.times),
             )
@@ -518,11 +519,10 @@ class Reconstruction():
                 self.parameters,
             )
 
-            # FIXME: We don't want to reduce the cost until the end because it
-            # will mess with the convergence detection of momentum
-            # acceleration. For example one device could have a cost higher
-            # than the average but it's still decreasing. If we compare this
-            # cost with the average cost, then it will appear to be increasing.
+            # NOTE: We want to retain a unique cost for each worker because the
+            # convergence properties of each worker's region may be different.
+            # Checked momentum acceleration must use the local cost to compute
+            # convergence properties.
             reduced_cost = list(
                 itertools.chain(
                     *(e.algorithm_options.costs[-1] for e in self.parameters)
