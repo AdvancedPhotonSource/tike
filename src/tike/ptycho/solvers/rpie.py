@@ -330,7 +330,7 @@ def _get_nearplane_gradients(
     position_options: typing.Union[None, PositionOptions],
     exitwave_options: ExitWaveOptions,
 ) -> typing.Tuple[
-    float, npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray | None
+    float, npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray, typing.Union[npt.NDArray, None]
 ]:
     cost: float = 0.0
     count: float = 1.0 / len(batches[n])
