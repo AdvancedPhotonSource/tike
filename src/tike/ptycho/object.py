@@ -258,6 +258,7 @@ def get_padded_object(scan, probe, extra: int = 0):
     return np.full_like(
         probe,
         shape=span.astype(tike.precision.integer),
+        dtype=tike.precision.cfloating,
         fill_value=tike.precision.cfloating(0.5 + 0j),
     ), scan + 1 - min_corner + extra
 
