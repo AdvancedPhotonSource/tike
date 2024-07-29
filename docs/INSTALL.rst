@@ -3,8 +3,8 @@ Installation Instructions
 #########################
 
 Tike is build on the `CuPy <https://github.com/cupy/cupy/>`_ framework which uses
-NVidia CUDA to accelerate computation. Thus, a CUDA compatible GPU on Windows_x64 or
-Linux_x64 is required. Other platforms are not supported at this time.
+NVidia CUDA to accelerate computation. Thus, a CUDA compatible GPU on Windows_x64,
+Linux_aarch64, or Linux_x64 is required. Other platforms are not supported at this time.
 
 ******************************************************
 From the conda-forge channel using Conda (recommended)
@@ -13,6 +13,17 @@ From the conda-forge channel using Conda (recommended)
 Tike is available via conda from the conda-forge channel. This distribution is
 updated whenever there is a tagged release. This project is still below
 version 1.0, so expect API breaking changes at every MINOR version.
+
+**********************************
+From the Github Container Registry
+**********************************
+
+Tike is available as a preinstalled python module in an OCI container available
+from the GitHub Container Registry.
+
+.. code-block:: bash
+
+  apptainer pull oras://ghcr.io/advancedphotonsource/tike:main-x86_64-cuda12.0
 
 *************************************
 From the source code (for developers)
