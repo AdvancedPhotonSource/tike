@@ -330,7 +330,7 @@ def _get_nearplane_gradients(
     position_options: typing.Union[None, PositionOptions],
     exitwave_options: ExitWaveOptions,
 ) -> typing.Tuple[
-    float, npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray | None
+    float, npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray, typing.Union[npt.NDArray, None]
 ]:
     cost: float = 0.0
     count: float = 1.0 / len(batches[n])
@@ -382,7 +382,8 @@ def _get_nearplane_gradients(
 
             step_length = cp.full(
                 shape=(farplane.shape[0], 1, farplane.shape[2], 1, 1),
-                fill_value=exitwave_options.step_length_start,
+                fill_value=tike.precision.floating(exitwave_options.step_length_start),
+                dtype=tike.precision.floating,
             )
 
             if exitwave_options.step_length_usemodes == 'dominant_mode':

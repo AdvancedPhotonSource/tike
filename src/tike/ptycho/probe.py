@@ -181,12 +181,16 @@ class ProbeOptions:
         if self.v is not None:
             options.v = cp.asarray(
                 self.v,
-                dtype=tike.precision.floating,
+                dtype=tike.precision.cfloating
+                if np.iscomplexobj(self.v)
+                else tike.precision.floating,
             )
         if self.m is not None:
             options.m = cp.asarray(
                 self.m,
-                dtype=tike.precision.floating,
+                dtype=tike.precision.cfloating
+                if np.iscomplexobj(self.m)
+                else tike.precision.floating,
             )
         if self.preconditioner is not None:
             options.preconditioner = cp.asarray(

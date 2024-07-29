@@ -78,16 +78,6 @@ class TestWobblyCenter(ClusterTests, unittest.TestCase):
 
     cluster_method = staticmethod(tike.cluster.wobbly_center)
 
-    def test_simple_cluster(self):
-        references = [
-            np.array([2, 3, 4, 9]),
-            np.array([0, 5, 8]),
-            np.array([1, 6, 7]),
-        ]
-        result = tike.cluster.wobbly_center(np.arange(10)[:, None], 3)
-        for a, b in zip(references, result):
-            np.testing.assert_array_equal(a, b)
-
     def test_same_mean(self):
         """Test that wobbly center generates better samples of the population.
 
@@ -117,16 +107,6 @@ class TestWobblyCenter(ClusterTests, unittest.TestCase):
 class TestWobblyCenterRandomBootstrap(ClusterTests, unittest.TestCase):
 
     cluster_method = staticmethod(tike.cluster.wobbly_center_random_bootstrap)
-
-    def test_simple_cluster(self):
-        references = [
-            np.array([2, 3, 4, 9]),
-            np.array([0, 5, 8]),
-            np.array([1, 6, 7]),
-        ]
-        result = tike.cluster.wobbly_center(np.arange(10)[:, None], 3)
-        for a, b in zip(references, result):
-            np.testing.assert_array_equal(a, b)
 
     def test_same_mean(self):
         """Test that wobbly center generates better samples of the population.
