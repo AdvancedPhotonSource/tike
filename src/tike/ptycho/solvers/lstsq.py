@@ -504,7 +504,8 @@ def _get_nearplane_gradients(
 
             step_length = cp.full(
                 shape=(farplane.shape[0], 1, farplane.shape[2], 1, 1),
-                fill_value=exitwave_options.step_length_start,
+                fill_value=tike.precision.floating(exitwave_options.step_length_start),
+                dtype=tike.precision.floating,
             )
 
             if exitwave_options.step_length_usemodes == 'dominant_mode':
@@ -711,35 +712,6 @@ def _precondition_nearplane_gradients(
         A1 = cp.sum((dOP * dOP.conj()).real + eps, axis=(-2, -1))
 
     if recover_probe:
-        b0 = tike.ptycho.probe.finite_probe_support(
-            unique_probe[..., m : m + 1, :, :],
-            p=probe_options.probe_support,
-            radius=probe_options.probe_support_radius,
-            degree=probe_options.probe_support_degree,
-        )
-
-        b1 = (
-            probe_options.additional_probe_penalty
-            * cp.linspace(
-                0,
-                1,
-                probe[0].shape[-3],
-                dtype=tike.precision.floating,
-            )[..., m : m + 1, None, None]
-        )
-
-        m_probe_update = m_probe_update - (b0 + b1) * probe[..., m : m + 1, :, :]
-        # / (
-        #     (1 - alpha) * probe_update_denominator
-        #     + alpha
-        #     * probe_update_denominator.max(
-        #         axis=(-2, -1),
-        #         keepdims=True,
-        #     )
-        #     + b0
-        #     + b1
-        # )
-
         dPO = m_probe_update[..., m:m + 1, :, :] * patches
         A4 = cp.sum((dPO * dPO.conj()).real + eps, axis=(-2, -1))
 

@@ -6,6 +6,7 @@ import numpy as np
 import os.path
 import unittest
 
+import tike.precision
 from tike.ptycho.exitwave import ExitWaveOptions
 from tike.ptycho.object import ObjectOptions
 from tike.ptycho.position import PositionOptions
@@ -338,7 +339,7 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
         measured_pixels = np.logical_not(unmeasured_pixels)
 
         # Zero out these regions on the diffraction measurement data
-        self.data = self.data.astype(np.floating)
+        self.data = self.data.astype(tike.precision.floating)
         self.data[:, unmeasured_pixels] = np.nan
 
         params = tike.ptycho.PtychoParameters(
@@ -380,7 +381,7 @@ class PtychoPosition(ReconstructTwice, CNMPositionSetup):
         measured_pixels = np.logical_not(unmeasured_pixels)
 
         # Zero out these regions on the diffraction measurement data
-        self.data = self.data.astype(np.floating)
+        self.data = self.data.astype(tike.precision.floating)
         self.data[:, unmeasured_pixels] = np.nan
 
         params = tike.ptycho.PtychoParameters(

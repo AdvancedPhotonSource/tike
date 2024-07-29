@@ -265,17 +265,7 @@ def _update(
             psi = psi + dpsi / deno
 
     if recover_probe:
-        b0 = tike.ptycho.probe.finite_probe_support(
-            probe,
-            p=probe_options.probe_support,
-            radius=probe_options.probe_support_radius,
-            degree=probe_options.probe_support_degree,
-        )
-        b1 = (
-            probe_options.additional_probe_penalty
-            * cp.linspace(0, 1, probe.shape[-3], dtype="float32")[..., None, None]
-        )
-        dprobe = probe_update_numerator - (b1 + b0) * probe
+        dprobe = probe_update_numerator
         deno = (
             (1 - algorithm_options.alpha) * probe_options.preconditioner
             + algorithm_options.alpha
@@ -283,8 +273,6 @@ def _update(
                 axis=(-2, -1),
                 keepdims=True,
             )
-            + b0
-            + b1
         )
         probe = probe + dprobe / deno
         if probe_options.use_adaptive_moment:
@@ -343,7 +331,7 @@ def _get_nearplane_gradients(
     position_options: typing.Union[None, PositionOptions],
     exitwave_options: ExitWaveOptions,
 ) -> typing.Tuple[
-    float, npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray | None
+    float, npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray, typing.Union[npt.NDArray, None]
 ]:
     batch_start = batches[n][0]
     batch_size = len(batches[n])
@@ -398,7 +386,8 @@ def _get_nearplane_gradients(
 
             step_length = cp.full(
                 shape=(farplane.shape[0], 1, farplane.shape[2], 1, 1),
-                fill_value=exitwave_options.step_length_start,
+                fill_value=tike.precision.floating(exitwave_options.step_length_start),
+                dtype=tike.precision.floating,
             )
 
             if exitwave_options.step_length_usemodes == 'dominant_mode':

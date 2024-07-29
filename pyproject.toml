@@ -30,7 +30,7 @@ dependencies = [
   "cupy >=10.0, !=10.3.0, !=13.0.*",
   'importlib_resources; python_version<"3.9"',
   "matplotlib ==3.*",
-  "numpy ~=1.17",
+  "numpy >=1.17",
   "opencv-python >=3.4, <5.0",
   "scipy >=1.6.0",
 ]
