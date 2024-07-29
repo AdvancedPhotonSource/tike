@@ -89,12 +89,16 @@ class ObjectOptions:
         if self.v is not None:
             options.v = cp.asarray(
                 self.v,
-                dtype=tike.precision.floating,
+                dtype=tike.precision.cfloating
+                if np.iscomplexobj(self.v)
+                else tike.precision.floating,
             )
         if self.m is not None:
             options.m = cp.asarray(
                 self.m,
-                dtype=tike.precision.floating,
+                dtype=tike.precision.cfloating
+                if np.iscomplexobj(self.m)
+                else tike.precision.floating,
             )
         if self.preconditioner is not None:
             options.preconditioner = cp.asarray(
@@ -254,6 +258,7 @@ def get_padded_object(scan, probe, extra: int = 0):
     return np.full_like(
         probe,
         shape=span.astype(tike.precision.integer),
+        dtype=tike.precision.cfloating,
         fill_value=tike.precision.cfloating(0.5 + 0j),
     ), scan + 1 - min_corner + extra
 

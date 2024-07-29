@@ -181,12 +181,16 @@ class ProbeOptions:
         if self.v is not None:
             options.v = cp.asarray(
                 self.v,
-                dtype=tike.precision.floating,
+                dtype=tike.precision.cfloating
+                if np.iscomplexobj(self.v)
+                else tike.precision.floating,
             )
         if self.m is not None:
             options.m = cp.asarray(
                 self.m,
-                dtype=tike.precision.floating,
+                dtype=tike.precision.cfloating
+                if np.iscomplexobj(self.m)
+                else tike.precision.floating,
             )
         if self.preconditioner is not None:
             options.preconditioner = cp.asarray(
@@ -809,18 +813,29 @@ def constrain_center_peak(probe):
     stack = probe.reshape((-1, *probe.shape[-2:]))
     intensity = cupyx.scipy.ndimage.gaussian_filter(
         input=np.sum(np.square(np.abs(stack)), axis=0),
-        sigma=half,
-        mode='wrap',
+        sigma=(half[0] / 3, half[1] / 3),
+        mode="constant",
+        cval=0.0,
+        truncate=6.0,
     )
     # Find the maximum intensity in 2D.
-    center = np.argmax(intensity)
-    # Find the 2D coordinates of the maximum.
-    coords = cp.unravel_index(center, dims=probe.shape[-2:])
-    # Shift each of the probes so the max is in the center.
-    p = np.roll(stack, half[0] - coords[0], axis=-2)
-    stack = np.roll(p, half[1] - coords[1], axis=-1)
+    coords = cp.round(cupyx.scipy.ndimage.center_of_mass(intensity))
+    # Shift each of the probes so the max is in the center. Take integer steps
+    # only one pixel at a time.
+    shifted = cupyx.scipy.ndimage.shift(
+        stack,
+        shift=(
+            0,
+            min(1, max(-1, half[0] - coords[0])),
+            min(1, max(-1, half[1] - coords[1])),
+        ),
+        mode="constant",
+        cval=0.0,
+        order=0,
+    )
+    assert shifted.dtype == stack.dtype, (shifted.dtype, stack.dtype)
     # Reform to the original shape; make contiguous.
-    probe = stack.reshape(probe.shape)
+    probe = shifted.reshape(probe.shape)
     return probe
 
 

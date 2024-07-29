@@ -177,6 +177,20 @@ def test_hermite_modes():
         np.rollaxis(inputs['result'], -1, 0)[None, ...],
     )
 
+def test_center_peak():
+
+    x = cp.ones((1, 1, 1, 7, 7), dtype=cp.complex64)
+
+    x[0,0,0, 3, 6] = 10 + 23j
+
+    print()
+    print(x.squeeze())
+
+    y = tike.ptycho.probe.constrain_center_peak(x)
+
+    print()
+    print(np.round(y.squeeze(), 1))
+
 
 if __name__ == '__main__':
     unittest.main()

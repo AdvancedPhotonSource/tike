@@ -119,7 +119,6 @@ from __future__ import annotations
 import dataclasses
 import logging
 import typing
-import copy
 
 import cupy as cp
 import cupyx.scipy.ndimage
@@ -458,9 +457,9 @@ class PositionOptions:
 
     @staticmethod
     def join(
-        x: typing.Iterable[PositionOptions | None],
+        x: typing.Iterable[typing.Union[PositionOptions, None]],
         reorder: npt.NDArray[np.intc],
-    ) -> PositionOptions | None:
+    ) -> typing.Union[PositionOptions, None]:
         if None in x:
             return None
         new = PositionOptions(
