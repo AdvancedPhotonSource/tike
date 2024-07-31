@@ -21,8 +21,11 @@ class Multislice(Operator):
         self,
         detector_shape: int,
         probe_shape: int,
+        probe_wavelength: float,
+        probe_FOV_lengths: typing.Tuple[float, float],
         nz: int,
         n: int,
+        multislice_propagation_distance: float,
         propagation: typing.Type[Propagation] = FresnelSpectProp,
         diffraction: typing.Type[Convolution] = Convolution,
         norm: str = "ortho",
@@ -37,7 +40,11 @@ class Multislice(Operator):
             **kwargs,
         )
         self.propagation = propagation(
-            detector_shape=detector_shape,
+            norm = norm,
+            probe_shape=probe_shape,
+            wavelength=probe_wavelength,
+            probe_FOV=probe_FOV_lengths,
+            distance=multislice_propagation_distance,
             **kwargs,
         )
 
@@ -46,7 +53,10 @@ class Multislice(Operator):
         self.detector_shape = detector_shape
         self.nz = nz
         self.n = n
-
+        self.probe_wavelength = probe_wavelength
+        self.probe_FOV_lengths = probe_FOV_lengths
+        self.multislice_propagation_distance = multislice_propagation_distance
+        
     def __enter__(self):
         self.propagation.__enter__()
         self.diffraction.__enter__()

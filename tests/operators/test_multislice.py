@@ -39,9 +39,12 @@ class TestMultiSlice(unittest.TestCase):
         self.operator = Multislice(
             nscan=self.scan_shape[-2],
             probe_shape=self.probe_shape[-1],
+            probe_wavelength = 1e-10,
+            probe_FOV_lengths = (1e-5, 1e-5),
             detector_shape=self.detector_shape[-1],
             nz=self.original_shape[-2],
             n=self.original_shape[-1],
+            multislice_propagation_distance = 1e-8,
         )
         self.operator.__enter__()
         self.xp = self.operator.xp

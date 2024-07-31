@@ -73,7 +73,13 @@ class ObjectOptions:
 
     clip_magnitude: bool = False
     """Whether to force the object magnitude to remain <= 1."""
-
+    
+    multislice_propagation_distance: float = 1.0e-9      
+    """ If we're doing multislice ptychography, then this will be 
+    the slice to slice distance along the probing wavefield propagation
+    direction. Units are meters.
+    """
+    
     def copy_to_device(self) -> ObjectOptions:
         """Copy to the current GPU memory."""
         options = ObjectOptions(
@@ -84,6 +90,7 @@ class ObjectOptions:
             vdecay=self.vdecay,
             mdecay=self.mdecay,
             clip_magnitude=self.clip_magnitude,
+            multislice_propagation_distance=self.multislice_propagation_distance,
         )
         options.update_mnorm = copy.copy(self.update_mnorm)
         if self.v is not None:
@@ -117,6 +124,7 @@ class ObjectOptions:
             vdecay=self.vdecay,
             mdecay=self.mdecay,
             clip_magnitude=self.clip_magnitude,
+            multislice_propagation_distance=self.multislice_propagation_distance,
         )
         options.update_mnorm = copy.copy(self.update_mnorm)
         if self.v is not None:
@@ -137,6 +145,7 @@ class ObjectOptions:
             vdecay=self.vdecay,
             mdecay=self.mdecay,
             clip_magnitude=self.clip_magnitude,
+            multislice_propagation_distance=self.multislice_propagation_distance,
         )
         options.update_mnorm = copy.copy(self.update_mnorm)
         return options
@@ -172,6 +181,7 @@ class ObjectOptions:
             vdecay=x[0].vdecay,
             mdecay=x[0].mdecay,
             clip_magnitude=x[0].clip_magnitude,
+            multislice_propagation_distance=x[0].multislice_propagation_distance,
         )
         options.update_mnorm = copy.copy(x[0].update_mnorm)
         if x[0].v is not None:
