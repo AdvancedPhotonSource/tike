@@ -27,6 +27,7 @@ def lstsq_grad(
     data: npt.NDArray,
     batches: typing.List[npt.NDArray[cp.intc]],
     streams: typing.List[cp.cuda.Stream],
+    worker_index: int,
     *,
     op: tike.operators.Ptycho,
     epoch: int,
@@ -218,7 +219,7 @@ def lstsq_grad(
             epoch=epoch,
         )
 
-    algorithm_options.costs.append(batch_cost.tolist())
+    algorithm_options.costs.append([float(batch_cost.mean().get())])
 
     if object_options and algorithm_options.batch_method == 'compact':
         object_update_precond = _precondition_object_update(
@@ -241,7 +242,7 @@ def lstsq_grad(
                 v=object_options.v,
                 m=object_options.m,
                 mdecay=object_options.mdecay,
-                errors=list(float(np.mean(x)) for x in algorithm_options.costs[-3:]),
+                errors=list(float(x[worker_index]) for x in algorithm_options.costs[-3:]),
                 beta=beta_object,
                 memory_length=3,
             )
@@ -271,7 +272,7 @@ def lstsq_grad(
                 v=probe_options.v[..., mode, :, :],
                 m=probe_options.m[..., mode, :, :],
                 mdecay=probe_options.mdecay,
-                errors=list(float(np.mean(x)) for x in algorithm_options.costs[-3:]),
+                errors=list(float(x[worker_index]) for x in algorithm_options.costs[-3:]),
                 beta=beta_probe,
                 memory_length=3,
             )

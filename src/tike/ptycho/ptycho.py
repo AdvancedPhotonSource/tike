@@ -57,6 +57,7 @@ __all__ = [
 ]
 
 import copy
+import itertools
 import logging
 import time
 import typing
@@ -461,6 +462,7 @@ class Reconstruction():
                 self.data,
                 self.batches,
                 self.comm.pool.streams,
+                range(self.comm.pool.num_workers),
                 op=self.operator,
                 epoch=len(self.parameters[0].algorithm_options.times),
             )
@@ -518,11 +520,17 @@ class Reconstruction():
                 self.parameters,
             )
 
-            reduced_cost = np.mean(
-                [e.algorithm_options.costs[-1] for e in self.parameters],
+            # NOTE: We want to retain a unique cost for each worker because the
+            # convergence properties of each worker's region may be different.
+            # Checked momentum acceleration must use the local cost to compute
+            # convergence properties.
+            reduced_cost = list(
+                itertools.chain(
+                    *(e.algorithm_options.costs[-1] for e in self.parameters)
+                )
             )
             for i in range(len(self.parameters)):
-                self.parameters[i].algorithm_options.costs[-1] = [reduced_cost]
+                self.parameters[i].algorithm_options.costs[-1] = reduced_cost
 
             self.parameters[0].algorithm_options.times.append(
                 time.perf_counter() - start
