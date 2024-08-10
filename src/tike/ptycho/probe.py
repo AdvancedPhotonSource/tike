@@ -72,6 +72,17 @@ class ProbeOptions:
     it will default to the average of the measurement intensity scaling.
     """
 
+    probe_wavelength: float = np.nan
+    """ The wavelength (meters) of the probing wavefield; 
+    we assume a monochomatic (single wavelength) probe.
+    """
+
+    probe_FOV_lengths: typing.Tuple[float, float] = ( np.nan, np.nan )
+    """ The transverse field of view (FOV) for the probe in
+    units of length (meters). The first element is vertical FOV, 
+    the second element is horizontal FOV.
+    """
+
     force_orthogonality: bool = False
     """Forces probes to be orthogonal each iteration."""
 
@@ -164,6 +175,8 @@ class ProbeOptions:
             update_period=self.update_period,
             init_rescale_from_measurements=self.init_rescale_from_measurements,
             probe_photons=self.probe_photons,
+            probe_wavelength=self.probe_wavelength,
+            probe_FOV_lengths=self.probe_FOV_lengths,
             force_orthogonality=self.force_orthogonality,
             force_centered_intensity=self.force_centered_intensity,
             force_sparsity=self.force_sparsity,
@@ -206,6 +219,8 @@ class ProbeOptions:
             update_period=self.update_period,
             init_rescale_from_measurements=self.init_rescale_from_measurements,
             probe_photons=self.probe_photons,
+            probe_wavelength=self.probe_wavelength,
+            probe_FOV_lengths=self.probe_FOV_lengths,
             force_orthogonality=self.force_orthogonality,
             force_centered_intensity=self.force_centered_intensity,
             force_sparsity=self.force_sparsity,
@@ -235,6 +250,8 @@ class ProbeOptions:
             update_period=self.update_period,
             init_rescale_from_measurements=self.init_rescale_from_measurements,
             probe_photons=self.probe_photons,
+            probe_wavelength=self.probe_wavelength,
+            probe_FOV_lengths=self.probe_FOV_lengths,
             force_orthogonality=self.force_orthogonality,
             force_centered_intensity=self.force_centered_intensity,
             force_sparsity=self.force_sparsity,

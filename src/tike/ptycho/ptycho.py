@@ -350,6 +350,9 @@ class Reconstruction():
             nz=parameters.psi.shape[-2],
             n=parameters.psi.shape[-1],
             norm=parameters.exitwave_options.propagation_normalization,
+            probe_wavelength=parameters.probe_options.probe_wavelength,
+            probe_FOV_lengths=parameters.probe_options.probe_FOV_lengths,
+            multislice_propagation_distance=parameters.object_options.multislice_propagation_distance,
         )
         self.comm = tike.communicators.Comm(num_gpu, mpi)
 
