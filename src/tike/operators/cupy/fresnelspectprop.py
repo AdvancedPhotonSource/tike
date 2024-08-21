@@ -123,8 +123,8 @@ class FresnelSpectProp(CachedFFT, Operator):
         xgrid = ( 0.5 + self.xp.linspace( ( -0.5 * N[1] ), ( 0.5 * N[1] - 1 ), num = N[1] )) / N[1]
         ygrid = ( 0.5 + self.xp.linspace( ( -0.5 * N[0] ), ( 0.5 * N[0] - 1 ), num = N[0] )) / N[0]
 
-        kx = 2 * self.xp.pi * N[0] * xgrid / probe_FOV[ 0 ]
-        ky = 2 * self.xp.pi * N[1] * ygrid / probe_FOV[ 1 ]
+        kx = 2 * self.xp.pi * N[1] * xgrid / probe_FOV[ 1 ]
+        ky = 2 * self.xp.pi * N[0] * ygrid / probe_FOV[ 0 ]
 
         Kx, Ky = self.xp.meshgrid(kx, ky, indexing='xy')
 

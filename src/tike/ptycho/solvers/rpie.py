@@ -108,6 +108,7 @@ def rpie(
             costs,
             psi_update_numerator,
             probe_update_numerator,
+            multislice_probe_update_numerator,
             position_update_numerator,
             position_update_denominator,
             eigen_weights,
@@ -143,8 +144,12 @@ def rpie(
             ) = _update(
                 psi,
                 probe,
+
+                op,
                 psi_update_numerator,
                 probe_update_numerator,
+                multislice_probe_update_numerator, 
+                
                 object_options,
                 probe_options,
                 recover_probe,
@@ -176,8 +181,12 @@ def rpie(
         ) = _update(
             psi,
             probe,
+
+            op,
             psi_update_numerator,
             probe_update_numerator,
+            multislice_probe_update_numerator, 
+
             object_options,
             probe_options,
             recover_probe,
@@ -217,25 +226,61 @@ def _normalize_eigen_weights(eigen_weights):
 def _update(
     psi: npt.NDArray[cp.csingle],
     probe: npt.NDArray[cp.csingle],
-    psi_update_numerator: npt.NDArray[cp.csingle],
+
+    op: tike.operators.Ptycho,  
+    psi_update_numerator: npt.NDArray[cp.csingle],          
     probe_update_numerator: npt.NDArray[cp.csingle],
+    multislice_probe_update_numerator: npt.NDArray[cp.csingle],
+
     object_options: ObjectOptions,
     probe_options: ProbeOptions,
     recover_probe: bool,
     algorithm_options: RpieOptions,
     errors: typing.Union[None, npt.NDArray] = None,
 ) -> typing.Tuple[npt.NDArray[cp.csingle], npt.NDArray[cp.csingle]]:
+    
     if object_options:
+
         dpsi = psi_update_numerator
+
         deno = (
-            (1 - algorithm_options.alpha) * object_options.preconditioner
-            + algorithm_options.alpha
-            * object_options.preconditioner.max(
-                axis=(-2, -1),
-                keepdims=True,
-            )
+            ( 1 - algorithm_options.alpha) * object_options.preconditioner 
+            + algorithm_options.alpha * object_options.preconditioner.max( axis=(-2, -1), keepdims=True, )
         )
+
         psi = psi + dpsi / deno
+
+        ''' 
+        import matplotlib.pyplot as plt
+        #import numpy as np
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+        import matplotlib as mpl
+        # mpl.use('Agg')
+        mpl.use('TKAgg')
+
+        # A = np.abs( psi[ 0, ... ] )
+        A = np.angle( psi[ 0, ... ] )
+        fig, ax1 = plt.subplots( nrows = 1, ncols = 1, )
+        pos1 = ax1.imshow( A.get(), cmap = 'gray', ) 
+        plt.colorbar(pos1)
+        plt.show( block = False )
+    
+        # B = np.abs( psi[ 1, ... ] )
+        B = np.angle( psi[ 1, ... ] )
+        fig, ax2 = plt.subplots( nrows = 1, ncols = 1, )
+        pos2 = ax2.imshow( B.get(), cmap = 'gray', ) 
+        plt.colorbar(pos2)
+        plt.show( block = False )
+
+        # C = np.abs( psi[ 2, ... ] )
+        C = np.angle( psi[ 2, ... ] )
+        fig, ax3 = plt.subplots( nrows = 1, ncols = 1, )
+        pos3 = ax3.imshow( C.get(), cmap = 'gray', ) 
+        plt.colorbar(pos3)
+        plt.show( block = False )
+        '''
+
+
         if object_options.use_adaptive_moment:
             if errors:
                 (
@@ -262,19 +307,68 @@ def _update(
                     vdecay=object_options.vdecay,
                     mdecay=object_options.mdecay,
                 )
+
             psi = psi + dpsi / deno
 
     if recover_probe:
-        dprobe = probe_update_numerator
-        deno = (
-            (1 - algorithm_options.alpha) * probe_options.preconditioner
-            + algorithm_options.alpha
-            * probe_options.preconditioner.max(
-                axis=(-2, -1),
-                keepdims=True,
-            )
-        )
+
+        dprobe = multislice_probe_update_numerator[ 0, ... ]
+
+        # deno = (
+        #     ( 1 - algorithm_options.alpha) * probe_options.preconditioner[ 0, ... ]
+        #     + algorithm_options.alpha * probe_options.preconditioner[ 0, ... ].max( axis=(-2, -1), keepdims=True, )
+        # )
+
+        deno = algorithm_options.alpha * probe_options.preconditioner[ 0, ... ].max( axis=(-2, -1), keepdims=True, )
+        
         probe = probe + dprobe / deno
+
+
+
+
+        ''' 
+
+        import matplotlib.pyplot as plt
+        #import numpy as np
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+        import matplotlib as mpl
+        # mpl.use('Agg')
+        mpl.use('TKAgg')
+
+        A = np.abs( probe[ 0, 0, -5, ... ] )
+        fig, ax1 = plt.subplots( nrows = 1, ncols = 1, )
+        pos1 = ax1.imshow( A.get(), cmap = 'gray', ) 
+        plt.colorbar(pos1)
+        plt.show( block = False )
+    
+        B = np.abs( probe[ 0, 0, -4, ... ] )
+        fig, ax2 = plt.subplots( nrows = 1, ncols = 1, )
+        pos2 = ax2.imshow( B.get(), cmap = 'gray', ) 
+        plt.colorbar(pos2)
+        plt.show( block = False )
+
+        C = np.abs( probe[ 0, 0, -3, ... ] )
+        fig, ax3 = plt.subplots( nrows = 1, ncols = 1, )
+        pos3 = ax3.imshow( C.get(), cmap = 'gray', ) 
+        plt.colorbar(pos3)
+        plt.show( block = False )
+
+        D = np.abs( probe[ 0, 0, -2, ... ] )
+        fig, ax3 = plt.subplots( nrows = 1, ncols = 1, )
+        pos3 = ax3.imshow( D.get(), cmap = 'gray', ) 
+        plt.colorbar(pos3)
+        plt.show( block = False )
+
+        E = np.abs( probe[ 0, 0, -1, ... ] )
+        fig, ax3 = plt.subplots( nrows = 1, ncols = 1, )
+        pos3 = ax3.imshow( D.get(), cmap = 'gray', ) 
+        plt.colorbar(pos3)
+        plt.show( block = False )
+
+        '''
+
+
+
         if probe_options.use_adaptive_moment:
             # ptychoshelves only applies momentum to the main probe
             mode = 0
@@ -334,18 +428,20 @@ def _get_nearplane_gradients(
     float, npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray, typing.Union[npt.NDArray, None]
 ]:
     batch_start = batches[n][0]
+
     batch_size = len(batches[n])
+
     bcosts = cp.empty(shape=batch_size, dtype=tike.precision.floating)
-    psi_update_numerator = cp.zeros_like(
-        psi) if psi_update_numerator is None else psi_update_numerator
-    probe_update_numerator = cp.zeros_like(
-        probe) if probe_update_numerator is None else probe_update_numerator
-    position_update_numerator = cp.empty_like(
-        scan
-    ) if position_update_numerator is None else position_update_numerator
-    position_update_denominator = cp.empty_like(
-        scan
-    ) if position_update_denominator is None else position_update_denominator
+
+    psi_update_numerator = cp.zeros_like( psi ) if psi_update_numerator is None else psi_update_numerator
+    
+    probe_update_numerator = cp.zeros_like( probe ) if probe_update_numerator is None else probe_update_numerator
+    
+    multislice_probe_update_numerator = cp.zeros( ( psi.shape[0], *probe.shape ), dtype = probe.dtype )
+
+    position_update_numerator = cp.empty_like( scan ) if position_update_numerator is None else position_update_numerator
+
+    position_update_denominator = cp.empty_like( scan ) if position_update_denominator is None else position_update_denominator
 
     def keep_some_args_constant(
         ind_args,
@@ -366,7 +462,10 @@ def _get_nearplane_gradients(
             eigen_weights[lo:hi] if eigen_weights is not None else None,
         )
 
-        farplane = op.fwd(probe=unique_probe, scan=scan[lo:hi], psi=psi)
+        #farplane = op.fwd(probe=unique_probe, scan=scan[lo:hi], psi=psi)
+
+        farplane, multislice_probes  = op.fwd_return_intermediate_probes(probe=unique_probe, scan=scan[lo:hi], psi=psi)
+
         intensity = cp.sum(
             cp.square(cp.abs(farplane)),
             axis=list(range(1, farplane.ndim - 2)),
@@ -433,18 +532,48 @@ def _get_nearplane_gradients(
             exitwave_options.unmeasured_pixels_scaling - 1.0)
 
         pad, end = op.diffraction.pad, op.diffraction.end
-        diff = op.propagation.adj(farplane, overwrite=True)[..., pad:end,
-                                                            pad:end]
+
+        diff = op.propagation.adj(farplane, overwrite=True)[..., pad:end, pad:end]
 
         if object_options:
-            grad_psi = (cp.conj(unique_probe) * diff / probe.shape[-3]).reshape(
-                scan[lo:hi].shape[0] * probe.shape[-3], *probe.shape[-2:])
-            psi_update_numerator[0] = op.diffraction.patch.adj(
+            for tt in cp.arange( psi.shape[0] - 1, -1, -1 ) :
+            #for tt in range(len(psi) - 1, -1, -1 ) :        
+
+        
+                #grad_psi = (cp.conj(unique_probe) * diff / probe.shape[-3]).reshape( scan[lo:hi].shape[0] * probe.shape[-3], *probe.shape[-2:])
+                grad_psi = (cp.conj(multislice_probes[ tt, :, None, ... ]) * diff / probe.shape[-3]).reshape( scan[lo:hi].shape[0] * probe.shape[-3], *probe.shape[-2:] )
+
+                # psi_update_numerator[0] = op.diffraction.patch.adj(
+                #     patches=grad_psi,
+                #     images=psi_update_numerator[0],
+                #     positions=scan[lo:hi],
+                #     nrepeat=probe.shape[-3],
+                # )
+
+                psi_update_numerator[ tt, ... ] = op.diffraction.patch.adj(
                 patches=grad_psi,
-                images=psi_update_numerator[0],
+                images=psi_update_numerator[ tt, ... ],
                 positions=scan[lo:hi],
                 nrepeat=probe.shape[-3],
-            )
+                )
+
+                patches = op.diffraction.patch.fwd(
+                        patches=cp.zeros_like(diff[..., 0, 0, :, :]),
+                        images=psi[ tt, ... ],
+                        positions=scan[lo:hi],
+                    )[..., None, None, :, :]
+
+                multislice_probe_update_numerator[ tt, ... ] += cp.sum(
+                        cp.conj(patches) * diff,
+                        axis=-5,
+                        keepdims=True,
+                    )
+
+                if tt == 0:
+                    break
+
+                diff = op.diffraction.propagation.adj( diff )      
+
 
         if position_options or probe_options:
 
@@ -455,11 +584,13 @@ def _get_nearplane_gradients(
             )[..., None, None, :, :]
 
         if recover_probe:
-            probe_update_numerator += cp.sum(
-                cp.conj(patches) * diff,
-                axis=-5,
-                keepdims=True,
-            )
+
+            # probe_update_numerator += cp.sum(
+            #     cp.conj(patches) * diff,
+            #     axis=-5,
+            #     keepdims=True,
+            # )
+
             if eigen_weights is not None:
                 m: int = 0
                 OP = patches * probe[..., m:m + 1, :, :]
@@ -531,6 +662,7 @@ def _get_nearplane_gradients(
         bcosts,
         psi_update_numerator,
         probe_update_numerator,
+        multislice_probe_update_numerator,
         position_update_numerator,
         position_update_denominator,
         eigen_weights,
