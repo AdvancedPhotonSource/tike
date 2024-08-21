@@ -336,7 +336,7 @@ class Reconstruction():
                     "automatic psi initialization is not synchronized "
                     "across processes.")
         else:
-            mpi = tike.communicators.NoMPIComm
+            mpi = tike.communicators.NoMPIComm  # isinstance(mpi, tike.communicators.NoMPIComm) # THIS ALWAYS RETURNS FALSE?
 
         self.data: typing.List[npt.ArrayLike] = [data]
         self.parameters: typing.List[solvers.PtychoParameters] = [
@@ -354,7 +354,8 @@ class Reconstruction():
             probe_FOV_lengths=parameters.probe_options.probe_FOV_lengths,
             multislice_propagation_distance=parameters.object_options.multislice_propagation_distance,
         )
-        self.comm = tike.communicators.Comm(num_gpu, mpi)
+
+        self.comm = tike.communicators.Comm(num_gpu, mpi)   
 
     def __enter__(self):
         self.device.__enter__()

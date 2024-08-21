@@ -73,8 +73,11 @@ class Multislice(Operator):
         psi: npt.NDArray[np.csingle],
         **kwargs,
     ) -> npt.NDArray[np.csingle]:
+        
         """Please see help(Multislice) for more info."""
+
         assert psi.ndim == 3
+
         exitwave = self.diffraction.fwd(
             psi=psi[0],
             scan=scan,
@@ -88,6 +91,56 @@ class Multislice(Operator):
             )
         return exitwave
 
+
+
+
+    def fwd_return_intermediate_probes(
+        self,
+        probe: npt.NDArray[np.csingle],
+        scan: npt.NDArray[np.single],
+        psi: npt.NDArray[np.csingle],
+        **kwargs,
+    ) -> npt.NDArray[np.csingle]:
+        
+        """Please see help(Multislice) for more info."""
+
+        assert psi.ndim == 3
+
+
+        # exitwave = self.diffraction.fwd(
+        #     psi=psi[0],
+        #     scan=scan,
+        #     probe=probe,
+        # )
+
+        # for s in range(1, len(psi)):
+        #     exitwave = self.diffraction.fwd(
+        #         psi=psi[s],
+        #         scan=scan,
+        #         probe=self.propagation.fwd(exitwave),
+        #     )
+
+        # return exitwave
+
+        multislice_probes =  self.xp.zeros( ( psi.shape[0], scan.shape[-2], *probe.shape[-3:] ), dtype=probe.dtype )
+        multislice_probes[ 0, ... ] = probe[..., 0, :, :, :]
+
+        for tt in range(0, len(psi)) :
+
+            multislice_exwv = self.diffraction.fwd(
+                    psi   = psi[ tt, ... ],               
+                    scan  = scan,
+                    probe = multislice_probes[ tt, ... ],
+                )
+            
+            if tt == ( psi.shape[0] - 1 ) :
+                break
+
+            multislice_probes[ tt + 1, ... ] = self.propagation.fwd( nearplane = multislice_exwv, )
+
+        return multislice_exwv, multislice_probes
+    
+    
     def adj(
         self,
         nearplane: npt.NDArray[np.csingle],

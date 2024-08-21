@@ -128,6 +128,31 @@ class Ptycho(Operator):
             overwrite=True,
         )[..., None, :, :, :]
 
+    def fwd_return_intermediate_probes(
+        self,
+        probe: npt.NDArray[np.csingle],
+        scan: npt.NDArray[np.single],
+        psi: npt.NDArray[np.csingle],
+        **kwargs,
+    ) -> npt.NDArray[np.csingle]:
+        
+        """Please see help(Ptycho) for more info."""
+
+        # return self.propagation.fwd(
+        #     self.diffraction.fwd(
+        #         psi=psi,
+        #         scan=scan,
+        #         probe=probe[..., 0, :, :, :],
+        #     ),
+        #     overwrite=True,
+        # )[..., None, :, :, :]
+
+        multislice_exwv, multislice_probes = self.diffraction.fwd_return_intermediate_probes( psi=psi, scan=scan, probe=probe, )
+
+        multislice_farfield = self.propagation.fwd( nearplane = multislice_exwv, overwrite=True, )[..., None, :, :, :]
+
+        return multislice_farfield, multislice_probes
+    
     def adj(
         self,
         farplane: npt.NDArray[np.csingle],
