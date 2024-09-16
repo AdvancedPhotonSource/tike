@@ -11,8 +11,8 @@ from .cache import *
 from .convolution import *
 from .flow import *
 from .lamino import *
-from .operator import *
 from .objective import *
+from .operator import *
 from .pad import *
 from .patch import *
 from .propagation import *
@@ -21,3 +21,4 @@ from .multislice import *
 from .ptycho import *
 from .rotate import *
 from .shift import *
+from .zernike import *
