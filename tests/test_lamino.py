@@ -339,6 +339,11 @@ def _save_lamino_result(result, algorithm):
         from matplotlib import pyplot as plt
         fname = os.path.join(testdir, 'result', 'lamino', f'{algorithm}')
         os.makedirs(fname, exist_ok=True)
+        plt.figure()
+        plt.title(algorithm)
+        plt.plot(result['cost'])
+        plt.semilogy()
+        plt.savefig(os.path.join(fname, 'convergence.svg'))
         slice_id = int(35 / 128 * result['obj'].shape[0])
         plt.imsave(
             f'{fname}/{slice_id}-phase.png',
